@@ -2,7 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+1. Apply the database schema and seed data (see **Database** below).
+2. Run the development server:
 
 ```bash
 npm run dev
@@ -28,6 +29,15 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Database
+
+- **Schema**: Run `sql/schema.sql` against your PostgreSQL database to create tables and indexes.
+- **Database seeding**: To populate `service_types` so the booking wizard (Step 2) has services available, run:
+  ```bash
+  psql -d your_database_name -f sql/seed_service_types.sql
+  ```
+  If the table is empty, the Book page will show a message asking an admin to add services or seed the database.
 
 ## Deploy on Vercel
 
