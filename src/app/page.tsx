@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 
 interface FoundingStats {
   count: number;
@@ -69,6 +70,44 @@ export default function HomePage() {
       {/* HERO */}
       <section className="relative overflow-hidden bg-[#0A2342] text-white">
         <div className="hero-water-bg" />
+        <svg
+          className="animate-float absolute right-0 top-0 opacity-20 pointer-events-none"
+          width="240"
+          height="180"
+          viewBox="0 0 240 180"
+          aria-hidden="true"
+        >
+          <circle
+            cx="210"
+            cy="50"
+            r="40"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            className="animate-float"
+            style={{ animationDelay: '0s' }}
+          />
+          <circle
+            cx="210"
+            cy="50"
+            r="25"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            className="animate-float"
+            style={{ animationDelay: '0.5s' }}
+          />
+          <circle
+            cx="210"
+            cy="50"
+            r="15"
+            fill="none"
+            stroke="white"
+            strokeWidth="3"
+            className="animate-float"
+            style={{ animationDelay: '1s' }}
+          />
+        </svg>
         <div className="hero-ripple -right-40 -top-32 hidden sm:block" />
         <div className="hero-ripple -left-40 -bottom-40 opacity-60" />
 
@@ -97,13 +136,13 @@ export default function HomePage() {
 
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link
-                  href="/book"
+                  href="/book?service=water_tanker"
                   className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#00BCD4] to-cyan-500 px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-slate-950 shadow-card hover:opacity-95 transition"
                 >
                   <span>💧 Order Water Now</span>
                 </Link>
                 <Link
-                  href="/services"
+                  href="/book?service=plumbing"
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-cyan-300/60 bg-white/5 px-6 sm:px-8 py-3 sm:py-3.5 text-sm sm:text-base font-semibold text-cyan-100 hover:bg-white/10 transition"
                 >
                   <span>🔧 Book a Plumber</span>
@@ -171,6 +210,109 @@ export default function HomePage() {
               </div>
             </motion.div>
           </div>
+
+          <div className="scroll-indicator absolute left-1/2 -translate-x-1/2 bottom-8 flex flex-col items-center gap-2 pointer-events-none">
+            <span className="text-xs sm:text-sm text-cyan-50/85 font-semibold">Scroll to explore</span>
+            <div className="bounce-arrow text-white text-lg leading-none">↓</div>
+          </div>
+        </div>
+      </section>
+
+      {/* THREE PATHS */}
+      <section className="bg-slate-50 py-14 sm:py-18 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 text-center mb-10">
+            Three paths — pick the one that fits you
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-7">
+            <div className="glass-card p-6 sm:p-7 rounded-2xl border border-slate-100 hover-lift transition-all">
+              <div className="text-3xl mb-3">💧</div>
+              <div className="font-bold text-slate-900 text-lg sm:text-xl">I Need Water & Plumber</div>
+              <p className="text-sm sm:text-base text-slate-600 mt-2">
+                Order water, book plumbers, track deliveries. Sign up in 30 seconds.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <li>✅ Instant signup</li>
+                <li>✅ No documents needed</li>
+                <li>✅ Start ordering immediately</li>
+              </ul>
+              <Link
+                href="/auth/register"
+                className="mt-6 inline-flex items-center justify-center w-full rounded-full bg-gradient-to-r from-[#0D9B6C] to-[#38BDF8] text-white px-6 py-3 text-sm sm:text-base font-semibold hover:opacity-95 transition"
+              >
+                Sign Up Free →
+              </Link>
+            </div>
+
+            <div className="glass-card p-6 sm:p-7 rounded-2xl border border-slate-100 hover-lift transition-all">
+              <div className="text-3xl mb-3">🚛</div>
+              <div className="font-bold text-slate-900 text-lg sm:text-xl">I Supply Water</div>
+              <p className="text-sm sm:text-base text-slate-600 mt-2">
+                Partner with us to deliver water. Get verified and receive orders.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <li>✅ KYC verification required</li>
+                <li>✅ Admin approval process</li>
+                <li>✅ Start earning once approved</li>
+              </ul>
+              <Link
+                href="/auth/register?role=supplier"
+                className="mt-6 inline-flex items-center justify-center w-full rounded-full border-2 border-[#0D9B6C] text-[#0D9B6C] px-6 py-3 text-sm sm:text-base font-semibold hover:bg-[#E8F8F2] transition"
+              >
+                Apply as Supplier →
+              </Link>
+            </div>
+
+            <div className="glass-card p-6 sm:p-7 rounded-2xl border border-slate-100 hover-lift transition-all">
+              <div className="text-3xl mb-3">🔧</div>
+              <div className="font-bold text-slate-900 text-lg sm:text-xl">I&apos;m a Plumber / Technician</div>
+              <p className="text-sm sm:text-base text-slate-600 mt-2">
+                Get verified, showcase your skills, and receive job requests from customers.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <li>✅ Skill verification</li>
+                <li>✅ Background check</li>
+                <li>✅ Earn on your schedule</li>
+              </ul>
+              <Link
+                href="/auth/register?role=technician"
+                className="mt-6 inline-flex items-center justify-center w-full rounded-full border-2 border-[#0D9B6C] text-[#0D9B6C] px-6 py-3 text-sm sm:text-base font-semibold hover:bg-[#E8F8F2] transition"
+              >
+                Apply as Plumber →
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 text-center text-sm text-slate-700">
+            🛡️ All accounts are phone-verified. Suppliers &amp; plumbers undergo KYC verification before activation.
+          </div>
+        </div>
+      </section>
+
+      {/* WHY AUROWATER */}
+      <section className="bg-white py-14 sm:py-18 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900 text-center mb-10">
+            Why AuroWater
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[
+              { icon: '⚡', title: 'Same-day Service', desc: 'Book by 2PM, get service today in most cities.' },
+              { icon: '💰', title: 'No Hidden Charges', desc: 'Price shown = Price paid. Always.' },
+              { icon: '✅', title: 'Verified Professionals', desc: 'Every technician background-checked and ID-verified.' },
+              { icon: '📱', title: 'Easy Tracking', desc: 'Real-time updates from booking to completion.' },
+            ].map((f) => (
+              <div key={f.title} className="rounded-2xl border border-slate-100 bg-white p-6 shadow-card hover-lift transition-all">
+                <div className="w-12 h-12 rounded-2xl bg-[#0D9B6C]/10 flex items-center justify-center text-[#0D9B6C] text-xl">
+                  {f.icon}
+                </div>
+                <div className="font-bold text-slate-900 mt-4">{f.title}</div>
+                <div className="text-sm text-slate-600 mt-2">{f.desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -183,6 +325,77 @@ export default function HomePage() {
             <span>✅ Cash + UPI</span>
             <span>✅ Hindi + English Support</span>
             <span>✅ 2hr Emergency Response</span>
+          </div>
+        </div>
+      </section>
+
+      {/* TRUST REVIEWS MARQUEE */}
+      <section className="bg-white py-12 sm:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 text-center">Trusted by customers</h2>
+          <p className="text-center text-slate-600 mt-2 text-sm sm:text-base">
+            Real experiences from people across UP.
+          </p>
+
+          <div className="mt-8 space-y-6">
+            {[
+              { dir: 'left', style: { animationDirection: 'normal' as const } },
+              { dir: 'right', style: { animationDirection: 'reverse' as const } },
+            ].map((row) => (
+              <div key={row.dir} className="overflow-hidden">
+                <div className="marquee-track flex gap-6" style={row.style}>
+                  {[...TRUST_REVIEWS, ...TRUST_REVIEWS].map((r, idx) => (
+                    <div
+                      key={`${r.name}-${idx}`}
+                      className="min-w-[300px] max-w-[360px] rounded-2xl border border-slate-100 bg-white/70 backdrop-blur-md px-6 py-5"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${r.color} text-white flex items-center justify-center font-extrabold`}>
+                            {r.initials}
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 leading-tight">{r.name}</div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="text-xs font-extrabold px-3 py-1 rounded-full bg-[#E8F8F2] text-[#0D9B6C] border border-[#0D9B6C]/20">
+                                {r.city}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="flex justify-end gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => {
+                              const filled = i < r.rating;
+                              return (
+                                <span
+                                  key={i}
+                                  className={filled ? 'text-[#0D9B6C]' : 'text-slate-300'}
+                                  aria-hidden="true"
+                                >
+                                  ★
+                                </span>
+                              );
+                            })}
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-slate-500 mt-1 font-semibold">{r.date}</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2 items-center">
+                        <span className="text-xs font-extrabold px-3 py-1 rounded-full border border-slate-200 text-slate-700 bg-white/70">
+                          {r.service}
+                        </span>
+                      </div>
+
+                      <p className="mt-3 italic text-sm text-gray-600 leading-relaxed">
+                        “{r.text}”
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -207,14 +420,14 @@ export default function HomePage() {
               title: 'Water Delivery',
               body: 'Daily cans ₹10–15 · Always free doorstep delivery · Perfect for hostels, families, and offices.',
               cta: 'Order Now',
-              href: '/book',
+              href: '/book?service=water_tanker',
               },
               {
               icon: '🔧',
               title: 'Plumber Service',
               body: 'Fitting, boring, repair, and pump installation by verified local plumbers.',
               cta: 'Book Now',
-              href: '/services',
+              href: '/book?service=plumbing',
               },
               {
                 icon: '🚚',

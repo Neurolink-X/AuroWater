@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queryOne, query } from '@/lib/db/connection';
 import { errorResponse, successResponse } from '@/lib/utils/helpers';
 
+const DEFAULT_SETTINGS = {
+  support_email: 'support.aurotap@gmail.com',
+  secondary_email: 'aurotap@gmail.com',
+  phone_primary: '9889305803',
+  phone_secondary: '',
+  office_address: 'Auro Water / AuroTap',
+  working_hours: '09:00–21:00 IST',
+};
+
 // Public settings for Contact/About pages.
 export async function GET(_req: NextRequest) {
   try {
@@ -27,9 +36,10 @@ export async function GET(_req: NextRequest) {
       );
     }
 
-    return NextResponse.json(successResponse(row || null), { status: 200 });
+    return NextResponse.json(successResponse({ ...DEFAULT_SETTINGS, ...(row || {}) }), { status: 200 });
   } catch (error: any) {
-    return NextResponse.json(errorResponse(error.message || 'Failed to fetch settings'), { status: 500 });
+    // Always provide fallback values to keep contact/support fully functional.
+    return NextResponse.json(successResponse(DEFAULT_SETTINGS), { status: 200 });
   }
 }
 

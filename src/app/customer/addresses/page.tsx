@@ -1,273 +1,281 @@
-/* eslint-disable react/no-unescaped-entities */
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+
 import GlassCard from '@/components/ui/GlassCard';
 
 type Address = {
   id: string;
-  label: string;
-  address: string;
-  landmark?: string;
+  houseFlat: string;
+  area: string;
   city: string;
-  pincode?: string;
-  isDefault: boolean;
+  pincode: string;
+  landmark?: string;
+  label?: string;
   createdAt: number;
+  isDefault?: boolean;
 };
 
-const STORAGE_KEY = 'auro_public_addresses_v1';
+const STORAGE_KEY = 'aurowater_addresses';
+const UP_CITIES = [
+  'Kanpur',
+  'Gorakhpur',
+  'Lucknow',
+  'Varanasi',
+  'Prayagraj',
+  'Agra',
+  'Meerut',
+  'Bareilly',
+  'Aligarh',
+  'Mathura',
+  'Delhi',
+  'Noida',
+  'Ghaziabad',
+] as const;
 
-function loadAddresses(): Address[] {
-  if (typeof window === 'undefined') return [];
+function safeParse<T>(raw: string | null): T | null {
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Address[]) : [];
+    return JSON.parse(raw) as T;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function saveAddresses(list: Address[]) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+function isValidPincode(pin: string) {
+  return /^[0-9]{6}$/.test(pin.trim());
 }
 
-export default function PublicAddressesPage() {
+function isValidCity(city: string) {
+  const normalized = city.trim().toLowerCase();
+  return UP_CITIES.some((c) => c.toLowerCase() === normalized);
+}
+
+export default function AddressesPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [label, setLabel] = useState('Home');
-  const [address, setAddress] = useState('');
-  const [landmark, setLandmark] = useState('');
+  const [houseFlat, setHouseFlat] = useState('');
+  const [area, setArea] = useState('');
   const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [label, setLabel] = useState('Home');
   const [isDefault, setIsDefault] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setAddresses(loadAddresses());
+    const list = safeParse<Address[]>(localStorage.getItem(STORAGE_KEY)) ?? [];
+    setAddresses(Array.isArray(list) ? list : []);
   }, []);
 
   const defaultId = useMemo(() => addresses.find((a) => a.isDefault)?.id ?? null, [addresses]);
 
-  const onAdd = () => {
+  const save = () => {
     setError(null);
-    if (!address.trim() || !city.trim()) {
-      setError('Please enter at least address and city.');
-      return;
-    }
+    if (!houseFlat.trim()) return setError('House/Flat No is required.');
+    if (!area.trim()) return setError('Area is required.');
+    if (!isValidCity(city)) return setError('City is required.');
+    if (!isValidPincode(pincode)) return setError('Pincode must be a 6-digit number.');
 
+    const now = Date.now();
     const next: Address = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      label: label.trim() || 'Address',
-      address: address.trim(),
-      landmark: landmark.trim() || undefined,
+      id: `addr_${now}_${Math.random().toString(16).slice(2)}`,
+      houseFlat: houseFlat.trim(),
+      area: area.trim(),
       city: city.trim(),
-      pincode: pincode.trim() || undefined,
+      pincode: pincode.trim(),
+      landmark: landmark.trim() ? landmark.trim() : undefined,
+      label: label.trim() ? label.trim() : 'Address',
+      createdAt: now,
       isDefault: isDefault || addresses.length === 0,
-      createdAt: Date.now(),
     };
 
-    let list = [next, ...addresses];
+    const merged = [next, ...addresses].map((a) => ({ ...a }));
     if (next.isDefault) {
-      list = list.map((a) => (a.id === next.id ? a : { ...a, isDefault: false }));
+      for (const a of merged) a.isDefault = a.id === next.id;
     }
-    setAddresses(list);
-    saveAddresses(list);
 
-    setAddress('');
-    setLandmark('');
+    setAddresses(merged);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+
+    // keep form usable, but clear value fields
+    setHouseFlat('');
+    setArea('');
     setCity('');
     setPincode('');
+    setLandmark('');
+    setLabel('Home');
     setIsDefault(false);
+    toast.success('Address saved.');
   };
 
-  const onMakeDefault = (id: string) => {
-    const list = addresses.map((a) => ({ ...a, isDefault: a.id === id }));
-    setAddresses(list);
-    saveAddresses(list);
+  const makeDefault = (id: string) => {
+    const next = addresses.map((a) => ({ ...a, isDefault: a.id === id }));
+    setAddresses(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    toast.success('Default address updated.');
   };
 
-  const onDelete = (id: string) => {
-    const list = addresses.filter((a) => a.id !== id);
-    const hadDefault = id === defaultId;
+  const del = (id: string) => {
+    const nextRaw = addresses.filter((a) => a.id !== id);
     const normalized =
-      hadDefault && list.length
-        ? list.map((a, idx) => ({ ...a, isDefault: idx === 0 }))
-        : list;
+      nextRaw.length === 0
+        ? nextRaw
+        : nextRaw.some((a) => a.isDefault)
+          ? nextRaw
+          : nextRaw.map((a, idx) => ({ ...a, isDefault: idx === 0 }));
     setAddresses(normalized);
-    saveAddresses(normalized);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    toast.success('Address deleted.');
   };
 
   return (
-    <div className="min-h-screen gradient-section">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-8">
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+        <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] uppercase text-slate-500">
-              Delivery preferences
+              Delivery addresses
             </p>
-            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-slate-900">
-              Saved addresses (no login required)
-            </h1>
-            <p className="mt-2 text-slate-600 max-w-2xl">
-              Add addresses here to speed up booking on this device. During checkout we’ll also let
-              you enter an address directly.
+            <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold text-[#0F1C18]">Saved addresses</h1>
+            <p className="mt-2 text-slate-600">
+              Add, set default, and delete addresses stored on this device.
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              href="/book"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-            >
-              Book now
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-slate-200 bg-white/70 text-slate-700 font-semibold hover:bg-white transition-colors"
-            >
-              Home
-            </Link>
-          </div>
+          <Link
+            href="/book"
+            className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[#0D9B6C] text-white font-bold hover:bg-[#086D4C] transition"
+          >
+            Book now
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,1.2fr] gap-6">
-          <GlassCard className="p-6 rounded-2xl shadow-card">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Add a new address</h2>
-            {error && <p className="mb-3 text-sm text-rose-700">{error}</p>}
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Label</label>
-                  <input
-                    value={label}
-                    onChange={(e) => setLabel(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Home / Office"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">City</label>
-                  <input
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Gorakhpur"
-                  />
-                </div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr,1fr] gap-6">
+          <GlassCard className="p-6 rounded-2xl">
+            <h2 className="text-lg font-extrabold text-[#0F1C18] mb-4">Add New Address</h2>
+            {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 text-sm">{error}</div>}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Full address</label>
-                <textarea
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full min-h-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                  placeholder="House no, street, area"
-                />
-              </div>
+            <div className="grid grid-cols-1 gap-3">
+              <input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Label (Home/Office)"
+              />
+              <input
+                value={houseFlat}
+                onChange={(e) => setHouseFlat(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="House/Flat No"
+              />
+              <input
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Area"
+              />
+              <select
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              >
+                <option value="">Select City</option>
+                {UP_CITIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Pincode (6 digits)"
+                inputMode="numeric"
+              />
+              <input
+                value={landmark}
+                onChange={(e) => setLandmark(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
+                placeholder="Landmark (optional)"
+              />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Landmark (optional)
-                  </label>
-                  <input
-                    value={landmark}
-                    onChange={(e) => setLandmark(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="Near..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Pincode (optional)
-                  </label>
-                  <input
-                    value={pincode}
-                    onChange={(e) => setPincode(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    placeholder="273001"
-                    inputMode="numeric"
-                  />
-                </div>
-              </div>
-
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                 <input
                   type="checkbox"
                   checked={isDefault}
                   onChange={(e) => setIsDefault(e.target.checked)}
                 />
-                Make this default
+                Set as default
               </label>
 
               <button
                 type="button"
-                onClick={onAdd}
-                className="w-full rounded-xl bg-slate-900 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors"
+                onClick={save}
+                className="rounded-xl px-5 py-3 bg-[#0D9B6C] text-white font-bold hover:bg-[#086D4C] transition"
               >
-                Save address
+                Save & Use
               </button>
             </div>
           </GlassCard>
 
-          <div className="space-y-4">
+          <GlassCard className="p-6 rounded-2xl">
+            <h2 className="text-lg font-extrabold text-[#0F1C18] mb-4">Your saved list</h2>
             {addresses.length === 0 ? (
-              <GlassCard className="p-10 rounded-2xl text-center shadow-card">
-                <p className="text-slate-700 font-medium">No saved addresses yet</p>
-                <p className="text-slate-500 text-sm mt-2">
-                  Add one on the left, or just continue to booking and enter address at checkout.
-                </p>
-                <Link
-                  href="/book"
-                  className="inline-flex mt-5 items-center justify-center px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-                >
-                  Continue to booking →
-                </Link>
-              </GlassCard>
+              <div className="text-slate-600 text-sm">
+                No saved addresses yet. Add one on the left.
+              </div>
             ) : (
-              addresses.map((a) => (
-                <GlassCard key={a.id} className="p-5 rounded-2xl shadow-soft">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-slate-900">{a.label}</p>
-                        {a.isDefault && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                            Default
-                          </span>
-                        )}
+              <div className="space-y-3">
+                {addresses.map((a) => (
+                  <div
+                    key={a.id}
+                    className={[
+                      'rounded-2xl border p-4',
+                      a.id === defaultId ? 'border-[#0D9B6C] bg-[#E8F8F2]' : 'border-slate-200 bg-white',
+                    ].join(' ')}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="font-extrabold text-[#0F1C18]">{a.label ?? 'Address'}</div>
+                          {a.isDefault && (
+                            <span className="text-xs font-extrabold bg-[#0D9B6C] text-white px-2 py-1 rounded-full">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 text-sm text-slate-700">
+                          {a.houseFlat}, {a.area}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                          {a.city} • {a.pincode}
+                        </div>
+                        {a.landmark && <div className="mt-1 text-xs text-slate-500">Landmark: {a.landmark}</div>}
                       </div>
-                      <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{a.address}</p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {a.city}
-                        {a.pincode ? ` • ${a.pincode}` : ''}
-                        {a.landmark ? ` • ${a.landmark}` : ''}
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onMakeDefault(a.id)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-                      >
-                        Make default
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(a.id)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => makeDefault(a.id)}
+                          className="px-3 py-2 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition"
+                        >
+                          Make default
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => del(a.id)}
+                          className="px-3 py-2 rounded-xl border border-red-200 text-red-600 font-bold hover:bg-red-50 transition"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </GlassCard>
-              ))
+                ))}
+              </div>
             )}
-          </div>
+          </GlassCard>
         </div>
       </div>
     </div>

@@ -3,11 +3,23 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import SiteNav from '@/components/layout/SiteNav';
-import SiteFooter from '@/components/layout/SiteFooter';
+import Footer from '@/components/layout/Footer';
+import WhatsAppFAB from '@/components/ui/WhatsAppFAB';
 
 export default function RootChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin');
+  const [barVisible, setBarVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem('aurowater_bar_dismissed') === '1';
+      setBarVisible(!dismissed);
+    } catch {
+      // If storage is unavailable, show the bar by default.
+      setBarVisible(true);
+    }
+  }, []);
 
   if (isAdmin) {
     // Admin area has its own shell; keep public nav/footer out.
@@ -16,17 +28,14 @@ export default function RootChrome({ children }: { children: React.ReactNode }) 
 
   return (
     <>
-      <SiteNav />
-      <main className="flex-1">{children}</main>
-      <SiteFooter />
-      <a
-        href="https://wa.me/919889305803"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-5 right-5 z-50 inline-flex items-center gap-2 rounded-full bg-emerald-600 text-white px-4 py-2 shadow-card hover:bg-emerald-700 transition-transform hover:-translate-y-0.5"
-      >
-        <span>WhatsApp</span>
-      </a>
+      <SiteNav offsetPx={barVisible ? 40 : 0} />
+      <main className="flex-1">
+        <div key={pathname} className="animate-scale-in">
+          {children}
+        </div>
+      </main>
+      <Footer />
+      <WhatsAppFAB />
     </>
   );
 }
