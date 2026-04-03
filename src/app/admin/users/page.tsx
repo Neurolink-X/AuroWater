@@ -79,7 +79,7 @@ export default function AdminUsersPage() {
                 type="button"
                 onClick={() => setRole(r)}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  role === r ? 'bg-emerald-600 text-white' : 'bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10'
+                  role === r ? 'bg-[#4361EE] text-white' : 'bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10'
                 }`}
               >
                 {r === 'ALL' ? 'All' : r.charAt(0) + r.slice(1).toLowerCase()}

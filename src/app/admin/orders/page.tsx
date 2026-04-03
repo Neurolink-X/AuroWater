@@ -67,7 +67,7 @@ export default function AdminOrdersPage() {
               onClick={() => setStatus(f.value)}
               className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
                 status === f.value
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-[#4361EE] text-white'
                   : 'bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10'
               }`}
             >
