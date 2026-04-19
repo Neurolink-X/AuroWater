@@ -1,9 +1,11 @@
+// @legacy — numeric-ID era types; new UUID-shaped rows use `@/lib/db/types`.
 // User Types
-export type UserRole = 'CUSTOMER' | 'TECHNICIAN' | 'ADMIN';
+export type UserRole = 'CUSTOMER' | 'TECHNICIAN' | 'SUPPLIER' | 'ADMIN';
 
 export interface User {
-  id: number;
-  phone: string;
+  /** Supabase profile UUID (string) or legacy numeric id */
+  id: string | number;
+  phone?: string;
   email?: string;
   full_name: string;
   role: UserRole;
@@ -150,6 +152,8 @@ export interface ApiResponse<T> {
 export interface AuthToken {
   token: string;
   user: User;
+  access_token?: string;
+  refresh_token?: string;
 }
 
 export interface PricingResponse {

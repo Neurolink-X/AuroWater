@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getUser, getOrders, logout } from '@/lib/api-client';
-import type { User } from '@/types';
+import { api, authLogout } from '@/lib/api-client';
+import { useAuth } from '@/hooks/useAuth';
 import GlassCard from '@/components/ui/GlassCard';
 
-interface Order {
-  id: number;
+interface OrderRow {
+  id: string;
   service_name: string;
   total_amount: number;
   status: string;
@@ -36,57 +36,66 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function OrderHistory() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { hydrated, isLoggedIn, isCustomer } = useAuth();
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    const currentUser = getUser();
-    if (!currentUser || currentUser.role !== 'CUSTOMER') {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    setUser(currentUser);
-    loadOrders();
-  }, [router, statusFilter]);
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
+    if (!isLoggedIn || !isCustomer) return;
     try {
       setLoading(true);
-      const data = await getOrders(statusFilter || undefined, 50, 0);
-      setOrders(data);
+      const rows = await api.customer.orders.list({
+        status: statusFilter || undefined,
+        limit: 50,
+        offset: 0,
+      });
+      setOrders(
+        rows.map((o) => ({
+          id: o.id,
+          service_name: String(o.service_type_key ?? 'service'),
+          total_amount: Number(o.total_amount),
+          status: o.status,
+          created_at: o.created_at,
+          time_slot: o.time_slot ?? undefined,
+        }))
+      );
     } catch {
       setOrders([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isLoggedIn, isCustomer, statusFilter]);
 
-  if (!user) {
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!isLoggedIn || !isCustomer) {
+      setLoading(false);
+      return;
+    }
+    void loadOrders();
+  }, [hydrated, isLoggedIn, isCustomer, loadOrders]);
+
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen gradient-section flex items-center justify-center px-4">
+        <p className="text-slate-600">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !isCustomer) {
     return (
       <div className="min-h-screen gradient-section flex items-center justify-center px-4">
         <div className="max-w-md text-center">
-          <h1 className="text-2xl font-bold text-slate-900 mb-2">Your order history</h1>
-          <p className="text-slate-600 mb-4">
-            This page shows past orders after you place bookings on this device. For now, start a new
-            booking and we’ll keep the experience frictionless.
-          </p>
-          <div className="flex justify-center gap-3">
-            <Link
-              href="/book"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
-            >
-              Try booking now
-            </Link>
-            <Link
-              href="/"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-            >
-              Back to home
-            </Link>
-          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Order history</h1>
+          <p className="text-slate-600 mb-4">Sign in as a customer to see your bookings.</p>
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
+          >
+            Sign in
+          </Link>
         </div>
       </div>
     );
@@ -121,7 +130,7 @@ export default function OrderHistory() {
             <button
               type="button"
               onClick={() => {
-                logout();
+                void authLogout();
                 router.push('/');
               }}
               className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
@@ -134,7 +143,7 @@ export default function OrderHistory() {
         <div className="flex flex-wrap gap-2 mb-6">
           {filters.map((f) => (
             <button
-              key={f.value}
+              key={f.value || 'all'}
               type="button"
               onClick={() => setStatusFilter(f.value)}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
@@ -149,7 +158,7 @@ export default function OrderHistory() {
         </div>
 
         {loading ? (
-          <p className="text-slate-500">Loading orders...</p>
+          <p className="text-slate-500">Loading orders…</p>
         ) : orders.length === 0 ? (
           <GlassCard className="p-12 text-center rounded-2xl">
             <p className="text-slate-600 mb-4">
@@ -169,7 +178,7 @@ export default function OrderHistory() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-bold text-slate-800">Order #{order.id}</span>
+                      <span className="font-bold text-slate-800">Order #{order.id.slice(0, 8)}…</span>
                       <span
                         className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                           STATUS_CLASS[order.status] ?? 'bg-slate-100 text-slate-700'
@@ -178,29 +187,22 @@ export default function OrderHistory() {
                         {STATUS_LABELS[order.status] ?? order.status}
                       </span>
                     </div>
-                    <p className="text-slate-600">
-                      {order.service_name?.replace(/_/g, ' ')}
-                    </p>
-                    {order.time_slot && (
-                      <p className="text-sm text-slate-500 mt-1">Slot: {order.time_slot}</p>
-                    )}
+                    <p className="text-slate-600">{order.service_name?.replace(/_/g, ' ')}</p>
+                    {order.time_slot ? <p className="text-sm text-slate-500 mt-1">Slot: {order.time_slot}</p> : null}
                     <p className="text-sm text-slate-500 mt-1">
                       {new Date(order.created_at).toLocaleDateString()} at{' '}
-                      {new Date(order.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <span className="text-xl font-bold text-emerald-700">
-                      ₹{order.total_amount?.toFixed(2)}
+                      ₹{order.total_amount?.toLocaleString('en-IN')}
                     </span>
                     <Link
                       href={`/customer/track/${order.id}`}
                       className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors"
                     >
-                      View details
+                      Track
                     </Link>
                     <Link
                       href="/book"

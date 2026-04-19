@@ -22,6 +22,9 @@ interface TimeSlotPickerProps {
   onChange: (v: TimeSlotPickerValue) => void;
   minDate?: string;
   className?: string;
+  /** Optional — shown when booking wizard enables emergency surcharge context. */
+  showEmergency?: boolean;
+  emergencyFee?: number;
 }
 
 const timeOptions = getTimeOptions();
@@ -31,6 +34,8 @@ export default function TimeSlotPicker({
   onChange,
   minDate,
   className = '',
+  showEmergency,
+  emergencyFee,
 }: TimeSlotPickerProps) {
   const min = minDate ?? getMinDate();
   const [date, setDate] = useState(value?.date ?? min);
@@ -121,6 +126,11 @@ export default function TimeSlotPicker({
           Slot: {result.time_slot} on {date}
         </p>
       )}
+      {showEmergency && typeof emergencyFee === 'number' && emergencyFee > 0 ? (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+          Emergency booking adds ₹{Math.round(emergencyFee)} platform surcharge (shown in review).
+        </p>
+      ) : null}
     </div>
   );
 }

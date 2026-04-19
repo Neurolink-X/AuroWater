@@ -236,7 +236,7 @@
 
 // export default function TechnicianDashboardPage() {
 //   const router = useRouter();
-//   const { role: authRole, checked, isLoggedIn } = useAuth();
+//   const { role: authRole, hydrated, isLoggedIn } = useAuth();
 //   const [tab, setTab] = useState<TabKey>('overview');
 
 //   const [online, setOnline] = useState<TechnicianOnline>('online');
@@ -1522,6 +1522,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import type { ApiOrder } from '@/lib/api-client';
+import { technicianJobsList, technicianJobAccept, technicianJobUpdateStatus } from '@/lib/api-client';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1557,6 +1559,44 @@ type MyJob = JobQueueItem & {
   completedAt?: number;
   rating?: number;
 };
+
+/** Map live API order → queue card (assigned / pending). */
+function orderToQueueItem(o: ApiOrder): JobQueueItem {
+  const snap = (o.address_snapshot ?? {}) as Record<string, unknown>;
+  return {
+    id: o.id,
+    service: String(o.service_type_key ?? 'service').replace(/_/g, ' '),
+    sub: String(o.sub_option_key ?? ''),
+    area: [snap.area, snap.city].filter(Boolean).join(', ') || '—',
+    date: String(o.scheduled_date ?? (typeof o.created_at === 'string' ? o.created_at.slice(0, 10) : '')),
+    slot: String(o.time_slot ?? '—'),
+    price: Number(o.total_amount ?? 0),
+    distance: '—',
+    expiresAt: Date.now() + 24 * 3600 * 1000,
+  };
+}
+
+/** Map API order → “my jobs” row with UI status. */
+function mapApiOrderToMyJob(o: ApiOrder): MyJob {
+  const base = orderToQueueItem(o);
+  const st = String(o.status ?? '').toUpperCase();
+  let status: MyJobStatus = 'upcoming';
+  if (st === 'IN_PROGRESS') status = 'in_progress';
+  else if (st === 'COMPLETED') status = 'completed';
+  else if (st === 'CANCELLED') status = 'cancelled';
+  else status = 'upcoming';
+
+  const acceptedAt = new Date(o.created_at).getTime();
+  const updatedAt = o.updated_at ? new Date(String(o.updated_at)).getTime() : acceptedAt;
+
+  return {
+    ...base,
+    status,
+    acceptedAt,
+    startedAt: st === 'IN_PROGRESS' ? updatedAt : undefined,
+    completedAt: st === 'COMPLETED' ? updatedAt : undefined,
+  };
+}
 
 type UploadMeta = {
   name: string;
@@ -1620,16 +1660,6 @@ function safeParse<T>(raw: string | null): T | null {
 }
 
 // ─── Seed helpers ─────────────────────────────────────────────────────────────
-
-function seedJobQueue(current: JobQueueItem[] | null): JobQueueItem[] {
-  if (current && current.length) return current;
-  const base = Date.now();
-  return [
-    { id: 'JR-001', service: 'Plumbing', sub: 'Pipe Repair', area: 'Civil Lines, Kanpur', date: 'Today', slot: 'Morning', price: 199, distance: '2.3 km', expiresAt: base + 12 * 60 * 1000 },
-    { id: 'JR-002', service: 'RO Service', sub: 'Filter Change', area: 'Kidwai Nagar, Kanpur', date: 'Today', slot: 'Afternoon', price: 279, distance: '4.1 km', expiresAt: base + 8 * 60 * 1000 },
-    { id: 'JR-003', service: 'Motor Repair', sub: 'Submersible', area: 'Govind Nagar, Kanpur', date: 'Tomorrow', slot: 'Morning', price: 349, distance: '6.2 km', expiresAt: base + 45 * 60 * 1000 },
-  ];
-}
 
 function seedAvailability(current: Record<string, boolean> | null): Record<string, boolean> {
   if (current) return current;
@@ -1773,7 +1803,7 @@ function UploadArea({ label, required, current, onPick, onRemove }: { label: str
 
 export default function TechnicianDashboardPage() {
   const router = useRouter();
-  const { role: authRole, checked, isLoggedIn } = useAuth();
+  const { role: authRole, hydrated: authHydrated, isLoggedIn, session } = useAuth();
 
   const [hydrated, setHydrated] = useState(false);
   const [tab, setTab] = useState<TabKey>('overview');
@@ -1794,12 +1824,25 @@ export default function TechnicianDashboardPage() {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [myJobFilter, setMyJobFilter] = useState<'all' | MyJobStatus>('all');
 
-  // ── Hydrate from localStorage (client-only) ──
+  const fetchTechnicianJobs = useCallback(async () => {
+    try {
+      const rows = await technicianJobsList();
+      const queueStatuses = ['ASSIGNED', 'PENDING'];
+      setJobQueue(rows.filter((o) => queueStatuses.includes(String(o.status ?? '').toUpperCase())).map(orderToQueueItem));
+      setMyJobs(
+        rows
+          .filter((o) => !queueStatuses.includes(String(o.status ?? '').toUpperCase()))
+          .map(mapApiOrderToMyJob)
+      );
+    } catch (e) {
+      console.error('[TechnicianDashboard] jobs fetch failed:', e);
+    }
+  }, []);
+
+  // ── Hydrate from localStorage (client-only) — jobs come from API, not LS ──
   useEffect(() => {
     const savedOnline = lsGet(KEYS.ONLINE) as TechnicianOnline | null;
     const savedVerif = lsGet(KEYS.VERIFICATION) as VerificationStatus | null;
-    const savedQueue = safeParse<JobQueueItem[]>(lsGet(KEYS.JOB_QUEUE));
-    const savedJobs = safeParse<MyJob[]>(lsGet(KEYS.MY_JOBS));
     const savedAvail = safeParse<Record<string, boolean>>(lsGet(KEYS.AVAILABILITY));
     const savedDocs = safeParse<TechDocs>(lsGet(KEYS.DOCS));
     const savedProfile = safeParse<TechProfile>(lsGet(KEYS.PROFILE));
@@ -1808,8 +1851,8 @@ export default function TechnicianDashboardPage() {
 
     setOnline(savedOnline === 'offline' ? 'offline' : 'online');
     setVerificationStatus(['verified', 'pending', 'unverified'].includes(savedVerif || '') ? (savedVerif as VerificationStatus) : 'unverified');
-    setJobQueue(seedJobQueue(Array.isArray(savedQueue) ? savedQueue : null));
-    setMyJobs(Array.isArray(savedJobs) ? savedJobs : []);
+    setJobQueue([]);
+    setMyJobs([]);
     setAvailability(seedAvailability(savedAvail && typeof savedAvail === 'object' ? savedAvail : null));
     setDocs(savedDocs ?? { verificationStatus: 'unverified' });
     setProfile(seedProfile(savedProfile));
@@ -1819,11 +1862,39 @@ export default function TechnicianDashboardPage() {
     setHydrated(true);
   }, []);
 
+  useEffect(() => {
+    if (!hydrated || !authHydrated || !isLoggedIn || authRole !== 'technician') return;
+    void fetchTechnicianJobs();
+  }, [hydrated, authHydrated, isLoggedIn, authRole, fetchTechnicianJobs]);
+
+  useEffect(() => {
+    if (!session?.userId || typeof window === 'undefined') return;
+    let ch: ReturnType<ReturnType<typeof import('@/lib/db/supabase').supabaseBrowser>['channel']> | null = null;
+    void import('@/lib/db/supabase').then(({ supabaseBrowser }) => {
+      ch = supabaseBrowser()
+        .channel(`technician-jobs-${session.userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+            filter: `technician_id=eq.${session.userId}`,
+          },
+          () => {
+            void fetchTechnicianJobs();
+          }
+        )
+        .subscribe();
+    });
+    return () => {
+      void ch?.unsubscribe();
+    };
+  }, [session?.userId, fetchTechnicianJobs]);
+
   // ── Persist changes ──
   useEffect(() => { if (hydrated) lsSet(KEYS.ONLINE, online); }, [online, hydrated]);
   useEffect(() => { if (hydrated) lsSet(KEYS.VERIFICATION, verificationStatus); }, [verificationStatus, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(KEYS.JOB_QUEUE, JSON.stringify(jobQueue)); }, [jobQueue, hydrated]);
-  useEffect(() => { if (hydrated) lsSet(KEYS.MY_JOBS, JSON.stringify(myJobs)); }, [myJobs, hydrated]);
   useEffect(() => { if (hydrated) lsSet(KEYS.AVAILABILITY, JSON.stringify(availability)); }, [availability, hydrated]);
   useEffect(() => { if (hydrated) lsSet(KEYS.DOCS, JSON.stringify(docs)); }, [docs, hydrated]);
   useEffect(() => { if (hydrated) lsSet(KEYS.PROFILE, JSON.stringify(profile)); }, [profile, hydrated]);
@@ -1900,31 +1971,61 @@ export default function TechnicianDashboardPage() {
   }, [myJobs, myJobFilter]);
 
   // ── Actions ──
-  const acceptJob = useCallback((job: JobQueueItem) => {
-    setMyJobs((cur) => [{ ...job, status: 'upcoming', acceptedAt: Date.now() }, ...cur]);
-    setJobQueue((cur) => cur.filter((j) => j.id !== job.id));
-    toast.success(`Job ${job.id} accepted!`);
+  const acceptJob = useCallback(
+    async (job: JobQueueItem) => {
+      try {
+        await technicianJobAccept(job.id);
+        toast.success('Job accepted — you are on the way.');
+        await fetchTechnicianJobs();
+      } catch {
+        toast.error('Failed to accept job.');
+      }
+    },
+    [fetchTechnicianJobs]
+  );
+
+  const declineJob = useCallback((_job: JobQueueItem) => {
+    toast.message('Contact admin if you cannot take this assignment.');
   }, []);
 
-  const declineJob = useCallback((job: JobQueueItem) => {
-    setJobQueue((cur) => cur.filter((j) => j.id !== job.id));
-    toast('Job declined');
-  }, []);
+  const startJob = useCallback(
+    async (id: string) => {
+      try {
+        await technicianJobUpdateStatus(id, 'IN_PROGRESS');
+        toast.success('Status updated.');
+        await fetchTechnicianJobs();
+      } catch {
+        toast.error('Failed to update status.');
+      }
+    },
+    [fetchTechnicianJobs]
+  );
 
-  const startJob = useCallback((id: string) => {
-    setMyJobs((cur) => cur.map((j) => j.id === id ? { ...j, status: 'in_progress', startedAt: Date.now() } : j));
-    toast.success('Job started!');
-  }, []);
+  const completeJob = useCallback(
+    async (id: string) => {
+      try {
+        await technicianJobUpdateStatus(id, 'COMPLETED');
+        toast.success('Job completed! Great work.');
+        await fetchTechnicianJobs();
+      } catch {
+        toast.error('Failed to complete job.');
+      }
+    },
+    [fetchTechnicianJobs]
+  );
 
-  const completeJob = useCallback((id: string) => {
-    setMyJobs((cur) => cur.map((j) => j.id === id ? { ...j, status: 'completed', completedAt: Date.now() } : j));
-    toast.success('Job completed! Great work.');
-  }, []);
-
-  const cancelJob = useCallback((id: string) => {
-    setMyJobs((cur) => cur.map((j) => j.id === id ? { ...j, status: 'cancelled' } : j));
-    toast.error('Job cancelled');
-  }, []);
+  const cancelJob = useCallback(
+    async (id: string) => {
+      try {
+        await technicianJobUpdateStatus(id, 'CANCELLED');
+        toast.error('Job cancelled');
+        await fetchTechnicianJobs();
+      } catch {
+        toast.error('Failed to cancel.');
+      }
+    },
+    [fetchTechnicianJobs]
+  );
 
   const receiveRating = useCallback((id: string) => {
     const r = 4 + Math.floor(Math.random() * 2);
@@ -1957,7 +2058,7 @@ export default function TechnicianDashboardPage() {
   }, [docs]);
 
   // ── Auth gate ──
-  if (!checked) return (
+  if (!authHydrated) return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50">
       <Loader2 size={24} className="text-emerald-600 animate-spin" />
     </div>

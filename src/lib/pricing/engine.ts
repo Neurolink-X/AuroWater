@@ -130,8 +130,6 @@ export async function setupDefaultPricing(): Promise<void> {
         [zone.name, zone.city, zone.distance_factor]
       );
     }
-
-    console.log('Default pricing setup completed');
   } catch (error) {
     console.error('Error setting up default pricing:', error);
   }

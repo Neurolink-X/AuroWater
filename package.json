@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:setup": "node scripts/setup-db.js"
+    "db:setup": "node scripts/setup-db.js",
+    "smoke": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.103.3",
     "axios": "^1.13.4",
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "^1.9.4",

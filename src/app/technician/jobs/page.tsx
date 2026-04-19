@@ -8,8 +8,8 @@ import type { User } from '@/types';
 import GlassCard from '@/components/ui/GlassCard';
 
 interface Job {
-  id: number;
-  order_id: number;
+  id: string | number;
+  order_id?: string | number;
   status: string;
   service_name: string;
   customer_name: string;
@@ -56,9 +56,9 @@ export default function TechnicianJobs() {
     try {
       setLoading(true);
       const data = await getTechnicianJobs(statusFilter);
-      setJobs(data);
+      setJobs(data as Job[]);
       const completed = await getTechnicianJobs('COMPLETED');
-      setAllCompleted(completed);
+      setAllCompleted(completed as Job[]);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs');
     } finally {
@@ -66,8 +66,8 @@ export default function TechnicianJobs() {
     }
   };
 
-  const handleJobAction = async (jobId: number, action: string) => {
-    setActionLoading(jobId);
+  const handleJobAction = async (jobId: string | number, action: string) => {
+    setActionLoading(typeof jobId === 'number' ? jobId : Number(jobId));
     try {
       await updateJobStatus(jobId, action);
       await loadJobs();

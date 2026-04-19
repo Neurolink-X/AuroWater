@@ -4,6 +4,15 @@ import React from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useSettings } from '@/hooks/useSettings';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  supplierOrdersList,
+  supplierOrderUpdateStatus,
+  supplierEarningsSummary,
+  supplierPayoutRequest,
+  type ApiOrder,
+  type SupplierEarningsSummary,
+} from '@/lib/api-client';
 
 type TabKey =
   | 'overview'
@@ -15,7 +24,10 @@ type TabKey =
   | 'documents';
 
 type SupplierOrder = {
-  id: string;
+  /** Supabase order UUID — use for API calls */
+  apiId: string;
+  /** Human-readable order_number */
+  label: string;
   customer: string;
   area: string;
   address: string;
@@ -25,6 +37,37 @@ type SupplierOrder = {
   amount: number;
   status: 'pending' | 'active' | 'delivered' | 'cancelled';
 };
+
+function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
+  const snap = (o.address_snapshot ?? {}) as Record<string, unknown>;
+  const area = [snap.area, snap.city].filter(Boolean).join(', ') || '—';
+  const addr = [snap.house_flat, snap.area, snap.city, snap.pincode].filter(Boolean).join(', ') || '—';
+  const st = String(o.status ?? '').toUpperCase();
+  let status: SupplierOrder['status'] = 'pending';
+  if (st === 'IN_PROGRESS') status = 'active';
+  else if (st === 'COMPLETED') status = 'delivered';
+  else if (st === 'CANCELLED') status = 'cancelled';
+  else status = 'pending';
+
+  const sk = String(o.service_type_key ?? '').toLowerCase();
+  let size: SupplierOrder['size'] = '3000L';
+  if (sk.includes('1000')) size = '1000L';
+  else if (sk.includes('5000')) size = '5000L';
+  else if (sk.includes('10000')) size = '10000L';
+
+  return {
+    apiId: o.id,
+    label: String(o.order_number ?? o.id).slice(0, 32),
+    customer: 'Customer',
+    area,
+    address: addr,
+    size,
+    date: String(o.scheduled_date ?? (typeof o.created_at === 'string' ? o.created_at.slice(0, 10) : '—')),
+    eta: String(o.time_slot ?? '—'),
+    amount: Number(o.total_amount ?? 0),
+    status,
+  };
+}
 
 type Tanker = {
   id: string;
@@ -71,7 +114,6 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const ORDER_KEY = 'aurowater_supplier_orders';
 const FLEET_KEY = 'aurowater_supplier_fleet';
 const PROFILE_KEY = 'aurowater_supplier_profile';
 const DOCS_KEY = 'aurowater_supplier_docs';
@@ -86,44 +128,6 @@ function safeParse<T>(raw: string | null): T | null {
   } catch {
     return null;
   }
-}
-
-function seedOrders(): SupplierOrder[] {
-  return [
-    {
-      id: 'AW-00000034',
-      customer: 'Priya Sharma',
-      area: 'Barra, Kanpur',
-      address: 'Flat 402, Barra 8, Kanpur 208027',
-      size: '3000L',
-      date: '2026-04-12',
-      eta: '45 min',
-      amount: 429,
-      status: 'active',
-    },
-    {
-      id: 'AW-00000035',
-      customer: 'Rajesh Kumar',
-      area: 'Civil Lines, Kanpur',
-      address: '19 Civil Lines, Near Post Office',
-      size: '5000L',
-      date: '2026-04-12',
-      eta: '70 min',
-      amount: 629,
-      status: 'pending',
-    },
-    {
-      id: 'AW-00000036',
-      customer: 'Anita Mishra',
-      area: 'Kidwai Nagar, Kanpur',
-      address: 'H-21, Kidwai Nagar, Kanpur',
-      size: '1000L',
-      date: '2026-04-11',
-      eta: 'Delivered',
-      amount: 329,
-      status: 'delivered',
-    },
-  ];
 }
 
 function seedFleet(): Tanker[] {
@@ -163,8 +167,12 @@ function seedDocs(): SupplierDoc[] {
 
 export default function SupplierDashboardPage() {
   const { settings } = useSettings();
+  const { session, hydrated: authHydrated, isLoggedIn, isSupplier } = useAuth();
   const [tab, setTab] = React.useState<TabKey>('overview');
   const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
+  const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
+  const [ordersLoading, setOrdersLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
   const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
@@ -172,31 +180,75 @@ export default function SupplierDashboardPage() {
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
   const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
 
+  const fetchSupplierBoard = React.useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
+      if (list.status === 'fulfilled') {
+        setOrders((list.value ?? []).map(mapApiOrderToSupplierOrder));
+      }
+      if (earn.status === 'fulfilled' && earn.value) {
+        setEarningsSummary(earn.value);
+      }
+    } catch (e) {
+      console.error('[SupplierDashboard] fetch failed:', e);
+    } finally {
+      setOrdersLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
   React.useEffect(() => {
-    const o = safeParse<SupplierOrder[]>(localStorage.getItem(ORDER_KEY));
     const f = safeParse<Tanker[]>(localStorage.getItem(FLEET_KEY));
     const p = safeParse<SupplierProfile>(localStorage.getItem(PROFILE_KEY));
     const d = safeParse<SupplierDoc[]>(localStorage.getItem(DOCS_KEY));
 
-    const nextOrders = Array.isArray(o) && o.length ? o : seedOrders();
     const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
     const nextProfile = p ?? seedProfile();
     const nextDocs = Array.isArray(d) && d.length ? d : seedDocs();
 
-    setOrders(nextOrders);
     setFleet(nextFleet);
     setProfile(nextProfile);
     setDocs(nextDocs);
 
-    localStorage.setItem(ORDER_KEY, JSON.stringify(nextOrders));
     localStorage.setItem(FLEET_KEY, JSON.stringify(nextFleet));
     localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile));
     localStorage.setItem(DOCS_KEY, JSON.stringify(nextDocs));
   }, []);
 
+  React.useEffect(() => {
+    if (!authHydrated || !isLoggedIn || !isSupplier) return;
+    void fetchSupplierBoard();
+  }, [authHydrated, isLoggedIn, isSupplier, fetchSupplierBoard]);
+
+  /* Live refresh when ops assigns or updates supplier orders */
+  React.useEffect(() => {
+    if (!session?.userId || typeof window === 'undefined') return;
+    let ch: ReturnType<ReturnType<typeof import('@/lib/db/supabase').supabaseBrowser>['channel']> | null = null;
+    void import('@/lib/db/supabase').then(({ supabaseBrowser }) => {
+      ch = supabaseBrowser()
+        .channel(`supplier-orders-${session.userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+            filter: `supplier_id=eq.${session.userId}`,
+          },
+          () => {
+            void fetchSupplierBoard(true);
+          }
+        )
+        .subscribe();
+    });
+    return () => {
+      void ch?.unsubscribe();
+    };
+  }, [session?.userId, fetchSupplierBoard]);
+
   const persistOrders = (next: SupplierOrder[]) => {
     setOrders(next);
-    localStorage.setItem(ORDER_KEY, JSON.stringify(next));
   };
   const persistFleet = (next: Tanker[]) => {
     setFleet(next);
@@ -220,11 +272,12 @@ export default function SupplierDashboardPage() {
     const active = orders.filter((o) => o.status === 'active').length;
     const pending = orders.filter((o) => o.status === 'pending').length;
     const delivered = orders.filter((o) => o.status === 'delivered').length;
-    const monthRevenue = orders
-      .filter((o) => o.status === 'delivered')
-      .reduce((sum, o) => sum + o.amount, 0);
+    const monthRevenue =
+      earningsSummary != null
+        ? earningsSummary.gross_amount
+        : orders.filter((o) => o.status === 'delivered').reduce((sum, o) => sum + o.amount, 0);
     return { active, pending, delivered, monthRevenue };
-  }, [orders]);
+  }, [orders, earningsSummary]);
 
   const completion = React.useMemo(() => {
     const fields = [
@@ -252,6 +305,31 @@ export default function SupplierDashboardPage() {
     { key: 'profile', label: 'Profile', icon: '👤' },
     { key: 'documents', label: 'Documents', icon: '📄' },
   ] as const;
+
+  if (!authHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <p className="text-slate-600 text-sm font-medium">Loading workspace…</p>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !isSupplier) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="max-w-md w-full rounded-3xl border border-slate-200 bg-white shadow-card p-8 text-center">
+          <p className="font-bold text-slate-900">Supplier sign-in required</p>
+          <p className="text-sm text-slate-600 mt-2">Log in with a supplier account to manage deliveries.</p>
+          <Link
+            href="/auth/login"
+            className="mt-6 inline-flex items-center justify-center rounded-xl bg-[#003049] text-white font-bold px-6 py-3 text-sm"
+          >
+            Go to login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_20%_10%,#dbeafe_0%,#eff6ff_35%,#f8fafc_100%)]">
@@ -321,11 +399,18 @@ export default function SupplierDashboardPage() {
                 </section>
 
                 <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard title="Orders Today" value={`${stats.pending + stats.active}`} color="#003049" />
+                  <StatCard
+                    title="Orders Today"
+                    value={ordersLoading ? '…' : `${stats.pending + stats.active}`}
+                    color="#003049"
+                  />
                   <StatCard title="Active Deliveries" value={`${stats.active}`} color="#2A9D8F" />
                   <StatCard title="Month Revenue" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
                   <StatCard title="Fleet Available" value={`${fleet.filter((f) => f.status === 'available').length}`} color="#1D4ED8" />
                 </section>
+                {refreshing ? (
+                  <p className="text-xs text-slate-500 -mt-2">Syncing latest orders…</p>
+                ) : null}
 
                 <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
                   <div className="flex items-center justify-between">
@@ -336,16 +421,22 @@ export default function SupplierDashboardPage() {
                   </div>
                   <div className="mt-4 space-y-3">
                     {orders.filter((o) => o.status === 'active').slice(0, 3).map((o) => (
-                      <div key={o.id} className="rounded-2xl border border-slate-100 p-4 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div key={o.apiId} className="rounded-2xl border border-slate-100 p-4 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div>
-                          <div className="font-bold text-slate-900">{o.id} · {o.size}</div>
+                          <div className="font-bold text-slate-900">{o.label} · {o.size}</div>
                           <div className="text-sm text-slate-600">{o.area} · ETA {o.eta}</div>
                         </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            persistOrders(orders.map((x) => (x.id === o.id ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
-                            toast.success(`Order ${o.id} marked delivered.`);
+                          onClick={async () => {
+                            try {
+                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
+                              persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
+                              toast.success(`Order ${o.label} marked delivered.`);
+                              void fetchSupplierBoard(true);
+                            } catch {
+                              toast.error('Could not update order.');
+                            }
                           }}
                           className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 font-bold hover:opacity-90"
                         >
@@ -379,37 +470,62 @@ export default function SupplierDashboardPage() {
                 </div>
                 <div className="mt-4 space-y-3">
                   {filteredOrders.map((o) => (
-                    <div key={o.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <button className="w-full text-left" onClick={() => setExpandedOrderId(expandedOrderId === o.id ? null : o.id)}>
+                    <div key={o.apiId} className="rounded-2xl border border-slate-100 bg-white p-4">
+                      <button type="button" className="w-full text-left" onClick={() => setExpandedOrderId(expandedOrderId === o.apiId ? null : o.apiId)}>
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                          <div className="font-bold text-slate-900">{o.id} · {o.customer} · {o.size}</div>
+                          <div className="font-bold text-slate-900">{o.label} · {o.customer} · {o.size}</div>
                           <div className="text-sm font-bold text-[#2A9D8F]">{fmtMoney(o.amount)}</div>
                         </div>
                         <div className="text-sm text-slate-600 mt-1">{o.area} · {o.date}</div>
                       </button>
-                      {expandedOrderId === o.id && (
+                      {expandedOrderId === o.apiId && (
                         <div className="mt-3 pt-3 border-t border-slate-100">
                           <div className="text-sm text-slate-700">Address: {o.address}</div>
-                          <div className="text-sm text-slate-700 mt-1">Contact: {maskPhone(profile.phone)}</div>
+                          <div className="text-sm text-slate-700 mt-1">Partner phone: {maskPhone(profile.phone)}</div>
                           {o.status === 'pending' && (
-                            <div className="mt-3 flex gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                               <button
-                                onClick={() => {
-                                  persistOrders(orders.map((x) => (x.id === o.id ? { ...x, status: 'active' } : x)));
-                                  toast.success('Order accepted!');
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
+                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'active' } : x)));
+                                    toast.success('Delivery started.');
+                                    void fetchSupplierBoard(true);
+                                  } catch {
+                                    toast.error('Could not start order.');
+                                  }
                                 }}
                                 className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-bold"
                               >
-                                Accept Order ✓
+                                Start delivery ✓
                               </button>
                               <button
-                                onClick={() => {
-                                  persistOrders(orders.map((x) => (x.id === o.id ? { ...x, status: 'cancelled' } : x)));
-                                  toast.error('Order rejected.');
-                                }}
+                                type="button"
+                                onClick={() => toast.message('Contact support to cancel a booked order.')}
                                 className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-bold"
                               >
-                                Reject ✗
+                                Need help ✗
+                              </button>
+                            </div>
+                          )}
+                          {o.status === 'active' && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
+                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
+                                    toast.success('Marked complete.');
+                                    void fetchSupplierBoard(true);
+                                  } catch {
+                                    toast.error('Could not complete order.');
+                                  }
+                                }}
+                                className="rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
+                              >
+                                Mark complete
                               </button>
                             </div>
                           )}
@@ -516,12 +632,36 @@ export default function SupplierDashboardPage() {
             {tab === 'revenue' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
                 <h3 className="text-lg font-extrabold text-slate-900">Revenue</h3>
+                <p className="text-xs text-slate-500 mt-1">Month figures from platform earnings summary; daily breakdown coming soon.</p>
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <StatCard title="Today" value={fmtMoney(1240)} color="#003049" />
-                  <StatCard title="Week" value={fmtMoney(5240)} color="#2A9D8F" />
+                  <StatCard title="Today" value="—" color="#003049" />
+                  <StatCard title="Week" value="—" color="#2A9D8F" />
                   <StatCard title="Month" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
-                  <StatCard title="Total" value={fmtMoney(stats.monthRevenue + 18240)} color="#1D4ED8" />
+                  <StatCard title="Orders (period)" value={`${earningsSummary?.order_count ?? 0}`} color="#1D4ED8" />
                 </div>
+                {earningsSummary != null && earningsSummary.pending_payout > 0 ? (
+                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-amber-950">Pending payout</p>
+                      <p className="text-lg font-black text-amber-900">{fmtMoney(earningsSummary.pending_payout)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await supplierPayoutRequest({ amount: earningsSummary.pending_payout, notes: 'bank_transfer' });
+                          toast.success('Payout request submitted. Processing in 2–3 business days.');
+                          void fetchSupplierBoard(true);
+                        } catch {
+                          toast.error('Could not submit payout request.');
+                        }
+                      }}
+                      className="rounded-xl bg-[#003049] text-white font-bold px-5 py-2.5 text-sm shrink-0"
+                    >
+                      Request payout
+                    </button>
+                  </div>
+                ) : null}
                 <div className="mt-6 flex flex-col md:flex-row gap-6">
                   <div className="w-44 h-44 rounded-full mx-auto md:mx-0 bg-[conic-gradient(#2A9D8F_0_70%,#38BDF8_70%_85%,#F4A261_85%_100%)] grid place-items-center">
                     <div className="w-24 h-24 rounded-full bg-white grid place-items-center">

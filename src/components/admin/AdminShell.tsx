@@ -8,14 +8,10 @@ import type { User } from '@/types';
 
 const NAV = [
   { href: '/admin/dashboard', label: 'Dashboard' },
+  { href: '/admin/finance', label: 'Finance' },
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/users', label: 'Users' },
-  { href: '/admin/technicians', label: 'Technicians' },
-  { href: '/admin/services', label: 'Services' },
-  { href: '/admin/pricing', label: 'Pricing' },
-  { href: '/admin/notifications', label: 'Notifications' },
   { href: '/admin/settings', label: 'Settings' },
-  { href: '/admin/analytics', label: 'Analytics' },
 ];
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
@@ -25,10 +21,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [checking, setChecking] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
 
-  const isAuthRoute = useMemo(
-    () => pathname === '/admin/login' || pathname === '/admin/register',
-    [pathname]
-  );
+  const isAuthRoute = useMemo(() => pathname === '/admin/login' || pathname === '/admin/register', [pathname]);
 
   useEffect(() => {
     const run = async () => {
@@ -41,7 +34,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       const localUser = getUser();
 
       if (!token || !localUser) {
-        router.replace('/admin/login');
+        router.replace(`/auth/login?returnTo=${encodeURIComponent(pathname || '/admin/dashboard')}`);
         return;
       }
 
@@ -50,13 +43,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         const verified = await verifyToken();
         if (!verified?.user || verified.user.role !== 'ADMIN') {
           logout();
-          router.replace('/admin/login');
+          router.replace(`/auth/login?returnTo=${encodeURIComponent(pathname || '/admin/dashboard')}`);
           return;
         }
         setUser(verified.user);
       } catch {
         logout();
-        router.replace('/admin/login');
+        router.replace(`/auth/login?returnTo=${encodeURIComponent(pathname || '/admin/dashboard')}`);
         return;
       } finally {
         setChecking(false);
@@ -136,7 +129,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 type="button"
                 onClick={() => {
                   logout();
-                  router.replace('/admin/login');
+                  router.replace('/auth/login');
                 }}
                 className="mt-2 w-full px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-sm font-medium"
               >

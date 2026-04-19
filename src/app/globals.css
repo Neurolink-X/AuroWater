@@ -256,3 +256,55 @@ body {
   50% { transform: translateY(8px); }
 }
 .bounce-arrow { animation: bounce 1.5s ease-in-out infinite; }
+
+/* ── AuroWater: prevent display / Devanagari text clipping ── */
+
+h1, h2, h3, h4, h5, h6 {
+  overflow: visible;
+  line-height: 1.1;
+}
+
+.gradient-text,
+[class*="gradient-text"] {
+  display: inline-block;
+  padding-bottom: 0.05em;
+  overflow: visible;
+}
+
+/* Hindi / Devanagari — Syne/Bricolage lack glyphs */
+.hindi-text,
+.hindi,
+:lang(hi),
+.font-devanagari {
+  font-family: 'Noto Sans Devanagari', 'DM Sans', system-ui, sans-serif;
+  line-height: 1.4;
+  letter-spacing: 0;
+  overflow: visible;
+}
+
+/* Safe clipping override for tight layouts */
+.text-safe {
+  overflow: visible !important;
+  clip: auto !important;
+  clip-path: none !important;
+}
+
+/* Bricolage hero line when marked Hindi (matras / crown line) */
+.hero-headline:lang(hi),
+.hero-headline .hindi {
+  font-family: 'Noto Sans Devanagari', system-ui, sans-serif;
+  line-height: 1.35;
+  letter-spacing: 0;
+  padding-top: 0.1em;
+  overflow: visible;
+}
+
+.display-text {
+  font-family: 'Bricolage Grotesque', 'Syne', system-ui, sans-serif;
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -0.3px;
+  padding-block: 0.04em;
+  overflow: visible;
+  -webkit-font-smoothing: antialiased;
+}

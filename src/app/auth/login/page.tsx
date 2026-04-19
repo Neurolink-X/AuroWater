@@ -1,11 +1,13 @@
 /* eslint-disable react/no-array-index-key */
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { z } from 'zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import { ApiError, authLogin, profileToSession } from '@/lib/api-client';
+import { writeSession } from '@/hooks/useAuth';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email.'),
@@ -24,8 +26,35 @@ function detectRoleFromEmail(email: string): Role {
   return 'customer';
 }
 
-export default function LoginPage() {
+/** Open redirect guard: internal path only, same-origin. */
+function safeInternalPath(raw: string | null): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const t = raw.trim();
+  if (!t.startsWith('/') || t.startsWith('//') || t.includes('://')) return null;
+  return t;
+}
+
+function defaultHomeForProfileRole(role: string): string {
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'technician') return '/technician/dashboard';
+  if (role === 'supplier') return '/supplier/dashboard';
+  return '/customer/home';
+}
+
+function postLoginPath(role: string, returnTo: string | null): string {
+  const rt = safeInternalPath(returnTo);
+  if (rt) {
+    if (role === 'admin' && rt.startsWith('/admin')) return rt;
+    if (role === 'customer' && rt.startsWith('/customer')) return rt;
+    if (role === 'technician' && rt.startsWith('/technician')) return rt;
+    if (role === 'supplier' && rt.startsWith('/supplier')) return rt;
+  }
+  return defaultHomeForProfileRole(role);
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [values, setValues] = useState<FormValues>({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,37 +72,29 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000));
-      const role = detectRoleFromEmail(values.email);
-      const name = values.email.split('@')[0] || 'User';
-
-      const session = {
-        email: values.email,
-        name,
-        role,
-        loggedIn: true,
-        loginTime: Date.now(),
-      };
-
-      localStorage.setItem('aurowater_session', JSON.stringify(session));
-      localStorage.setItem(
-        'aurowater_profile',
-        JSON.stringify({
-          name,
-          email: values.email,
-          phone: '',
+      const result = await authLogin(parsed.data.email, parsed.data.password);
+      writeSession(
+        profileToSession(result.profile, {
+          access_token: result.access_token,
+          refresh_token: result.refresh_token,
+          expires_at: result.expires_at,
         })
       );
 
       toast.success('Welcome back! 👋');
 
-      if (role === 'admin') router.replace('/admin');
-      if (role === 'technician') router.replace('/technician/dashboard');
-      if (role === 'supplier') router.replace('/supplier/dashboard');
-      if (role === 'customer') router.replace('/dashboard');
-    } catch {
-      setErr('Login failed. Please try again.');
-      toast.error('Login failed.');
+      const role = result.profile.role;
+      const returnTo = searchParams.get('returnTo');
+      router.replace(postLoginPath(role, returnTo));
+    } catch (e: unknown) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : 'Login failed. Please try again.';
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -198,4 +219,15 @@ export default function LoginPage() {
   );
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 text-sm">Loading…</div>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
+  );
+}
 

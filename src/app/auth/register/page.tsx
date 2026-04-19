@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ApiError, authRegister, profileToSession, type LoginResult } from '@/lib/api-client';
+import { writeSession } from '@/hooks/useAuth';
 
 const UP_CITIES = [
   'Kanpur',
@@ -70,13 +72,31 @@ const commonSchema = z.object({
 
 const customerExtraSchema = z.object({ fullName: z.string().min(2), phone: commonSchema.shape.phone, city: commonSchema.shape.city, password: commonSchema.shape.password, confirmPassword: commonSchema.shape.confirmPassword, terms: commonSchema.shape.terms });
 
+/** Decision: Supabase Auth requires email — stricter rules than legacy mock flow. */
+const customerRegisterSchema = z.object({
+  fullName: z.string().min(2, 'Full name is required.'),
+  email: z.string().email('Enter a valid email.'),
+  phone: z
+    .string()
+    .refine((v) => /^\d{10}$/.test(v.replace(/\D/g, '').slice(0, 10)), 'Enter exactly 10 digits.'),
+  city: z.string().refine((v) => (UP_CITIES as readonly string[]).includes(v), 'City is required.'),
+  password: z
+    .string()
+    .min(8, 'Minimum 8 characters.')
+    .regex(/[0-9]/, 'Include at least one number.'),
+  confirmPassword: z.string(),
+  terms: z.boolean().refine((v) => v === true, 'Accept the Terms.'),
+});
+
 export default function RegisterPage() {
   const router = useRouter();
   const [role, setRole] = useState<Role>('customer');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Customer fields
+  const [customerEmail, setCustomerEmail] = useState('');
   const [customerFullName, setCustomerFullName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerCity, setCustomerCity] = useState<(typeof UP_CITIES)[number]>(UP_CITIES[0]);
@@ -85,6 +105,7 @@ export default function RegisterPage() {
   const [customerTerms, setCustomerTerms] = useState(false);
 
   // Technician fields
+  const [techEmail, setTechEmail] = useState('');
   const [techFullName, setTechFullName] = useState('');
   const [techPhone, setTechPhone] = useState('');
   const [techCity, setTechCity] = useState<(typeof UP_CITIES)[number]>(UP_CITIES[0]);
@@ -95,6 +116,7 @@ export default function RegisterPage() {
   const [selectedTechCities, setSelectedTechCities] = useState<string[]>([UP_CITIES[0]]);
 
   // Supplier fields
+  const [supplierEmail, setSupplierEmail] = useState('');
   const [supplierBusinessName, setSupplierBusinessName] = useState('');
   const [supplierOwnerName, setSupplierOwnerName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
@@ -125,39 +147,60 @@ export default function RegisterPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setFieldErrors({});
     setLoading(true);
 
     try {
-      await new Promise((r) => setTimeout(r, 1000));
-
       if (role === 'customer') {
-        const parsed = commonSchema.safeParse({
+        const phone10 = customerPhone.replace(/\D/g, '').slice(0, 10);
+        const parsed = customerRegisterSchema.safeParse({
           fullName: customerFullName,
-          phone: customerPhone,
+          email: customerEmail.trim(),
+          phone: phone10,
           city: customerCity,
           password: customerPassword,
           confirmPassword: customerConfirm,
           terms: customerTerms,
         });
         if (!parsed.success) {
-          throw new Error(parsed.error.issues[0]?.message || 'Invalid input.');
+          const fe: Record<string, string> = {};
+          for (const iss of parsed.error.issues) {
+            const k = String(iss.path[0] ?? 'form');
+            if (!fe[k]) fe[k] = iss.message;
+          }
+          setFieldErrors(fe);
+          throw new Error(parsed.error.issues[0]?.message || 'Check highlighted fields.');
         }
-        if (customerPassword !== customerConfirm) throw new Error('Passwords do not match.');
+        if (customerPassword !== customerConfirm) {
+          setFieldErrors((f) => ({ ...f, confirmPassword: 'Passwords do not match.' }));
+          throw new Error('Passwords do not match.');
+        }
 
-        const email = 'customer@aurowater.in';
-        const session = {
-          email,
-          name: customerFullName.trim(),
-          role: 'customer' as const,
-          loggedIn: true,
-          loginTime: Date.now(),
-        };
+        const reg = await authRegister({
+          email: parsed.data.email,
+          password: customerPassword,
+          full_name: parsed.data.fullName.trim(),
+          phone: phone10,
+          role: 'customer',
+        });
 
-        localStorage.setItem('aurowater_session', JSON.stringify(session));
-        localStorage.setItem(
-          'aurowater_profile',
-          JSON.stringify({ name: customerFullName.trim(), email, phone: customerPhone.trim() })
+        if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
+          toast.success('Check your inbox to confirm your email, then sign in.');
+          router.replace('/auth/login');
+          return;
+        }
+
+        const ok = reg as LoginResult;
+        writeSession(
+          profileToSession(ok.profile, {
+            access_token: ok.access_token,
+            refresh_token: ok.refresh_token,
+            expires_at: ok.expires_at,
+          })
         );
+        toast.success('Welcome to AuroWater!');
+        router.replace('/customer/home');
+        return;
       }
 
       if (role === 'technician') {
@@ -173,23 +216,37 @@ export default function RegisterPage() {
           throw new Error(parsed.error.issues[0]?.message || 'Invalid input.');
         }
         if (techPassword !== techConfirm) throw new Error('Passwords do not match.');
+        if (!techEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(techEmail)) {
+          throw new Error('Enter a valid email for your account.');
+        }
         if (!selectedSkills.length) throw new Error('Please select at least 1 skill.');
         if (!selectedTechCities.length) throw new Error('Please select at least 1 service city.');
 
-        const email = 'tech@aurowater.in';
-        const session = {
-          email,
-          name: techFullName.trim(),
-          role: 'technician' as const,
-          loggedIn: true,
-          loginTime: Date.now(),
-        };
+        const phone10 = techPhone.replace(/\D/g, '').slice(0, 10);
+        const reg = await authRegister({
+          email: techEmail.trim(),
+          password: techPassword,
+          full_name: techFullName.trim(),
+          phone: phone10,
+          role: 'technician',
+        });
 
-        localStorage.setItem('aurowater_session', JSON.stringify(session));
-        localStorage.setItem(
-          'aurowater_profile',
-          JSON.stringify({ name: techFullName.trim(), email, phone: techPhone.trim() })
+        if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
+          toast.success('Confirm your email, then sign in.');
+          router.replace('/auth/login');
+          return;
+        }
+        const ok = reg as LoginResult;
+        writeSession(
+          profileToSession(ok.profile, {
+            access_token: ok.access_token,
+            refresh_token: ok.refresh_token,
+            expires_at: ok.expires_at,
+          })
         );
+        toast.success('Welcome to AuroWater!');
+        router.replace('/technician/dashboard');
+        return;
       }
 
       if (role === 'supplier') {
@@ -205,35 +262,45 @@ export default function RegisterPage() {
           throw new Error(parsed.error.issues[0]?.message || 'Invalid input.');
         }
         if (supplierPassword !== supplierConfirm) throw new Error('Passwords do not match.');
+        if (!supplierEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supplierEmail)) {
+          throw new Error('Enter a valid business email.');
+        }
 
-        const normalizedPhone = supplierPhone.replace(/\D/g, '').slice(0, 15);
-        const aurotapId = normalizedPhone ? `${normalizedPhone}@aurotap` : undefined;
-        const email = 'supplier@aurowater.in';
+        const phone10 = supplierPhone.replace(/\D/g, '').slice(0, 10);
+        const reg = await authRegister({
+          email: supplierEmail.trim(),
+          password: supplierPassword,
+          full_name: `${supplierBusinessName.trim()} (${supplierOwnerName.trim()})`,
+          phone: phone10,
+          role: 'supplier',
+        });
 
-        const session = {
-          email,
-          name: supplierBusinessName.trim(),
-          role: 'supplier' as const,
-          loggedIn: true,
-          loginTime: Date.now(),
-          aurotapId,
-        };
-
-        localStorage.setItem('aurowater_session', JSON.stringify(session));
-        localStorage.setItem(
-          'aurowater_profile',
-          JSON.stringify({ name: supplierBusinessName.trim(), email, phone: supplierPhone.trim() })
+        if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
+          toast.success('Confirm your email, then sign in.');
+          router.replace('/auth/login');
+          return;
+        }
+        const ok = reg as LoginResult;
+        writeSession(
+          profileToSession(ok.profile, {
+            access_token: ok.access_token,
+            refresh_token: ok.refresh_token,
+            expires_at: ok.expires_at,
+          })
         );
+        toast.success('Welcome to AuroWater!');
+        router.replace('/supplier/dashboard');
+        return;
       }
-
-      toast.success('Welcome to AuroWater! 🎉 Your account is ready.');
-
-      if (role === 'customer') router.replace('/dashboard');
-      if (role === 'technician') router.replace('/technician/dashboard');
-      if (role === 'supplier') router.replace('/supplier/dashboard');
-    } catch (e: any) {
-      setErr(e?.message || 'Could not create account.');
-      toast.error('Registration failed.');
+    } catch (e: unknown) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : 'Could not create account.';
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -336,10 +403,24 @@ export default function RegisterPage() {
             <form onSubmit={onSubmit} className="space-y-4">
               {role === 'customer' && (
                 <>
-                  <Field label="Full Name*">
-                    <input className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={customerFullName} onChange={(e) => setCustomerFullName(e.target.value)} />
+                  <Field label="Full Name*" error={fieldErrors.fullName}>
+                    <input
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={customerFullName}
+                      onChange={(e) => setCustomerFullName(e.target.value)}
+                      autoComplete="name"
+                    />
                   </Field>
-                  <Field label="Phone Number*">
+                  <Field label="Email*" error={fieldErrors.email}>
+                    <input
+                      type="email"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={customerEmail}
+                      onChange={(e) => setCustomerEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </Field>
+                  <Field label="Phone Number*" error={fieldErrors.phone}>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="font-extrabold text-slate-700">+91</span>
                       <input
@@ -350,8 +431,12 @@ export default function RegisterPage() {
                       />
                     </div>
                   </Field>
-                  <Field label="City/Area*">
-                    <select className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={customerCity} onChange={(e) => setCustomerCity(e.target.value as any)}>
+                  <Field label="City/Area*" error={fieldErrors.city}>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={customerCity}
+                      onChange={(e) => setCustomerCity(e.target.value as (typeof UP_CITIES)[number])}
+                    >
                       {UP_CITIES.map((c) => (
                         <option key={c} value={c}>
                           {c}
@@ -359,12 +444,24 @@ export default function RegisterPage() {
                       ))}
                     </select>
                   </Field>
-                  <Field label="Password*">
-                    <input type="password" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={customerPassword} onChange={(e) => setCustomerPassword(e.target.value)} />
+                  <Field label="Password*" error={fieldErrors.password}>
+                    <input
+                      type="password"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={customerPassword}
+                      onChange={(e) => setCustomerPassword(e.target.value)}
+                      autoComplete="new-password"
+                    />
                     <StrengthMeter password={customerPassword} />
                   </Field>
-                  <Field label="Confirm Password*">
-                    <input type="password" className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={customerConfirm} onChange={(e) => setCustomerConfirm(e.target.value)} />
+                  <Field label="Confirm Password*" error={fieldErrors.confirmPassword}>
+                    <input
+                      type="password"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={customerConfirm}
+                      onChange={(e) => setCustomerConfirm(e.target.value)}
+                      autoComplete="new-password"
+                    />
                   </Field>
                   <label className="flex items-start gap-3 text-sm text-slate-700">
                     <input type="checkbox" checked={customerTerms} onChange={(e) => setCustomerTerms(e.target.checked)} className="accent-[#0D9B6C] mt-1" />
@@ -380,6 +477,15 @@ export default function RegisterPage() {
                   <Field label="Full Name*">
                     <input className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={techFullName} onChange={(e) => setTechFullName(e.target.value)} />
                   </Field>
+                  <Field label="Email* (login)">
+                    <input
+                      type="email"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={techEmail}
+                      onChange={(e) => setTechEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </Field>
                   <Field label="Phone Number*">
                     <div className="flex items-center gap-2 mt-2">
                       <span className="font-extrabold text-slate-700">+91</span>
@@ -387,7 +493,11 @@ export default function RegisterPage() {
                     </div>
                   </Field>
                   <Field label="City/Area*">
-                    <select className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={techCity} onChange={(e) => setTechCity(e.target.value as any)}>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={techCity}
+                      onChange={(e) => setTechCity(e.target.value as (typeof UP_CITIES)[number])}
+                    >
                       {UP_CITIES.map((c) => (
                         <option key={c} value={c}>
                           {c}
@@ -465,6 +575,15 @@ export default function RegisterPage() {
                   <Field label="Owner Name*">
                     <input className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={supplierOwnerName} onChange={(e) => setSupplierOwnerName(e.target.value)} />
                   </Field>
+                  <Field label="Business Email* (login)">
+                    <input
+                      type="email"
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={supplierEmail}
+                      onChange={(e) => setSupplierEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </Field>
                   <Field label="Phone Number*">
                     <div className="flex items-center gap-2 mt-2">
                       <span className="font-extrabold text-slate-700">+91</span>
@@ -484,7 +603,11 @@ export default function RegisterPage() {
                     </div>
                   </div>
                   <Field label="City*">
-                    <select className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]" value={supplierCity} onChange={(e) => setSupplierCity(e.target.value as any)}>
+                    <select
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
+                      value={supplierCity}
+                      onChange={(e) => setSupplierCity(e.target.value as (typeof UP_CITIES)[number])}
+                    >
                       {UP_CITIES.map((c) => (
                         <option key={c} value={c}>
                           {c}
@@ -499,7 +622,9 @@ export default function RegisterPage() {
                     <select
                       className="w-full rounded-xl border border-slate-200 px-3 py-2.5 mt-2 focus:ring-2 focus:ring-[#0D9B6C]"
                       value={supplierFleetType}
-                      onChange={(e) => setSupplierFleetType(e.target.value as any)}
+                      onChange={(e) =>
+                        setSupplierFleetType(e.target.value as 'Tanker' | 'Equipment' | 'Both')
+                      }
                     >
                       <option value="Tanker">Tanker</option>
                       <option value="Equipment">Equipment</option>
@@ -531,6 +656,13 @@ export default function RegisterPage() {
               >
                 {loading ? 'Creating…' : 'Create Account'}
               </button>
+
+              <div className="text-xs text-slate-500 pt-1">
+                Supplier or technician onboarding?{' '}
+                <Link href="/register/pro" className="text-[#0D9B6C] font-extrabold hover:underline">
+                  Professional signup →
+                </Link>
+              </div>
 
               <div className="text-sm text-slate-600 pt-1">
                 Already have an account?{' '}
@@ -580,11 +712,20 @@ function RoleCard({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  error,
+}: {
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
   return (
     <div>
       <div className="text-sm font-semibold text-slate-700">{label}</div>
       {children}
+      {error ? <p className="mt-1 text-xs font-semibold text-rose-600">{error}</p> : null}
     </div>
   );
 }
