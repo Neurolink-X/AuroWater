@@ -1,7 +1,7 @@
 /**
  * Decision: Edge middleware cannot read localStorage/Bearer tokens.
  * After login/register we mirror `profiles.role` into first-party cookies so
- * `src/middleware.ts` can gate routes without a DB round-trip.
+ * `src/proxy.ts` can gate routes without a DB round-trip.
  * These are not secrets — API routes still enforce Supabase RLS + Bearer auth.
  */
 

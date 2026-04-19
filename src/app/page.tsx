@@ -2137,6 +2137,14 @@ export default function HomePage() {
     return () => window.removeEventListener('mousemove', move);
   }, [cursorX, cursorY]);
 
+  /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
+  useEffect(() => {
+    document.documentElement.style.setProperty('--footer-prev-bg', '#08111F');
+    return () => {
+      document.documentElement.style.setProperty('--footer-prev-bg', '#ffffff');
+    };
+  }, []);
+
   /* ── Founding count ── */
   useEffect(() => {
     let cancelled = false;
@@ -2310,12 +2318,13 @@ export default function HomePage() {
         }
 
         .hero-stat-val {
-          font-family:    var(--font-mono);
+          font-family:    var(--font-display);
           font-weight:    900;
-          font-size:      clamp(1.5rem, 3vw, 2.2rem);
-          letter-spacing: -0.5px;
+          font-size:      clamp(2rem, 4.5vw, 3rem);
+          letter-spacing: -1px;
           line-height:    1;
           color:          #ffffff;
+          text-shadow:    0 0 36px rgba(96, 165, 250, 0.45), 0 2px 12px rgba(0, 0, 0, 0.35);
           -webkit-font-smoothing: antialiased;
           padding-bottom: 0.06em;
           overflow:       visible;
@@ -2324,11 +2333,11 @@ export default function HomePage() {
         .hero-stat-lbl {
           font-family:   var(--font-body);
           font-size:     11px;
-          font-weight:   600;
-          color:         rgba(255, 255, 255, 0.45);
+          font-weight:   700;
+          color:         rgba(255, 255, 255, 0.72);
           text-transform: uppercase;
-          letter-spacing: 0.06em;
-          margin-top:    4px;
+          letter-spacing: 0.1em;
+          margin-top:    6px;
         }
 
         .hero-gradient-text {
@@ -2617,10 +2626,10 @@ export default function HomePage() {
                   {/* Stats */}
                   <div className="grid grid-cols-2 gap-3">
                     {STATS.map((s, i) => (
-                      <motion.div key={s.label} className="aw-glass px-5 py-4"
+                      <motion.div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
                         initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }}
                         transition={{ delay:.32+i*.07 }}>
-                        <div className="text-xl mb-1.5">{s.icon}</div>
+                        <div className="text-2xl mb-2 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]">{s.icon}</div>
                         <div
                           className="hero-stat-val"
                           style={{ textShadow: `0 0 22px ${s.glow}60` }}
@@ -2999,8 +3008,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* ═══════ FINAL CTA ═══════ */}
-        <section className="relative overflow-hidden py-16 sm:py-20" style={{ background:'var(--navy)' }}>
+        {/* ═══════ FINAL CTA ═══════ (gradient meets global Footer wave #08111F) */}
+        <section
+          className="relative overflow-hidden pt-16 pb-6 sm:pt-20 sm:pb-8"
+          style={{
+            background: 'linear-gradient(180deg, var(--navy) 0%, var(--navy) 45%, #08111F 100%)',
+          }}
+        >
           <div className="absolute inset-0 pointer-events-none"
             style={{ background:'radial-gradient(ellipse 80% 60% at 50% 50%,rgba(14,165,233,.11) 0%,transparent 70%)' }}
             aria-hidden="true" />
@@ -3027,25 +3041,6 @@ export default function HomePage() {
             </motion.div>
           </div>
         </section>
-
-        {/* ═══════ FOOTER ═══════ */}
-        <footer className="py-10" style={{ background:'var(--navy2)', borderTop:'1px solid rgba(14,165,233,.1)' }}>
-          <div className="max-w-7xl mx-auto px-5 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-500 flex items-center justify-center">
-                <span>💧</span>
-              </div>
-              <span className="font-display font-bold text-white">Auro<span className="text-sky-400">Water</span></span>
-              <span className="text-slate-600">· Delhi, UP</span>
-            </div>
-            <div className="flex flex-wrap justify-center gap-5 text-sm">
-              {([['Pricing','/pricing'],['Contact','/contact'],['Become Supplier','/auth/register?role=supplier'],['Become Plumber','/auth/register?role=technician']] as const).map(([label, href]) => (
-                <Link key={label} href={href} className="hover:text-sky-400 transition font-medium">{label}</Link>
-              ))}
-            </div>
-            <p className="text-xs text-slate-600 font-display">© {new Date().getFullYear()} AuroWater. All rights reserved.</p>
-          </div>
-        </footer>
 
       </div>
     </>

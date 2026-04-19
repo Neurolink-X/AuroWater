@@ -34,12 +34,14 @@ export default function AnnouncementBar() {
         type="button"
         onClick={() => {
           try {
+            localStorage.setItem('aw_announcement_dismissed', '1');
             localStorage.setItem('aurowater_bar_dismissed', '1');
           } catch {
             // ignore
           }
           setDismissed(true);
           setVisible(false);
+          window.dispatchEvent(new CustomEvent('aw:announcement:dismissed'));
         }}
         className="close-btn absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full hover:bg-white/10 transition-colors"
         aria-label="Dismiss announcement"

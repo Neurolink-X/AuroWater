@@ -1,12 +1,18 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { ensureProfileForUser, isProfilesSchemaMissingError } from '@/lib/auth/ensure-profile';
+import {
+  ensureProfileForUser,
+  isProfilesSchemaMissingError,
+  profileTableUnavailableMessage,
+} from '@/lib/auth/ensure-profile';
+import { seedSupplierRegistrationDefaults } from '@/lib/auth/seed-supplier-registration';
 import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
+import { createServiceClient } from '@/utils/supabase/server';
 import type { ProfileRow } from '@/lib/db/types';
 
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return jsonErr('Supabase is not configured on the server', 503);
+    return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
   }
 
   let body: Record<string, unknown>;
@@ -25,6 +31,14 @@ export async function POST(req: NextRequest) {
     roleRaw === 'technician' || roleRaw === 'supplier' || roleRaw === 'admin'
       ? roleRaw
       : 'customer';
+
+  if (role === 'admin') {
+    const expected = process.env.ADMIN_INVITE_CODE?.trim();
+    const provided = typeof body.invite_code === 'string' ? body.invite_code.trim() : '';
+    if (!expected || provided !== expected) {
+      return jsonErr('Admin registration requires a valid invite code', 403);
+    }
+  }
 
   if (!email || !password || !full_name) {
     return jsonErr('full_name, email, and password are required', 400);
@@ -68,14 +82,19 @@ export async function POST(req: NextRequest) {
     .eq('id', session.user.id)
     .maybeSingle();
 
-  if (pErr && isProfilesSchemaMissingError(pErr)) {
-    return jsonErr(
-      'Database not ready: run sql/001_core_schema.sql through sql/005_notifications_dedup.sql in the Supabase SQL Editor, then register again.',
-      503
-    );
-  }
   if (pErr) {
-    return jsonErr(pErr.message || 'Could not load profile', 500);
+    const code = (pErr as { code?: string }).code;
+    if (code === '42501') {
+      return jsonErr(pErr.message || 'Forbidden', 403);
+    }
+    if (isProfilesSchemaMissingError(pErr)) {
+      return jsonErr(
+        `${profileTableUnavailableMessage(pErr)} Then register again.`,
+        503,
+        'DB_NOT_READY'
+      );
+    }
+    return jsonErr(pErr.message || 'Could not load profile', 502);
   }
 
   let resolved = profile as ProfileRow | null;
@@ -84,10 +103,23 @@ export async function POST(req: NextRequest) {
   }
 
   if (!resolved) {
+    try {
+      createServiceClient();
+    } catch {
+      return jsonErr(
+        'Account created but profile could not be finalized. Set SUPABASE_SERVICE_ROLE_KEY on the server, then sign in.',
+        503,
+        'SERVICE_ROLE_MISSING'
+      );
+    }
     return jsonErr(
-      'Account created but profile could not be created. Apply sql/004_functions.sql (auth trigger) or set SUPABASE_SERVICE_ROLE_KEY, then sign in.',
-      500
+      'Account created but profile could not be created. Apply migrations (001–006) and sql/004_functions.sql, then sign in.',
+      404
     );
+  }
+
+  if (resolved.role === 'supplier') {
+    await seedSupplierRegistrationDefaults(resolved.id);
   }
 
   return jsonOk(

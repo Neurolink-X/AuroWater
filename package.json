@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:setup": "node scripts/setup-db.js",
-    "smoke": "node scripts/smoke-test.mjs"
+    "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
+    "smoke": "node scripts/smoke-test.mjs",
+    "verify:env": "node scripts/verify-env.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

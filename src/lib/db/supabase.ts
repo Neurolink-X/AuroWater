@@ -58,7 +58,10 @@ export function createSupabaseUserClient(accessToken: string): SupabaseClient {
   });
 }
 
-/** Admin / migration only — never import in Client Components. */
+/**
+ * Admin / migration only — never import in Client Components.
+ * Requires `SUPABASE_SERVICE_ROLE_KEY` (see `instrumentation.ts` startup log if missing).
+ */
 export function supabaseAdmin(): SupabaseClient {
   return createServiceClient();
 }

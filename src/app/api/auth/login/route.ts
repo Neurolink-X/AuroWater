@@ -1,12 +1,19 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { ensureProfileForUser, isProfilesSchemaMissingError } from '@/lib/auth/ensure-profile';
+import {
+  ensureProfileForUser,
+  isProfilesSchemaMissingError,
+  profileTableUnavailableMessage,
+} from '@/lib/auth/ensure-profile';
 import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
 import type { ProfileRow } from '@/lib/db/types';
+import { isProfileLoginAllowed } from '@/lib/auth/profile-access';
+import { getSupabaseServiceRoleKey } from '@/lib/env/supabase-service-role';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return jsonErr('Supabase is not configured on the server', 503);
+    return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
   }
 
   let body: Record<string, unknown>;
@@ -37,30 +44,56 @@ export async function POST(req: NextRequest) {
     .eq('id', data.session.user.id)
     .maybeSingle();
 
-  if (pErr && isProfilesSchemaMissingError(pErr)) {
-    return jsonErr(
-      'Database not ready: run sql/001_core_schema.sql through sql/005_notifications_dedup.sql in the Supabase SQL Editor, then retry.',
-      503
-    );
-  }
   if (pErr) {
-    return jsonErr(pErr.message || 'Could not load profile', 500);
+    const code = (pErr as { code?: string }).code;
+    if (code === '42501') {
+      return jsonErr(pErr.message || 'Forbidden', 403);
+    }
+    if (isProfilesSchemaMissingError(pErr)) {
+      return jsonErr(profileTableUnavailableMessage(pErr), 503, 'DB_NOT_READY');
+    }
+    return jsonErr(pErr.message || 'Could not load profile', 502);
   }
 
   let resolved = profile as ProfileRow | null;
+
   if (!resolved) {
     resolved = await ensureProfileForUser(data.session.user);
   }
 
   if (!resolved) {
+    const sr = getSupabaseServiceRoleKey();
+    if (!sr) {
+      return jsonErr('Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set', 503, 'SERVICE_ROLE_MISSING');
+    }
+    try {
+      const admin = createServiceClient();
+      const { data: svcRow, error: svcErr } = await admin
+        .from('profiles')
+        .select('*')
+        .eq('id', data.session.user.id)
+        .maybeSingle();
+      if (!svcErr && svcRow) {
+        resolved = svcRow as ProfileRow;
+      }
+    } catch {
+      /* service client unavailable */
+    }
+  }
+
+  if (!resolved) {
     return jsonErr(
-      'Profile not found for this account. Ensure migrations and trigger sql/004_functions.sql are applied, and SUPABASE_SERVICE_ROLE_KEY is set on the server.',
+      'Profile not found for this account. Apply migrations (001–006), auth trigger (004_functions.sql), then retry.',
       404
     );
   }
 
-  if (!resolved.is_active) {
-    return jsonErr('This account is disabled', 403);
+  if (!isProfileLoginAllowed(resolved)) {
+    return jsonErr(
+      'This account has been suspended. Contact support if you think this is a mistake.',
+      403,
+      'ACCOUNT_SUSPENDED'
+    );
   }
 
   return jsonOk({

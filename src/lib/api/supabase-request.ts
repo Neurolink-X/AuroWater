@@ -1,11 +1,16 @@
 import { NextRequest } from 'next/server';
+import {
+  ensureProfileForUser,
+  isProfilesSchemaMissingError,
+  profileTableUnavailableMessage,
+} from '@/lib/auth/ensure-profile';
 import { getTokenFromRequest } from '@/lib/auth/jwt';
 import { createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
-import { createServiceClient } from '@/utils/supabase/server';
 import type { ProfileRow, ProfileRole } from '@/lib/db/types';
 import { jsonErr } from '@/lib/api/json-response';
 import type { NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export type AuthedContext = {
   accessToken: string;
@@ -13,14 +18,6 @@ export type AuthedContext = {
   profile: ProfileRow;
   supabase: ReturnType<typeof createSupabaseUserClient>;
 };
-
-function mapJwtRoleToProfileRole(role: string | undefined): ProfileRole {
-  const r = (role ?? 'customer').toLowerCase();
-  if (r === 'admin' || r === 'supplier' || r === 'technician' || r === 'customer') {
-    return r;
-  }
-  return 'customer';
-}
 
 /**
  * Auth via Supabase access token (Bearer). Loads `profiles` row.
@@ -31,7 +28,7 @@ export async function requireSupabaseAuth(
   req: NextRequest
 ): Promise<{ ok: true; ctx: AuthedContext } | { ok: false; response: NextResponse }> {
   if (!isSupabaseConfigured()) {
-    return { ok: false, response: jsonErr('Server misconfiguration: Supabase env missing', 503) };
+    return { ok: false, response: jsonErr('Server misconfiguration: Supabase env missing', 503, 'MISCONFIG_ENV') };
   }
 
   const token = getTokenFromRequest(req);
@@ -56,44 +53,50 @@ export async function requireSupabaseAuth(
     .maybeSingle();
 
   if (profErr) {
-    return { ok: false, response: jsonErr(profErr.message || 'Profile load failed', 500) };
+    const code = (profErr as { code?: string }).code;
+    const msg = profErr.message || 'Profile load failed';
+    if (code === '42501') {
+      return { ok: false, response: jsonErr(msg, 403) };
+    }
+    if (isProfilesSchemaMissingError(profErr)) {
+      return {
+        ok: false,
+        response: jsonErr(profileTableUnavailableMessage(profErr), 503, 'DB_NOT_READY'),
+      };
+    }
+    return { ok: false, response: jsonErr(msg, 502) };
   }
 
   if (!profile) {
-    // Bootstrap profile if trigger missed (e.g. legacy project) — service role only
-    try {
-      const admin = createServiceClient();
-      const meta = user.user_metadata as Record<string, unknown> | undefined;
-      const role = mapJwtRoleToProfileRole(typeof meta?.role === 'string' ? meta.role : undefined);
-      const fullName = typeof meta?.full_name === 'string' ? meta.full_name : '';
-      const phone = typeof meta?.phone === 'string' ? meta.phone : null;
-      const { data: inserted, error: insErr } = await admin
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email ?? '',
-          full_name: fullName,
-          phone,
-          role,
-        })
-        .select('*')
-        .single();
-
-      if (insErr || !inserted) {
-        return { ok: false, response: jsonErr('Profile not found', 404) };
-      }
+    const ensured = await ensureProfileForUser(user);
+    if (ensured) {
       return {
         ok: true,
         ctx: {
           accessToken: token,
           user,
-          profile: inserted as ProfileRow,
+          profile: ensured,
           supabase,
         },
       };
-    } catch {
-      return { ok: false, response: jsonErr('Profile not found', 404) };
     }
+
+    try {
+      createServiceClient();
+    } catch {
+      return {
+        ok: false,
+        response: jsonErr('Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set', 503, 'SERVICE_ROLE_MISSING'),
+      };
+    }
+
+    return {
+      ok: false,
+      response: jsonErr(
+        'Profile not found or could not be created. Apply sql migrations (001–006), ensure auth trigger (004), and set SUPABASE_SERVICE_ROLE_KEY.',
+        404
+      ),
+    };
   }
 
   return {

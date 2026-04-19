@@ -72,7 +72,7 @@ export async function PUT(
         `Your ${serviceName} is done. Tap to rate your experience.`,
         'booking',
         id,
-        'status_changed_completed'
+        'completed'
       );
     }
     if (status === 'CANCELLED') {
@@ -82,7 +82,7 @@ export async function PUT(
         `Your ${serviceName} order status changed to cancelled.`,
         'booking',
         id,
-        'status_changed_cancelled'
+        'cancelled'
       );
     }
   }

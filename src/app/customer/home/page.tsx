@@ -3,7 +3,15 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, logout, type ApiOrder, type ApiNotification, type CustomerStats } from '@/lib/api-client';
+import {
+  api,
+  getApiErrorMessage,
+  logout,
+  type ApiOrder,
+  type ApiNotification,
+  type CustomerStats,
+} from '@/lib/api-client';
+import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 import { useAuth } from '@/hooks/useAuth';
 
 /* ─────────────────────────────────────────────
@@ -48,6 +56,17 @@ const SVC_META: Record<string, { emoji: string; label: string; color: string }> 
   motor_pump:    { emoji:'⚙️', label:'Motor & Pump',   color:'#7C3AED' },
   tank_cleaning: { emoji:'🪣', label:'Tank Cleaning',  color:'#0891B2' },
   water_can:     { emoji:'💧', label:'Water Can',      color:'#2563EB' },
+};
+
+const EMPTY_STATS: CustomerStats = {
+  total_orders: 0,
+  active_orders: 0,
+  completed: 0,
+  cancelled: 0,
+  total_spent: 0,
+  savings: 0,
+  avg_rating: null,
+  total_reviews: 0,
 };
 
 const SERVICES = [
@@ -258,12 +277,17 @@ export default function CustomerHome() {
           time_slot: o.time_slot ?? undefined,
         }));
         setOrders(mapped);
-      } else if (ordersRes.status === 'rejected') {
-        throw ordersRes.reason;
+      } else {
+        setOrders([]);
+        if (ordersRes.status === 'rejected') {
+          setError(getApiErrorMessage(ordersRes.reason));
+        }
       }
 
       if (statsRes.status === 'fulfilled') {
         setStats(statsRes.value);
+      } else {
+        setStats(EMPTY_STATS);
       }
 
       if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value)) {
@@ -275,11 +299,14 @@ export default function CustomerHome() {
           order_id: n.order_id ? String(n.order_id) : undefined,
         }));
         setNotifs(mappedNotifs);
+      } else {
+        setNotifs([]);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load orders');
+      setError(getApiErrorMessage(e));
       setOrders([]);
       setNotifs([]);
+      setStats(EMPTY_STATS);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -673,10 +700,23 @@ export default function CustomerHome() {
 
           {/* Error */}
           {error && (
-            <div className="ch-error" role="alert">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {error}
-              <button type="button" onClick={() => void loadData()} style={{ marginLeft:'auto', padding:'5px 12px', borderRadius:8, background:'#DC2626', color:'#fff', border:'none', cursor:'pointer', fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11 }}>Retry</button>
+            <div className="mb-4 space-y-2">
+              <DatabaseErrorBanner message={error} />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => void loadData()}
+                  className="rounded-lg px-4 py-2 text-xs font-bold text-white"
+                  style={{
+                    background: '#2563EB',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: "'DM Sans',sans-serif",
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
             </div>
           )}
 
@@ -752,6 +792,35 @@ export default function CustomerHome() {
           </div>
 
           {/* ── Active orders ── */}
+          {loading && (
+            <div style={{ marginBottom:18 }}>
+              <div className="ch-section-lbl">Active Bookings</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {[0, 1].map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: 16,
+                      borderRadius: 16,
+                      background: '#fff',
+                      border: '1px solid #DBEAFE',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      display: 'flex',
+                      gap: 13,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <Skeleton w={44} h={44} r={13} />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <Skeleton w="45%" h={14} r={6} />
+                      <Skeleton w="65%" h={10} r={5} />
+                      <Skeleton w={80} h={18} r={99} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {!loading && activeOrders.length > 0 && (
             <div style={{ marginBottom:18 }}>
               <div className="ch-section-lbl">Active Bookings</div>
@@ -884,17 +953,30 @@ export default function CustomerHome() {
             )}
           </div>
 
-          {/* ── Notifications placeholder ── */}
+          {/* ── Notifications ── */}
           <div className="ch-card" style={{ marginBottom:18 }}>
             <div className="ch-card-head">
               <h2 className="ch-card-title">Notifications</h2>
-              {notifs.length > 0 && (
+              {!loading && notifs.length > 0 && (
                 <span style={{ fontSize:9, fontWeight:800, background:'#EDE9FE', color:'#5B21B6', padding:'3px 8px', borderRadius:99, letterSpacing:'0.06em', textTransform:'uppercase' }}>
                   {notifs.length} updates
                 </span>
               )}
             </div>
-            {notifs.length > 0 ? (
+            {loading ? (
+              <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14 }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
+                    <Skeleton w={36} h={36} r={11} />
+                    <div style={{ flex:1 }}>
+                      <Skeleton w="55%" h={13} r={5} />
+                      <div style={{ height:6 }} />
+                      <Skeleton w="80%" h={10} r={5} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : notifs.length > 0 ? (
               notifs.slice(0, 3).map((n) => {
                 return (
                   <div key={n.id} className="ch-notif">

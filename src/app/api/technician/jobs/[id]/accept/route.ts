@@ -59,7 +59,7 @@ export async function PUT(
       `Your ${serviceName} visit has started.`,
       'booking',
       id,
-      'status_changed_in_progress'
+      'status_changed'
     );
   }
 

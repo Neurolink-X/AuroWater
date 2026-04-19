@@ -6,8 +6,10 @@ import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ApiError, authLogin, profileToSession } from '@/lib/api-client';
+import { ApiError, authLogin, authResendConfirmation, profileToSession } from '@/lib/api-client';
+import { postLoginPath } from '@/lib/auth/post-login-redirect';
 import { writeSession } from '@/hooks/useAuth';
+import { createClient } from '@/utils/supabase/client';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email.'),
@@ -26,45 +28,63 @@ function detectRoleFromEmail(email: string): Role {
   return 'customer';
 }
 
-/** Open redirect guard: internal path only, same-origin. */
-function safeInternalPath(raw: string | null): string | null {
-  if (!raw || typeof raw !== 'string') return null;
-  const t = raw.trim();
-  if (!t.startsWith('/') || t.startsWith('//') || t.includes('://')) return null;
-  return t;
-}
-
-function defaultHomeForProfileRole(role: string): string {
-  if (role === 'admin') return '/admin/dashboard';
-  if (role === 'technician') return '/technician/dashboard';
-  if (role === 'supplier') return '/supplier/dashboard';
-  return '/customer/home';
-}
-
-function postLoginPath(role: string, returnTo: string | null): string {
-  const rt = safeInternalPath(returnTo);
-  if (rt) {
-    if (role === 'admin' && rt.startsWith('/admin')) return rt;
-    if (role === 'customer' && rt.startsWith('/customer')) return rt;
-    if (role === 'technician' && rt.startsWith('/technician')) return rt;
-    if (role === 'supplier' && rt.startsWith('/supplier')) return rt;
-  }
-  return defaultHomeForProfileRole(role);
-}
-
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [values, setValues] = useState<FormValues>({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [errCode, setErrCode] = useState<string | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
 
   const rolePreview = useMemo(() => detectRoleFromEmail(values.email), [values.email]);
+
+  const urlError = searchParams.get('error');
+  const displayedErr =
+    err ??
+    (urlError
+      ? (() => {
+          try {
+            return decodeURIComponent(urlError);
+          } catch {
+            return urlError;
+          }
+        })()
+      : null);
+
+  const onGoogle = async () => {
+    setErr(null);
+    setGoogleLoading(true);
+    try {
+      const supabase = createClient();
+      const origin = window.location.origin;
+      const returnTo = searchParams.get('returnTo') || '';
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${origin}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (error) {
+        setErr(error.message);
+        toast.error(error.message);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Google sign-in failed.';
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setErrCode(null);
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
       setErr(parsed.error.issues[0]?.message || 'Invalid input.');
@@ -94,7 +114,12 @@ function LoginPageInner() {
             ? e.message
             : 'Login failed. Please try again.';
       setErr(msg);
-      toast.error(msg);
+      setErrCode(e instanceof ApiError ? e.code ?? null : null);
+      if (e instanceof ApiError && (e.code === 'DB_NOT_READY' || e.code === 'SERVICE_ROLE_MISSING' || e.code === 'MISCONFIG_ENV')) {
+        toast.error(msg, { duration: 12000 });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -173,7 +198,33 @@ function LoginPageInner() {
                 </Link>
               </div>
 
-              {err ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 text-sm font-semibold">{err}</div> : null}
+              {displayedErr ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 text-sm font-semibold space-y-2">
+                  <p>{displayedErr}</p>
+                  {errCode === 'EMAIL_NOT_CONFIRMED' ? (
+                    <button
+                      type="button"
+                      disabled={resendBusy || !values.email.trim()}
+                      onClick={async () => {
+                        setResendBusy(true);
+                        try {
+                          await authResendConfirmation(values.email);
+                          toast.success('Check your inbox — we sent another confirmation link.');
+                        } catch (re: unknown) {
+                          const m =
+                            re instanceof ApiError ? re.message : re instanceof Error ? re.message : 'Could not resend';
+                          toast.error(m);
+                        } finally {
+                          setResendBusy(false);
+                        }
+                      }}
+                      className="text-[#0D9B6C] font-extrabold underline-offset-2 hover:underline disabled:opacity-50"
+                    >
+                      {resendBusy ? 'Sending…' : 'Resend confirmation email'}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
 
               <button
                 type="submit"
@@ -191,9 +242,11 @@ function LoginPageInner() {
 
               <button
                 type="button"
-                className="w-full rounded-xl border border-slate-200 bg-white py-3 font-extrabold text-slate-700 hover:bg-slate-50 transition-all"
+                onClick={onGoogle}
+                disabled={loading || googleLoading}
+                className="w-full rounded-xl border border-slate-200 bg-white py-3 font-extrabold text-slate-700 hover:bg-slate-50 transition-all disabled:opacity-60"
               >
-                Continue with Google
+                {googleLoading ? 'Redirecting to Google…' : 'Continue with Google'}
               </button>
 
               <div className="text-sm text-slate-600 pt-2">

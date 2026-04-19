@@ -472,7 +472,24 @@ export default function Footer() {
           .ft-cta-btns { flex-direction: column; width: 100%; }
           .ft-cta-btn-primary, .ft-cta-btn-secondary { width: 100%; justify-content: center; }
         }
+
+        /* Smooth handoff from page body into dark footer — override with --footer-prev-bg on :root */
+        .ft-footer-bridge {
+          display: block;
+          width: 100%;
+        }
       `}</style>
+
+      {/* Blends last section background into footer (set --footer-prev-bg per page when needed) */}
+      <div
+        className="ft-footer-bridge"
+        aria-hidden="true"
+        style={{
+          height: 48,
+          marginTop: -1,
+          background: 'linear-gradient(180deg, var(--footer-prev-bg, #ffffff) 0%, #08111f 100%)',
+        }}
+      />
 
       <footer className="ft-root" aria-label="Site footer">
 

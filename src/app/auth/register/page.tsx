@@ -300,7 +300,11 @@ export default function RegisterPage() {
             ? e.message
             : 'Could not create account.';
       setErr(msg);
-      toast.error(msg);
+      if (e instanceof ApiError && (e.code === 'DB_NOT_READY' || e.code === 'SERVICE_ROLE_MISSING' || e.code === 'MISCONFIG_ENV')) {
+        toast.error(msg, { duration: 12000 });
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }

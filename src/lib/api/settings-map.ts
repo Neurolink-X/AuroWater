@@ -28,6 +28,10 @@ export function rowsToSettingsPayload(
     working_hours: map.working_hours,
     brand_name: map.brand_name,
     whatsapp_enabled: map.whatsapp_enabled === '1' || map.whatsapp_enabled === 'true',
+    platform_fee:
+      map.platform_fee !== undefined && map.platform_fee !== ''
+        ? Number(map.platform_fee)
+        : undefined,
   };
 
   if (map.service_base_prices) {
@@ -36,6 +40,16 @@ export function rowsToSettingsPayload(
     } catch {
       /* ignore */
     }
+  }
+
+  for (const [k, raw] of Object.entries(map)) {
+    if (out[k] !== undefined) continue;
+    const n = Number(raw);
+    const looksNumeric =
+      raw !== '' &&
+      Number.isFinite(n) &&
+      /^-?\d+(\.\d+)?$/.test(raw.trim());
+    out[k] = looksNumeric ? n : raw;
   }
 
   return out;

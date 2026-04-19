@@ -81,6 +81,8 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
   const [mobileOpen, setMobileOpen]   = useState(false);
   const [avatarOpen, setAvatarOpen]   = useState(false);
   const [scrolled,   setScrolled]     = useState(false);
+  /** After dismiss event, force sticky top to 0 before parent re-render propagates */
+  const [announcementTopPx, setAnnouncementTopPx] = useState<number | null>(null);
 
   const avatarRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +106,32 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
 
   /* close mobile on route change */
   useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (
+        localStorage.getItem('aw_announcement_dismissed') === '1' ||
+        localStorage.getItem('aurowater_bar_dismissed') === '1'
+      ) {
+        setAnnouncementTopPx(0);
+      }
+    } catch {
+      /* ignore */
+    }
+    const onDismiss = () => setAnnouncementTopPx(0);
+    window.addEventListener('aw:announcement:dismissed', onDismiss);
+    return () => window.removeEventListener('aw:announcement:dismissed', onDismiss);
+  }, []);
+
+  useEffect(() => {
+    if (offsetPx === 0) {
+      setAnnouncementTopPx(null);
+    }
+  }, [offsetPx]);
+
+  const navTopOffset =
+    announcementTopPx !== null ? announcementTopPx : offsetPx;
 
   /* derived */
   const initials =
@@ -185,18 +213,23 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
         /* ── Desktop nav links ── */
         .nav-links {
           display: flex; align-items: center; gap: 2px;
-          flex: 1; overflow-x: auto;
+          flex: 1 1 auto;
+          min-width: 0;
+          overflow-x: auto;
+          overflow-y: visible;
         }
         .nav-links::-webkit-scrollbar { display: none; }
 
         .nav-link {
           position: relative;
           display: inline-flex; align-items: center;
-          padding: 7px 11px; border-radius: 9px;
-          font-size: 13.5px; font-weight: 600;
+          flex-shrink: 0;
+          padding: 7px 10px; border-radius: 9px;
+          font-size: 13px; font-weight: 600;
           color: #4B5563; text-decoration: none;
           transition: color 0.15s, background 0.15s;
           white-space: nowrap;
+          overflow: visible;
         }
         .nav-link:hover { color: #2563EB; background: #EFF6FF; }
         .nav-link.active { color: #2563EB; background: #EFF6FF; }
@@ -412,7 +445,7 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
 
       <header
         className={`nav-root${scrolled ? ' nav-scrolled' : ''}`}
-        style={{ top: offsetPx }}
+        style={{ top: navTopOffset }}
         role="banner"
       >
         {/* ── Desktop navbar ── */}

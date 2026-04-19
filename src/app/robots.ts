@@ -1,17 +1,16 @@
 import type { MetadataRoute } from 'next';
 
-export default function robots(): MetadataRoute.Robots {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aurowater.in';
 
+export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/customer/', '/supplier/', '/technician/', '/auth/', '/api/'],
+        disallow: ['/admin/', '/customer/', '/supplier/', '/technician/', '/api/'],
       },
     ],
-    sitemap: `${base}/sitemap.xml`,
+    sitemap: `${BASE}/sitemap.xml`,
   };
 }
-

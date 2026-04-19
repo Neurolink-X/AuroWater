@@ -39,8 +39,19 @@ export async function ensureProfileForUser(user: User): Promise<ProfileRow | nul
 
   const meta = user.user_metadata as Record<string, unknown> | undefined;
   const role = mapMetaRoleToProfileRole(meta);
-  const full_name = typeof meta?.full_name === 'string' ? meta.full_name : '';
+  const full_name =
+    typeof meta?.full_name === 'string'
+      ? meta.full_name
+      : typeof meta?.name === 'string'
+        ? meta.name
+        : '';
   const phone = typeof meta?.phone === 'string' ? meta.phone : null;
+  const avatar_url =
+    typeof meta?.avatar_url === 'string'
+      ? meta.avatar_url
+      : typeof meta?.picture === 'string'
+        ? meta.picture
+        : null;
 
   const { data: inserted, error: insErr } = await admin
     .from('profiles')
@@ -50,22 +61,32 @@ export async function ensureProfileForUser(user: User): Promise<ProfileRow | nul
       full_name,
       phone,
       role,
+      avatar_url,
+      is_active: true,
     })
     .select('*')
     .single();
 
-  if (insErr || !inserted) {
-    return null;
+  if (!insErr && inserted) {
+    return inserted as ProfileRow;
   }
-  return inserted as ProfileRow;
+
+  // Race: trigger or another request created the row first (unique on id / email)
+  if (insErr && (insErr as { code?: string }).code === '23505') {
+    const { data: raced } = await admin
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (raced) {
+      return raced as ProfileRow;
+    }
+  }
+
+  return null;
 }
 
-export function isProfilesSchemaMissingError(err: { message?: string; code?: string } | null): boolean {
-  if (!err?.message) return false;
-  const m = err.message.toLowerCase();
-  return (
-    m.includes('does not exist') ||
-    m.includes('schema cache') ||
-    m.includes('could not find the table')
-  );
-}
+export {
+  isProfilesSchemaMissingError,
+  profileTableUnavailableMessage,
+} from '@/lib/supabase/postgrest-errors';

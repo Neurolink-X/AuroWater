@@ -74,10 +74,12 @@ import WhatsAppFAB from '@/components/ui/WhatsAppFAB';
  */
 const CHROME_EXCLUDE_PREFIXES = ['/admin', '/technician', '/supplier', '/auth'];
 
-const BAR_KEY      = 'aurowater_bar_dismissed';
-const BAR_TS_KEY   = 'aurowater_bar_ts';
-const BAR_HIDE_MS  = 7 * 24 * 60 * 60 * 1000; // 7 days
-const BAR_HEIGHT   = 40; // px — must match .rc-bar min-height in CSS
+/** Primary key (aligned with announcement dismiss sync). Legacy key still read for migration. */
+const BAR_KEY = 'aw_announcement_dismissed';
+const BAR_LEGACY_KEY = 'aurowater_bar_dismissed';
+const BAR_TS_KEY = 'aurowater_bar_ts';
+const BAR_HIDE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const BAR_HEIGHT = 40; // px — must match .rc-bar min-height in CSS
 
 /* ─────────────────────────────────────────────
    ANNOUNCEMENT BAR DATA
@@ -135,10 +137,11 @@ export default function RootChrome({ children }: { children: React.ReactNode }) 
 
   React.useEffect(() => {
     try {
-      const dismissed = localStorage.getItem(BAR_KEY) === '1';
-      const ts        = Number(localStorage.getItem(BAR_TS_KEY) ?? '0');
-      const expired   = Date.now() - ts > BAR_HIDE_MS;
-      // Re-show after 7 days so returning users see updated offers
+      const dismissedNew = localStorage.getItem(BAR_KEY) === '1';
+      const dismissedLegacy = localStorage.getItem(BAR_LEGACY_KEY) === '1';
+      const dismissed = dismissedNew || dismissedLegacy;
+      const ts = Number(localStorage.getItem(BAR_TS_KEY) ?? '0');
+      const expired = Date.now() - ts > BAR_HIDE_MS;
       setBarVisible(!dismissed || expired);
     } catch {
       setBarVisible(true);
@@ -148,9 +151,13 @@ export default function RootChrome({ children }: { children: React.ReactNode }) 
   const dismissBar = React.useCallback(() => {
     setBarVisible(false);
     try {
-      localStorage.setItem(BAR_KEY,    '1');
+      localStorage.setItem(BAR_KEY, '1');
+      localStorage.setItem(BAR_LEGACY_KEY, '1');
       localStorage.setItem(BAR_TS_KEY, String(Date.now()));
-    } catch { /* quota — silently ignore */ }
+    } catch {
+      /* quota — silently ignore */
+    }
+    window.dispatchEvent(new CustomEvent('aw:announcement:dismissed'));
   }, []);
 
   /* ── Nav offset: clear the announcement bar when it's visible ── */

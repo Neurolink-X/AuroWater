@@ -72,7 +72,7 @@ export async function PUT(
         `Your ${serviceName} service has started.`,
         'booking',
         id,
-        'status_changed_in_progress'
+        'status_changed'
       );
     }
     if (status === 'COMPLETED') {
@@ -82,7 +82,7 @@ export async function PUT(
         `Your ${serviceName} is done. Tap to rate your experience.`,
         'booking',
         id,
-        'status_changed_completed'
+        'completed'
       );
     }
   }

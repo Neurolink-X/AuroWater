@@ -18,6 +18,7 @@ import {
   getAdminUsers,
   getPricingRules,
 } from '@/lib/api-client';
+import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -544,16 +545,20 @@ export default function AdminDashboardPage() {
 
           {/* ─── ERROR ─────────────────────────────────────────────── */}
           {error && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-300 flex items-start gap-3">
-              <span className="text-lg shrink-0">⚠</span>
-              <div>
-                <p className="font-bold text-red-200">Failed to load data</p>
-                <p className="mt-0.5 text-red-400/80">{error}</p>
-                <button onClick={() => fetchAll()} className="mt-2 adm-btn adm-btn-sm"
-                  style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)' }}>
-                  Retry
-                </button>
-              </div>
+            <div className="space-y-3">
+              <DatabaseErrorBanner message={error} />
+              <button
+                type="button"
+                onClick={() => fetchAll()}
+                className="adm-btn adm-btn-sm"
+                style={{
+                  background: 'rgba(245,158,11,0.15)',
+                  color: '#fcd34d',
+                  border: '1px solid rgba(245,158,11,0.35)',
+                }}
+              >
+                Retry
+              </button>
             </div>
           )}
 

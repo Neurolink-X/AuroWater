@@ -6,12 +6,36 @@ import {
   totalsMatch,
 } from '@/lib/api/order-pricing-server';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import {
+  isPostgrestTableUnavailableError,
+  isRlsOrPermissionDeniedError,
+  postgrestTableUnavailableUserMessage,
+} from '@/lib/supabase/postgrest-errors';
 
 async function settingsMap(
   sb: ReturnType<typeof import('@/lib/db/supabase').createSupabaseUserClient>
-): Promise<Record<string, string>> {
-  const { data } = await sb.from('settings').select('key, value');
-  return Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+): Promise<
+  | { ok: true; map: Record<string, string> }
+  | { ok: false; message: string; status: number }
+> {
+  const { data, error } = await sb.from('settings').select('key, value');
+  if (error) {
+    if (isRlsOrPermissionDeniedError(error)) {
+      return { ok: false, message: error.message || 'Forbidden', status: 403 };
+    }
+    if (isPostgrestTableUnavailableError(error)) {
+      return {
+        ok: false,
+        message: postgrestTableUnavailableUserMessage(error, 'public.settings'),
+        status: 503,
+      };
+    }
+    return { ok: false, message: error.message || 'Settings load failed', status: 502 };
+  }
+  return {
+    ok: true,
+    map: Object.fromEntries((data ?? []).map((r) => [r.key, r.value])),
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -40,7 +64,13 @@ export async function GET(req: NextRequest) {
   const { data, error } = await q;
 
   if (error) {
-    return jsonErr(error.message, 500);
+    if (isRlsOrPermissionDeniedError(error)) {
+      return jsonErr(error.message, 403);
+    }
+    if (isPostgrestTableUnavailableError(error)) {
+      return jsonErr(postgrestTableUnavailableUserMessage(error, 'public.orders'), 503);
+    }
+    return jsonErr(error.message, 502);
   }
 
   const orders = data ?? [];
@@ -90,7 +120,16 @@ export async function POST(req: NextRequest) {
     .eq('is_active', true)
     .maybeSingle();
 
-  if (stErr || !st) {
+  if (stErr) {
+    if (isRlsOrPermissionDeniedError(stErr)) {
+      return jsonErr(stErr.message || 'Forbidden', 403);
+    }
+    if (isPostgrestTableUnavailableError(stErr)) {
+      return jsonErr(postgrestTableUnavailableUserMessage(stErr, 'public.service_types'), 503);
+    }
+    return jsonErr(stErr.message || 'Service lookup failed', 502);
+  }
+  if (!st) {
     return jsonErr('Invalid or inactive service', 400);
   }
 
@@ -101,11 +140,138 @@ export async function POST(req: NextRequest) {
     .eq('user_id', auth.ctx.profile.id)
     .maybeSingle();
 
-  if (aErr || !addr) {
+  if (aErr) {
+    if (isRlsOrPermissionDeniedError(aErr)) {
+      return jsonErr(aErr.message || 'Forbidden', 403);
+    }
+    if (isPostgrestTableUnavailableError(aErr)) {
+      return jsonErr(postgrestTableUnavailableUserMessage(aErr, 'public.addresses'), 503);
+    }
+    return jsonErr(aErr.message || 'Address lookup failed', 502);
+  }
+  if (!addr) {
     return jsonErr('Address not found', 404);
   }
 
-  const flat = await settingsMap(auth.ctx.supabase);
+  const settingsResult = await settingsMap(auth.ctx.supabase);
+  if (!settingsResult.ok) {
+    return jsonErr(settingsResult.message, settingsResult.status);
+  }
+  const flat = settingsResult.map;
+
+  const address_snapshot = {
+    label: addr.label,
+    house_flat: addr.house_flat,
+    area: addr.area,
+    city: addr.city,
+    pincode: addr.pincode,
+    landmark: addr.landmark,
+  };
+
+  if (service_type_key === 'water_can') {
+    const { data: priceRows, error: prErr } = await auth.ctx.supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['default_can_price', 'platform_fee', 'platform_fee_per_order']);
+
+    if (prErr) {
+      return jsonErr(prErr.message, 502);
+    }
+
+    const pm: Record<string, number> = {};
+    for (const row of priceRows ?? []) {
+      const k = row.key;
+      const v = Number(row.value);
+      if (typeof k === 'string') pm[k] = v;
+    }
+
+    const unit = Number.isFinite(pm.default_can_price) ? pm.default_can_price : 12;
+    const fee = Number.isFinite(pm.platform_fee)
+      ? pm.platform_fee
+      : Number.isFinite(pm.platform_fee_per_order)
+        ? pm.platform_fee_per_order
+        : 2;
+
+    const qtyRaw = body.can_count ?? body.can_quantity;
+    const qty = Math.max(1, Math.floor(Number(qtyRaw ?? 1)));
+
+    const serverTotal = qty * unit + fee;
+    const clientTotal = Number(body.total_amount);
+
+    if (!Number.isFinite(clientTotal) || Math.abs(clientTotal - serverTotal) > 1) {
+      return jsonErr(
+        `Price validation failed — expected ₹${Math.round(serverTotal * 100) / 100} for ${qty} unit(s)`,
+        400
+      );
+    }
+
+    const roundedTotal = Math.round(serverTotal * 100) / 100;
+    const base_amount = Math.round(qty * unit * 100) / 100;
+
+    const insertWater = {
+      customer_id: auth.ctx.profile.id,
+      service_type_id: st.id,
+      sub_option_key: typeof body.sub_option_key === 'string' ? body.sub_option_key : null,
+      address_id: addr.id,
+      address_snapshot,
+      scheduled_date: typeof body.scheduled_date === 'string' ? body.scheduled_date : null,
+      time_slot: typeof body.time_slot === 'string' ? body.time_slot : null,
+      scheduled_time: typeof body.scheduled_time === 'string' ? body.scheduled_time : null,
+      is_emergency: false,
+      status: 'PENDING' as const,
+      base_amount,
+      convenience_fee: fee,
+      emergency_charge: 0,
+      gst_amount: 0,
+      total_amount: roundedTotal,
+      supplier_payout: 0,
+      platform_fee: fee,
+      payment_method: typeof body.payment_method === 'string' ? body.payment_method : 'cash',
+      payment_status: 'unpaid' as const,
+      payout_status: 'pending' as const,
+      notes: typeof body.notes === 'string' ? body.notes : null,
+      can_quantity: qty,
+      can_price_per_unit: unit,
+      can_order_type:
+        typeof body.can_order_type === 'string' ? (body.can_order_type as string) : null,
+      can_frequency: typeof body.can_frequency === 'string' ? (body.can_frequency as string) : null,
+    };
+
+    const { data: orderW, error: oErrW } = await auth.ctx.supabase
+      .from('orders')
+      .insert(insertWater)
+      .select('*')
+      .single();
+
+    if (oErrW || !orderW) {
+      if (oErrW && isRlsOrPermissionDeniedError(oErrW)) {
+        return jsonErr(oErrW.message, 403);
+      }
+      if (oErrW && isPostgrestTableUnavailableError(oErrW)) {
+        return jsonErr(postgrestTableUnavailableUserMessage(oErrW, 'public.orders'), 503);
+      }
+      return jsonErr(oErrW?.message ?? 'Failed to create order', oErrW ? 502 : 500);
+    }
+
+    const serviceName =
+      typeof st.name === 'string' && st.name.trim() ? st.name : service_type_key;
+    const scheduledDate =
+      typeof insertWater.scheduled_date === 'string' ? insertWater.scheduled_date : 'your slot';
+    const timeSlot =
+      typeof insertWater.time_slot === 'string' && insertWater.time_slot ? insertWater.time_slot : '';
+    const { createNotification } = await import('@/lib/notifications');
+    await createNotification(
+      auth.ctx.profile.id,
+      'Booking Confirmed 🎉',
+      `Your ${serviceName} is booked for ${scheduledDate}${timeSlot ? ` · ${timeSlot}` : ''}.`,
+      'booking',
+      String(orderW.id),
+      'created'
+    );
+
+    return jsonOk(orderW, 201);
+  }
+
   const gstRate = pickGstRateFromFlat(flat);
   const convenience = Number(flat.convenience_fee ?? 29);
   const emergencyFee = Number(flat.emergency_surcharge ?? 199);
@@ -114,17 +280,6 @@ export async function POST(req: NextRequest) {
   let base_amount = Number(body.base_amount ?? 0);
   if (!Number.isFinite(base_amount) || base_amount < 0) {
     base_amount = Number(st.base_price);
-  }
-
-  if (service_type_key === 'water_can') {
-    const qty = Number(body.can_quantity ?? 1);
-    const per =
-      body.can_order_type === 'subscription'
-        ? Number(flat.subscription_can_price ?? 10)
-        : Number(flat.default_can_price ?? 12);
-    if (Number.isFinite(qty) && qty > 0 && Number.isFinite(per)) {
-      base_amount = Math.round(qty * per);
-    }
   }
 
   const emergency_charge = is_emergency ? emergencyFee : 0;
@@ -147,15 +302,6 @@ export async function POST(req: NextRequest) {
     emergency_charge,
     gstRate
   );
-
-  const address_snapshot = {
-    label: addr.label,
-    house_flat: addr.house_flat,
-    area: addr.area,
-    city: addr.city,
-    pincode: addr.pincode,
-    landmark: addr.landmark,
-  };
 
   const insert = {
     customer_id: auth.ctx.profile.id,
@@ -180,14 +326,7 @@ export async function POST(req: NextRequest) {
     payout_status: 'pending' as const,
     notes: typeof body.notes === 'string' ? body.notes : null,
     can_quantity: body.can_quantity != null ? Number(body.can_quantity) : null,
-    can_price_per_unit:
-      service_type_key === 'water_can'
-        ? Number(
-            body.can_order_type === 'subscription'
-              ? flat.subscription_can_price ?? 10
-              : flat.default_can_price ?? 12
-          )
-        : null,
+    can_price_per_unit: null,
     can_order_type:
       typeof body.can_order_type === 'string' ? (body.can_order_type as string) : null,
     can_frequency: typeof body.can_frequency === 'string' ? (body.can_frequency as string) : null,
@@ -200,7 +339,13 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (oErr || !order) {
-    return jsonErr(oErr?.message ?? 'Failed to create order', 500);
+    if (oErr && isRlsOrPermissionDeniedError(oErr)) {
+      return jsonErr(oErr.message, 403);
+    }
+    if (oErr && isPostgrestTableUnavailableError(oErr)) {
+      return jsonErr(postgrestTableUnavailableUserMessage(oErr, 'public.orders'), 503);
+    }
+    return jsonErr(oErr?.message ?? 'Failed to create order', oErr ? 502 : 500);
   }
 
   const serviceName = typeof st.name === 'string' && st.name.trim() ? st.name : service_type_key;

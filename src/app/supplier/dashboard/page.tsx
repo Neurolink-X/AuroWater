@@ -10,9 +10,11 @@ import {
   supplierOrderUpdateStatus,
   supplierEarningsSummary,
   supplierPayoutRequest,
+  getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
 } from '@/lib/api-client';
+import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 
 type TabKey =
   | 'overview'
@@ -179,18 +181,31 @@ export default function SupplierDashboardPage() {
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
   const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
+  const [boardError, setBoardError] = React.useState<string | null>(null);
 
   const fetchSupplierBoard = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    setBoardError(null);
     try {
       const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
+
+      let primaryErr: string | null = null;
+
       if (list.status === 'fulfilled') {
         setOrders((list.value ?? []).map(mapApiOrderToSupplierOrder));
+      } else {
+        primaryErr = getApiErrorMessage(list.reason);
       }
+
       if (earn.status === 'fulfilled' && earn.value) {
         setEarningsSummary(earn.value);
+      } else if (earn.status === 'rejected' && !primaryErr) {
+        toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
       }
+
+      if (primaryErr) setBoardError(primaryErr);
     } catch (e) {
+      setBoardError(getApiErrorMessage(e));
       console.error('[SupplierDashboard] fetch failed:', e);
     } finally {
       setOrdersLoading(false);
@@ -334,6 +349,20 @@ export default function SupplierDashboardPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_20%_10%,#dbeafe_0%,#eff6ff_35%,#f8fafc_100%)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
+        {boardError && (
+          <div className="mb-6 space-y-2">
+            <DatabaseErrorBanner message={boardError} />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void fetchSupplierBoard(true)}
+                className="rounded-xl bg-[#003049] px-4 py-2 text-xs font-bold text-white shadow-sm hover:opacity-95"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <aside className="lg:col-span-3">
             <div className="rounded-3xl bg-[#003049] text-white p-5 shadow-card sticky top-24">

@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+import {
+  getSupabaseServiceRoleKey,
+  serviceRoleSetupHint,
+} from '@/lib/env/supabase-service-role';
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -23,8 +28,11 @@ export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) =
 
 /** Service-role client — API routes only, NEVER client-side */
 export const createServiceClient = () => {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  const serviceKey = getSupabaseServiceRoleKey();
+  if (!serviceKey) {
+    console.error(serviceRoleSetupHint());
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+  }
   return createServerClient(url, serviceKey, {
     cookies: { getAll: () => [], setAll: () => {} },
   });

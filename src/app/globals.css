@@ -17,6 +17,8 @@
   --card: #FFFFFF;
   --border: #E2EFE9;
   --footer-bg: #0D3D2E;
+  /* Footer bridge (see Footer.tsx): pages can override for a seamless handoff from the last section */
+  --footer-prev-bg: #ffffff;
 
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.2);

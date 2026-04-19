@@ -13,7 +13,10 @@ export interface ProfileRow {
   role: ProfileRole;
   aurotap_id: string | null;
   avatar_url: string | null;
-  is_active: boolean;
+  /** false = blocked; null/undefined treated as active (matches DB default). */
+  is_active?: boolean | null;
+  /** Optional account lifecycle (if present in DB). */
+  status?: string | null;
   created_at: string;
   updated_at: string;
 }

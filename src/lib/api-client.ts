@@ -9,11 +9,20 @@ const TOKEN_KEY = 'auth_token';
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status: number
+    public status: number,
+    /** Machine-readable code when API returns `{ code }` (e.g. DB_NOT_READY). */
+    public code?: string
   ) {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+/** Safe message for UI when catching unknown rejections from `apiFetch` / auth helpers. */
+export function getApiErrorMessage(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  if (e instanceof Error) return e.message;
+  return typeof e === 'string' ? e : 'Something went wrong';
 }
 
 export function getToken(): string | null {
@@ -31,7 +40,9 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-type Envelope<T> = { success: boolean; data?: T; error?: string };
+type Envelope<T> = { success: boolean; data?: T; error?: string; code?: string };
+
+const RETRY_503_MS = 800;
 
 async function parseJson(res: Response): Promise<Envelope<unknown>> {
   try {
@@ -41,32 +52,122 @@ async function parseJson(res: Response): Promise<Envelope<unknown>> {
   }
 }
 
-async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+/**
+ * All app API calls: `credentials: 'include'`, one automatic retry after 800ms on HTTP 503.
+ * Network failure → `ApiError` with code `NETWORK` (use `apiFetchSafe` to get `{ ok: false }` instead).
+ */
+async function fetchWithRetryParse(
+  path: string,
+  init: RequestInit
+): Promise<{ res: Response; json: Envelope<unknown> }> {
+  const url = `${API_BASE}${path}`;
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     ...(init.headers ?? {}),
   };
-
-  const res = await fetch(`${API_BASE}${path}`, {
+  const merged: RequestInit = {
     ...init,
     headers,
     credentials: 'include',
-  });
-  const json = await parseJson(res);
+  };
+
+  let last: { res: Response; json: Envelope<unknown> } | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, merged);
+      const json = await parseJson(res);
+      last = { res, json };
+      if (res.status === 503 && attempt === 0) {
+        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
+        continue;
+      }
+      return last;
+    } catch {
+      throw new ApiError('Network error', 503, 'NETWORK');
+    }
+  }
+  if (last) return last;
+  throw new ApiError('Network error', 503, 'NETWORK');
+}
+
+/** Same retry/credentials/network rules; parses JSON body without `{ success, data }` envelope (admin routes). */
+async function fetchWithRetryRaw(
+  path: string,
+  init: RequestInit
+): Promise<{ res: Response; body: unknown }> {
+  const url = `${API_BASE}${path}`;
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    ...(init.headers ?? {}),
+  };
+  const merged: RequestInit = {
+    ...init,
+    headers,
+    credentials: 'include',
+  };
+
+  let last: { res: Response; body: unknown } | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, merged);
+      const body: unknown = await res.json().catch(() => ({}));
+      last = { res, body };
+      if (res.status === 503 && attempt === 0) {
+        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
+        continue;
+      }
+      return last;
+    } catch {
+      throw new ApiError('Network error', 503, 'NETWORK');
+    }
+  }
+  if (last) return last;
+  throw new ApiError('Network error', 503, 'NETWORK');
+}
+
+async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const { res, json } = await fetchWithRetryParse(path, init);
 
   if (!res.ok || json.success === false) {
     if (res.status === 401) {
-      clearToken();
-      clearUser();
-      if (typeof window !== 'undefined') {
-        const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
-        window.location.assign(`/auth/login?returnTo=${returnTo}`);
+      const onAuthEntry =
+        typeof window !== 'undefined' &&
+        (window.location.pathname.startsWith('/auth/login') ||
+          window.location.pathname.startsWith('/auth/register'));
+      /** Failed login/register must not hard-redirect (breaks error UI + resend flows). */
+      if (!onAuthEntry) {
+        clearToken();
+        clearUser();
+        if (typeof window !== 'undefined') {
+          const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
+          window.location.assign(`/auth/login?returnTo=${returnTo}`);
+        }
       }
     }
-    throw new ApiError(typeof json.error === 'string' ? json.error : `HTTP ${res.status}`, res.status);
+    const msg = typeof json.error === 'string' ? json.error : `HTTP ${res.status}`;
+    const code = typeof json.code === 'string' ? json.code : undefined;
+    throw new ApiError(msg, res.status, code);
   }
 
   return json.data as T;
+}
+
+/** Same as `apiFetch` but never throws on transport failure — returns `{ ok: false, error: 'Network error' }`. */
+export type ApiSafeResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+export async function apiFetchSafe<T>(path: string, init: RequestInit = {}): Promise<ApiSafeResult<T>> {
+  try {
+    const data = await apiFetch<T>(path, init);
+    return { ok: true, data };
+  } catch (e: unknown) {
+    if (e instanceof ApiError && e.code === 'NETWORK') {
+      return { ok: false, error: 'Network error' };
+    }
+    if (e instanceof ApiError) {
+      return { ok: false, error: e.message };
+    }
+    return { ok: false, error: 'Network error' };
+  }
 }
 
 async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -100,15 +201,16 @@ export async function authRegister(body: {
   phone?: string;
   role?: string;
 }): Promise<LoginResult | { needsEmailConfirmation: true; email: string }> {
-  const res = await fetch(`${API_BASE}/auth/register`, {
+  const { res, json } = await fetchWithRetryParse('/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    credentials: 'include',
   });
-  const json = await parseJson(res);
   if (!res.ok || json.success === false) {
-    throw new ApiError(typeof json.error === 'string' ? json.error : 'Registration failed', res.status);
+    throw new ApiError(
+      typeof json.error === 'string' ? json.error : 'Registration failed',
+      res.status,
+      typeof json.code === 'string' ? json.code : undefined
+    );
   }
   const data = json.data as LoginResult | { needsEmailConfirmation: true; email: string };
   if ('access_token' in data && data.access_token) {
@@ -124,6 +226,13 @@ export async function authLogin(email: string, password: string): Promise<LoginR
   });
   setToken(data.access_token);
   return data;
+}
+
+export async function authResendConfirmation(email: string): Promise<void> {
+  await apiFetch<{ sent: true }>('/auth/resend-confirmation', {
+    method: 'POST',
+    body: JSON.stringify({ email: email.trim().toLowerCase() }),
+  });
 }
 
 export async function authLogout(): Promise<void> {
@@ -413,13 +522,13 @@ async function adminFetchJson<T>(path: string): Promise<T> {
   if (!token) {
     throw new ApiError('No authentication token found', 401);
   }
-  const res = await fetch(`${API_BASE}${path}`, {
+  const { res, body } = await fetchWithRetryRaw(path, {
     headers: { Authorization: `Bearer ${token}` },
-    credentials: 'include',
   });
-  const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const json = body as T & { error?: string };
   if (!res.ok) {
-    const err = json && typeof json === 'object' && 'error' in json ? String((json as { error?: string }).error) : '';
+    const err =
+      json && typeof json === 'object' && 'error' in json ? String((json as { error?: string }).error) : '';
     throw new ApiError(err || `HTTP ${res.status}`, res.status);
   }
   return json as T;
@@ -708,7 +817,7 @@ export async function verifyToken(): Promise<AuthToken> {
           : profile.role === 'supplier'
             ? 'SUPPLIER'
             : 'CUSTOMER',
-    is_active: profile.is_active,
+    is_active: profile.is_active !== false,
     avatar_url: profile.avatar_url ?? undefined,
     created_at: new Date(profile.created_at),
     updated_at: new Date(profile.updated_at),
@@ -814,6 +923,7 @@ export const api = {
   auth: {
     register: authRegister,
     login: authLogin,
+    resendConfirmation: authResendConfirmation,
     logout: authLogout,
     me: authMe,
     updateMe: authUpdateMe,

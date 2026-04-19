@@ -81,8 +81,8 @@
  *  ✓ Fully typed — no `any` / `unknown` leaks in the public response
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { jsonErr } from '@/lib/api/json-response';
+import { NextRequest } from 'next/server';
+import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -108,26 +108,6 @@ interface OrderRow {
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
-/** Wrap every Supabase call so a single failure doesn't abort Promise.all.
- *
- *  Parameter is `PromiseLike` not `Promise`:
- *  `PostgrestFilterBuilder` only implements `.then()` (PromiseLike),
- *  NOT the full Promise interface (.catch / .finally / [Symbol.toStringTag]).
- *  Using `Promise<T>` here causes "missing properties from type Promise" errors
- *  on every call site. `PromiseLike<T>` accepts any thenable, including
- *  Supabase query builders, without losing type safety on the resolved value.
- */
-async function safe<T>(
-  p: PromiseLike<{ data: T | null; error: unknown; count?: number | null }>
-): Promise<{ data: T | null; count: number }> {
-  try {
-    const { data, error, count } = await p;
-    return { data: error ? null : data, count: count ?? 0 };
-  } catch {
-    return { data: null, count: 0 };
-  }
-}
-
 /** Safely sum total_amount from any result set */
 const revSum = (rows: Array<{ total_amount: unknown }> | null): number =>
   (rows ?? []).reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
@@ -150,11 +130,15 @@ function growth(current: number, previous: number): number {
 
 async function buildDailyOrders(sb: SupabaseClient, days = 7): Promise<DayOrder[]> {
   const from = daysAgoISO(days);
-  const { data } = await sb
+  const { data, error } = await sb
     .from('orders')
     .select('created_at')
     .gte('created_at', from)
     .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   const map = new Map<string, number>();
   for (const r of data ?? []) {
@@ -174,12 +158,16 @@ async function buildDailyOrders(sb: SupabaseClient, days = 7): Promise<DayOrder[
 
 async function buildDailyRevenue(sb: SupabaseClient, days = 7): Promise<DayRevenue[]> {
   const from = daysAgoISO(days);
-  const { data } = await sb
+  const { data, error } = await sb
     .from('orders')
     .select('created_at, total_amount')
     .eq('status', 'COMPLETED')
     .gte('created_at', from)
     .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   const map = new Map<string, number>();
   for (const r of data ?? []) {
@@ -199,12 +187,15 @@ async function buildDailyRevenue(sb: SupabaseClient, days = 7): Promise<DayReven
 
 async function buildTopSuppliers(sb: SupabaseClient): Promise<SupplierStat[]> {
   const from = daysAgoISO(30);
-  const { data } = await sb
+  const { data, error } = await sb
     .from('orders')
     .select('supplier_id, total_amount, profiles!orders_supplier_id_fkey ( full_name )')
     .eq('status', 'COMPLETED')
     .gte('created_at', from);
 
+  if (error) {
+    throw new Error(error.message);
+  }
   if (!data) return [];
 
   const map = new Map<string, { name: string | null; total: number; orders: number }>();
@@ -231,27 +222,34 @@ async function buildTopSuppliers(sb: SupabaseClient): Promise<SupplierStat[]> {
 
 /** Fetch recent orders with customer name in one query */
 async function fetchRecentOrders(sb: SupabaseClient): Promise<OrderRow[]> {
-  const { data } = await sb
+  const { data, error } = await sb
     .from('orders')
     .select(`
-      id, status, total_amount, created_at, service_type, is_emergency, customer_id,
-      customer:profiles!orders_customer_id_fkey ( full_name )
+      id, status, total_amount, created_at, is_emergency, customer_id,
+      customer:profiles!orders_customer_id_fkey ( full_name ),
+      service_types ( name )
     `)
     .order('created_at', { ascending: false })
     .limit(10);
 
+  if (error) {
+    throw new Error(error.message);
+  }
+
   return (data ?? []).map((r) => {
     const row = r as {
       id: string; status: string; total_amount: unknown;
-      created_at: string; service_type: unknown; is_emergency: unknown; customer_id: unknown;
+      created_at: string; is_emergency: unknown; customer_id: unknown;
       customer: Array<{ full_name: string }> | null;
+      service_types: Array<{ name: string }> | null;
     };
+    const svcName = row.service_types?.[0]?.name ?? null;
     return {
       id:            row.id,
       status:        row.status,
       total_amount:  row.total_amount != null ? Number(row.total_amount) : null,
       created_at:    row.created_at,
-      service_type:  row.service_type != null ? String(row.service_type) : null,
+      service_type:  svcName != null ? String(svcName) : null,
       is_emergency:  row.is_emergency != null ? Boolean(row.is_emergency) : null,
       /* FK join returns array — access [0] */
       customer_name: row.customer?.[0]?.full_name ?? null,
@@ -269,90 +267,111 @@ export async function GET(req: NextRequest) {
   const sb = auth.ctx.supabase;
 
   /* Time windows */
-  const todayISO    = daysAgoISO(0);  // midnight today
-  const weekAgoISO  = daysAgoISO(7);
-  const twoWeekISO  = daysAgoISO(14);
+  const todayISO = daysAgoISO(0);
+  const weekAgoISO = daysAgoISO(7);
+  const twoWeekISO = daysAgoISO(14);
 
-  /* ── 15 parallel DB calls — isolated so one bad table can't crash the rest ── */
-  const [
-    totalOrders,
-    todayOrders,
-    prevWeekOrders,
-    totalRevenue,
-    revenueToday,
-    revenuePrevWeek,
-    activeJobs,
-    emergencyToday,
-    totalCustomers,
-    newCustomersWeek,
-    totalTechnicians,
-    onlineTechnicians,
-    pendingKyc,
-    fraudFlags,
-  ] = await Promise.all([
-    safe(sb.from('orders').select('*', { count: 'exact', head: true })),
-    safe(sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayISO)),
-    safe(sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', twoWeekISO).lt('created_at', weekAgoISO)),
-    safe(sb.from('orders').select('total_amount').eq('status', 'COMPLETED')),
-    safe(sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', todayISO)),
-    safe(sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', twoWeekISO).lt('created_at', weekAgoISO)),
-    safe(sb.from('orders').select('*', { count: 'exact', head: true }).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS'])),
-    safe(sb.from('orders').select('*', { count: 'exact', head: true }).eq('is_emergency', true).gte('created_at', todayISO)),
-    safe(sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer')),
-    safe(sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').gte('created_at', weekAgoISO)),
-    safe(sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician')),
-    safe(sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician').eq('is_online', true)),
-    safe(sb.from('applications').select('*', { count: 'exact', head: true }).eq('status', 'pending')),
-    safe(sb.from('fraud_flags').select('*', { count: 'exact', head: true }).eq('resolved', false)),
-  ]);
+  try {
+    const [
+      cTotalOrders,
+      cTodayOrders,
+      cPrevWeekOrders,
+      dTotalRevenue,
+      dRevenueToday,
+      dRevenuePrevWeek,
+      cActiveJobs,
+      cEmergencyToday,
+      cTotalCustomers,
+      cNewCustomersWeek,
+      cTotalTechnicians,
+      cOnlineTechnicians,
+      cPendingKyc,
+      cFraudFlags,
+    ] = await Promise.all([
+      sb.from('orders').select('*', { count: 'exact', head: true }),
+      sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
+      sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', twoWeekISO).lt('created_at', weekAgoISO),
+      sb.from('orders').select('total_amount').eq('status', 'COMPLETED'),
+      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', todayISO),
+      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', twoWeekISO).lt('created_at', weekAgoISO),
+      sb.from('orders').select('*', { count: 'exact', head: true }).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']),
+      sb.from('orders').select('*', { count: 'exact', head: true }).eq('is_emergency', true).gte('created_at', todayISO),
+      sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
+      sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer').gte('created_at', weekAgoISO),
+      sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician'),
+      sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician').eq('is_online', true),
+      sb.from('applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      sb.from('fraud_flags').select('*', { count: 'exact', head: true }).eq('resolved', false),
+    ]);
 
-  /* Chart data + top suppliers + recent orders in parallel */
-  const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = await Promise.all([
-    buildDailyOrders(sb, 7),
-    buildDailyRevenue(sb, 7),
-    buildTopSuppliers(sb),
-    fetchRecentOrders(sb),
-  ]);
+    const countAndRows = [
+      cTotalOrders,
+      cTodayOrders,
+      cPrevWeekOrders,
+      dTotalRevenue,
+      dRevenueToday,
+      dRevenuePrevWeek,
+      cActiveJobs,
+      cEmergencyToday,
+      cTotalCustomers,
+      cNewCustomersWeek,
+      cTotalTechnicians,
+      cOnlineTechnicians,
+      cPendingKyc,
+      cFraudFlags,
+    ];
 
-  /* Revenue sums */
-  const totalRev    = revSum(totalRevenue.data  as Array<{ total_amount: unknown }> | null);
-  const revToday    = revSum(revenueToday.data  as Array<{ total_amount: unknown }> | null);
-  const revPrevWeek = revSum(revenuePrevWeek.data as Array<{ total_amount: unknown }> | null);
-
-  const payload = {
-    kpis: {
-      total_orders:       totalOrders.count,
-      todays_orders:      todayOrders.count,
-      orders_wow_growth:  growth(todayOrders.count, prevWeekOrders.count),
-      total_revenue:      totalRev,
-      revenue_today:      revToday,
-      revenue_wow_growth: growth(revToday, revPrevWeek),
-      active_jobs:        activeJobs.count,
-      emergency_bookings: emergencyToday.count,
-      total_customers:    totalCustomers.count,
-      new_customers_week: newCustomersWeek.count,
-      total_technicians:  totalTechnicians.count,
-      online_technicians: onlineTechnicians.count,
-      pending_kyc:        pendingKyc.count,
-      fraud_alerts:       fraudFlags.count,
-    },
-    recent_orders:  recentOrders,
-    top_suppliers:  topSuppliers,
-    charts: {
-      orders_daily:  ordersDaily,
-      revenue_daily: revenueDaily,
-    },
-    meta: {
-      generated_at: new Date().toISOString(),
-      period:       'last_7_days',
-    },
-  };
-
-  return NextResponse.json(
-    { ok: true, data: payload },
-    {
-      status: 200,
-      headers: { 'Cache-Control': 'private, max-age=0, stale-while-revalidate=15' },
+    for (const r of countAndRows) {
+      if (r.error) {
+        return jsonErr(r.error.message, 502);
+      }
     }
-  );
+
+    const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = await Promise.all([
+      buildDailyOrders(sb, 7),
+      buildDailyRevenue(sb, 7),
+      buildTopSuppliers(sb),
+      fetchRecentOrders(sb),
+    ]);
+
+    const totalRev = revSum(dTotalRevenue.data as Array<{ total_amount: unknown }> | null);
+    const revToday = revSum(dRevenueToday.data as Array<{ total_amount: unknown }> | null);
+    const revPrevWeek = revSum(dRevenuePrevWeek.data as Array<{ total_amount: unknown }> | null);
+
+    const payload = {
+      kpis: {
+        total_orders: cTotalOrders.count ?? 0,
+        todays_orders: cTodayOrders.count ?? 0,
+        orders_wow_growth: growth(cTodayOrders.count ?? 0, cPrevWeekOrders.count ?? 0),
+        total_revenue: totalRev,
+        revenue_today: revToday,
+        revenue_wow_growth: growth(revToday, revPrevWeek),
+        active_jobs: cActiveJobs.count ?? 0,
+        emergency_bookings: cEmergencyToday.count ?? 0,
+        total_customers: cTotalCustomers.count ?? 0,
+        new_customers_week: cNewCustomersWeek.count ?? 0,
+        total_technicians: cTotalTechnicians.count ?? 0,
+        online_technicians: cOnlineTechnicians.count ?? 0,
+        pending_kyc: cPendingKyc.count ?? 0,
+        fraud_alerts: cFraudFlags.count ?? 0,
+      },
+      recent_orders: recentOrders,
+      top_suppliers: topSuppliers,
+      charts: {
+        orders_daily: ordersDaily,
+        revenue_daily: revenueDaily,
+      },
+      meta: {
+        generated_at: new Date().toISOString(),
+        period: 'last_7_days',
+      },
+    };
+
+    const res = jsonOk(payload, 200);
+    res.headers.set('Cache-Control', 'private, max-age=0, stale-while-revalidate=15');
+    return res;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Dashboard load failed';
+    return jsonErr(msg, 502);
+  }
 }

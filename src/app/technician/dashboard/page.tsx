@@ -1523,7 +1523,13 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import type { ApiOrder } from '@/lib/api-client';
-import { technicianJobsList, technicianJobAccept, technicianJobUpdateStatus } from '@/lib/api-client';
+import {
+  technicianJobsList,
+  technicianJobAccept,
+  technicianJobUpdateStatus,
+  getApiErrorMessage,
+} from '@/lib/api-client';
+import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1823,8 +1829,10 @@ export default function TechnicianDashboardPage() {
   const [upiDraft, setUpiDraft] = useState('');
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [myJobFilter, setMyJobFilter] = useState<'all' | MyJobStatus>('all');
+  const [jobsError, setJobsError] = useState<string | null>(null);
 
   const fetchTechnicianJobs = useCallback(async () => {
+    setJobsError(null);
     try {
       const rows = await technicianJobsList();
       const queueStatuses = ['ASSIGNED', 'PENDING'];
@@ -1834,7 +1842,8 @@ export default function TechnicianDashboardPage() {
           .filter((o) => !queueStatuses.includes(String(o.status ?? '').toUpperCase()))
           .map(mapApiOrderToMyJob)
       );
-    } catch (e) {
+    } catch (e: unknown) {
+      setJobsError(getApiErrorMessage(e));
       console.error('[TechnicianDashboard] jobs fetch failed:', e);
     }
   }, []);
@@ -2088,6 +2097,20 @@ export default function TechnicianDashboardPage() {
   return (
     <div className="min-h-screen bg-zinc-50 font-sans">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {jobsError && (
+          <div className="mb-6 space-y-2">
+            <DatabaseErrorBanner message={jobsError} />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => void fetchTechnicianJobs()}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex gap-6">
 
           {/* ── Sidebar ── */}

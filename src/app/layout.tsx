@@ -1,34 +1,61 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import AuthPkceBridge from '@/components/auth/AuthPkceBridge';
 import RootChrome from '@/components/layout/RootChrome';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 import { Toaster } from 'sonner';
-import AnnouncementBar from '@/components/layout/AnnouncementBar';
 
-const site =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aurowater.in';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(site),
-  title: 'AuroWater - Premium Water Supply & Services',
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: 'AuroWater — Pure Water & Plumber On Demand | Delhi & UP',
+    template: '%s | AuroWater',
+  },
   description:
-    'Home water supply, submersible installation, and repair services. Book online with transparent pricing.',
+    'On-demand water delivery ₹10–15/can + verified plumber booking for Delhi, Meerut & UP. ' +
+    'Fast, free delivery. Cash & UPI accepted.',
+  keywords: [
+    'water delivery',
+    'plumber booking',
+    'Delhi',
+    'UP',
+    'Meerut',
+    'AuroWater',
+    'पानी डिलीवरी',
+  ],
+  authors: [{ name: 'AuroWater', url: APP_URL }],
+  creator: 'AuroWater',
   openGraph: {
-    title: 'AuroWater — Pure water, at your door',
-    description: 'Book water delivery, RO service, plumbing, and more across UP.',
+    type: 'website',
+    locale: 'en_IN',
+    url: APP_URL,
+    siteName: 'AuroWater',
+    title: 'AuroWater — Pure Water & Plumber On Demand',
+    description: 'Water delivery ₹10–15/can + verified plumbers. Delhi & UP.',
     images: [
       {
-        url: '/og-image.png',
+        url: `${APP_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'AuroWater — Pure Water Delivered',
+        alt: 'AuroWater — Pure Water, At Your Door',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    images: ['/og-image.png'],
+    title: 'AuroWater — Pure Water On Demand',
+    description: 'Water delivery + plumber booking for Delhi & UP.',
+    images: [`${APP_URL}/og-image.png`],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  alternates: {
+    canonical: APP_URL,
   },
 };
 
@@ -49,7 +76,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col bg-slate-50">
         <LanguageProvider>
-          <AnnouncementBar />
+          <AuthPkceBridge />
           <RootChrome>{children}</RootChrome>
           <Toaster
             position="top-right"
