@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AuroTap Brand Asset Guide</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --blue: #0EA5E9;
+    --blue-dark: #0369A1;
+    --navy: #051830;
+    --navy-mid: #0A2744;
+    --text: #E0F2FE;
+    --muted: #7DD3FC;
+    --border: rgba(14,165,233,0.2);
+  }
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+  header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+  header .eyebrow {
+    display: inline-block;
+    background: rgba(14,165,233,0.15);
+    border: 1px solid var(--border);
+    color: var(--blue);
+    font-size: 11px;
+    letter-spacing: 3px;
+    padding: 6px 18px;
+    border-radius: 20px;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+  }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(32px, 5vw, 54px);
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+  header p {
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .grid { display: grid; gap: 28px; max-width: 1100px; margin: 0 auto; }
+
+  .card {
+    background: var(--navy-mid);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .card.wide { grid-template-columns: 1fr; }
+
+  .card-preview {
+    background: linear-gradient(135deg, #030F1E, #051C34);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    min-height: 220px;
+    position: relative;
+    border-right: 1px solid var(--border);
+  }
+  .card.wide .card-preview { border-right: none; border-bottom: 1px solid var(--border); min-height: 260px; }
+
+  .card-preview img, .card-preview svg { max-width: 100%; max-height: 180px; object-fit: contain; }
+  .card-preview .size-badge {
+    position: absolute;
+    bottom: 12px; right: 14px;
+    background: rgba(14,165,233,0.18);
+    border: 1px solid var(--border);
+    color: var(--blue);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 12px;
+  }
+
+  .card-info { padding: 32px 36px; }
+  .card-info .asset-num {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--blue);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0.7;
+  }
+  .card-info h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 26px;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .card-info .desc {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.65;
+    margin-bottom: 20px;
+  }
+
+  .placements { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+  .placements li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 13.5px;
+  }
+  .placements li .icon {
+    width: 28px; height: 28px;
+    background: rgba(14,165,233,0.15);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .placements li .detail strong { display: block; color: #fff; margin-bottom: 2px; }
+  .placements li .detail span { color: var(--muted); font-size: 12.5px; }
+
+  .code-block {
+    background: #020D1A;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: #7DD3FC;
+    overflow-x: auto;
+    line-height: 1.7;
+  }
+  .code-block .cm { color: #475569; }
+  .code-block .kw { color: #38BDF8; }
+  .code-block .str { color: #BAE6FD; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(14,165,233,0.12);
+    border: 1px solid var(--border);
+    color: var(--blue);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin: 3px 3px 3px 0;
+    letter-spacing: 0.5px;
+  }
+  .tags { margin-bottom: 18px; }
+
+  footer {
+    text-align: center;
+    margin-top: 60px;
+    color: var(--muted);
+    font-size: 13px;
+    opacity: 0.5;
+    letter-spacing: 2px;
+  }
+  @media(max-width: 700px) {
+    .card { grid-template-columns: 1fr; }
+    .card-preview { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Brand Assets Guide</div>
+  <h1>AuroTap Visual Identity</h1>
+  <p>3 world-class assets — where to place each one for maximum marketing impact.</p>
+</header>
+
+<div class="grid">
+
+  <!-- ASSET 1: FAVICON -->
+  <div class="card">
+    <div class="card-preview">
+      <!-- Inline favicon preview scaled up -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="120" height="120">
+        <defs>
+          <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#0EA5E9"/><stop offset="50%" stop-color="#0369A1"/><stop offset="100%" stop-color="#1E3A5F"/>
+          </linearGradient>
+          <linearGradient id="df1" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stop-color="#E0F7FF"/><stop offset="40%" stop-color="#7DD3FC"/><stop offset="100%" stop-color="#0284C7"/>
+          </linearGradient>
+          <linearGradient id="tb1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#F0F9FF"/><stop offset="100%" stop-color="#BAE6FD"/>
+          </linearGradient>
+          <radialGradient id="sh1" cx="35%" cy="30%" r="45%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="dg1"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="ss1"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0369A1" flood-opacity="0.5"/></filter>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#bg1)"/>
+        <rect width="64" height="64" rx="16" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.08"/>
+        <rect x="10" y="21" width="26" height="8" rx="4" fill="url(#tb1)" filter="url(#ss1)"/>
+        <rect x="29" y="25" width="8" height="13" rx="4" fill="url(#tb1)" filter="url(#ss1)"/>
+        <rect x="14" y="17" width="10" height="6" rx="3" fill="url(#tb1)" opacity="0.95"/>
+        <rect x="17" y="14" width="4" height="5" rx="2" fill="#BAE6FD"/>
+        <rect x="12" y="22" width="20" height="2.5" rx="1.2" fill="white" opacity="0.35"/>
+        <path d="M33 40 C33 40, 26 50, 26 55 A7 7 0 0 0 40 55 C40 50, 33 40, 33 40Z" fill="url(#df1)" filter="url(#dg1)"/>
+        <ellipse cx="30" cy="52" rx="2.5" ry="4.5" fill="url(#sh1)" transform="rotate(-20,30,52)"/>
+        <circle cx="54" cy="10" r="2" fill="#7DD3FC" opacity="0.5"/>
+        <circle cx="10" cy="54" r="1.5" fill="#7DD3FC" opacity="0.35"/>
+      </svg>
+      <span class="size-badge">64 × 64 px</span>
+    </div>
+    <div class="card-info">
+      <div class="asset-num">Asset 01 / Favicon</div>
+      <h2>favicon.svg</h2>
+      <p class="desc">Your browser tab icon and PWA home screen icon. First visual impression on every device — keeps AuroTap instantly recognisable at tiny sizes.</p>
+      <div class="tags">
+        <span class="tag">Browser Tab</span>
+        <span class="tag">PWA Icon</span>
+        <span class="tag">Bookmark</span>
+        <span class="tag">Android Shortcut</span>
+      </div>
+      <ul class="placements">
+        <li><div class="icon">🌐</div><div class="detail"><strong>Browser Tab</strong><span>Shown in every Chrome / Safari / Firefox tab</span></div></li>
+        <li><div class="icon">📱</div><div class="detail"><strong>PWA / Add to Home Screen</strong><span>Icon on mobile home screen when user installs site</span></div></li>
+        <li><div class="icon">🔖</div><div class="detail"><strong>Bookmarks &amp; History</strong><span>Appears next to URL in all bookmark managers</span></div></li>
+      </ul>
+      <div class="code-block">
+<span class="cm">/* /public/favicon.svg */</span><br>
+<span class="cm">/* In app/layout.tsx or _document.tsx */</span><br>
+&lt;<span class="kw">link</span> rel=<span class="str">"icon"</span> href=<span class="str">"/favicon.svg"</span> type=<span class="str">"image/svg+xml"</span> /&gt;<br>
+&lt;<span class="kw">link</span> rel=<span class="str">"apple-touch-icon"</span> href=<span class="str">"/favicon.svg"</span> /&gt;
+      </div>
+    </div>
+  </div>
+
+  <!-- ASSET 2: OG HERO -->
+  <div class="card wide">
+    <div class="card-preview" style="min-height:300px;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" style="width:100%;max-height:240px;">
+        <defs>
+          <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#030F1E"/><stop offset="55%" stop-color="#051C34"/><stop offset="100%" stop-color="#0A3255"/></linearGradient>
+          <linearGradient id="bd2" x1="10%" y1="0%" x2="90%" y2="100%"><stop offset="0%" stop-color="#38BDF8"/><stop offset="50%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#0369A1"/></linearGradient>
+          <linearGradient id="tm2" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#E0F2FE"/><stop offset="40%" stop-color="#BAE6FD"/><stop offset="100%" stop-color="#7DD3FC"/></linearGradient>
+          <linearGradient id="btn2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#38BDF8"/><stop offset="100%" stop-color="#0284C7"/></linearGradient>
+          <radialGradient id="di2" cx="38%" cy="28%" r="50%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="100%" stop-color="#0369A1" stop-opacity="0"/></radialGradient>
+          <filter id="gd2"><feGaussianBlur stdDeviation="22" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="tg2"><feGaussianBlur stdDeviation="8" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <rect width="1200" height="630" fill="url(#bg2)"/>
+        <circle cx="950" cy="315" r="310" fill="none" stroke="#0EA5E9" stroke-width="1" opacity="0.1"/>
+        <circle cx="950" cy="315" r="210" fill="none" stroke="#38BDF8" stroke-width="1.2" opacity="0.14"/>
+        <circle cx="950" cy="315" r="120" fill="none" stroke="#38BDF8" stroke-width="1.5" opacity="0.2"/>
+        <ellipse cx="960" cy="270" rx="180" ry="200" fill="#0EA5E9" opacity="0.08" filter="url(#gd2)"/>
+        <rect x="720" y="195" width="210" height="46" rx="23" fill="url(#tm2)" filter="url(#tg2)"/>
+        <rect x="730" y="200" width="185" height="14" rx="7" fill="white" opacity="0.3"/>
+        <rect x="872" y="225" width="46" height="80" rx="23" fill="url(#tm2)"/>
+        <rect x="860" y="298" width="70" height="18" rx="9" fill="url(#tm2)"/>
+        <rect x="750" y="158" width="22" height="46" rx="11" fill="url(#tm2)"/>
+        <rect x="720" y="152" width="82" height="22" rx="11" fill="url(#tm2)"/>
+        <path d="M895 335 C895 335, 840 415, 840 465 A55 55 0 0 0 950 465 C950 415, 895 335, 895 335Z" fill="url(#bd2)" filter="url(#gd2)" opacity="0.95"/>
+        <path d="M895 335 C895 335, 840 415, 840 465 A55 55 0 0 0 950 465 C950 415, 895 335, 895 335Z" fill="url(#di2)"/>
+        <rect x="80" y="115" width="160" height="28" rx="14" fill="#0EA5E9" opacity="0.18"/>
+        <text x="160" y="134" font-family="Georgia,serif" font-size="13" fill="#38BDF8" text-anchor="middle" letter-spacing="3">INDIA'S #1 TAP SERVICE</text>
+        <text x="80" y="220" font-family="Georgia,serif" font-size="108" font-weight="700" fill="#ffffff" letter-spacing="-3">AuroTap</text>
+        <text x="80" y="272" font-family="Georgia,serif" font-size="24" fill="#7DD3FC" letter-spacing="1" font-style="italic">Pure water, expert hands — at your door.</text>
+        <rect x="80" y="295" width="440" height="1.5" rx="1" fill="#0EA5E9" opacity="0.4"/>
+        <text x="80" y="608" font-family="Georgia,serif" font-size="14" fill="#38BDF8" opacity="0.55" letter-spacing="3">WWW.AUROTAP.IN</text>
+        <rect x="80" y="506" width="220" height="56" rx="28" fill="url(#btn2)"/>
+        <text x="190" y="541" font-family="Georgia,serif" font-size="19" font-weight="700" fill="white" text-anchor="middle">Book Now  →</text>
+        <text x="80" y="625" font-family="Georgia,serif" font-size="12" fill="#7DD3FC" opacity="0.4" letter-spacing="2">★★★★★  TRUSTED BY 10,000+ CUSTOMERS</text>
+      </svg>
+      <span class="size-badge">1200 × 630 px</span>
+    </div>
+    <div class="card-info">
+      <div class="asset-num">Asset 02 / Open Graph Hero</div>
+      <h2>og-image-hero.svg</h2>
+      <p class="desc">The image that appears whenever someone shares your link on WhatsApp, Instagram, Twitter/X, LinkedIn, or any messaging app. This is your single biggest free marketing surface — make it count.</p>
+      <div class="tags">
+        <span class="tag">WhatsApp Preview</span>
+        <span class="tag">Twitter/X Card</span>
+        <span class="tag">LinkedIn Share</span>
+        <span class="tag">Facebook OG</span>
+        <span class="tag">iMessage Link</span>
+        <span class="tag">Hero Banner</span>
+        <span class="tag">Email Header</span>
+      </div>
+      <ul class="placements">
+        <li><div class="icon">📤</div><div class="detail"><strong>Social Share Preview (OG Image)</strong><span>Auto-shown when anyone shares aurotap.in on any platform</span></div></li>
+        <li><div class="icon">🖼️</div><div class="detail"><strong>Website Hero / Landing Page</strong><span>Use as the full-width top banner on your homepage</span></div></li>
+        <li><div class="icon">📧</div><div class="detail"><strong>Email Newsletter Header</strong><span>Top image in all marketing email campaigns</span></div></li>
+        <li><div class="icon">📢</div><div class="detail"><strong>Digital Ads (Google/Meta)</strong><span>Resize to 1200×628 for Facebook + Google Display ads</span></div></li>
+      </ul>
+      <div class="code-block">
+<span class="cm">/* Place file at: /public/og-image-hero.svg */</span><br>
+<span class="cm">/* In app/layout.tsx metadata: */</span><br>
+<span class="kw">export const</span> metadata = {<br>
+&nbsp;&nbsp;openGraph: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;images: [{ url: <span class="str">'/og-image-hero.svg'</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;width: <span class="str">1200</span>, height: <span class="str">630</span> }]<br>
+&nbsp;&nbsp;},<br>
+&nbsp;&nbsp;twitter: { card: <span class="str">'summary_large_image'</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;images: [<span class="str">'/og-image-hero.svg'</span>] }<br>
+}
+      </div>
+    </div>
+  </div>
+
+  <!-- ASSET 3: SPLASH -->
+  <div class="card">
+    <div class="card-preview">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="180" height="180">
+        <defs>
+          <radialGradient id="bgR3" cx="40%" cy="35%" r="75%"><stop offset="0%" stop-color="#0A2744"/><stop offset="60%" stop-color="#051830"/><stop offset="100%" stop-color="#020D1A"/></radialGradient>
+          <linearGradient id="dg3" x1="15%" y1="0%" x2="85%" y2="100%"><stop offset="0%" stop-color="#7DD3FC"/><stop offset="45%" stop-color="#0EA5E9"/><stop offset="100%" stop-color="#0369A1"/></linearGradient>
+          <radialGradient id="ds3" cx="33%" cy="28%" r="42%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/><stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/></radialGradient>
+          <linearGradient id="tg3" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#E0F2FE"/><stop offset="50%" stop-color="#BAE6FD"/><stop offset="100%" stop-color="#7DD3FC"/></linearGradient>
+          <filter id="mg3"><feGaussianBlur stdDeviation="10" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="bg3g"><feGaussianBlur stdDeviation="25" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="sd3"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0369A1" flood-opacity="0.55"/></filter>
+        </defs>
+        <rect width="400" height="400" fill="url(#bgR3)"/>
+        <circle cx="200" cy="195" r="148" fill="none" stroke="#0EA5E9" stroke-width="1" opacity="0.14"/>
+        <circle cx="200" cy="195" r="96" fill="none" stroke="#38BDF8" stroke-width="1.5" opacity="0.25"/>
+        <ellipse cx="200" cy="175" rx="110" ry="120" fill="#0EA5E9" opacity="0.07" filter="url(#bg3g)"/>
+        <circle cx="200" cy="185" r="104" fill="#071E38" opacity="0.82"/>
+        <circle cx="200" cy="185" r="104" fill="none" stroke="#0EA5E9" stroke-width="1.2" opacity="0.2"/>
+        <rect x="124" y="148" width="100" height="30" rx="15" fill="url(#tg3)" filter="url(#sd3)"/>
+        <rect x="128" y="151" width="88" height="10" rx="5" fill="white" opacity="0.32"/>
+        <rect x="196" y="163" width="30" height="48" rx="15" fill="url(#tg3)"/>
+        <rect x="188" y="205" width="46" height="14" rx="7" fill="url(#tg3)"/>
+        <rect x="140" y="122" width="16" height="32" rx="8" fill="url(#tg3)"/>
+        <rect x="120" y="116" width="56" height="16" rx="8" fill="url(#tg3)"/>
+        <path d="M211 230 C211 230, 175 278, 175 302 A36 36 0 0 0 247 302 C247 278, 211 230, 211 230Z" fill="url(#dg3)" filter="url(#mg3)"/>
+        <path d="M211 230 C211 230, 175 278, 175 302 A36 36 0 0 0 247 302 C247 278, 211 230, 211 230Z" fill="url(#ds3)"/>
+        <text x="200" y="358" font-family="Georgia,serif" font-size="38" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">AuroTap</text>
+        <text x="200" y="381" font-family="Georgia,serif" font-size="12.5" fill="#38BDF8" text-anchor="middle" letter-spacing="3.5" opacity="0.85">WATER · PLUMBING · ON DEMAND</text>
+      </svg>
+      <span class="size-badge">400 × 400 px</span>
+    </div>
+    <div class="card-info">
+      <div class="asset-num">Asset 03 / Splash &amp; App Icon</div>
+      <h2>splash-logo.svg</h2>
+      <p class="desc">Your app identity mark. Used on loading screens, app stores, and anywhere the brand needs to stand alone as a square icon. Deep navy + electric blue = premium, trustworthy, modern.</p>
+      <div class="tags">
+        <span class="tag">App Splash Screen</span>
+        <span class="tag">Play Store Icon</span>
+        <span class="tag">iOS App Icon</span>
+        <span class="tag">Loading Screen</span>
+        <span class="tag">WhatsApp Business DP</span>
+      </div>
+      <ul class="placements">
+        <li><div class="icon">🚀</div><div class="detail"><strong>App Splash / Loading Screen</strong><span>First screen shown when app or website loads</span></div></li>
+        <li><div class="icon">🛒</div><div class="detail"><strong>Google Play Store &amp; App Store</strong><span>App icon — resize to 512×512 for submission</span></div></li>
+        <li><div class="icon">💬</div><div class="detail"><strong>WhatsApp Business Profile</strong><span>Profile picture for your business WhatsApp account</span></div></li>
+        <li><div class="icon">📍</div><div class="detail"><strong>Google Business Profile</strong><span>Logo image on Google Maps / Search listing</span></div></li>
+      </ul>
+      <div class="code-block">
+<span class="cm">/* /public/splash-logo.svg */</span><br>
+<span class="cm">/* Next.js loading.tsx or splash component: */</span><br>
+&lt;<span class="kw">Image</span><br>
+&nbsp;&nbsp;src=<span class="str">"/splash-logo.svg"</span><br>
+&nbsp;&nbsp;width={<span class="str">160</span>} height={<span class="str">160</span>}<br>
+&nbsp;&nbsp;alt=<span class="str">"AuroTap"</span><br>
+/&gt;
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Summary table -->
+<div style="max-width:1100px;margin:40px auto 0;background:var(--navy-mid);border:1px solid var(--border);border-radius:20px;overflow:hidden;">
+  <div style="padding:24px 32px 14px;border-bottom:1px solid var(--border);">
+    <span style="font-family:'DM Serif Display',serif;font-size:22px;color:#fff;">Quick Placement Reference</span>
+  </div>
+  <div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;padding:14px 24px;color:var(--muted);font-weight:500;letter-spacing:1px;">File</th>
+        <th style="text-align:left;padding:14px 16px;color:var(--muted);font-weight:500;letter-spacing:1px;">Size</th>
+        <th style="text-align:left;padding:14px 16px;color:var(--muted);font-weight:500;letter-spacing:1px;">Public Path</th>
+        <th style="text-align:left;padding:14px 16px;color:var(--muted);font-weight:500;letter-spacing:1px;">Primary Uses</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid rgba(14,165,233,0.08);">
+        <td style="padding:14px 24px;color:#fff;font-weight:600;">favicon.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">64×64</td>
+        <td style="padding:14px 16px;color:#38BDF8;font-family:monospace;">/public/favicon.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">Browser tab, PWA icon, Bookmark</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(14,165,233,0.08);">
+        <td style="padding:14px 24px;color:#fff;font-weight:600;">og-image-hero.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">1200×630</td>
+        <td style="padding:14px 16px;color:#38BDF8;font-family:monospace;">/public/og-image-hero.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">WhatsApp/social share, Hero banner, Ads</td>
+      </tr>
+      <tr>
+        <td style="padding:14px 24px;color:#fff;font-weight:600;">splash-logo.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">400×400</td>
+        <td style="padding:14px 16px;color:#38BDF8;font-family:monospace;">/public/splash-logo.svg</td>
+        <td style="padding:14px 16px;color:var(--muted);">Splash screen, App stores, WhatsApp DP</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<footer>AUROTAP.IN &nbsp;·&nbsp; BRAND ASSET GUIDE &nbsp;·&nbsp; 2025</footer>
+</body>
+</html>

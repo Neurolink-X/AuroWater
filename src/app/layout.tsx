@@ -7,8 +7,24 @@ import { Toaster } from 'sonner';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aurowater.in';
 
+
+
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
+  applicationName: 'AuroWater',
+  icons: {
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml', sizes: 'any' }],
+    apple: [{ url: '/splash-logo.svg', type: 'image/svg+xml', sizes: '400x400' }],
+  },
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#F8FAFC' },
+    { media: '(prefers-color-scheme: dark)', color: '#0A2744' },
+  ],
+  appleWebApp: {
+    capable: true,
+    title: 'AuroWater',
+    statusBarStyle: 'default',
+  },
   title: {
     default: 'AuroWater — Pure Water & Plumber On Demand | Delhi & UP',
     template: '%s | AuroWater',

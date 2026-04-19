@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="50%" stop-color="#0369A1"/>
+      <stop offset="100%" stop-color="#1E3A5F"/>
+    </linearGradient>
+    <linearGradient id="dropFill" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#E0F7FF"/>
+      <stop offset="40%" stop-color="#7DD3FC"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="tapBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0F9FF"/>
+      <stop offset="100%" stop-color="#BAE6FD"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="35%" cy="30%" r="45%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="dropGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softShadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0369A1" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded square bg -->
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <rect width="64" height="64" rx="16" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.08"/>
+
+  <!-- Tap pipe horizontal -->
+  <rect x="10" y="21" width="26" height="8" rx="4" fill="url(#tapBody)" filter="url(#softShadow)"/>
+  <!-- Tap spout vertical -->
+  <rect x="29" y="25" width="8" height="13" rx="4" fill="url(#tapBody)" filter="url(#softShadow)"/>
+  <!-- Tap handle top -->
+  <rect x="14" y="17" width="10" height="6" rx="3" fill="url(#tapBody)" opacity="0.95"/>
+  <rect x="17" y="14" width="4" height="5" rx="2" fill="#BAE6FD"/>
+  <!-- Shine on pipe -->
+  <rect x="12" y="22" width="20" height="2.5" rx="1.2" fill="white" opacity="0.35"/>
+
+  <!-- Water drop falling from tap -->
+  <path d="M33 40 C33 40, 26 50, 26 55 A7 7 0 0 0 40 55 C40 50, 33 40, 33 40Z"
+        fill="url(#dropFill)" filter="url(#dropGlow)"/>
+  <!-- Drop shine -->
+  <ellipse cx="30" cy="52" rx="2.5" ry="4.5" fill="url(#shine)" transform="rotate(-20,30,52)"/>
+
+  <!-- Accent dots -->
+  <circle cx="54" cy="10" r="2" fill="#7DD3FC" opacity="0.5"/>
+  <circle cx="10" cy="54" r="1.5" fill="#7DD3FC" opacity="0.35"/>
+</svg>

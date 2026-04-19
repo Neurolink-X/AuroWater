@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="bgR" cx="40%" cy="35%" r="75%">
+      <stop offset="0%" stop-color="#0A2744"/>
+      <stop offset="60%" stop-color="#051830"/>
+      <stop offset="100%" stop-color="#020D1A"/>
+    </radialGradient>
+    <linearGradient id="dropG" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="45%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <radialGradient id="dropShine" cx="33%" cy="28%" r="42%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="55%" stop-color="#BAE6FD" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tapG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E0F2FE"/>
+      <stop offset="50%" stop-color="#BAE6FD"/>
+      <stop offset="100%" stop-color="#7DD3FC"/>
+    </linearGradient>
+    <linearGradient id="ringG1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0EA5E9" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="badgeG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5E9"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <filter id="bigGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="medGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="subtleShadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0369A1" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#bgR)"/>
+
+  <!-- Dot grid texture -->
+  <pattern id="pts" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="1" cy="1" r="0.9" fill="#0EA5E9" opacity="0.09"/>
+  </pattern>
+  <rect width="400" height="400" fill="url(#pts)"/>
+
+  <!-- Concentric glow rings -->
+  <circle cx="200" cy="195" r="175" fill="none" stroke="url(#ringG1)" stroke-width="1" opacity="0.18"/>
+  <circle cx="200" cy="195" r="148" fill="none" stroke="#0EA5E9" stroke-width="1" opacity="0.14"/>
+  <circle cx="200" cy="195" r="122" fill="none" stroke="#38BDF8" stroke-width="1.5" opacity="0.2"/>
+  <circle cx="200" cy="195" r="96" fill="none" stroke="#38BDF8" stroke-width="1.5" opacity="0.25"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="200" cy="175" rx="110" ry="120" fill="#0EA5E9" opacity="0.07" filter="url(#bigGlow)"/>
+
+  <!-- Card / badge circle -->
+  <circle cx="200" cy="185" r="104" fill="#071E38" opacity="0.82"/>
+  <circle cx="200" cy="185" r="104" fill="none" stroke="#0EA5E9" stroke-width="1.2" opacity="0.2"/>
+
+  <!-- === TAP FAUCET === -->
+  <!-- Horizontal pipe -->
+  <rect x="124" y="148" width="100" height="30" rx="15" fill="url(#tapG)" filter="url(#subtleShadow)"/>
+  <rect x="128" y="151" width="88" height="10" rx="5" fill="white" opacity="0.32"/>
+  <!-- Vertical spout -->
+  <rect x="196" y="163" width="30" height="48" rx="15" fill="url(#tapG)" filter="url(#subtleShadow)"/>
+  <rect x="200" y="166" width="14" height="36" rx="7" fill="white" opacity="0.22"/>
+  <!-- Nozzle -->
+  <rect x="188" y="205" width="46" height="14" rx="7" fill="url(#tapG)"/>
+  <!-- Handle upright -->
+  <rect x="140" y="122" width="16" height="32" rx="8" fill="url(#tapG)" filter="url(#subtleShadow)"/>
+  <!-- Handle cross -->
+  <rect x="120" y="116" width="56" height="16" rx="8" fill="url(#tapG)" filter="url(#subtleShadow)"/>
+  <rect x="124" y="118" width="48" height="7" rx="3.5" fill="white" opacity="0.28"/>
+
+  <!-- === WATER DROP === -->
+  <path d="M211 230 C211 230, 175 278, 175 302 A36 36 0 0 0 247 302 C247 278, 211 230, 211 230Z"
+        fill="url(#dropG)" filter="url(#medGlow)"/>
+  <path d="M211 230 C211 230, 175 278, 175 302 A36 36 0 0 0 247 302 C247 278, 211 230, 211 230Z"
+        fill="url(#dropShine)"/>
+  <!-- Drop streak -->
+  <ellipse cx="211" cy="224" rx="5" ry="10" fill="#7DD3FC" opacity="0.55"/>
+  <ellipse cx="211" cy="213" rx="3" ry="6" fill="#BAE6FD" opacity="0.35"/>
+
+  <!-- === BRAND TEXT === -->
+  <!-- App name -->
+  <text x="200" y="358" font-family="Georgia, 'Times New Roman', serif" font-size="38" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">AuroTap</text>
+  <!-- Tagline -->
+  <text x="200" y="381" font-family="Georgia, serif" font-size="12.5" fill="#38BDF8" text-anchor="middle" letter-spacing="3.5" opacity="0.85">WATER · PLUMBING · ON DEMAND</text>
+
+  <!-- Bottom wave lines -->
+  <path d="M60 392 Q100 384 140 392 Q180 400 220 392 Q260 384 300 392 Q330 398 360 392"
+        fill="none" stroke="#0EA5E9" stroke-width="1.8" opacity="0.28" stroke-linecap="round"/>
+
+  <!-- Top-right version dot indicator -->
+  <circle cx="358" cy="42" r="14" fill="url(#badgeG)" opacity="0.85"/>
+  <text x="358" y="47" font-family="Georgia, serif" font-size="11" fill="white" text-anchor="middle" font-weight="700">v2</text>
+
+  <!-- Corner accents -->
+  <circle cx="42" cy="358" r="4" fill="#0EA5E9" opacity="0.3"/>
+  <circle cx="48" cy="350" r="2.5" fill="#38BDF8" opacity="0.2"/>
+</svg>

@@ -10,12 +10,6 @@ import { useAuth } from '@/hooks/useAuth';
 /* ─────────────────────────────────────────────
    ICONS
 ───────────────────────────────────────────── */
-const IconDroplet = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" fill="#2563EB" fillOpacity="0.25"/>
-    <path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" stroke="#2563EB" strokeWidth="1.6" fill="none"/>
-  </svg>
-);
 const IconMenu = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
     <line x1="4" y1="7"  x2="20" y2="7"/>
@@ -453,7 +447,14 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
 
           {/* Logo */}
           <Link href="/" className="nav-logo" aria-label="AuroWater home">
-            <IconDroplet />
+            <img
+              src="/favicon.svg"
+              alt=""
+              width={32}
+              height={32}
+              className="shrink-0 rounded-[10px] shadow-sm"
+              decoding="async"
+            />
             <span className="nav-logo-wordmark">
               Auro<span>Water</span>
             </span>

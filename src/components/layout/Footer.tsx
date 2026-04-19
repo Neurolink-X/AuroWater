@@ -535,7 +535,14 @@ export default function Footer() {
             {/* Brand column */}
             <div>
               <div className="ft-brand-name">
-                <IconDroplet />
+                <img
+                  src="/splash-logo.svg"
+                  alt=""
+                  width={52}
+                  height={52}
+                  className="shrink-0 rounded-2xl shadow-lg"
+                  decoding="async"
+                />
                 <span className="ft-brand-wordmark">AuroWater</span>
               </div>
               <p className="ft-brand-desc">
