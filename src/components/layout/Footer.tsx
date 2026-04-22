@@ -125,8 +125,12 @@
 
 
 
+/* eslint-disable react/no-unescaped-entities */
+'use client';
+
 import Link from 'next/link';
 import React from 'react';
+import { usePathname } from 'next/navigation';
 
 /* ─────────────────────────────────────────────
    ICONS — all inline, no external deps
@@ -235,6 +239,16 @@ const TRUST_BADGES = [
    FOOTER COMPONENT
 ───────────────────────────────────────────── */
 export default function Footer() {
+  const pathname = usePathname() ?? '';
+  if (
+    pathname.startsWith('/customer') ||
+    pathname.startsWith('/supplier') ||
+    pathname.startsWith('/technician') ||
+    pathname.startsWith('/admin')
+  ) {
+    return null;
+  }
+
   return (
     <>
       <style>{`
@@ -330,7 +344,7 @@ export default function Footer() {
         .ft-body {
           position: relative; z-index: 2;
           max-width: 1160px; margin: 0 auto;
-          padding: 60px 24px 48px;
+          padding: 64px 24px 48px;
         }
 
         .ft-main-grid {
@@ -350,7 +364,7 @@ export default function Footer() {
         }
         .ft-brand-desc {
           font-size: 13.5px; color: rgba(255,255,255,0.45);
-          line-height: 1.65; margin-bottom: 20px; max-width: 260px;
+          line-height: 1.7; margin-bottom: 20px; max-width: 260px;
         }
 
         /* Trust badges */
@@ -394,11 +408,14 @@ export default function Footer() {
         }
 
         /* Nav links */
-        .ft-link-list { display: flex; flex-direction: column; gap: 9px; }
+        .ft-link-list { display: flex; flex-direction: column; }
         .ft-link {
-          display: inline-flex; align-items: center; gap: 6px;
+          display: inline-flex; align-items: center; gap: 5px;
           font-size: 13px; color: rgba(255,255,255,0.45);
           text-decoration: none; font-weight: 500;
+          line-height: 1;
+          padding: 5px 0;
+          margin-bottom: 0;
           transition: color 0.15s; width: fit-content;
         }
         .ft-link:hover { color: #60A5FA; }
@@ -409,12 +426,14 @@ export default function Footer() {
         }
 
         /* Contact items */
-        .ft-contact-list { display: flex; flex-direction: column; gap: 11px; }
+        .ft-contact-list { display: flex; flex-direction: column; }
         .ft-contact-item {
-          display: flex; align-items: flex-start; gap: 9px;
+          display: flex; align-items: center; gap: 9px;
           font-size: 13px; color: rgba(255,255,255,0.45);
           font-weight: 500; text-decoration: none;
-          transition: color 0.15s; line-height: 1.4;
+          transition: color 0.15s; line-height: 1;
+          padding: 5px 0;
+          margin-bottom: 0;
         }
         .ft-contact-item:hover { color: rgba(255,255,255,0.75); }
         .ft-contact-icon {
@@ -424,17 +443,13 @@ export default function Footer() {
           color: #60A5FA; flex-shrink: 0; margin-top: 1px;
         }
 
-        /* ── Divider ── */
-        .ft-divider {
-          height: 1px; max-width: 1160px; margin: 0 auto;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 20%, rgba(255,255,255,0.08) 80%, transparent);
-        }
-
         /* ── Bottom bar ── */
         .ft-bottom {
           position: relative; z-index: 2;
           max-width: 1160px; margin: 0 auto;
-          padding: 20px 24px;
+          margin-top: 40px;
+          padding: 24px 24px;
+          border-top: 1px solid rgba(255,255,255,0.08);
           display: flex; align-items: center; justify-content: space-between;
           gap: 16px; flex-wrap: wrap;
         }
@@ -458,15 +473,20 @@ export default function Footer() {
 
         /* ── RESPONSIVE ── */
         @media (max-width: 960px) {
-          .ft-main-grid { grid-template-columns: 1fr 1fr; gap: 36px; }
+          .ft-main-grid { grid-template-columns: 1fr 1fr; gap: 48px; }
           .ft-cta-band { margin: -24px 16px 0; padding: 28px 28px; }
         }
         @media (max-width: 640px) {
-          .ft-main-grid { grid-template-columns: 1fr; gap: 28px; }
+          .ft-main-grid { grid-template-columns: 1fr; gap: 32px; }
           .ft-body { padding: 44px 20px 36px; }
           .ft-cta-band { margin: -20px 12px 0; padding: 24px 22px; flex-direction: column; align-items: flex-start; }
           .ft-brand-desc { max-width: 100%; }
           .ft-bottom { flex-direction: column; align-items: flex-start; gap: 10px; }
+          .ft-link-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+          }
+          .ft-contact-list { display: flex; flex-direction: column; }
         }
         @media (max-width: 400px) {
           .ft-cta-btns { flex-direction: column; width: 100%; }
@@ -522,7 +542,7 @@ export default function Footer() {
               Book a Service
               <IconArrow />
             </Link>
-            <Link href="/contact?subject=technician" className="ft-cta-btn-secondary">
+            <Link href="/register/pro?type=technician" className="ft-cta-btn-secondary">
               Join as Technician
             </Link>
           </div>
@@ -647,9 +667,6 @@ export default function Footer() {
 
           </div>
         </div>
-
-        {/* ── Divider ── */}
-        <div className="ft-divider" />
 
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">

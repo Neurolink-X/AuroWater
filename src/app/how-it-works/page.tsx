@@ -689,7 +689,7 @@ export default function HowItWorksPage() {
                       </div>
                     ))}
                   </div>
-                  <button type="button" className="hiw-partner-btn hiw-partner-btn-tech" onClick={() => router.push('/contact?subject=technician')}>
+                  <button type="button" className="hiw-partner-btn hiw-partner-btn-tech" onClick={() => router.push('/register/pro?type=technician')}>
                     <IconDroplet size={15} />
                     Join as Technician
                     <IconArrow />
@@ -715,7 +715,7 @@ export default function HowItWorksPage() {
                       </div>
                     ))}
                   </div>
-                  <button type="button" className="hiw-partner-btn hiw-partner-btn-supplier" onClick={() => router.push('/contact?subject=supplier')}>
+                  <button type="button" className="hiw-partner-btn hiw-partner-btn-supplier" onClick={() => router.push('/register/pro?type=supplier')}>
                     Become a Supplier
                     <IconArrow />
                   </button>

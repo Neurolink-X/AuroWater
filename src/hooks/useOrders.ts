@@ -394,12 +394,12 @@ export function useOrders(): UseOrdersReturn {
   /* ── Sync server orders when Supabase session token is present ── */
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (!getToken()) return;
-
     let cancelled = false;
 
     const run = async (): Promise<void> => {
       try {
+        const token = await getToken();
+        if (!token) return;
         const rows = await customerOrdersList({ limit: 100, offset: 0 });
         if (cancelled) return;
         const mapped = rows.map(mapApiOrderToStored);

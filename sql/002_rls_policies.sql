@@ -11,6 +11,10 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.founding_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referral_credits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promo_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- ── Helper: current profile role (avoids recursion in simple cases) ──
 CREATE OR REPLACE FUNCTION public.current_profile_role()
@@ -38,6 +42,11 @@ CREATE POLICY "profiles_update_own_or_admin" ON public.profiles
   WITH CHECK (
     auth.uid() = id OR COALESCE(public.current_profile_role(), '') = 'admin'
   );
+
+-- No DELETE: soft-delete only (deleted_at)
+DROP POLICY IF EXISTS "profiles_delete_admin" ON public.profiles;
+CREATE POLICY "profiles_delete_admin" ON public.profiles
+  FOR DELETE USING (COALESCE(public.current_profile_role(), '') = 'admin');
 
 -- Inserts handled by trigger / service role on signup
 DROP POLICY IF EXISTS "profiles_insert_admin" ON public.profiles;
@@ -95,6 +104,39 @@ CREATE POLICY "orders_update_roles" ON public.orders
 DROP POLICY IF EXISTS "orders_delete_admin" ON public.orders;
 CREATE POLICY "orders_delete_admin" ON public.orders
   FOR DELETE USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── referral_credits (select own; inserts via service role/admin) ───
+DROP POLICY IF EXISTS "referral_credits_select_own" ON public.referral_credits;
+CREATE POLICY "referral_credits_select_own" ON public.referral_credits
+  FOR SELECT USING (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin');
+
+DROP POLICY IF EXISTS "referral_credits_insert_admin" ON public.referral_credits;
+CREATE POLICY "referral_credits_insert_admin" ON public.referral_credits
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── promo_codes (public read active; admin write) ───────────────────
+DROP POLICY IF EXISTS "promo_codes_select_active" ON public.promo_codes;
+CREATE POLICY "promo_codes_select_active" ON public.promo_codes
+  FOR SELECT USING (is_active = true);
+
+DROP POLICY IF EXISTS "promo_codes_write_admin" ON public.promo_codes;
+CREATE POLICY "promo_codes_write_admin" ON public.promo_codes
+  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── push_tokens (CRUD own) ──────────────────────────────────────────
+DROP POLICY IF EXISTS "push_tokens_crud_own" ON public.push_tokens;
+CREATE POLICY "push_tokens_crud_own" ON public.push_tokens
+  FOR ALL USING (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin')
+  WITH CHECK (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── audit_logs (admin read; inserts via service role/admin) ─────────
+DROP POLICY IF EXISTS "audit_logs_select_admin" ON public.audit_logs;
+CREATE POLICY "audit_logs_select_admin" ON public.audit_logs
+  FOR SELECT USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+DROP POLICY IF EXISTS "audit_logs_insert_admin" ON public.audit_logs;
+CREATE POLICY "audit_logs_insert_admin" ON public.audit_logs
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
 
 -- ── settings ───────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "settings_select_all" ON public.settings;

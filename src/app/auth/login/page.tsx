@@ -7,8 +7,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ApiError, authLogin, authResendConfirmation, profileToSession } from '@/lib/api-client';
-import { postLoginPath } from '@/lib/auth/post-login-redirect';
 import { writeSession } from '@/hooks/useAuth';
+import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/utils/supabase/client';
 
 const schema = z.object({
@@ -64,7 +64,7 @@ function LoginPageInner() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${origin}/auth/callback?returnTo=${encodeURIComponent(returnTo)}`,
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(returnTo)}`,
           queryParams: { prompt: 'select_account' },
         },
       });
@@ -93,6 +93,7 @@ function LoginPageInner() {
     setLoading(true);
     try {
       const result = await authLogin(parsed.data.email, parsed.data.password);
+      const role = result.profile.role;
       writeSession(
         profileToSession(result.profile, {
           access_token: result.access_token,
@@ -100,12 +101,20 @@ function LoginPageInner() {
           expires_at: result.expires_at,
         })
       );
+      setAuthGateCookies(role);
 
       toast.success('Welcome back! 👋');
 
-      const role = result.profile.role;
       const returnTo = searchParams.get('returnTo');
-      router.replace(postLoginPath(role, returnTo));
+      await new Promise((r) => window.setTimeout(r, 100));
+      if (returnTo && returnTo.startsWith('/')) {
+        router.push(returnTo);
+      } else {
+        if (role === 'admin') router.push('/admin/dashboard');
+        else if (role === 'supplier') router.push('/supplier/dashboard');
+        else if (role === 'technician') router.push('/technician/dashboard');
+        else router.push('/customer/home');
+      }
     } catch (e: unknown) {
       const msg =
         e instanceof ApiError

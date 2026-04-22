@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { checkAndUpgradeMilestone } from '@/lib/milestone';
 
 function formatAddressSnapshot(snapshot: unknown): string {
   if (!snapshot || typeof snapshot !== 'object') return '';
@@ -122,7 +123,23 @@ export async function PUT(
     return jsonErr('No updatable fields provided', 400);
   }
 
-  const { data, error } = await auth.ctx.supabase
+  // Fetch current row first so we can detect status transitions.
+  const sb = auth.ctx.supabase;
+  const { data: before, error: beforeErr } = await sb
+    .from('orders')
+    .select('id, status, supplier_id, customer_id, can_quantity')
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr) return jsonErr(beforeErr.message, 500);
+  if (!before) return jsonErr('Order not found', 404);
+
+  const prevStatus = String((before as Record<string, unknown>).status ?? '');
+  const patchStatus = typeof patch.status === 'string' ? String(patch.status) : '';
+  if (prevStatus !== 'COMPLETED' && patchStatus === 'COMPLETED') {
+    patch.completed_at = new Date().toISOString();
+  }
+
+  const { data, error } = await sb
     .from('orders')
     .update(patch)
     .eq('id', id)
@@ -134,6 +151,76 @@ export async function PUT(
   }
   if (!data) {
     return jsonErr('Order not found', 404);
+  }
+
+  const nextStatus = String((data as Record<string, unknown>).status ?? '');
+  const supplierIdRaw = (data as Record<string, unknown>).supplier_id;
+  const supplierId = supplierIdRaw != null ? String(supplierIdRaw) : '';
+
+  // When status changes TO COMPLETED and order has supplier_id:
+  // - increment profiles.completed_orders atomically
+  // - check milestone upgrade and update supplier benefits
+  if (prevStatus !== 'COMPLETED' && nextStatus === 'COMPLETED' && supplierId) {
+    const { error: incErr } = await sb.rpc('increment_supplier_completed_orders', {
+      p_supplier_id: supplierId,
+    });
+    if (incErr) {
+      // Fallback: best-effort read + write (not atomic).
+      const { data: p } = await sb
+        .from('profiles')
+        .select('completed_orders')
+        .eq('id', supplierId)
+        .maybeSingle();
+      const curr = Number((p as { completed_orders?: number } | null)?.completed_orders ?? 0);
+      await sb.from('profiles').update({ completed_orders: curr + 1 }).eq('id', supplierId);
+    }
+
+    try {
+      await checkAndUpgradeMilestone(supplierId, sb);
+    } catch (e: unknown) {
+      console.error('[milestone upgrade]', e instanceof Error ? e.message : String(e));
+    }
+
+    // Decrement supplier stock (best-effort).
+    try {
+      const qty = Math.max(0, Number((before as { can_quantity?: number | null }).can_quantity ?? 0));
+      if (qty > 0) {
+        const { data: stockRow } = await sb
+          .from('supplier_stock')
+          .select('cans_available')
+          .eq('supplier_id', supplierId)
+          .maybeSingle();
+        const available = Math.max(0, Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0));
+        await sb
+          .from('supplier_stock')
+          .upsert(
+            { supplier_id: supplierId, cans_available: Math.max(0, available - qty), updated_at: new Date().toISOString() },
+            { onConflict: 'supplier_id' }
+          );
+      }
+    } catch (e) {
+      console.error('[admin/orders] supplier_stock decrement failed', e);
+    }
+  }
+
+  if (prevStatus !== 'COMPLETED' && nextStatus === 'COMPLETED') {
+    // Notify customer (best-effort).
+    try {
+      const customerId = String((before as { customer_id?: string | null }).customer_id ?? '');
+      if (customerId) {
+        const { createNotification } = await import('@/lib/notifications');
+        await createNotification(
+          customerId,
+          'Order delivered!',
+          'Your order has been delivered. Thank you for choosing AuroWater.',
+          'booking',
+          String(id),
+          'completed'
+        );
+      }
+    } catch (e) {
+      console.error('[admin/orders] customer notification failed', e);
+    }
   }
 
   return jsonOk(data);

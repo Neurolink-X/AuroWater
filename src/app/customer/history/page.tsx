@@ -1,19 +1,23 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, authLogout } from '@/lib/api-client';
+import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import GlassCard from '@/components/ui/GlassCard';
+import BottomNav from '@/components/customer/BottomNav';
+import { ReviewModal } from '@/app/customer/track/[id]/_components/ReviewModal';
+import { clearSession } from '@/hooks/useAuth';
+import { getToken } from '@/lib/api-client';
 
 interface OrderRow {
   id: string;
-  service_name: string;
   total_amount: number;
   status: string;
   created_at: string;
   time_slot?: string;
+  can_quantity?: number | null;
+  has_review?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -36,36 +40,76 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function OrderHistory() {
   const router = useRouter();
+  const pathname = usePathname() ?? '/customer/history';
   const { hydrated, isLoggedIn, isCustomer } = useAuth();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [reviewFor, setReviewFor] = useState<string | null>(null);
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (mode: 'reset' | 'more') => {
     if (!isLoggedIn || !isCustomer) return;
     try {
-      setLoading(true);
-      const rows = await api.customer.orders.list({
-        status: statusFilter || undefined,
-        limit: 50,
-        offset: 0,
+      if (mode === 'reset') {
+        setLoading(true);
+        setOffset(0);
+        setHasMore(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      const lim = 20;
+      const nextOffset = mode === 'reset' ? 0 : offset;
+      const url = new URL('/api/customer/orders', window.location.origin);
+      url.searchParams.set('limit', String(lim));
+      url.searchParams.set('offset', String(nextOffset));
+      if (statusFilter !== 'all') url.searchParams.set('status', statusFilter);
+
+      const token = await getToken();
+      if (!token) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const res = await fetch(url.toString(), {
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
       });
-      setOrders(
-        rows.map((o) => ({
-          id: o.id,
-          service_name: String(o.service_type_key ?? 'service'),
-          total_amount: Number(o.total_amount),
-          status: o.status,
-          created_at: o.created_at,
-          time_slot: o.time_slot ?? undefined,
-        }))
-      );
+      if (res.status === 401) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const json = (await res.json()) as { success?: boolean; data?: unknown; error?: string };
+      if (!res.ok || json.success === false) throw new Error(json.error ?? 'Could not load orders');
+      const rows = Array.isArray(json.data) ? json.data : [];
+
+      const mapped = rows.map((o): OrderRow => {
+        const r = o as Record<string, unknown>;
+        return {
+          id: String(r.id ?? ''),
+          total_amount: Number(r.total_amount ?? 0),
+          status: String(r.status ?? ''),
+          created_at: String(r.created_at ?? new Date().toISOString()),
+          time_slot: r.time_slot == null ? undefined : String(r.time_slot),
+          can_quantity: r.can_quantity == null ? null : Number(r.can_quantity),
+          has_review: Boolean(r.has_review),
+        };
+      });
+
+      setOrders((prev) => (mode === 'reset' ? mapped : [...prev, ...mapped]));
+      setOffset(nextOffset + mapped.length);
+      setHasMore(mapped.length === lim);
     } catch {
-      setOrders([]);
+      if (mode === 'reset') setOrders([]);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [isLoggedIn, isCustomer, statusFilter]);
+  }, [isLoggedIn, isCustomer, statusFilter, offset, router, pathname]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -73,8 +117,8 @@ export default function OrderHistory() {
       setLoading(false);
       return;
     }
-    void loadOrders();
-  }, [hydrated, isLoggedIn, isCustomer, loadOrders]);
+    void loadOrders('reset');
+  }, [hydrated, isLoggedIn, isCustomer, statusFilter, loadOrders]);
 
   if (!hydrated) {
     return (
@@ -91,7 +135,7 @@ export default function OrderHistory() {
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Order history</h1>
           <p className="text-slate-600 mb-4">Sign in as a customer to see your bookings.</p>
           <Link
-            href="/auth/login"
+            href={`/auth/login?returnTo=${encodeURIComponent(pathname)}`}
             className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
           >
             Sign in
@@ -102,15 +146,23 @@ export default function OrderHistory() {
   }
 
   const filters = [
-    { value: '', label: 'All' },
+    { value: 'all', label: 'All' },
     { value: 'PENDING', label: 'Pending' },
-    { value: 'IN_PROGRESS', label: 'In progress' },
+    { value: 'IN_PROGRESS', label: 'In Progress' },
     { value: 'COMPLETED', label: 'Completed' },
     { value: 'CANCELLED', label: 'Cancelled' },
   ];
 
+  const emptyMsg = useMemo(() => {
+    if (statusFilter === 'PENDING') return 'No pending orders yet';
+    if (statusFilter === 'IN_PROGRESS') return 'No in-progress orders yet';
+    if (statusFilter === 'COMPLETED') return 'No completed orders yet';
+    if (statusFilter === 'CANCELLED') return 'No cancelled orders yet';
+    return 'No orders yet';
+  }, [statusFilter]);
+
   return (
-    <div className="min-h-screen gradient-section">
+    <div className="min-h-screen gradient-section pb-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <h1 className="text-2xl font-bold text-slate-800">Order history</h1>
@@ -130,8 +182,8 @@ export default function OrderHistory() {
             <button
               type="button"
               onClick={() => {
-                void authLogout();
-                router.push('/');
+                toast.error('Use Account → Sign out.');
+                router.push('/customer/account');
               }}
               className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
             >
@@ -158,65 +210,96 @@ export default function OrderHistory() {
         </div>
 
         {loading ? (
-          <p className="text-slate-500">Loading orders…</p>
-        ) : orders.length === 0 ? (
-          <GlassCard className="p-12 text-center rounded-2xl">
-            <p className="text-slate-600 mb-4">
-              {statusFilter ? 'No orders with this status' : 'No orders yet'}
-            </p>
-            <Link
-              href="/book"
-              className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors"
-            >
-              Book your first order
-            </Link>
-          </GlassCard>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <GlassCard key={order.id} className="p-6 rounded-2xl shadow-soft hover-lift">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-bold text-slate-800">Order #{order.id.slice(0, 8)}…</span>
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          STATUS_CLASS[order.status] ?? 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {STATUS_LABELS[order.status] ?? order.status}
-                      </span>
-                    </div>
-                    <p className="text-slate-600">{order.service_name?.replace(/_/g, ' ')}</p>
-                    {order.time_slot ? <p className="text-sm text-slate-500 mt-1">Slot: {order.time_slot}</p> : null}
-                    <p className="text-sm text-slate-500 mt-1">
-                      {new Date(order.created_at).toLocaleDateString()} at{' '}
-                      {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <span className="text-xl font-bold text-emerald-700">
-                      ₹{order.total_amount?.toLocaleString('en-IN')}
-                    </span>
-                    <Link
-                      href={`/customer/track/${order.id}`}
-                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors"
-                    >
-                      Track
-                    </Link>
-                    <Link
-                      href="/book"
-                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-colors"
-                    >
-                      Reorder
-                    </Link>
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
+          <div className="aw-card">
+            <div className="h-4 w-40 rounded bg-slate-200 animate-pulse" />
+            <div className="mt-3 space-y-2">
+              <div className="h-10 rounded bg-slate-100 animate-pulse" />
+              <div className="h-10 rounded bg-slate-100 animate-pulse" />
+              <div className="h-10 rounded bg-slate-100 animate-pulse" />
+            </div>
           </div>
+        ) : orders.length === 0 ? (
+          <div className="aw-card text-center">
+            <div className="text-4xl">📦</div>
+            <p className="mt-3 text-slate-700 font-semibold">{emptyMsg}</p>
+            <p className="mt-1 text-sm text-slate-500">Book water in under 60 seconds.</p>
+            <Link href="/book" className="mt-5 inline-flex items-center justify-center px-6 py-3 rounded-xl bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors">
+              Book now →
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {orders.map((order) => {
+                const st = order.status.toUpperCase();
+                const isActive = ['PENDING', 'ASSIGNED', 'IN_PROGRESS'].includes(st);
+                const canCount = Math.max(1, Number(order.can_quantity ?? 1));
+                return (
+                  <div key={order.id} className="aw-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="font-extrabold text-slate-900">
+                            Order #{order.id.slice(0, 8)}…
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${STATUS_CLASS[st] ?? 'bg-slate-100 text-slate-700'}`}>
+                            {STATUS_LABELS[st] ?? st}
+                          </span>
+                        </div>
+                        <div className="mt-2 text-sm text-slate-600">
+                          {canCount} cans · {new Date(order.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="aw-heading" style={{ fontWeight: 800, color: '#0A1628' }}>
+                          ₹{Math.round(order.total_amount ?? 0).toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {isActive ? (
+                        <Link href={`/customer/track/${order.id}`} className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-colors">
+                          Track
+                        </Link>
+                      ) : null}
+                      {st === 'COMPLETED' ? (
+                        <Link href={`/book?cans=${encodeURIComponent(String(canCount))}`} className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-bold hover:bg-slate-50 transition-colors">
+                          Reorder
+                        </Link>
+                      ) : null}
+                      {st === 'COMPLETED' && !order.has_review ? (
+                        <button
+                          type="button"
+                          onClick={() => setReviewFor(order.id)}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-lg border border-amber-200 text-amber-800 text-sm font-bold hover:bg-amber-50 transition-colors"
+                        >
+                          Leave Review
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {hasMore ? (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  disabled={loadingMore}
+                  onClick={() => void loadOrders('more')}
+                  className="aw-touch rounded-xl border border-slate-200 bg-white px-5 py-3 font-extrabold text-slate-700 disabled:opacity-60"
+                >
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </button>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
+      <BottomNav />
+      {reviewFor ? <ReviewModal orderId={reviewFor} onClose={() => setReviewFor(null)} /> : null}
     </div>
   );
 }

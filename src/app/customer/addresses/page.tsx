@@ -7,6 +7,7 @@ import { api } from '@/lib/api-client';
 import type { ApiAddress } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import GlassCard from '@/components/ui/GlassCard';
+import BottomNav from '@/components/customer/BottomNav';
 
 type Address = {
   id: string;
@@ -168,7 +169,7 @@ export default function AddressesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 pb-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
@@ -309,6 +310,7 @@ export default function AddressesPage() {
           </GlassCard>
         </div>
       </div>
+      <BottomNav />
     </div>
   );
 }

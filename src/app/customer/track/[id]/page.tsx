@@ -11,12 +11,14 @@ import { ReviewModal } from './_components/ReviewModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { inr } from '@/hooks/useSettings';
+import BottomNav from '@/components/customer/BottomNav';
 
 type ProfileLite = {
   id: string;
   full_name: string | null;
-  phone: string | null;
   avatar_url: string | null;
+  milestone_tier?: string | null;
+  last_seen_at?: string | null;
 };
 
 const STATUS_FLOW = ['PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'] as const;
@@ -64,6 +66,8 @@ export default function TrackOrderPage() {
   const [error, setError] = useState<string | null>(null);
   const [channelLive, setChannelLive] = useState(false);
   const [tech, setTech] = useState<ProfileLite | null>(null);
+  const [supplier, setSupplier] = useState<ProfileLite | null>(null);
+  const [supplierRating, setSupplierRating] = useState<number | null>(null);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -113,6 +117,28 @@ export default function TrackOrderPage() {
     };
   }, [session?.accessToken, id]);
 
+  // Poll when order is pending + unassigned (auto-fallback UI)
+  useEffect(() => {
+    if (!id) return;
+    const status = String(order?.status ?? '');
+    const supplierId = (order as Record<string, unknown> | null)?.supplier_id as
+      | string
+      | null
+      | undefined;
+    if (!(status === 'PENDING' && !supplierId)) return;
+
+    const startedAt = Date.now();
+    const t = window.setInterval(() => {
+      void load();
+      // Stop polling after 5 minutes; UI shows support option then.
+      if (Date.now() - startedAt > 5 * 60_000) {
+        window.clearInterval(t);
+      }
+    }, 15_000);
+
+    return () => window.clearInterval(t);
+  }, [id, order?.status, load]);
+
   useEffect(() => {
     if (order?.status !== 'COMPLETED' || typeof window === 'undefined') return;
     if (localStorage.getItem(`reviewed_${id}`)) return;
@@ -131,7 +157,7 @@ export default function TrackOrderPage() {
     let cancelled = false;
     void sb
       .from('profiles')
-      .select('id, full_name, phone, avatar_url')
+      .select('id, full_name, avatar_url')
       .eq('id', tid)
       .maybeSingle()
       .then(({ data }) => {
@@ -141,6 +167,54 @@ export default function TrackOrderPage() {
       cancelled = true;
     };
   }, [order?.technician_id, session?.accessToken]);
+
+  useEffect(() => {
+    const sid = (order as Record<string, unknown> | null)?.supplier_id as
+      | string
+      | null
+      | undefined;
+    if (!sid || !session?.accessToken) {
+      setSupplier(null);
+      setSupplierRating(null);
+      return;
+    }
+    const sb = createSupabaseBrowserAuthed(session.accessToken);
+    if (!sb) return;
+    let cancelled = false;
+
+    void sb
+      .from('profiles')
+      .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
+      .eq('id', sid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) setSupplier(data as ProfileLite);
+      });
+
+    void (async () => {
+      // Avg rating: reviews table is keyed by order_id, so we aggregate across supplier orders.
+      const { data: orders } = await sb
+        .from('orders')
+        .select('id')
+        .eq('supplier_id', sid)
+        .limit(300);
+      const ids = (orders ?? [])
+        .map((o) => String((o as { id?: string }).id ?? ''))
+        .filter(Boolean);
+      if (!ids.length) return;
+      const { data: revs } = await sb.from('reviews').select('rating').in('order_id', ids);
+      const nums = (revs ?? [])
+        .map((r) => Number((r as { rating?: number }).rating ?? 0))
+        .filter((n) => n > 0);
+      if (!cancelled) {
+        setSupplierRating(nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [order, session?.accessToken]);
 
   const status = String(order?.status ?? '');
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
@@ -159,6 +233,26 @@ export default function TrackOrderPage() {
   const supportWa =
     whatsappHref ??
     `https://wa.me/91${(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '9889305803').replace(/\D/g, '')}`;
+
+  const supportNeedsSupplierHref = `https://wa.me/919889305803?text=${encodeURIComponent(
+    `My order ${id} needs a supplier`
+  )}`;
+
+  const unassignedPending =
+    status === 'PENDING' &&
+    !String((order as Record<string, unknown>)?.supplier_id ?? '').trim();
+
+  const pendingTooLong =
+    unassignedPending &&
+    Boolean(order?.created_at) &&
+    Date.now() - new Date(String(order?.created_at ?? '')).getTime() > 5 * 60_000;
+
+  function minsAgo(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.max(0, Math.floor(ms / 60_000));
+    return `${m} mins ago`;
+  }
 
   const onCancel = async () => {
     if (!id) return;
@@ -210,7 +304,35 @@ export default function TrackOrderPage() {
   const canCancel = status === 'PENDING' || status === 'ASSIGNED';
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6 pb-24">
+    <div className="max-w-3xl mx-auto px-4 py-8 space-y-6 pb-20">
+      {unassignedPending ? (
+        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="font-extrabold text-sky-900">🔍 Finding your supplier…</div>
+              <div className="text-sm text-sky-800 mt-1">
+                checking nearby suppliers
+              </div>
+            </div>
+            <div className="h-2 w-24 rounded-full bg-sky-200 overflow-hidden">
+              <div className="h-full w-1/2 bg-sky-500 animate-pulse" />
+            </div>
+          </div>
+          {pendingTooLong ? (
+            <div className="mt-3">
+              <a
+                href={supportNeedsSupplierHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center rounded-xl bg-sky-600 text-white px-4 py-2.5 font-semibold"
+              >
+                Contact support — we&apos;ll find one for you
+              </a>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6 relative overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -279,6 +401,50 @@ export default function TrackOrderPage() {
         </div>
       </div>
 
+      {supplier && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status) && (
+        <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6 space-y-4">
+          <h2 className="font-bold text-slate-900">Supplier</h2>
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-full bg-sky-100 flex items-center justify-center text-xl font-extrabold text-sky-800">
+              {(supplier.full_name ?? '?').slice(0, 1)}
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-slate-900">{supplier.full_name ?? 'Assigned supplier'}</p>
+              <div className="flex flex-wrap gap-2 mt-1 items-center">
+                {supplier.milestone_tier && supplier.milestone_tier !== 'starter' ? (
+                  <span className="inline-flex items-center rounded-full bg-slate-50 border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-800">
+                    {String(supplier.milestone_tier).toUpperCase()}
+                  </span>
+                ) : null}
+                <span className="text-xs text-slate-500">
+                  Last active: {minsAgo(supplier.last_seen_at ?? null)}
+                </span>
+                {supplierRating != null ? (
+                  <span className="text-xs font-semibold text-amber-700">
+                    ★ {supplierRating.toFixed(1)} avg rating
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-3 flex-wrap">
+            <a
+              href={`${supportWa}?text=${encodeURIComponent(
+                `Hi — I'm customer for order ${order.order_number ?? order.id.slice(0, 8)}. Please connect me with the supplier.`
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl bg-slate-900 text-white px-4 py-2 font-semibold"
+            >
+              💬 WhatsApp
+            </a>
+          </div>
+          <p className="text-xs text-slate-500">
+            Supplier phone is shared only after the delivery starts.
+          </p>
+        </div>
+      )}
+
       {tech && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status) && (
         <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6 space-y-4">
           <h2 className="font-bold text-slate-900">Technician</h2>
@@ -288,15 +454,9 @@ export default function TrackOrderPage() {
             </div>
             <div className="flex-1">
               <p className="font-semibold text-slate-900">{tech.full_name ?? 'Assigned pro'}</p>
-              <p className="text-sm text-slate-600">{tech.phone ?? 'Phone on file'}</p>
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
-            {tech.phone ? (
-              <a href={`tel:${tech.phone.replace(/\D/g, '')}`} className="rounded-xl bg-emerald-600 text-white px-4 py-2 font-semibold">
-                📞 Call
-              </a>
-            ) : null}
             <a
               href={`${supportWa}?text=${encodeURIComponent(`Hi — I'm customer for order ${order.order_number ?? order.id.slice(0, 8)}.`)}`}
               target="_blank"
@@ -379,6 +539,7 @@ export default function TrackOrderPage() {
           </div>
         </div>
       )}
+      <BottomNav />
     </div>
   );
 }

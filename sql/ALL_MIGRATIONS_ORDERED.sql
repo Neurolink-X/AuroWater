@@ -559,7 +559,13 @@ ALTER TABLE public.profiles
 -- Optional KPI tables referenced by /api/admin/dashboard (minimal stubs)
 CREATE TABLE IF NOT EXISTS public.applications (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  type       TEXT NOT NULL DEFAULT 'supplier' CHECK (type IN ('supplier','technician')),
+  payload    JSONB NOT NULL DEFAULT '{}'::jsonb,
   status     TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reviewed_at TIMESTAMPTZ,
+  rejection_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -630,4 +636,175 @@ WHERE table_schema = 'public'
     'settings', 'notifications', 'reviews', 'payouts'
   )
 ORDER BY table_name;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/007_supplier_milestones.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- Supplier milestone system + supplier settings tables used by the app.
+-- Idempotent and safe to re-run.
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ── profiles: milestone fields ────────────────────────────────────
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS completed_orders integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS milestone_tier   text NOT NULL DEFAULT 'starter'
+    CHECK (milestone_tier IN ('starter','bronze','silver','gold','platinum')),
+  ADD COLUMN IF NOT EXISTS last_seen_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS status           text NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active','suspended','pending'));
+
+-- ── supplier_settings ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.supplier_settings (
+  user_id         uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  is_online       boolean NOT NULL DEFAULT false,
+  price_per_can   numeric(10,2) NOT NULL DEFAULT 12,
+  service_radius  integer NOT NULL DEFAULT 5,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.supplier_settings
+  ADD COLUMN IF NOT EXISTS zone_radius_km  integer NOT NULL DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS commission_rate numeric(4,2) NOT NULL DEFAULT 8.00,
+  ADD COLUMN IF NOT EXISTS is_primary_zone boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS auto_accept     boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS upi_id          text,
+  ADD COLUMN IF NOT EXISTS bank_account    text,
+  ADD COLUMN IF NOT EXISTS ifsc            text,
+  ADD COLUMN IF NOT EXISTS qr_code_url     text;
+
+-- Keep the legacy `service_radius` aligned with `zone_radius_km` for older codepaths.
+CREATE OR REPLACE FUNCTION public.sync_supplier_radius()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.zone_radius_km IS NOT NULL THEN
+    NEW.service_radius := NEW.zone_radius_km;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS supplier_settings_sync_radius ON public.supplier_settings;
+CREATE TRIGGER supplier_settings_sync_radius
+  BEFORE INSERT OR UPDATE ON public.supplier_settings
+  FOR EACH ROW EXECUTE FUNCTION public.sync_supplier_radius();
+
+DROP TRIGGER IF EXISTS supplier_settings_updated_at ON public.supplier_settings;
+CREATE TRIGGER supplier_settings_updated_at
+  BEFORE UPDATE ON public.supplier_settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+ALTER TABLE public.supplier_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_settings_select_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_select_own_or_admin" ON public.supplier_settings
+  FOR SELECT USING (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_settings_update_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_update_own_or_admin" ON public.supplier_settings
+  FOR UPDATE USING (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  )
+  WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_insert_admin" ON public.supplier_settings
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── supplier_stock (used by seed + supplier flows) ─────────────────
+CREATE TABLE IF NOT EXISTS public.supplier_stock (
+  supplier_id     uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  cans_available  integer NOT NULL DEFAULT 0,
+  low_stock_alert integer NOT NULL DEFAULT 10,
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.supplier_stock ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_stock_select_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_select_own_or_admin" ON public.supplier_stock
+  FOR SELECT USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_update_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_update_own_or_admin" ON public.supplier_stock
+  FOR UPDATE USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  )
+  WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_insert_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_insert_admin" ON public.supplier_stock
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── supplier_milestones ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.supplier_milestones (
+  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  supplier_id  uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tier         text NOT NULL,
+  unlocked_at  timestamptz NOT NULL DEFAULT now(),
+  bonus_amount numeric(10,2) DEFAULT 0,
+  notified     boolean NOT NULL DEFAULT false
+);
+
+-- ── atomic increment helper (used by admin order completion) ───────
+CREATE OR REPLACE FUNCTION public.increment_supplier_completed_orders(p_supplier_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.profiles
+  SET completed_orders = completed_orders + 1
+  WHERE id = p_supplier_id;
+$$;
+
+ALTER TABLE public.supplier_milestones ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_milestones_select_own_or_admin" ON public.supplier_milestones;
+CREATE POLICY "supplier_milestones_select_own_or_admin" ON public.supplier_milestones
+  FOR SELECT USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_milestones_insert_admin" ON public.supplier_milestones;
+CREATE POLICY "supplier_milestones_insert_admin" ON public.supplier_milestones
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── audit_logs (used by admin/settings + routing fallback audits) ───
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id   uuid REFERENCES public.profiles(id),
+  action     text NOT NULL,
+  entity     text NOT NULL,
+  entity_id  text NOT NULL,
+  meta       jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "audit_logs_admin_all" ON public.audit_logs;
+CREATE POLICY "audit_logs_admin_all" ON public.audit_logs
+  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin')
+  WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── settings: founding member discount key ──────────────────────────
+INSERT INTO public.settings (key, value)
+VALUES ('founding_member_discount', '10')
+ON CONFLICT (key) DO NOTHING;
+
+SELECT pg_notify('pgrst', 'reload schema');
 

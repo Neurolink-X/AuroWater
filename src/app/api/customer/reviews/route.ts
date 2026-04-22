@@ -45,51 +45,40 @@ export async function POST(req: NextRequest) {
     return jsonErr('You can only review completed orders', 400);
   }
 
-  const { data: existing } = await auth.ctx.supabase
+  // Prevent duplicate reviews: unique constraint is on order_id in schema.
+  const { data: inserted, error } = await auth.ctx.supabase
     .from('reviews')
-    .select('id')
-    .eq('order_id', order_id)
-    .eq('customer_id', auth.ctx.profile.id)
-    .maybeSingle();
-
-  let rev:
-    | { id: string; rating: number; created_at: string }
-    | null = null;
-  if (existing?.id) {
-    const { data, error } = await auth.ctx.supabase
-      .from('reviews')
-      .update({ rating, comment })
-      .eq('id', existing.id)
-      .select('id, rating, created_at')
-      .single();
-    if (error) {
-      return jsonErr(error.message, 400);
-    }
-    rev = data;
-  } else {
-    const { data, error } = await auth.ctx.supabase
-      .from('reviews')
-      .insert({
+    .upsert(
+      {
         order_id,
         customer_id: auth.ctx.profile.id,
         rating,
         comment,
-      })
-      .select('id, rating, created_at')
-      .single();
-    if (error) {
-      return jsonErr(error.message, 400);
-    }
-    rev = data;
+      },
+      { onConflict: 'order_id', ignoreDuplicates: true }
+    )
+    .select('id, rating, created_at')
+    .maybeSingle();
+
+  if (error) {
+    return jsonErr(error.message, 400);
   }
 
-  await auth.ctx.supabase.from('orders').update({ has_review: true }).eq('id', order_id);
+  // Best-effort: mirror rating onto orders row.
+  try {
+    await auth.ctx.supabase
+      .from('orders')
+      .update({ has_review: true, rating })
+      .eq('id', order_id);
+  } catch (e) {
+    console.error('[reviews] order rating update failed', e);
+  }
 
   return jsonOk(
     {
-      id: rev.id,
-      rating: rev.rating,
-      created_at: rev.created_at,
+      id: inserted?.id ?? null,
+      rating,
+      created_at: inserted?.created_at ?? null,
     },
     201
   );

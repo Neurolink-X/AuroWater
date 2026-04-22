@@ -920,7 +920,7 @@ export default function TechniciansPage() {
 
               <button
                 type="button"
-                onClick={() => router.push('/contact')}
+                onClick={() => router.push('/register/pro?type=technician')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1244,7 +1244,7 @@ export default function TechniciansPage() {
               </div>
               <button
                 type="button"
-                onClick={() => router.push('/contact')}
+                onClick={() => router.push('/register/pro?type=technician')}
                 style={{
                   background: '#fff',
                   color: '#065F46',

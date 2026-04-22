@@ -13,8 +13,9 @@ const MAX_AGE_SEC = 60 * 60 * 24 * 7; // 7 days — aligned with useAuth default
 export function setAuthGateCookies(role: string): void {
   if (typeof document === 'undefined') return;
   const safe = encodeURIComponent(role);
-  document.cookie = `${AUTH_ROLE_COOKIE}=${safe}; path=/; max-age=${MAX_AGE_SEC}; SameSite=Lax`;
-  document.cookie = `${AUTH_SESSION_COOKIE}=1; path=/; max-age=${MAX_AGE_SEC}; SameSite=Lax`;
+  const secure = process.env.NODE_ENV === 'production' ? '; secure' : '';
+  document.cookie = `${AUTH_ROLE_COOKIE}=${safe}; path=/; max-age=${MAX_AGE_SEC}; samesite=lax${secure}`;
+  document.cookie = `${AUTH_SESSION_COOKIE}=1; path=/; max-age=${MAX_AGE_SEC}; samesite=lax${secure}`;
 }
 
 export function clearAuthGateCookies(): void {

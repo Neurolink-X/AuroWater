@@ -30,7 +30,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         return;
       }
 
-      const token = getToken();
+      const token = await getToken();
       const localUser = getUser();
 
       if (!token || !localUser) {

@@ -1,6 +1,7 @@
 import type { ProfileRow } from '@/lib/db/types';
 import type { AuthToken, User } from '@/types';
 import { clearAuthGateCookies } from '@/lib/auth/client-gate-cookies';
+import { createClient } from '@/utils/supabase/client';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
@@ -25,9 +26,17 @@ export function getApiErrorMessage(e: unknown): string {
   return typeof e === 'string' ? e : 'Something went wrong';
 }
 
-export function getToken(): string | null {
+export async function getToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    const supabase = createClient();
+    const { data: sess } = await supabase.auth.getSession();
+    if (sess.session?.access_token) return sess.session.access_token;
+    const { data: refreshed } = await supabase.auth.refreshSession();
+    return refreshed.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function setToken(token: string): void {
@@ -171,7 +180,7 @@ export async function apiFetchSafe<T>(path: string, init: RequestInit = {}): Pro
 }
 
 async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const token = await getToken();
   if (!token) {
     throw new ApiError('No authentication token found', 401);
   }
@@ -290,8 +299,8 @@ export function profileToSession(
 ) {
   const role = profile.role as AuthRoleLocal;
   return {
-    name: profile.full_name,
-    email: profile.email,
+    name: profile.full_name ?? '',
+    email: profile.email ?? '',
     role,
     phone: profile.phone ?? undefined,
     avatarUrl: profile.avatar_url ?? undefined,
@@ -518,7 +527,7 @@ export async function adminSettingsGet(): Promise<Record<string, unknown>> {
 
 /** Admin list endpoints return `{ ok, data, meta }` — `apiFetch` only returns `data`. */
 async function adminFetchJson<T>(path: string): Promise<T> {
-  const token = getToken();
+  const token = await getToken();
   if (!token) {
     throw new ApiError('No authentication token found', 401);
   }
@@ -803,12 +812,12 @@ export function logout(): void {
 
 export async function verifyToken(): Promise<AuthToken> {
   const profile = await authMe();
-  const token = getToken() ?? '';
+  const token = (await getToken()) ?? '';
   const user: User = {
     id: profile.id,
     phone: profile.phone ?? '',
-    email: profile.email,
-    full_name: profile.full_name,
+    email: profile.email ?? '',
+    full_name: profile.full_name ?? '',
     role:
       profile.role === 'admin'
         ? 'ADMIN'

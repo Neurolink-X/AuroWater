@@ -16,7 +16,10 @@ function mapMetaRoleToProfileRole(meta: Record<string, unknown> | undefined): Pr
  * Call only after the user has authenticated (e.g. password sign-in).
  * Returns null if the table is missing, service role is not configured, or insert fails.
  */
-export async function ensureProfileForUser(user: User): Promise<ProfileRow | null> {
+export async function ensureProfileForUser(
+  user: User,
+  initialData: Partial<Pick<ProfileRow, 'role' | 'city' | 'referred_by'>> = {}
+): Promise<ProfileRow | null> {
   let admin;
   try {
     admin = createServiceClient();
@@ -24,66 +27,60 @@ export async function ensureProfileForUser(user: User): Promise<ProfileRow | nul
     return null;
   }
 
-  const { data: existing, error: readErr } = await admin
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
+  try {
+    const meta = user.user_metadata as Record<string, unknown> | undefined;
+    const roleFromMeta = mapMetaRoleToProfileRole(meta);
+    const role =
+      initialData.role === 'admin' ||
+      initialData.role === 'supplier' ||
+      initialData.role === 'technician' ||
+      initialData.role === 'customer'
+        ? initialData.role
+        : roleFromMeta;
 
-  if (readErr) {
-    return null;
-  }
-  if (existing) {
-    return existing as ProfileRow;
-  }
+    const full_name =
+      typeof meta?.full_name === 'string'
+        ? meta.full_name
+        : typeof meta?.name === 'string'
+          ? meta.name
+          : '';
+    const phone = typeof meta?.phone === 'string' ? meta.phone : null;
+    const avatar_url =
+      typeof meta?.avatar_url === 'string'
+        ? meta.avatar_url
+        : typeof meta?.picture === 'string'
+          ? meta.picture
+          : null;
 
-  const meta = user.user_metadata as Record<string, unknown> | undefined;
-  const role = mapMetaRoleToProfileRole(meta);
-  const full_name =
-    typeof meta?.full_name === 'string'
-      ? meta.full_name
-      : typeof meta?.name === 'string'
-        ? meta.name
-        : '';
-  const phone = typeof meta?.phone === 'string' ? meta.phone : null;
-  const avatar_url =
-    typeof meta?.avatar_url === 'string'
-      ? meta.avatar_url
-      : typeof meta?.picture === 'string'
-        ? meta.picture
-        : null;
-
-  const { data: inserted, error: insErr } = await admin
-    .from('profiles')
-    .insert({
+    const base = {
       id: user.id,
       email: user.email ?? '',
       full_name,
       phone,
       role,
+      city: typeof initialData.city === 'string' ? initialData.city : null,
+      referred_by:
+        typeof initialData.referred_by === 'string' ? initialData.referred_by : null,
       avatar_url,
       is_active: true,
-    })
-    .select('*')
-    .single();
+      updated_at: new Date().toISOString(),
+    };
 
-  if (!insErr && inserted) {
-    return inserted as ProfileRow;
-  }
-
-  // Race: trigger or another request created the row first (unique on id / email)
-  if (insErr && (insErr as { code?: string }).code === '23505') {
-    const { data: raced } = await admin
+    const { data, error } = await admin
       .from('profiles')
+      .upsert(base, { onConflict: 'id' })
       .select('*')
-      .eq('id', user.id)
       .maybeSingle();
-    if (raced) {
-      return raced as ProfileRow;
-    }
-  }
 
-  return null;
+    if (error) {
+      console.error('[ensureProfileForUser]', error.message ?? error);
+      return null;
+    }
+    return (data ?? null) as ProfileRow | null;
+  } catch (e) {
+    console.error('[ensureProfileForUser]', e);
+    return null;
+  }
 }
 
 export {

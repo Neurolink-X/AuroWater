@@ -11,6 +11,7 @@ import {
   isRlsOrPermissionDeniedError,
   postgrestTableUnavailableUserMessage,
 } from '@/lib/supabase/postgrest-errors';
+import { createServiceClient } from '@/utils/supabase/server';
 
 async function settingsMap(
   sb: ReturnType<typeof import('@/lib/db/supabase').createSupabaseUserClient>
@@ -253,6 +254,139 @@ export async function POST(req: NextRequest) {
       return jsonErr(oErrW?.message ?? 'Failed to create order', oErrW ? 502 : 500);
     }
 
+    // ── Supplier routing (territory protection + affinity) ────────────────
+    type LastSupplierRow = { supplier_id: string | null };
+    type SupplierSettingsRow = { user_id: string; is_online: boolean; zone_radius_km: number | null };
+    type SupplierProfileTierRow = { id: string; milestone_tier: string | null };
+
+    const tierRank: Record<string, number> = {
+      starter: 0,
+      bronze: 1,
+      silver: 2,
+      gold: 3,
+      platinum: 4,
+    };
+
+    let assignedSupplierId: string | null = null;
+
+    // 1) Preferred supplier from last COMPLETED order
+    const { data: lastCompleted } = await auth.ctx.supabase
+      .from('orders')
+      .select('supplier_id')
+      .eq('customer_id', auth.ctx.profile.id)
+      .eq('status', 'COMPLETED')
+      .not('supplier_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const preferredSupplierId =
+      (lastCompleted as unknown as LastSupplierRow | null)?.supplier_id ?? null;
+
+    if (preferredSupplierId) {
+      const { data: prefSettings } = await auth.ctx.supabase
+        .from('supplier_settings')
+        .select('user_id, is_online, zone_radius_km')
+        .eq('user_id', preferredSupplierId)
+        .maybeSingle();
+
+      const ps = prefSettings as unknown as SupplierSettingsRow | null;
+      const online = Boolean(ps?.is_online);
+      if (online) {
+        assignedSupplierId = preferredSupplierId;
+      }
+    }
+
+    // 2) Else: pick best available supplier by tier (platinum first)
+    if (!assignedSupplierId) {
+      const { data: onlineSuppliers } = await auth.ctx.supabase
+        .from('supplier_settings')
+        .select('user_id, is_online, zone_radius_km')
+        .eq('is_online', true)
+        .limit(200);
+
+      const supplierIds = (onlineSuppliers ?? [])
+        .map((r) => String((r as { user_id?: string }).user_id ?? ''))
+        .filter(Boolean);
+
+      if (supplierIds.length) {
+        const { data: tiers } = await auth.ctx.supabase
+          .from('profiles')
+          .select('id, milestone_tier')
+          .in('id', supplierIds);
+
+        const tierById = new Map(
+          (tiers ?? []).map((r) => [
+            String((r as SupplierProfileTierRow).id),
+            String((r as SupplierProfileTierRow).milestone_tier ?? 'starter'),
+          ])
+        );
+
+        const candidates = (onlineSuppliers ?? [])
+          .map((r) => {
+            const row = r as unknown as SupplierSettingsRow;
+            const tid = tierById.get(String(row.user_id)) ?? 'starter';
+            const radius = Number(row.zone_radius_km ?? 5);
+            return { id: String(row.user_id), tier: tid, radius };
+          })
+          .filter((c) => c.radius > 0);
+
+        candidates.sort((a, b) => {
+          const tr = (tierRank[b.tier] ?? 0) - (tierRank[a.tier] ?? 0);
+          if (tr !== 0) return tr;
+          return (b.radius ?? 0) - (a.radius ?? 0);
+        });
+
+        assignedSupplierId = candidates[0]?.id ?? null;
+      }
+    }
+
+    if (assignedSupplierId) {
+      const { error: assignErr } = await auth.ctx.supabase
+        .from('orders')
+        .update({ supplier_id: assignedSupplierId, status: 'ASSIGNED' })
+        .eq('id', String(orderW.id));
+      if (!assignErr) {
+        (orderW as Record<string, unknown>).supplier_id = assignedSupplierId;
+        (orderW as Record<string, unknown>).status = 'ASSIGNED';
+      }
+    } else {
+      // 4) No supplier found: keep PENDING + notify admins + audit log
+      try {
+        const sbAdmin = createServiceClient();
+        const { data: admins } = await sbAdmin
+          .from('profiles')
+          .select('id')
+          .eq('role', 'admin')
+          .limit(20);
+
+        const msg = `Unassigned order ${String(orderW.id)} — no supplier available`;
+        for (const a of admins ?? []) {
+          const adminId = String((a as { id?: string }).id ?? '');
+          if (!adminId) continue;
+          await sbAdmin.from('notifications').insert({
+            user_id: adminId,
+            title: 'Unassigned order',
+            body: msg,
+            type: 'system',
+            order_id: String(orderW.id),
+            is_read: false,
+            dedup_key: `order_${String(orderW.id)}_no_supplier`,
+          });
+        }
+
+        await sbAdmin.from('audit_logs').insert({
+          actor_id: null,
+          action: 'order.no_supplier',
+          entity: 'orders',
+          entity_id: String(orderW.id),
+          meta: { service_type_key, city: (address_snapshot as { city?: string }).city ?? null },
+        });
+      } catch {
+        // best-effort
+      }
+    }
+
     const serviceName =
       typeof st.name === 'string' && st.name.trim() ? st.name : service_type_key;
     const scheduledDate =
@@ -260,14 +394,37 @@ export async function POST(req: NextRequest) {
     const timeSlot =
       typeof insertWater.time_slot === 'string' && insertWater.time_slot ? insertWater.time_slot : '';
     const { createNotification } = await import('@/lib/notifications');
-    await createNotification(
-      auth.ctx.profile.id,
-      'Booking Confirmed 🎉',
-      `Your ${serviceName} is booked for ${scheduledDate}${timeSlot ? ` · ${timeSlot}` : ''}.`,
-      'booking',
-      String(orderW.id),
-      'created'
-    );
+    try {
+      await createNotification(
+        auth.ctx.profile.id,
+        'Order placed successfully',
+        `Your ${serviceName} is booked for ${scheduledDate}${timeSlot ? ` · ${timeSlot}` : ''}.`,
+        'booking',
+        String(orderW.id),
+        'created'
+      );
+    } catch (e) {
+      console.error('[notifications] customer order created', e);
+    }
+
+    if (assignedSupplierId) {
+      try {
+        await createNotification(
+          assignedSupplierId,
+          'New order incoming',
+          'A new order has been assigned to you.',
+          'system',
+          String(orderW.id),
+          'assigned'
+        );
+      } catch (e) {
+        console.error('[notifications] supplier order assigned', e);
+      }
+    }
+
+    if (!assignedSupplierId) {
+      return jsonOk({ ...(orderW as Record<string, unknown>), supplier_status: 'searching' }, 201);
+    }
 
     return jsonOk(orderW, 201);
   }

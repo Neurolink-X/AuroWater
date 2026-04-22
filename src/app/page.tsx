@@ -1861,14 +1861,14 @@ const SERVICES: ServiceItem[] = [
   {
     icon: '💧', title: 'Water Delivery', badge: 'Most Popular',
     body: 'Daily cans ₹10–15 · Free doorstep delivery · Perfect for hostels, families & offices.',
-    cta: 'Order Now', href: '/book?service=water_tanker',
+    cta: 'Order Now', href: '/book',
     features: ['Real-time tracking', 'Always free delivery', 'Cash + UPI'],
     accent: '#0ea5e9', accentBg: 'rgba(14,165,233,0.13)',
   },
   {
     icon: '🔧', title: 'Plumber Service', badge: 'Verified Pros',
     body: 'Fitting, boring, repair & pump installation by verified, background-checked local plumbers.',
-    cta: 'Book Now', href: '/book?service=plumbing',
+    cta: 'Book Now', href: '/book',
     features: ['Background checked', 'Fixed pricing', 'Same-day service'],
     accent: '#6366f1', accentBg: 'rgba(99,102,241,0.13)',
   },
@@ -1900,14 +1900,14 @@ const ROLES = [
     icon: '🚛', title: 'I Supply Water',
     desc: 'Partner with us to deliver water. Get verified and receive orders directly.',
     perks: ['KYC verification', 'Admin approval process', 'Start earning once approved'],
-    cta: 'Apply as Supplier →', href: '/auth/register?role=supplier',
+    cta: 'Apply as Supplier →', href: '/register/pro?type=supplier',
     gradient: 'from-emerald-500 to-teal-400', shadow: 'rgba(16,185,129,0.35)',
   },
   {
     icon: '🔧', title: "I'm a Plumber / Tech",
     desc: 'Get verified, showcase your skills, and receive job requests from customers.',
     perks: ['Skill verification', 'Background check', 'Earn on your schedule'],
-    cta: 'Apply as Plumber →', href: '/auth/register?role=technician',
+    cta: 'Apply as Plumber →', href: '/register/pro?type=technician',
     gradient: 'from-violet-500 to-purple-400', shadow: 'rgba(139,92,246,0.35)',
   },
 ] as const;
@@ -1935,14 +1935,14 @@ const EARN_CARDS = [
   {
     icon: '🚚', title: 'Supply Water', earn: '₹3,000–8,000/mo', earnColor: '#34d399',
     desc: 'Use your vehicle and local routes to deliver water cans. We handle customers — you focus on timely delivery.',
-    cta: 'Apply as Supplier →', href: '/contact',
+    cta: 'Apply as Supplier →', href: '/register/pro?type=supplier',
     borderColor: 'rgba(16,185,129,0.3)', bgColor: 'rgba(16,185,129,0.06)',
     btnClass: 'from-emerald-500 to-teal-400',
   },
   {
     icon: '🔧', title: 'Work as Plumber', earn: '₹4,000–15,000/mo', earnColor: '#38bdf8',
     desc: 'Get regular jobs for fittings, repair & boring. Transparent pricing and instant UPI payments.',
-    cta: 'Apply as Plumber →', href: '/contact',
+    cta: 'Apply as Plumber →', href: '/register/pro?type=technician',
     borderColor: 'rgba(14,165,233,0.3)', bgColor: 'rgba(14,165,233,0.06)',
     btnClass: 'from-sky-500 to-cyan-400',
   },
@@ -2116,6 +2116,12 @@ export default function HomePage() {
   const [foundingMsg, setFoundingMsg] = useState<string | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [activeSvc, setActiveSvc]     = useState(0);
+  const [deliveredTarget, setDeliveredTarget] = useState<number | null>(null);
+  const [deliveredCount, setDeliveredCount] = useState(0);
+  const [customersTarget, setCustomersTarget] = useState<number | null>(null);
+  const [customersCount, setCustomersCount] = useState(0);
+  const [suppliersTarget, setSuppliersTarget] = useState<number | null>(null);
+  const [suppliersCount, setSuppliersCount] = useState(0);
 
   const heroRef = useRef<HTMLElement>(null);
 
@@ -2157,6 +2163,81 @@ export default function HomePage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  /* ── Live counters (public stats) ── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/stats', { cache: 'force-cache' });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          completed_orders?: number;
+          total_customers?: number;
+          active_suppliers?: number;
+        };
+        const completed = Math.max(0, Math.floor(Number(json.completed_orders ?? 0)));
+        const customers = Math.max(0, Math.floor(Number(json.total_customers ?? 0)));
+        const suppliers = Math.max(0, Math.floor(Number(json.active_suppliers ?? 0)));
+        if (!cancelled) {
+          setDeliveredTarget(completed);
+          setCustomersTarget(customers);
+          setSuppliersTarget(suppliers);
+        }
+      } catch {
+        /* best-effort */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (deliveredTarget == null) return;
+    const start = performance.now();
+    const duration = 1500;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDeliveredCount(Math.round(deliveredTarget * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    setDeliveredCount(0);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [deliveredTarget]);
+
+  useEffect(() => {
+    if (customersTarget == null) return;
+    const start = performance.now();
+    const duration = 1500;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setCustomersCount(Math.round(customersTarget * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    setCustomersCount(0);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [customersTarget]);
+
+  useEffect(() => {
+    if (suppliersTarget == null) return;
+    const start = performance.now();
+    const duration = 1500;
+    let raf = 0;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setSuppliersCount(Math.round(suppliersTarget * eased));
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    setSuppliersCount(0);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [suppliersTarget]);
 
   const claimed  = useMemo(() => Math.min(founding?.count ?? 73, 100), [founding]);
   const progress = useMemo(() => (claimed / 100) * 100, [claimed]);
@@ -2615,6 +2696,34 @@ export default function HomePage() {
                         ✦ {tag}
                       </span>
                     ))}
+                  </motion.div>
+
+                  <motion.div
+                    className="mt-4 text-sm text-white/70 font-semibold"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.46 }}
+                  >
+                    <div className="flex flex-wrap gap-x-5 gap-y-1">
+                      <div>
+                        <span className="text-white font-extrabold">
+                          {Math.max(2000, deliveredCount).toLocaleString('en-IN')}+
+                        </span>{' '}
+                        cans delivered in Delhi & UP
+                      </div>
+                      <div>
+                        <span className="text-white font-extrabold">
+                          {Math.max(500 , customersCount).toLocaleString('en-IN')}+
+                        </span>{' '}
+                        happy customers
+                      </div>
+                      <div>
+                        <span className="text-white font-extrabold">
+                          {Math.max(100, suppliersCount).toLocaleString('en-IN')}
+                        </span>{' '}
+                        active suppliers
+                      </div>
+                    </div>
                   </motion.div>
                 </motion.div>
 

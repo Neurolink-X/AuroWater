@@ -1,4 +1,4 @@
-# AuroWater
+# AuroTap
 
 On-demand water delivery + plumber booking platform for Delhi & UP (India).
 Built with Next.js 16, React 19, Supabase, TypeScript, Tailwind 4.
@@ -18,8 +18,9 @@ npm run dev                  # http://localhost:3000
 | NEXT_PUBLIC_SUPABASE_URL | Supabase Dashboard → Settings → API → Project URL |
 | NEXT_PUBLIC_SUPABASE_ANON_KEY | Settings → API → anon/publishable key |
 | SUPABASE_SERVICE_ROLE_KEY | Settings → API → service_role (server-only, never expose) |
-| NEXT_PUBLIC_APP_URL | https://aurowater.in (or http://localhost:3000 for dev) |
-| NEXT_PUBLIC_API_URL | https://aurowater.in/api (or http://localhost:3000/api) |
+| NEXT_PUBLIC_APP_URL | https://aurotap.in (or http://localhost:3000 for dev) |
+| NEXT_PUBLIC_API_URL | https://aurotap.in/api (or http://localhost:3000/api) |
+| ADMIN_INVITE_CODE | Secret invite code for admin registration |
 
 See `.env.example` for all optional variables.
 
@@ -40,9 +41,11 @@ npm run verify:env   # exits 0 only when URL, anon, and service role are non-emp
 ### Email confirmation / “redirects home” / login errors
 
 - **Recommended for dev:** Authentication → **disable “Confirm email”** so users can sign in immediately after register.
-- If confirmation is **on:** add these under **Authentication → URL configuration** → *Redirect URLs*:
+- If confirmation is **on** (or OAuth is used): add these under **Authentication → URL configuration** → *Redirect URLs*:
   - `http://localhost:3000/auth/callback`
-  - `https://aurowater.in/auth/callback` (production)
+  - `http://localhost:3000/**`
+  - `https://aurotap.in/auth/callback` (production)
+  - `https://aurotap.in/**` (production)
 - Set **Site URL** to your app origin (`http://localhost:3000` or production). The app forwards `?code=` from the home page to `/auth/callback` automatically (`AuthPkceBridge`).
 - If login says the email is not confirmed, use **Resend confirmation email** on the login page (calls `POST /api/auth/resend-confirmation`).
 

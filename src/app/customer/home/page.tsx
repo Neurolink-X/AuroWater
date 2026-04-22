@@ -1,1018 +1,829 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-  api,
-  getApiErrorMessage,
-  logout,
-  type ApiOrder,
-  type ApiNotification,
-  type CustomerStats,
-} from '@/lib/api-client';
-import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
+import { usePathname, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+
+import BottomNav from '@/components/customer/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
+import { createSupabaseBrowserAuthed } from '@/lib/db/supabase-user-browser';
+import { clearSession } from '@/hooks/useAuth';
+import { getToken } from '@/lib/api-client';
 
-/* ─────────────────────────────────────────────
-   TYPES
-───────────────────────────────────────────── */
-interface Order {
-  id: string | number;
-  service_name: string;
-  total_amount: number;
-  status: string;
-  created_at: string;
-  time_slot?: string;
-}
+type CustomerStatsApi = {
+  total_spent: number;
+  cans_ordered: number;
+  member_since: string | null;
+};
 
-interface Notif {
+type OrderRow = {
   id: string;
-  title: string;
-  body: string;
+  status: string;
+  total_amount: number;
   created_at: string;
-  order_id?: string;
+  can_quantity: number | null;
+  supplier_id: string | null;
+};
+
+type SupplierLite = {
+  id: string;
+  full_name: string | null;
+  milestone_tier: string | null;
+};
+
+type NotificationRow = {
+  id: string;
+  title: string | null;
+  body: string | null;
+  created_at: string;
+  is_read: boolean;
+  order_id: string | null;
+  type: string | null;
+};
+
+const WHATSAPP_SUPPORT = 'https://wa.me/919889305803';
+
+function inr(n: number): string {
+  return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 }
 
-/* ─────────────────────────────────────────────
-   CONSTANTS
-───────────────────────────────────────────── */
-const STATUS_CFG: Record<string, {
-  label: string; bg: string; color: string; dot: string; pulse?: boolean;
-}> = {
-  PENDING:     { label:'Pending',     bg:'#FFF7ED', color:'#C2410C', dot:'#FB923C' },
-  ASSIGNED:    { label:'Assigned',    bg:'#EFF6FF', color:'#1D4ED8', dot:'#60A5FA' },
-  ACCEPTED:    { label:'Accepted',    bg:'#F0F9FF', color:'#0369A1', dot:'#38BDF8' },
-  IN_PROGRESS: { label:'In Progress', bg:'#EDE9FE', color:'#5B21B6', dot:'#8B5CF6', pulse:true },
-  COMPLETED:   { label:'Completed',   bg:'#ECFDF5', color:'#065F46', dot:'#34D399' },
-  CANCELLED:   { label:'Cancelled',   bg:'#F9FAFB', color:'#6B7280', dot:'#9CA3AF' },
-};
-
-const SVC_META: Record<string, { emoji: string; label: string; color: string }> = {
-  water_tanker:  { emoji:'🚛', label:'Water Tanker',   color:'#0284C7' },
-  ro_service:    { emoji:'💧', label:'RO Service',     color:'#2563EB' },
-  plumbing:      { emoji:'🔧', label:'Plumbing',       color:'#D97706' },
-  borewell:      { emoji:'⛏️', label:'Borewell',       color:'#78716C' },
-  motor_pump:    { emoji:'⚙️', label:'Motor & Pump',   color:'#7C3AED' },
-  tank_cleaning: { emoji:'🪣', label:'Tank Cleaning',  color:'#0891B2' },
-  water_can:     { emoji:'💧', label:'Water Can',      color:'#2563EB' },
-};
-
-const EMPTY_STATS: CustomerStats = {
-  total_orders: 0,
-  active_orders: 0,
-  completed: 0,
-  cancelled: 0,
-  total_spent: 0,
-  savings: 0,
-  avg_rating: null,
-  total_reviews: 0,
-};
-
-const SERVICES = [
-  { key:'water_can',     emoji:'💧', label:'Water Can',      sub:'₹12/can' },
-  { key:'water_tanker',  emoji:'🚛', label:'Water Tanker',   sub:'From ₹299' },
-  { key:'ro_service',    emoji:'🔧', label:'RO Service',     sub:'From ₹199' },
-  { key:'plumbing',      emoji:'🪠', label:'Plumbing',       sub:'From ₹149' },
-  { key:'motor_pump',    emoji:'⚙️', label:'Motor Pump',     sub:'From ₹249' },
-  { key:'tank_cleaning', emoji:'🪣', label:'Tank Cleaning',  sub:'From ₹349' },
-];
-
-/* ─────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────── */
-const inr = (n: number | null | undefined) =>
-  '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
-
-const relTime = (iso: string): string => {
+function relTime(iso: string): string {
   try {
     const d = Date.now() - new Date(iso).getTime();
-    if (d < 60_000)       return 'Just now';
-    if (d < 3_600_000)    return `${Math.floor(d / 60_000)}m ago`;
-    if (d < 86_400_000)   return `${Math.floor(d / 3_600_000)}h ago`;
-    const days = Math.floor(d / 86_400_000);
-    return days === 1 ? 'Yesterday' : `${days}d ago`;
-  } catch { return ''; }
-};
+    if (d < 60_000) return 'Just now';
+    if (d < 3_600_000) return `${Math.floor(d / 60_000)}m ago`;
+    if (d < 86_400_000) return `${Math.floor(d / 3_600_000)}h ago`;
+    return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  } catch {
+    return '';
+  }
+}
 
-const fmtDate = (iso: string): string => {
-  try {
-    return new Date(iso).toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
-    });
-  } catch { return iso; }
-};
-
-const getInitials = (name?: string): string =>
-  (name || 'U')
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map(p => p[0])
-    .join('')
-    .toUpperCase() || 'U';
-
-const getSvcMeta = (name: string) => {
-  const key = name?.toLowerCase().replace(/ /g, '_');
-  return SVC_META[key] ?? { emoji: '💧', label: name.replace(/_/g, ' '), color: '#2563EB' };
-};
-
-/* ─────────────────────────────────────────────
-   MICRO COMPONENTS
-───────────────────────────────────────────── */
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG['PENDING'];
+function SkeletonLine({ w, h = 12 }: { w: number | string; h?: number }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '3px 9px', borderRadius: 99,
-      background: cfg.bg, color: cfg.color,
-      border: `1px solid ${cfg.dot}44`,
-      fontSize: 10, fontWeight: 700,
-      letterSpacing: '0.04em', whiteSpace: 'nowrap',
-    }}>
-      <span style={{
-        width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0,
-        animation: cfg.pulse ? 'chPulse 1.5s ease-in-out infinite' : 'none',
-      }} />
-      {cfg.label}
-    </span>
+    <div
+      style={{
+        width: w,
+        height: h,
+        borderRadius: 10,
+        background: 'linear-gradient(90deg,#F1F5F9 25%,#E2E8F0 50%,#F1F5F9 75%)',
+        backgroundSize: '600px 100%',
+        animation: 'awShimmer 1.4s ease-in-out infinite',
+      }}
+    />
   );
 }
 
-function Skeleton({ w = '100%', h = 16, r = 8 }: { w?: number | string; h?: number; r?: number }) {
-  return (
-    <div style={{
-      width: w, height: h, borderRadius: r, flexShrink: 0,
-      background: 'linear-gradient(90deg,#EFF6FF 25%,#DBEAFE 50%,#EFF6FF 75%)',
-      backgroundSize: '800px 100%',
-      animation: 'chShimmer 1.5s ease-in-out infinite',
-    }} />
-  );
+function statusStepIndex(status: string): number {
+  const s = status.toUpperCase();
+  if (s === 'PENDING') return 0;
+  if (s === 'ASSIGNED') return 1;
+  if (s === 'IN_PROGRESS') return 2;
+  if (s === 'COMPLETED') return 3;
+  return 0;
 }
 
-function CountUp({ to, duration = 700 }: { to: number; duration?: number }) {
-  const [val, setVal] = useState(0);
-  const raf = useRef<number>(0);
-  useEffect(() => {
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - t0) / duration);
-      setVal(Math.round(to * (1 - Math.pow(1 - t, 3))));
-      if (t < 1) raf.current = requestAnimationFrame(tick);
-    };
-    setVal(0);
-    raf.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf.current);
-  }, [to, duration]);
-  return <>{val}</>;
-}
-
-/* ─────────────────────────────────────────────
-   GUEST WELCOME HERO
-───────────────────────────────────────────── */
-function GuestHero({ onBook }: { onBook: () => void }) {
+function StatusStepper({ status }: { status: string }) {
+  const idx = statusStepIndex(status);
+  const steps = ['Order Placed', 'Supplier Assigned', 'On the Way', 'Delivered'];
   return (
-    <div className="ch-guest-hero">
-      {/* Background water drop SVG */}
-      <div className="ch-guest-drop" aria-hidden="true">
-        <svg viewBox="0 0 200 260" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M100 10C55 70 20 110 20 150a80 80 0 00160 0c0-40-35-80-80-140z"
-            fill="#2563EB" fillOpacity="0.08"/>
-          <path d="M100 40C65 88 42 118 42 150a58 58 0 00116 0c0-32-23-62-58-110z"
-            fill="#3B82F6" fillOpacity="0.06"/>
-          <circle cx="78" cy="138" r="10" fill="#fff" fillOpacity="0.15"/>
-        </svg>
+    <div className="mt-3">
+      <div className="flex items-center justify-between gap-2">
+        {steps.map((label, i) => {
+          const done = i <= idx;
+          const active = i === idx;
+          return (
+            <div key={label} className="flex-1">
+              <div className="flex items-center">
+                <div
+                  className="h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-extrabold"
+                  style={{
+                    background: done ? '#2563EB' : '#E5E7EB',
+                    color: done ? '#fff' : '#64748B',
+                    boxShadow: active ? '0 0 0 4px rgba(37,99,235,0.12)' : 'none',
+                  }}
+                >
+                  {done ? '✓' : i + 1}
+                </div>
+                {i < steps.length - 1 ? (
+                  <div className="h-[3px] flex-1 mx-2 rounded-full" style={{ background: i < idx ? '#2563EB' : '#E5E7EB' }} />
+                ) : null}
+              </div>
+              <div className="mt-2 text-[11px] font-semibold" style={{ color: done ? '#1D4ED8' : '#6B7280' }}>
+                {label}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div className="ch-guest-content">
-        <div className="ch-guest-eyebrow">
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'#60A5FA', display:'inline-block', animation:'chPulse 1.5s infinite' }} />
-          India&apos;s most transparent water service
-        </div>
-        <h1 className="ch-guest-title">
-          Pure water,<br /><span>at your door.</span>
-        </h1>
-        <p className="ch-guest-sub">
-          Book RO service, water cans, plumbing and more — verified pros, upfront prices, same-day slots.
-        </p>
-        <div className="ch-guest-btns">
-          <button type="button" onClick={onBook} className="ch-btn-primary" style={{ fontSize:15, padding:'13px 28px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" fill="rgba(255,255,255,0.35)"/>
-              <path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" stroke="#fff" strokeWidth="1.5" fill="none"/>
-            </svg>
-            Book a Service
-          </button>
-          <Link href="/auth/login" className="ch-btn-ghost" style={{ fontSize:14, padding:'12px 22px' }}>
-            Sign in to track orders
-          </Link>
-        </div>
-        <div className="ch-guest-trust">
-          {['₹12/can · No hidden fees','Same-day delivery','4.8★ rating','13 cities UP'].map(t => (
-            <span key={t} className="ch-trust-pill">{t}</span>
-          ))}
-        </div>
-      </div>
-      {/* Wave bottom */}
-      <svg className="ch-guest-wave" viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <path fill="#F0F6FF" d="M0,30 C240,55 480,5 720,30 C960,55 1200,10 1440,30 L1440,60 L0,60 Z"/>
-        <path fill="#F0F6FF" fillOpacity="0.5" d="M0,42 C200,18 500,52 720,38 C940,24 1200,50 1440,42 L1440,60 L0,60 Z"/>
-      </svg>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN COMPONENT
-───────────────────────────────────────────── */
-export default function CustomerHome() {
+export default function CustomerHomePage() {
   const router = useRouter();
-  const { fullName, hydrated: authHydrated, isLoggedIn, role } = useAuth();
+  const pathname = usePathname() ?? '/customer/home';
+  const { hydrated, isLoggedIn, isCustomer, name, fullName, session } = useAuth();
 
-  const [orders,    setOrders]    = useState<Order[]>([]);
-  const [notifs,    setNotifs]    = useState<Notif[]>([]);
-  const [stats,     setStats]     = useState<CustomerStats | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [refreshing,setRefreshing]= useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [clock,     setClock]     = useState('');
-  const [greeting,  setGreeting]  = useState('Welcome');
+  const [stats, setStats] = useState<CustomerStatsApi | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
-  /* Real-time clock */
-  useEffect(() => {
-    const tick = () => {
-      const now = new Date();
-      const h = now.getHours();
-      setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening');
-      setClock(now.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' }));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
+  const [supplier, setSupplier] = useState<SupplierLite | null>(null);
+
+  const [notifs, setNotifs] = useState<NotificationRow[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(true);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const [founding, setFounding] = useState<boolean>(false);
+
+  const bellRef = useRef<HTMLButtonElement | null>(null);
+
+  const activeOrder = useMemo(() => {
+    const active = orders.find((o) => ['PENDING', 'ASSIGNED', 'IN_PROGRESS'].includes(o.status.toUpperCase()));
+    return active ?? null;
+  }, [orders]);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
 
-  /* Load user + orders */
-  const loadData = useCallback(async (isRefresh = false) => {
-    if (!authHydrated) return;
-    if (!isLoggedIn || role !== 'customer') {
-      setLoading(false);
+  const firstName = name ?? (fullName?.split(/\s+/)[0] ?? 'there');
+
+  const ensureAuthed = useCallback(() => {
+    if (!hydrated) return false;
+    if (!isLoggedIn || !isCustomer) {
+      router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+      return false;
+    }
+    return true;
+  }, [hydrated, isLoggedIn, isCustomer, router, pathname]);
+
+  const authHeaders = useCallback(async (): Promise<HeadersInit | null> => {
+    if (!ensureAuthed()) return null;
+    const token = await getToken();
+    if (!token) {
+      clearSession();
+      router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+      return null;
+    }
+    return { Authorization: `Bearer ${token}` };
+  }, [ensureAuthed, router, pathname]);
+
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch('/api/customer/stats', { credentials: 'include', headers });
+      if (res.status === 401) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const json = (await res.json()) as { success?: boolean; data?: CustomerStatsApi; error?: string };
+      if (!res.ok || json.success === false) throw new Error(json.error ?? 'Could not load stats');
+      setStats(json.data ?? { total_spent: 0, cans_ordered: 0, member_since: null });
+    } catch (e: unknown) {
+      setStats({ total_spent: 0, cans_ordered: 0, member_since: null });
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [authHeaders, router, pathname]);
+
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch('/api/customer/orders?limit=20&offset=0', { credentials: 'include', headers });
+      if (res.status === 401) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const json = (await res.json()) as { success?: boolean; data?: unknown; error?: string };
+      if (!res.ok || json.success === false) throw new Error(json.error ?? 'Could not load orders');
+      const rows = Array.isArray(json.data) ? json.data : [];
+      setOrders(
+        rows.map((r): OrderRow => {
+          const rr = r as Record<string, unknown>;
+          return {
+            id: String(rr.id ?? ''),
+            status: String(rr.status ?? ''),
+            total_amount: Number(rr.total_amount ?? 0),
+            created_at: String(rr.created_at ?? new Date().toISOString()),
+            can_quantity: rr.can_quantity == null ? null : Number(rr.can_quantity),
+            supplier_id: rr.supplier_id == null ? null : String(rr.supplier_id),
+          };
+        })
+      );
+    } catch {
+      setOrders([]);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [authHeaders, router, pathname]);
+
+  const loadNotifs = useCallback(async () => {
+    setNotifsLoading(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch('/api/customer/notifications?limit=5', { credentials: 'include', headers });
+      if (res.status === 401) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      const json = (await res.json()) as { success?: boolean; data?: unknown; error?: string };
+      if (!res.ok || json.success === false) throw new Error(json.error ?? 'Could not load notifications');
+      const rows = Array.isArray(json.data) ? json.data : [];
+      setNotifs(
+        rows.map((r): NotificationRow => {
+          const rr = r as Record<string, unknown>;
+          return {
+            id: String(rr.id ?? ''),
+            title: rr.title == null ? null : String(rr.title),
+            body: rr.body == null ? (rr.message == null ? null : String(rr.message)) : String(rr.body),
+            created_at: String(rr.created_at ?? new Date().toISOString()),
+            is_read: Boolean(rr.is_read),
+            order_id: rr.order_id == null ? null : String(rr.order_id),
+            type: rr.type == null ? null : String(rr.type),
+          };
+        })
+      );
+    } catch {
+      setNotifs([]);
+    } finally {
+      setNotifsLoading(false);
+    }
+  }, [authHeaders, router, pathname]);
+
+  const markAllRead = useCallback(async () => {
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch('/api/customer/notifications/read-all', { method: 'PUT', credentials: 'include', headers });
+      if (res.status === 401) {
+        clearSession();
+        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
+        return;
+      }
+      setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch {
+      /* best-effort */
+    }
+  }, [authHeaders, router, pathname]);
+
+  useEffect(() => {
+    void loadStats();
+    void loadOrders();
+    void loadNotifs();
+    // Intentionally run once on mount to avoid dependency loops.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Realtime notifications subscription
+  useEffect(() => {
+    if (!session?.accessToken || !session.userId) return;
+    const sb = createSupabaseBrowserAuthed(session.accessToken);
+    if (!sb) return;
+    const channel = sb
+      .channel(`notifs_${session.userId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.userId}` },
+        () => {
+          void loadNotifs();
+        }
+      )
+      .subscribe();
+    return () => {
+      void sb.removeChannel(channel);
+    };
+  }, [session?.accessToken, session?.userId, loadNotifs]);
+
+  // Founding member flag (first 100 customers)
+  useEffect(() => {
+    if (!session?.accessToken || !session.userId) return;
+    const sb = createSupabaseBrowserAuthed(session.accessToken);
+    if (!sb) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: me } = await sb.from('profiles').select('created_at, role').eq('id', session.userId).maybeSingle();
+      if (!me?.created_at || String(me.role ?? '') !== 'customer') return;
+      const createdAt = String(me.created_at);
+      const { count } = await sb
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'customer')
+        .lte('created_at', createdAt);
+      if (!cancelled) setFounding((count ?? 0) <= 100);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.accessToken, session?.userId]);
+
+  // Active order supplier badge (name + tier, no phone/address)
+  useEffect(() => {
+    const sid = activeOrder?.supplier_id ?? null;
+    if (!sid || !session?.accessToken) {
+      setSupplier(null);
       return;
     }
-    if (isRefresh) setRefreshing(true);
-    setError(null);
-    try {
-      const [ordersRes, statsRes, notifsRes] = await Promise.allSettled([
-        api.customer.orders.list({ limit: 20, offset: 0 }),
-        api.customer.stats(),
-        api.customer.notifications.list(10),
-      ]);
-
-      if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value)) {
-        const mapped = ordersRes.value.map((o: ApiOrder): Order => ({
-          id: o.id,
-          service_name: String(o.service_type_key ?? 'service'),
-          total_amount: Number(o.total_amount ?? 0),
-          status: o.status,
-          created_at: o.created_at,
-          time_slot: o.time_slot ?? undefined,
-        }));
-        setOrders(mapped);
-      } else {
-        setOrders([]);
-        if (ordersRes.status === 'rejected') {
-          setError(getApiErrorMessage(ordersRes.reason));
+    const sb = createSupabaseBrowserAuthed(session.accessToken);
+    if (!sb) return;
+    let cancelled = false;
+    void sb
+      .from('profiles')
+      .select('id, full_name, milestone_tier')
+      .eq('id', sid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data) {
+          setSupplier({
+            id: String((data as { id?: string }).id ?? sid),
+            full_name: (data as { full_name?: string | null }).full_name ?? null,
+            milestone_tier: (data as { milestone_tier?: string | null }).milestone_tier ?? null,
+          });
         }
-      }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOrder?.supplier_id, session?.accessToken]);
 
-      if (statsRes.status === 'fulfilled') {
-        setStats(statsRes.value);
-      } else {
-        setStats(EMPTY_STATS);
-      }
+  const unreadCount = notifs.filter((n) => !n.is_read).length;
 
-      if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value)) {
-        const mappedNotifs = notifsRes.value.map((n: ApiNotification): Notif => ({
-          id: String(n.id),
-          title: String(n.title ?? ''),
-          body: String(n.body ?? n.message ?? ''),
-          created_at: String(n.created_at ?? new Date().toISOString()),
-          order_id: n.order_id ? String(n.order_id) : undefined,
-        }));
-        setNotifs(mappedNotifs);
-      } else {
-        setNotifs([]);
-      }
-    } catch (e: unknown) {
-      setError(getApiErrorMessage(e));
-      setOrders([]);
-      setNotifs([]);
-      setStats(EMPTY_STATS);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [authHydrated, isLoggedIn, role]);
+  const recentOrders = useMemo(() => {
+    return orders.filter((o) => o.status.toUpperCase() === 'COMPLETED').slice(0, 3);
+  }, [orders]);
 
-  useEffect(() => { void loadData(); }, [loadData]);
+  const daysWith = useMemo(() => {
+    if (!stats?.member_since) return 0;
+    const ms = Date.now() - new Date(stats.member_since).getTime();
+    return Math.max(0, Math.floor(ms / 86_400_000));
+  }, [stats?.member_since]);
 
-  /* Derived */
-  const activeOrders    = orders.filter(o => ['PENDING','ASSIGNED','ACCEPTED','IN_PROGRESS'].includes(o.status));
-  const completedOrders = orders.filter(o => o.status === 'COMPLETED');
-  const recentOrders    = orders.slice(0, 8);
-  const totalSpent      = stats?.total_spent ?? completedOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
-
-  const handleLogout = useCallback(() => {
-    logout();
-    router.push('/');
-  }, [router]);
-
-  /* ── Guest view ── */
-  if (!loading && (!isLoggedIn || role !== 'customer')) {
-    return (
-      <>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-          @keyframes chPulse{0%,100%{opacity:1}50%{opacity:0.3}}
-          .ch-guest-hero{position:relative;background:linear-gradient(150deg,#0A1628,#1E3A8A,#1D4ED8);padding:72px 24px 60px;overflow:hidden;font-family:'DM Sans',sans-serif;}
-          .ch-guest-drop{position:absolute;top:0;right:0;width:340px;height:440px;pointer-events:none;opacity:0.5;}
-          .ch-guest-content{max-width:600px;margin:0 auto;text-align:center;position:relative;z-index:1;}
-          .ch-guest-eyebrow{display:inline-flex;align-items:center;gap:7px;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.28);padding:5px 14px;border-radius:99px;font-size:11px;font-weight:700;color:#93C5FD;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:18px;}
-          .ch-guest-title{font-family:'Syne',sans-serif;font-weight:900;font-size:clamp(2.2rem,5.5vw,3.6rem);color:#fff;letter-spacing:-2px;line-height:0.97;margin:0 0 16px;}
-          .ch-guest-title span{color:#60A5FA;}
-          .ch-guest-sub{font-size:clamp(0.9rem,1.8vw,1.05rem);color:rgba(255,255,255,0.55);max-width:440px;margin:0 auto 24px;line-height:1.65;}
-          .ch-guest-btns{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:22px;}
-          .ch-btn-primary{display:inline-flex;align-items:center;gap:8px;border-radius:13px;background:#2563EB;color:#fff;font-family:'DM Sans',sans-serif;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(37,99,235,0.4);transition:all 0.18s;text-decoration:none;}
-          .ch-btn-primary:hover{background:#1D4ED8;transform:translateY(-2px);box-shadow:0 7px 22px rgba(37,99,235,0.48);}
-          .ch-btn-ghost{display:inline-flex;align-items:center;border-radius:13px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.2);font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;transition:all 0.18s;text-decoration:none;}
-          .ch-btn-ghost:hover{background:rgba(255,255,255,0.18);}
-          .ch-guest-trust{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}
-          .ch-trust-pill{font-size:11px;font-weight:600;color:rgba(255,255,255,0.5);background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:99px;}
-          .ch-guest-wave{position:absolute;bottom:-1px;left:0;right:0;height:60px;pointer-events:none;}
-        `}</style>
-        <GuestHero onBook={() => router.push('/book')} />
-        <div style={{ background:'#F0F6FF', padding:'40px 24px 64px' }}>
-          <div style={{ maxWidth:960, margin:'0 auto' }}>
-            <div style={{ textAlign:'center', marginBottom:32 }}>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:900, fontSize:'clamp(1.4rem,3vw,2rem)', color:'#0A1628', letterSpacing:-0.5 }}>Every water service, one platform</div>
-              <p style={{ fontSize:14, color:'#64748B', marginTop:8 }}>Book, track, and manage — all in one place.</p>
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))', gap:12 }}>
-              {SERVICES.map(s => (
-                <Link key={s.key} href={`/book?service=${s.key}`} style={{ background:'#fff', borderRadius:16, border:'1px solid #DBEAFE', padding:'18px 12px', textAlign:'center', textDecoration:'none', display:'block', transition:'all 0.18s', boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}
-                  onMouseEnter={e=>(e.currentTarget.style.transform='translateY(-3px)')}
-                  onMouseLeave={e=>(e.currentTarget.style.transform='')}>
-                  <div style={{ fontSize:28, marginBottom:8 }}>{s.emoji}</div>
-                  <div style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:12, color:'#0A1628' }}>{s.label}</div>
-                  <div style={{ fontSize:10, color:'#94A3B8', marginTop:2 }}>{s.sub}</div>
-                </Link>
-              ))}
-            </div>
-            <div style={{ textAlign:'center', marginTop:32 }}>
-              <Link href="/auth/login" style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'13px 28px', borderRadius:13, background:'#2563EB', color:'#fff', fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:14, textDecoration:'none', boxShadow:'0 4px 14px rgba(37,99,235,0.3)' }}>
-                Sign In to Track Your Orders →
-              </Link>
-            </div>
-          </div>
-        </div>
-      </>
-    );
+  if (!hydrated) {
+    return <div className="min-h-screen bg-white" />;
   }
 
-  /* ── Authenticated view ── */
   return (
-    <>
-      {/* ══════════════════════ STYLES ══════════════════════ */}
+    <div className="min-h-screen bg-white pb-20">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
-        @keyframes chShimmer { 0%{background-position:-400px 0} 100%{background-position:400px 0} }
-        @keyframes chFadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes chPulse   { 0%,100%{opacity:1} 50%{opacity:0.35} }
-        @keyframes chSpin    { to{transform:rotate(360deg)} }
-        @keyframes chRipple  { 0%{transform:scale(0);opacity:0.5} 100%{transform:scale(3);opacity:0} }
-        @keyframes chWave    { 0%,100%{d:path("M0,30 C240,55 480,5 720,30 C960,55 1200,10 1440,30 L1440,60 L0,60 Z")} 50%{d:path("M0,40 C200,15 500,58 720,38 C940,18 1200,52 1440,40 L1440,60 L0,60 Z")} }
-
-        .ch-page { font-family:'DM Sans',sans-serif; min-height:100vh; background:#F0F6FF; }
-
-        /* ── HERO HEADER ── */
-        .ch-hero {
-          background:linear-gradient(150deg,#0A1628 0%,#0F2557 55%,#1A3A8F 100%);
-          padding:0 24px; position:relative; overflow:hidden;
-        }
-        .ch-hero-grid {
-          position:absolute;inset:0;pointer-events:none;
-          background-image:linear-gradient(rgba(99,155,255,0.05)1px,transparent 1px),linear-gradient(90deg,rgba(99,155,255,0.05)1px,transparent 1px);
-          background-size:44px 44px;
-        }
-        .ch-hero-inner {
-          max-width:960px;margin:0 auto;
-          display:flex;align-items:center;justify-content:space-between;
-          padding:22px 0;gap:16px;position:relative;z-index:1;flex-wrap:wrap;
-        }
-        .ch-hero-left { display:flex;align-items:center;gap:13px; }
-        .ch-hero-avatar {
-          width:46px;height:46px;border-radius:13px;
-          background:linear-gradient(135deg,#DBEAFE,#BFDBFE);
-          color:#1E3A8A;font-family:'Syne',sans-serif;font-weight:900;font-size:14px;
-          display:flex;align-items:center;justify-content:center;flex-shrink:0;
-        }
-        .ch-hero-greeting {
-          font-size:12px;color:rgba(255,255,255,0.45);font-weight:500;margin-bottom:2px;
-        }
-        .ch-hero-name {
-          font-family:'Syne',sans-serif;font-weight:900;font-size:1.1rem;
-          color:#fff;letter-spacing:-0.3px;line-height:1;
-        }
-        .ch-hero-right { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
-        .ch-live-pill {
-          display:inline-flex;align-items:center;gap:5px;
-          background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);
-          padding:5px 11px;border-radius:99px;
-          font-size:10px;font-weight:700;color:#6EE7B7;letter-spacing:0.06em;
-        }
-        .ch-clock { font-size:10px;color:rgba(255,255,255,0.3);font-weight:500;font-variant-numeric:tabular-nums; }
-        .ch-hero-btn {
-          display:inline-flex;align-items:center;gap:6px;
-          padding:9px 18px;border-radius:10px;font-family:'DM Sans',sans-serif;
-          font-weight:700;font-size:12.5px;border:none;cursor:pointer;transition:all 0.16s;
-          text-decoration:none;
-        }
-        .ch-hero-btn-primary {
-          background:#2563EB;color:#fff;
-          box-shadow:0 3px 10px rgba(37,99,235,0.35);
-        }
-        .ch-hero-btn-primary:hover { background:#1D4ED8;transform:translateY(-1px); }
-        .ch-hero-btn-ghost {
-          background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.75);
-          border:1px solid rgba(255,255,255,0.15)!important;
-        }
-        .ch-hero-btn-ghost:hover { background:rgba(255,255,255,0.15); }
-        .ch-hero-wave {
-          position:absolute;bottom:-1px;left:0;right:0;height:56px;pointer-events:none;
-        }
-        .ch-hero-wave path { animation:chWave 8s ease-in-out infinite; }
-
-        /* ── BODY ── */
-        .ch-body { max-width:960px;margin:0 auto;padding:22px 20px 80px; }
-
-        /* ── WELCOME CARD ── */
-        .ch-welcome {
-          border-radius:20px;overflow:hidden;position:relative;
-          background:linear-gradient(145deg,#0A1628,#0F2A6F,#1A3A8F);
-          border:1px solid rgba(96,165,250,0.18);
-          box-shadow:0 6px 28px rgba(37,99,235,0.18);
-          padding:26px 26px 0;margin-bottom:18px;
-          animation:chFadeUp 0.45s ease both;
-        }
-        .ch-welcome-drop {
-          position:absolute;top:-20px;right:-20px;
-          width:160px;height:200px;pointer-events:none;opacity:0.1;
-        }
-        .ch-welcome-grid {
-          position:absolute;inset:0;pointer-events:none;
-          background-image:linear-gradient(rgba(96,165,250,0.04)1px,transparent 1px),linear-gradient(90deg,rgba(96,165,250,0.04)1px,transparent 1px);
-          background-size:30px 30px;
-        }
-        .ch-welcome-title {
-          font-family:'Syne',sans-serif;font-weight:900;
-          font-size:clamp(1.15rem,3vw,1.55rem);
-          color:#fff;letter-spacing:-0.5px;line-height:1.1;margin:0 0 6px;
-          position:relative;z-index:1;
-        }
-        .ch-welcome-sub { font-size:13px;color:rgba(255,255,255,0.48);margin-bottom:18px;position:relative;z-index:1; }
-        .ch-welcome-btns { display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px;position:relative;z-index:1; }
-        .ch-welcome-trust {
-          display:flex;gap:16px;padding:12px 0;flex-wrap:wrap;
-          border-top:1px solid rgba(255,255,255,0.08);position:relative;z-index:1;
-        }
-        .ch-welcome-trust-item {
-          display:flex;align-items:center;gap:5px;
-          font-size:11px;color:rgba(255,255,255,0.4);font-weight:500;
-        }
-        .ch-welcome-wave {
-          width:100%;height:48px;display:block;margin-top:-1px;
-        }
-
-        /* ── STAT STRIP ── */
-        .ch-stat-strip {
-          display:grid;grid-template-columns:repeat(4,1fr);
-          background:#fff;border-radius:16px;border:1px solid #DBEAFE;
-          box-shadow:0 1px 3px rgba(0,0,0,0.04);overflow:hidden;
-          margin-bottom:18px;animation:chFadeUp 0.45s 0.07s ease both;
-        }
-        .ch-stat-item {
-          padding:14px 16px;border-right:1px solid #EEF5FF;
-          text-align:center;position:relative;
-        }
-        .ch-stat-item:last-child { border-right:none; }
-        .ch-stat-icon { font-size:18px;margin-bottom:4px; }
-        .ch-stat-val {
-          font-family:'Syne',sans-serif;font-weight:900;
-          font-size:clamp(1.1rem,2.5vw,1.35rem);
-          letter-spacing:-0.3px;line-height:1;color:#0A1628;
-        }
-        .ch-stat-lbl { font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:0.08em;margin-top:3px; }
-        .ch-stat-bar { position:absolute;bottom:0;left:10%;right:10%;height:2px;border-radius:1px; }
-
-        /* ── SECTION LABEL ── */
-        .ch-section-lbl {
-          font-size:10px;font-weight:800;color:#2563EB;
-          letter-spacing:0.12em;text-transform:uppercase;
-          display:flex;align-items:center;gap:6px;margin-bottom:10px;
-        }
-        .ch-section-lbl::before { content:'';width:14px;height:2px;background:#2563EB;border-radius:1px; }
-
-        /* ── CARD ── */
-        .ch-card {
-          background:#fff;border-radius:18px;border:1px solid #DBEAFE;
-          box-shadow:0 1px 3px rgba(0,0,0,0.04),0 4px 14px rgba(37,99,235,0.05);
-        }
-        .ch-card-head {
-          display:flex;align-items:center;justify-content:space-between;
-          padding:16px 20px 14px;border-bottom:1px solid #EEF5FF;flex-wrap:wrap;gap:8px;
-        }
-        .ch-card-title {
-          font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;
-          color:#0A1628;letter-spacing:-0.2px;margin:0;
-        }
-        .ch-card-link {
-          font-size:12px;font-weight:600;color:#2563EB;
-          text-decoration:none;transition:color 0.14s;
-        }
-        .ch-card-link:hover { color:#1D4ED8; }
-
-        /* ── ACTIVE ORDER CARD ── */
-        .ch-active-card {
-          border-radius:16px;border:2px solid #DBEAFE;background:#fff;
-          padding:16px;transition:all 0.2s;animation:chFadeUp 0.4s ease both;
-        }
-        .ch-active-card:hover { border-color:#93C5FD;box-shadow:0 6px 20px rgba(37,99,235,0.1);transform:translateY(-2px); }
-        .ch-active-card-live {
-          border-color:#8B5CF6;
-          box-shadow:0 0 0 1px #8B5CF6, 0 4px 18px rgba(139,92,246,0.15);
-        }
-
-        /* ── ORDER ROW ── */
-        .ch-order-row {
-          display:flex;align-items:center;gap:12px;
-          padding:11px 16px;border-bottom:1px solid #F0F6FF;
-          transition:background 0.14s;cursor:pointer;
-        }
-        .ch-order-row:last-child { border-bottom:none; }
-        .ch-order-row:hover { background:#FAFCFF; }
-
-        /* ── SERVICE GRID ── */
-        .ch-svc-grid {
-          display:grid;grid-template-columns:repeat(6,1fr);gap:10px;
-        }
-        .ch-svc-btn {
-          background:#fff;border-radius:14px;border:1px solid #DBEAFE;
-          padding:14px 8px;text-align:center;cursor:pointer;
-          transition:all 0.18s;box-shadow:0 1px 3px rgba(0,0,0,0.04);
-          text-decoration:none;display:block;
-        }
-        .ch-svc-btn:hover { border-color:#93C5FD;transform:translateY(-2px);box-shadow:0 5px 16px rgba(37,99,235,0.1); }
-
-        /* ── EMPTY STATE ── */
-        .ch-empty { text-align:center;padding:40px 20px; }
-
-        /* ── BUTTONS ── */
-        .ch-btn-primary {
-          display:inline-flex;align-items:center;gap:7px;
-          padding:10px 20px;border-radius:11px;
-          background:#2563EB;color:#fff;
-          font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;
-          border:none;cursor:pointer;text-decoration:none;
-          box-shadow:0 3px 10px rgba(37,99,235,0.28);
-          transition:all 0.16s;
-        }
-        .ch-btn-primary:hover { background:#1D4ED8;transform:translateY(-1px);box-shadow:0 5px 16px rgba(37,99,235,0.36); }
-        .ch-btn-primary:active { transform:scale(0.97); }
-        .ch-btn-outline {
-          display:inline-flex;align-items:center;gap:7px;
-          padding:9px 18px;border-radius:11px;
-          background:#fff;color:#2563EB;
-          border:1.5px solid #BFDBFE;
-          font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;
-          cursor:pointer;text-decoration:none;transition:all 0.16s;
-        }
-        .ch-btn-outline:hover { background:#EFF6FF;border-color:#60A5FA; }
-        .ch-btn-danger {
-          display:inline-flex;align-items:center;gap:7px;
-          padding:9px 16px;border-radius:11px;
-          background:#FEF2F2;color:#DC2626;
-          border:1.5px solid #FECACA;
-          font-family:'DM Sans',sans-serif;font-weight:700;font-size:12px;
-          cursor:pointer;transition:all 0.16s;
-        }
-        .ch-btn-danger:hover { background:#FEE2E2; }
-
-        /* ── ERROR BANNER ── */
-        .ch-error {
-          background:#FEF2F2;border:1px solid #FECACA;border-radius:13px;
-          padding:12px 16px;font-size:13px;color:#DC2626;font-weight:600;
-          display:flex;align-items:center;gap:10px;margin-bottom:16px;
-          animation:chFadeUp 0.3s ease both;
-        }
-
-        /* ── NOTIFICATION CARD ── */
-        .ch-notif {
-          display:flex;align-items:flex-start;gap:12px;
-          padding:13px 16px;border-bottom:1px solid #EEF5FF;
-        }
-        .ch-notif:last-child { border-bottom:none; }
-        .ch-notif-icon {
-          width:36px;height:36px;border-radius:11px;background:#EFF6FF;border:1px solid #DBEAFE;
-          display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;
-        }
-
-        /* ── RESPONSIVE ── */
-        @media(max-width:900px) {
-          .ch-svc-grid { grid-template-columns:repeat(3,1fr); }
-        }
-        @media(max-width:640px) {
-          .ch-hero { padding:0 16px; }
-          .ch-body { padding:16px 14px 88px; }
-          .ch-stat-strip { grid-template-columns:1fr 1fr; }
-          .ch-stat-item:nth-child(2) { border-right:none; }
-          .ch-stat-item:nth-child(3) { border-top:1px solid #EEF5FF; border-right:1px solid #EEF5FF; }
-          .ch-stat-item:nth-child(4) { border-top:1px solid #EEF5FF; border-right:none; }
-          .ch-svc-grid { grid-template-columns:repeat(3,1fr); gap:8px; }
-          .ch-welcome { padding:20px 18px 0; }
-          .ch-hero-right .ch-clock { display:none; }
-        }
-        @media(max-width:400px) {
-          .ch-svc-grid { grid-template-columns:repeat(2,1fr); }
-          .ch-stat-strip { grid-template-columns:1fr; }
-          .ch-stat-item { border-right:none!important; border-bottom:1px solid #EEF5FF; }
-          .ch-stat-item:last-child { border-bottom:none; }
-        }
+        @keyframes awShimmer { 0%{background-position:-300px 0} 100%{background-position:300px 0} }
       `}</style>
 
-      <div className="ch-page">
-
-        {/* ════ HERO HEADER ════════════════════════════════ */}
-        <div className="ch-hero">
-          <div className="ch-hero-grid" />
-          <div className="ch-hero-inner">
-            {/* Left: avatar + greeting */}
-            <div className="ch-hero-left">
-              <div className="ch-hero-avatar">{getInitials(fullName ?? undefined)}</div>
-              <div>
-                <div className="ch-hero-greeting">{greeting}</div>
-                <div className="ch-hero-name">{fullName || 'My Account'}</div>
+      <div className="mx-auto w-full" style={{ maxWidth: 430 }}>
+        {/* [A] Greeting header */}
+        <div style={{ padding: '20px 16px 16px', background: '#fff' }}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="aw-heading" style={{ fontSize: 26, fontWeight: 800, color: '#0A1628', lineHeight: 1.15 }}>
+                {greeting}, {firstName} 👋
+              </div>
+              <div style={{ marginTop: 6, fontSize: 14, color: '#6B7280' }}>
+                Gorakhpur&apos;s trusted water delivery
               </div>
             </div>
 
-            {/* Right: controls */}
-            <div className="ch-hero-right">
-              <div className="ch-clock">{clock}</div>
-              <div className="ch-live-pill">
-                <span style={{ width:5, height:5, borderRadius:'50%', background:'#34D399', animation:'chPulse 1.5s infinite' }} />
-                Live
-              </div>
-              <button type="button" onClick={() => void loadData(true)} disabled={refreshing}
-                style={{ width:32, height:32, borderRadius:9, background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.75)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all 0.15s' }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={refreshing ? { animation:'chSpin 0.65s linear infinite' } : {}}>
-                  <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-                  <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            <div className="relative">
+              <button
+                ref={bellRef}
+                type="button"
+                className="aw-touch"
+                onClick={() => {
+                  const next = !notifOpen;
+                  setNotifOpen(next);
+                  if (next) {
+                    void markAllRead();
+                  }
+                }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 14,
+                  border: '1px solid #E5E7EB',
+                  background: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                }}
+                aria-label="Notifications"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7" stroke="#0A1628" strokeWidth="2" strokeLinecap="round" />
+                  <path d="M13.73 21a2 2 0 01-3.46 0" stroke="#0A1628" strokeWidth="2" strokeLinecap="round" />
                 </svg>
+                {unreadCount > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      right: 10,
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: '#EF4444',
+                      boxShadow: '0 0 0 2px #fff',
+                    }}
+                  />
+                ) : null}
               </button>
-              <Link href="/book" className="ch-hero-btn ch-hero-btn-primary">+ Book</Link>
-              <Link href="/customer/addresses" className="ch-hero-btn ch-hero-btn-ghost">Addresses</Link>
-              <button type="button" onClick={handleLogout} className="ch-hero-btn ch-hero-btn-ghost"
-                style={{ color:'#FCA5A5', borderColor:'rgba(252,165,165,0.25)', background:'rgba(220,38,38,0.08)' }}>
-                Sign out
-              </button>
-            </div>
-          </div>
 
-          {/* Animated wave */}
-          <svg className="ch-hero-wave" viewBox="0 0 1440 56" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-            <path fill="#F0F6FF" d="M0,28 C240,52 480,4 720,28 C960,52 1200,8 1440,28 L1440,56 L0,56 Z"/>
-            <path fill="#F0F6FF" fillOpacity="0.5" d="M0,38 C200,16 500,50 720,34 C940,18 1200,46 1440,38 L1440,56 L0,56 Z"/>
-          </svg>
-        </div>
-
-        {/* ════ BODY ════════════════════════════════════════ */}
-        <div className="ch-body">
-
-          {/* Error */}
-          {error && (
-            <div className="mb-4 space-y-2">
-              <DatabaseErrorBanner message={error} />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => void loadData()}
-                  className="rounded-lg px-4 py-2 text-xs font-bold text-white"
+              {notifOpen ? (
+                <div
+                  className="aw-card"
                   style={{
-                    background: '#2563EB',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: "'DM Sans',sans-serif",
+                    position: 'absolute',
+                    right: 0,
+                    top: 52,
+                    width: 320,
+                    maxWidth: 'calc(100vw - 24px)',
+                    padding: 14,
+                    zIndex: 30,
                   }}
                 >
-                  Retry
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Welcome card ── */}
-          <div className="ch-welcome">
-            <div className="ch-welcome-drop" aria-hidden="true">
-              <svg viewBox="0 0 160 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M80 8C45 55 15 88 15 120a65 65 0 00130 0c0-32-28-65-65-112z" fill="#60A5FA"/>
-                <circle cx="60" cy="108" r="10" fill="#fff" fillOpacity="0.3"/>
-              </svg>
-            </div>
-            <div className="ch-welcome-grid" />
-            <div style={{ position:'relative', zIndex:1 }}>
-              <h2 className="ch-welcome-title">
-                {loading ? 'Loading your dashboard…'
-                  : activeOrders.length > 0 ? `You have ${activeOrders.length} active booking${activeOrders.length !== 1 ? 's' : ''}.`
-                  : orders.length > 0 ? 'Your water is taken care of.'
-                  : 'Ready to book your first service?'}
-              </h2>
-              <p className="ch-welcome-sub">
-                {loading ? '' : orders.length > 0
-                  ? `${completedOrders.length} completed · ${inr(totalSpent)} spent · Saved vs market prices`
-                  : 'Verified pros · Upfront pricing · Same-day slots available across 13 UP cities.'}
-              </p>
-              <div className="ch-welcome-btns">
-                <Link href="/book" className="ch-btn-primary" style={{ fontSize:13, padding:'11px 22px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" fill="rgba(255,255,255,0.35)"/><path d="M12 2C6 9 4 13 4 16a8 8 0 0016 0c0-3-2-7-8-14z" stroke="#fff" strokeWidth="1.5" fill="none"/></svg>
-                  Book a Service
-                </Link>
-                <Link href="/customer/history" className="ch-btn-outline" style={{ fontSize:12, padding:'10px 18px', background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.75)', borderColor:'rgba(255,255,255,0.18)' }}>
-                  Order History
-                </Link>
-              </div>
-              <div className="ch-welcome-trust">
-                {['₹12/can · BIS certified','Same-day delivery','4.8★ avg rating','No hidden fees'].map(t => (
-                  <span key={t} className="ch-welcome-trust-item">
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="6" fill="#60A5FA" fillOpacity="0.15"/><path d="M3.5 6l1.8 1.8 3.2-3.6" stroke="#60A5FA" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <svg className="ch-welcome-wave" viewBox="0 0 1440 48" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-              <path fill="#F0F6FF" d="M0,24 C240,44 480,4 720,24 C960,44 1200,8 1440,24 L1440,48 L0,48 Z"/>
-              <path fill="#F0F6FF" fillOpacity="0.5" d="M0,34 C200,12 500,42 720,28 C940,14 1200,38 1440,34 L1440,48 L0,48 Z"/>
-            </svg>
-          </div>
-
-          {/* ── Stats strip ── */}
-          <div className="ch-stat-strip">
-            {loading
-              ? Array.from({ length:4 }).map((_,i) => (
-                  <div key={i} className="ch-stat-item">
-                    <Skeleton w={24} h={18} r={6}/><div style={{ display:'flex', flexDirection:'column', gap:5, marginTop:6, alignItems:'center' }}><Skeleton w="50%" h={20} r={5}/><Skeleton w="60%" h={8} r={4}/></div>
-                  </div>
-                ))
-              : [
-                  { icon:'📦', val:stats?.total_orders ?? orders.length,          lbl:'Total Orders',  bar:'#2563EB' },
-                  { icon:'⚡', val:stats?.active_orders ?? activeOrders.length,    lbl:'Active Now',    bar:'#7C3AED', warn:activeOrders.length>0 },
-                  { icon:'✅', val:stats?.completed ?? completedOrders.length, lbl:'Completed',     bar:'#059669' },
-                  { icon:'💰', val:null, money:totalSpent, lbl:'Total Spent',   bar:'#D97706' },
-                ].map((s,i) => (
-                  <div key={i} className="ch-stat-item">
-                    <div className="ch-stat-icon">{s.icon}</div>
-                    <div className="ch-stat-val" style={{ color:s.warn?'#7C3AED':i===3?'#D97706':'#0A1628' }}>
-                      {s.money != null ? inr(s.money) : <CountUp to={s.val!} />}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-extrabold" style={{ color: '#0A1628' }}>
+                      Notifications
                     </div>
-                    <div className="ch-stat-lbl">{s.lbl}</div>
-                    <div className="ch-stat-bar" style={{ background:s.bar }} />
+                    <button
+                      type="button"
+                      className="text-sm font-bold"
+                      onClick={() => void markAllRead()}
+                      style={{ color: '#2563EB', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                    >
+                      Mark all read
+                    </button>
                   </div>
-                ))
-            }
-          </div>
 
-          {/* ── Active orders ── */}
-          {loading && (
-            <div style={{ marginBottom:18 }}>
-              <div className="ch-section-lbl">Active Bookings</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {[0, 1].map((i) => (
-                  <div
-                    key={i}
+                  <div className="mt-3">
+                    {notifsLoading ? (
+                      <div className="space-y-3">
+                        <SkeletonLine w="70%" />
+                        <SkeletonLine w="90%" />
+                        <SkeletonLine w="60%" />
+                      </div>
+                    ) : notifs.length === 0 ? (
+                      <div className="text-sm" style={{ color: '#6B7280' }}>
+                        No notifications yet — place an order to get updates
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {notifs.slice(0, 5).map((n) => (
+                          <button
+                            key={n.id}
+                            type="button"
+                            onClick={() => {
+                              setNotifOpen(false);
+                              if (n.order_id) router.push(`/customer/track/${n.order_id}`);
+                            }}
+                            style={{
+                              width: '100%',
+                              textAlign: 'left',
+                              border: '1px solid #E5E7EB',
+                              borderRadius: 14,
+                              padding: 12,
+                              background: '#fff',
+                              cursor: n.order_id ? 'pointer' : 'default',
+                            }}
+                          >
+                            <div className="flex items-start gap-10 justify-between">
+                              <div className="min-w-0">
+                                <div className="font-bold" style={{ color: '#0A1628' }}>
+                                  {n.title ?? 'Update'}
+                                </div>
+                                <div className="text-sm mt-1" style={{ color: '#6B7280' }}>
+                                  {n.body ?? ''}
+                                </div>
+                              </div>
+                              <div className="text-xs font-semibold" style={{ color: '#94A3B8', flexShrink: 0 }}>
+                                {relTime(n.created_at)}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* [B] Active order card */}
+        {!ordersLoading && activeOrder ? (
+          <div
+            className="aw-card"
+            style={{
+              margin: '0 16px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #EFF6FF, #DBEAFE)',
+              border: '1px solid #BFDBFE',
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#0A1628' }}>
+              Your order is on the way 🚚
+            </div>
+            <StatusStepper status={activeOrder.status} />
+            {supplier?.full_name ? (
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <div className="text-sm font-bold" style={{ color: '#0A1628' }}>
+                  {supplier.full_name}
+                </div>
+                {supplier.milestone_tier ? (
+                  <span
                     style={{
-                      padding: 16,
-                      borderRadius: 16,
-                      background: '#fff',
-                      border: '1px solid #DBEAFE',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      display: 'flex',
-                      gap: 13,
-                      alignItems: 'flex-start',
+                      fontSize: 11,
+                      fontWeight: 900,
+                      padding: '4px 10px',
+                      borderRadius: 999,
+                      background: '#FFFFFF',
+                      border: '1px solid #BFDBFE',
+                      color: '#1D4ED8',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
                     }}
                   >
-                    <Skeleton w={44} h={44} r={13} />
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <Skeleton w="45%" h={14} r={6} />
-                      <Skeleton w="65%" h={10} r={5} />
-                      <Skeleton w={80} h={18} r={99} />
-                    </div>
-                  </div>
-                ))}
+                    {supplier.milestone_tier}
+                  </span>
+                ) : null}
               </div>
-            </div>
-          )}
-          {!loading && activeOrders.length > 0 && (
-            <div style={{ marginBottom:18 }}>
-              <div className="ch-section-lbl">Active Bookings</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                {activeOrders.map((order, i) => {
-                  const svc     = getSvcMeta(order.service_name);
-                  const isLive  = order.status === 'IN_PROGRESS';
-                  return (
-                    <div
-                      key={order.id}
-                      className={`ch-active-card${isLive ? ' ch-active-card-live' : ''}`}
-                      style={{ animationDelay:`${i * 70}ms` }}
-                    >
-                      <div style={{ display:'flex', alignItems:'flex-start', gap:13 }}>
-                        <div style={{ width:44, height:44, borderRadius:13, background:svc.color+'18', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0 }}>
-                          {svc.emoji}
-                        </div>
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
-                            {isLive && (
-                              <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#EDE9FE', color:'#5B21B6', fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:99, letterSpacing:'0.08em', textTransform:'uppercase' }}>
-                                <span style={{ width:5, height:5, borderRadius:'50%', background:'#8B5CF6', animation:'chPulse 1.2s infinite' }} />
-                                LIVE
-                              </span>
-                            )}
-                            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:'#0A1628' }}>
-                              {svc.label}
-                            </span>
-                            <StatusBadge status={order.status} />
-                          </div>
-                          <div style={{ fontSize:11, color:'#94A3B8', marginBottom:6 }}>
-                            Order #{order.id} · {order.time_slot ? `Slot: ${order.time_slot}` : fmtDate(order.created_at)}
-                          </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:900, fontSize:15, color:'#2563EB' }}>
-                              {inr(order.total_amount)}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{ display:'flex', gap:8, flexShrink:0, flexWrap:'wrap' }}>
-                          <Link href={`/customer/track/${order.id}`} className="ch-btn-primary" style={{ fontSize:12, padding:'8px 14px' }}>
-                            Track →
-                          </Link>
-                          <Link href="/book" className="ch-btn-outline" style={{ fontSize:12, padding:'7px 12px' }}>
-                            Rebook
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+            ) : null}
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold" style={{ color: '#1D4ED8' }}>
+                Expected in ~25 mins
               </div>
-            </div>
-          )}
-
-          {/* ── Book a Service grid ── */}
-          <div style={{ marginBottom:18 }}>
-            <div className="ch-section-lbl">Book a Service</div>
-            <div className="ch-svc-grid">
-              {SERVICES.map(s => (
-                <Link key={s.key} href={`/book?service=${s.key}`} className="ch-svc-btn">
-                  <div style={{ fontSize:26, marginBottom:7 }}>{s.emoji}</div>
-                  <div style={{ fontFamily:"'DM Sans',sans-serif", fontWeight:700, fontSize:11, color:'#0A1628', lineHeight:1.3 }}>{s.label}</div>
-                  <div style={{ fontSize:10, color:'#94A3B8', marginTop:2 }}>{s.sub}</div>
-                </Link>
-              ))}
+              <button
+                type="button"
+                className="aw-touch"
+                onClick={() => router.push(`/customer/track/${activeOrder.id}`)}
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: 14,
+                  background: '#2563EB',
+                  color: '#fff',
+                  fontWeight: 800,
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Track Live →
+              </button>
             </div>
           </div>
+        ) : null}
 
-          {/* ── Order history ── */}
-          <div className="ch-card" style={{ marginBottom:18 }}>
-            <div className="ch-card-head">
-              <h2 className="ch-card-title">Order History</h2>
-              <Link href="/customer/history" className="ch-card-link">View all →</Link>
+        {/* [C] Quick order CTA */}
+        {!ordersLoading && !activeOrder ? (
+          <button
+            type="button"
+            onClick={() => router.push('/book')}
+            className="aw-touch"
+            style={{
+              margin: '12px 16px 0',
+              width: 'calc(100% - 32px)',
+              height: 60,
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #2563EB, #0EA5E9)',
+              boxShadow: '0 8px 24px rgba(37,99,235,0.35)',
+              border: 'none',
+              color: '#fff',
+              textAlign: 'left',
+              padding: '10px 16px',
+              cursor: 'pointer',
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 800 }}>🚚 Order Water Now</div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginTop: 2 }}>₹12/can • Free delivery • 45 min</div>
+          </button>
+        ) : null}
+
+        {/* [G] Founding member banner */}
+        {founding ? (
+          <div
+            className="aw-card"
+            style={{
+              margin: '12px 16px 0',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg,#FEF3C7,#FDE68A)',
+              border: '1px solid #F59E0B',
+            }}
+          >
+            <div className="font-extrabold" style={{ color: '#92400E' }}>
+              ⭐ Founding Member — 10% off every order
             </div>
+          </div>
+        ) : null}
 
-            {loading ? (
-              <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-                {Array.from({ length:4 }).map((_,i) => (
-                  <div key={i} style={{ display:'flex', gap:12, alignItems:'center' }}>
-                    <Skeleton w={36} h={36} r={11} />
-                    <div style={{ flex:1, display:'flex', flexDirection:'column', gap:7 }}>
-                      <Skeleton w="55%" h={12} r={5} />
-                      <Skeleton w="40%" h={10} r={5} />
-                    </div>
-                    <Skeleton w={60} h={20} r={99} />
-                    <Skeleton w={50} h={12} r={5} />
-                  </div>
-                ))}
+        {/* [D] Stats row */}
+        <div className="grid grid-cols-3 gap-3" style={{ padding: '12px 16px 0' }}>
+          {statsLoading ? (
+            <>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12 }}>
+                <SkeletonLine w="60%" h={18} />
+                <div style={{ height: 6 }} />
+                <SkeletonLine w="80%" />
+              </div>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12 }}>
+                <SkeletonLine w="70%" h={18} />
+                <div style={{ height: 6 }} />
+                <SkeletonLine w="60%" />
+              </div>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12 }}>
+                <SkeletonLine w="55%" h={18} />
+                <div style={{ height: 6 }} />
+                <SkeletonLine w="70%" />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12, border: '1px solid #F3F4F6' }}>
+                <div className="stat-number" style={{ fontSize: 22, fontWeight: 800, color: '#0A1628' }}>
+                  {Math.max(0, stats?.cans_ordered ?? 0)}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>Cans Ordered</div>
+              </div>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12, border: '1px solid #F3F4F6' }}>
+                <div className="stat-number" style={{ fontSize: 22, fontWeight: 800, color: '#0A1628' }}>
+                  {inr(stats?.total_spent ?? 0)}
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>Total Spent</div>
+              </div>
+              <div className="aw-card" style={{ borderRadius: 12, padding: 12, border: '1px solid #F3F4F6' }}>
+                <div className="stat-number" style={{ fontSize: 22, fontWeight: 800, color: '#0A1628' }}>
+                  {daysWith} days
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>With AuroWater</div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* [E] Recent orders */}
+        <div style={{ padding: '14px 16px 0' }}>
+          <div className="flex items-center justify-between">
+            <div className="font-extrabold" style={{ color: '#0A1628' }}>
+              Recent Orders
+            </div>
+            <Link href="/customer/history" className="text-sm font-bold" style={{ color: '#2563EB', textDecoration: 'none' }}>
+              See all →
+            </Link>
+          </div>
+
+          <div className="mt-3 space-y-10">
+            {ordersLoading ? (
+              <div className="aw-card">
+                <SkeletonLine w="65%" />
+                <div style={{ height: 8 }} />
+                <SkeletonLine w="45%" />
               </div>
             ) : recentOrders.length === 0 ? (
-              <div className="ch-empty">
-                {/* Inline water SVG for empty state */}
-                <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ margin:'0 auto 12px', display:'block' }}>
-                  <circle cx="32" cy="32" r="32" fill="#EFF6FF"/>
-                  <path d="M32 12C20 26 12 34 12 42a20 20 0 0040 0c0-8-8-16-20-30z" fill="#BFDBFE"/>
-                  <path d="M32 20C23 31 18 37 18 42a14 14 0 0028 0c0-5-5-11-14-22z" fill="#60A5FA" fillOpacity="0.55"/>
-                  <circle cx="26" cy="39" r="3.5" fill="#fff" fillOpacity="0.5"/>
-                </svg>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, color:'#1D4ED8', marginBottom:4, fontSize:'0.95rem' }}>No orders yet</div>
-                <div style={{ fontSize:12, color:'#64748B', marginBottom:14 }}>Book your first service in under 60 seconds</div>
-                <Link href="/book" className="ch-btn-primary" style={{ margin:'0 auto', fontSize:13 }}>Book Now →</Link>
+              <div className="aw-card text-center" style={{ padding: 18 }}>
+                <div style={{ fontSize: 36 }}>💧</div>
+                <div className="mt-2 font-extrabold" style={{ color: '#0A1628' }}>
+                  No orders yet
+                </div>
+                <div className="mt-1 text-sm" style={{ color: '#6B7280' }}>
+                  Place your first order to see updates here.
+                </div>
+                <button
+                  type="button"
+                  className="aw-touch"
+                  onClick={() => router.push('/book')}
+                  style={{
+                    marginTop: 12,
+                    width: '100%',
+                    borderRadius: 16,
+                    padding: '12px 16px',
+                    background: 'linear-gradient(135deg, #2563EB, #0EA5E9)',
+                    color: '#fff',
+                    fontWeight: 800,
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Place your first order →
+                </button>
               </div>
             ) : (
-              recentOrders.map(order => {
-                const svc = getSvcMeta(order.service_name);
+              recentOrders.map((o) => {
+                const cans = Math.max(1, Number(o.can_quantity ?? 1));
+                const date = new Date(o.created_at);
+                const status = o.status.toUpperCase();
+                const pill =
+                  status === 'COMPLETED'
+                    ? { bg: '#ECFDF5', text: '#065F46' }
+                    : status === 'CANCELLED'
+                      ? { bg: '#FEF2F2', text: '#B91C1C' }
+                      : { bg: '#EFF6FF', text: '#1D4ED8' };
                 return (
-                  <div key={order.id} className="ch-order-row"
-                    onClick={() => router.push(`/customer/track/${order.id}`)}>
-                    <div style={{ width:38, height:38, borderRadius:11, background:svc.color+'18', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                      {svc.emoji}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:600, fontSize:13, color:'#0A1628', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {svc.label}
+                  <div key={o.id} className="aw-card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ fontSize: 22 }}>💧</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="aw-heading" style={{ fontSize: 16, fontWeight: 800, color: '#0A1628' }}>
+                        {cans} cans
                       </div>
-                      <div style={{ fontSize:11, color:'#94A3B8', marginTop:1 }}>
-                        #{order.id} · {relTime(order.created_at)}
+                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                        <div className="text-sm" style={{ color: '#6B7280' }}>
+                          {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        </div>
+                        <span style={{ width: 4, height: 4, borderRadius: 999, background: '#CBD5E1' }} />
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: pill.bg, color: pill.text }}>
+                          {status.replace(/_/g, ' ')}
+                        </span>
                       </div>
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-                      <StatusBadge status={order.status} />
-                      <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:900, fontSize:13, color:'#2563EB', minWidth:52, textAlign:'right' }}>
-                        {inr(order.total_amount)}
-                      </span>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className="aw-heading price-display" style={{ fontSize: 16, fontWeight: 800, color: '#0A1628' }}>
+                        {inr(o.total_amount)}
+                      </div>
+                      <button
+                        type="button"
+                        className="aw-touch"
+                        onClick={() => router.push(`/book?cans=${encodeURIComponent(String(cans))}`)}
+                        style={{
+                          marginTop: 6,
+                          borderRadius: 12,
+                          padding: '8px 10px',
+                          border: '1px solid #BFDBFE',
+                          background: '#fff',
+                          color: '#2563EB',
+                          fontWeight: 800,
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Reorder
+                      </button>
                     </div>
                   </div>
                 );
               })
             )}
           </div>
+        </div>
 
-          {/* ── Notifications ── */}
-          <div className="ch-card" style={{ marginBottom:18 }}>
-            <div className="ch-card-head">
-              <h2 className="ch-card-title">Notifications</h2>
-              {!loading && notifs.length > 0 && (
-                <span style={{ fontSize:9, fontWeight:800, background:'#EDE9FE', color:'#5B21B6', padding:'3px 8px', borderRadius:99, letterSpacing:'0.06em', textTransform:'uppercase' }}>
-                  {notifs.length} updates
-                </span>
-              )}
-            </div>
-            {loading ? (
-              <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:14 }}>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} style={{ display:'flex', gap:12, alignItems:'flex-start' }}>
-                    <Skeleton w={36} h={36} r={11} />
-                    <div style={{ flex:1 }}>
-                      <Skeleton w="55%" h={13} r={5} />
-                      <div style={{ height:6 }} />
-                      <Skeleton w="80%" h={10} r={5} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : notifs.length > 0 ? (
-              notifs.slice(0, 3).map((n) => {
-                return (
-                  <div key={n.id} className="ch-notif">
-                    <div className="ch-notif-icon">🔔</div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:13, color:'#0A1628' }}>
-                        {n.title}
-                      </div>
-                      <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>
-                        {n.body || 'No details'} · {relTime(n.created_at)}
-                      </div>
-                    </div>
-                    <Link href={n.order_id ? `/customer/track/${n.order_id}` : '/customer/history'}
-                      style={{ fontSize:11, fontWeight:700, color:'#2563EB', textDecoration:'none', flexShrink:0 }}>
-                      View →
-                    </Link>
-                  </div>
-                );
-              })
-            ) : (
-              <div style={{ padding:'18px 20px', fontSize:13, color:'#94A3B8', textAlign:'center' }}>
-                No active updates. Book a service to get real-time order notifications here.
-              </div>
-            )}
+        {/* [F] Quick actions */}
+        <div style={{ padding: '14px 16px 14px' }}>
+          <div className="grid grid-cols-2 gap-3">
+            <QuickAction href="/customer/addresses" icon="📍" label="My Addresses" />
+            <QuickAction href="/customer/history" icon="📋" label="Order History" />
+            <QuickAction href="/pricing" icon="💧" label="View Pricing" />
+            <QuickAction href={WHATSAPP_SUPPORT} icon="💬" label="Get Support" external />
           </div>
-
-          {/* ── Quick links footer ── */}
-          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-            <Link href="/customer/addresses" className="ch-btn-outline" style={{ fontSize:12 }}>📍 My Addresses</Link>
-            <Link href="/customer/history"   className="ch-btn-outline" style={{ fontSize:12 }}>📋 Order History</Link>
-            <Link href="/pricing"            className="ch-btn-outline" style={{ fontSize:12 }}>💰 View Pricing</Link>
-            <Link href="/contact"            className="ch-btn-outline" style={{ fontSize:12 }}>💬 Get Support</Link>
-          </div>
-
         </div>
       </div>
-    </>
+
+      <BottomNav activeOrderId={activeOrder?.id ?? null} />
+    </div>
+  );
+}
+
+function QuickAction({
+  href,
+  icon,
+  label,
+  external,
+}: {
+  href: string;
+  icon: string;
+  label: string;
+  external?: boolean;
+}) {
+  const body = (
+    <div className="aw-card" style={{ borderRadius: 16, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div className="flex items-center gap-10" style={{ gap: 10 }}>
+        <div style={{ fontSize: 18 }}>{icon}</div>
+        <div className="font-extrabold" style={{ color: '#0A1628' }}>
+          {label}
+        </div>
+      </div>
+      <div style={{ color: '#94A3B8', fontWeight: 900 }}>›</div>
+    </div>
+  );
+
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} style={{ textDecoration: 'none' }}>
+      {body}
+    </Link>
   );
 }

@@ -1050,8 +1050,33 @@ export default function BookingWizard() {
                 {submitting ? 'Submitting…' : 'Confirm booking →'}
               </button>
             </div>
+
+            <div className="mt-3 text-xs text-slate-500">
+              ✓ Delivered in 45 mins or next order free &nbsp;&nbsp; ✓ 100% refund if cancelled by us
+            </div>
           </motion.div>
         )}
+
+        {step === 5 && !createdOrder ? (
+          <div className="fixed left-0 right-0 bottom-3 z-40 px-4">
+            <div className="mx-auto max-w-3xl">
+              <div
+                className="rounded-xl"
+                style={{
+                  background: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
+                  color: '#1D4ED8',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                🛡 AuroWater Guarantee: Delivered in 45 mins or next order FREE. 100% refund if we cancel.
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* Step 6 */}
         {(step === 6 || createdOrder) && createdOrder && (
