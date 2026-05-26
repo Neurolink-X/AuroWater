@@ -59,8 +59,12 @@
 
 /**
  * src/lib/api/settings-map.ts
- * Maps public.settings rows to typed frontend payload.
- * Keys must match exactly what's seeded in 003_seed_settings migration.
+ *
+ * Maps public.settings JSONB rows → typed frontend payload.
+ * Keys match exactly what is seeded in 003_seed_settings migration.
+ *
+ * IMPORTANT: Supabase returns JSONB values already parsed by the JS client.
+ * Never call .trim() or string methods on `value` without checking typeof first.
  */
 
 export type SettingsPayload = {
@@ -70,6 +74,7 @@ export type SettingsPayload = {
   max_order_amount?: number;
   technician_base_pay?: number;
   commission_default_pct?: number;
+  delivery_radius_km?: number;
   // Features
   cod_enabled?: boolean;
   razorpay_enabled?: boolean;
@@ -81,11 +86,29 @@ export type SettingsPayload = {
   support_phone?: string;
   // Geo
   service_cities?: string[];
-  delivery_radius_km?: number;
   founding_member_limit?: number;
-  // Raw fallback for any extra keys
+  // Catch-all
   [key: string]: unknown;
 };
+
+/** Safely coerce any JSONB value to a number. Returns undefined if not numeric. */
+function toNumber(val: unknown): number | undefined {
+  if (val === null || val === undefined || val === '') return undefined;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Safely coerce any JSONB value to a boolean. */
+function toBoolean(val: unknown): boolean {
+  return val === true || val === 1 || val === 'true' || val === '1';
+}
+
+/** Safely coerce any JSONB value to a string. */
+function toStr(val: unknown): string {
+  if (typeof val === 'string') return val;
+  if (val === null || val === undefined) return '';
+  return String(val);
+}
 
 export function rowsToSettingsPayload(
   rows: { key: string; value: unknown }[] | null | undefined
@@ -95,10 +118,9 @@ export function rowsToSettingsPayload(
   const out: SettingsPayload = {};
 
   for (const { key, value } of rows) {
-    const raw = value;
-
     switch (key) {
-      // ── Numbers ──
+
+      // ── Numbers ──────────────────────────────────────────────────────────
       case 'platform_fee_pct':
       case 'min_order_amount':
       case 'max_order_amount':
@@ -106,33 +128,33 @@ export function rowsToSettingsPayload(
       case 'commission_default_pct':
       case 'delivery_radius_km':
       case 'founding_member_limit':
-        out[key] = raw !== undefined && raw !== '' ? Number(raw) : undefined;
+        out[key] = toNumber(value);
         break;
 
-      // ── Booleans ──
+      // ── Booleans ─────────────────────────────────────────────────────────
       case 'cod_enabled':
       case 'razorpay_enabled':
       case 'maintenance_mode':
-        out[key] =
-          raw === true || raw === 'true' || raw === '1' || raw === 1;
+        out[key] = toBoolean(value);
         break;
 
-      // ── Arrays (already parsed as JSON by Supabase JSONB) ──
+      // ── Arrays ───────────────────────────────────────────────────────────
       case 'service_cities':
-        out[key] = Array.isArray(raw) ? raw : [];
+        out[key] = Array.isArray(value) ? (value as string[]) : [];
         break;
 
-      // ── Strings ──
+      // ── Strings ──────────────────────────────────────────────────────────
       case 'app_name':
       case 'app_tagline':
       case 'support_email':
       case 'support_phone':
-        out[key] = typeof raw === 'string' ? raw : String(raw ?? '');
+        out[key] = toStr(value);
         break;
 
-      // ── Fallback: pass through as-is ──
+      // ── Pass-through (unknown future keys) ───────────────────────────────
       default:
-        out[key] = raw;
+        out[key] = value;
+        break;
     }
   }
 
