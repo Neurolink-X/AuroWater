@@ -1,7 +1,7 @@
-// import { NextResponse, type NextRequest } from 'next/server';
+﻿// import { NextResponse, type NextRequest } from 'next/server';
 
 // /**
-//  * Edge-only: `next/server` only — no @/ imports (no Node crypto / jwt chains).
+//  * Edge-only: `next/server` only â€” no @/ imports (no Node crypto / jwt chains).
 //  * Gate: aw_session === '1', aw_role decoded from cookie (set by useAuth + setAuthGateCookies).
 //  * Next.js 16+: file must be named `proxy.ts` (middleware filename is deprecated).
 //  */
@@ -58,18 +58,16 @@
 //   ],
 // };
 
-
-
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * AuroWater — Edge Middleware (proxy.ts)
+ * AuroWater â€” Edge Middleware (proxy.ts)
  *
  * Responsibilities (in execution order):
  *   1. Allow public routes without any auth check
- *   2. Enforce authentication — redirect to login if no valid session
- *   3. Enforce role-based access — redirect to own dashboard if wrong role
- *   4. Smart /dashboard redirect → role-appropriate page
+ *   2. Enforce authentication â€” redirect to login if no valid session
+ *   3. Enforce role-based access â€” redirect to own dashboard if wrong role
+ *   4. Smart /dashboard redirect â†’ role-appropriate page
  *   5. Add security headers on every response
  *   6. Sanitize returnTo to prevent open-redirect attacks
  *
@@ -77,12 +75,12 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   aw_session = '1'            (presence = authenticated)
  *   aw_role    = '<role>'       (URL-encoded role string)
  *
- * Edge-only: only next/server imports — no Node.js, no crypto, no @/ aliases.
+ * Edge-only: only next/server imports â€” no Node.js, no crypto, no @/ aliases.
  */
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    TYPES
-═══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 type AuthRole = 'customer' | 'technician' | 'supplier' | 'admin';
 
@@ -91,9 +89,9 @@ interface SessionData {
   role: AuthRole | null;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    ROUTE CONFIGURATION
-═══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /**
  * Routes that never require authentication.
@@ -112,7 +110,7 @@ const PUBLIC_EXACT: Set<string> = new Set([
   '/auth/register',
   '/auth/forgot-password',
   '/auth/reset-password',
-  '/auth/callback',       // OAuth return URL — MUST be public
+  '/auth/callback',       // OAuth return URL â€” MUST be public
   '/auth/verify',
   '/register',
   '/register/pro',
@@ -120,11 +118,13 @@ const PUBLIC_EXACT: Set<string> = new Set([
   '/terms',
   '/sitemap.xml',
   '/robots.txt',
+  '/manifest.webmanifest',
   '/favicon.ico',
 ]);
 
 const PUBLIC_PREFIXES: readonly string[] = [
   '/api/auth/',          // all auth API routes are public
+  '/api/health',
   '/api/settings',
   '/api/services',
   '/api/contact',
@@ -178,10 +178,10 @@ const ROLE_DASHBOARD: Record<AuthRole, string> = {
   customer:   '/customer/home',
 };
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SECURITY HEADERS
-   Applied to every response — both authenticated and public.
-═══════════════════════════════════════════════════════════════ */
+   Applied to every response â€” both authenticated and public.
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const SECURITY_HEADERS: ReadonlyArray<[string, string]> = [
   // Prevent clickjacking
@@ -196,13 +196,13 @@ const SECURITY_HEADERS: ReadonlyArray<[string, string]> = [
   ['X-Powered-By', ''],
   // HSTS (only meaningful over HTTPS but harmless in dev)
   ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload'],
-  // XSS protection (legacy IE — harmless on modern browsers)
+  // XSS protection (legacy IE â€” harmless on modern browsers)
   ['X-XSS-Protection', '1; mode=block'],
 ];
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    HELPERS
-═══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 /** Parse session from cookies. Returns null if missing or invalid. */
 function readSession(request: NextRequest): SessionData {
@@ -311,7 +311,7 @@ function isPublicPath(pathname: string): boolean {
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico',
     'woff', 'woff2', 'ttf', 'otf', 'eot',
     'css', 'js', 'map',
-    'json', 'txt', 'xml',
+    'json', 'txt', 'xml', 'webmanifest', 'webmanifest',
     'pdf', 'mp4', 'webm',
   ]);
   if (STATIC_EXTS.has(ext)) return true;
@@ -319,34 +319,34 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MAIN MIDDLEWARE FUNCTION
-═══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  /* ── 1. Always allow public routes ─────────────────────────── */
+  /* â”€â”€ 1. Always allow public routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   if (isPublicPath(pathname)) {
     return addSecurityHeaders(NextResponse.next());
   }
 
-  /* ── 2. Read session from cookies ─────────────────────────── */
+  /* â”€â”€ 2. Read session from cookies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const session = readSession(request);
 
-  /* ── 3. Unauthenticated: redirect to login ─────────────────── */
+  /* â”€â”€ 3. Unauthenticated: redirect to login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   if (!session.authenticated || !session.role) {
     return redirectToLogin(request, pathname);
   }
 
   const { role } = session;
 
-  /* ── 4. /dashboard: smart redirect to role dashboard ─────── */
+  /* â”€â”€ 4. /dashboard: smart redirect to role dashboard â”€â”€â”€â”€â”€â”€â”€ */
   if (pathname === '/dashboard' || pathname === '/dashboard/') {
     return redirectToDashboard(request, role);
   }
 
-  /* ── 5. Role-based access control ─────────────────────────── */
+  /* â”€â”€ 5. Role-based access control â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const guard = findRoleGuard(pathname);
 
   if (guard) {
@@ -355,22 +355,22 @@ export function proxy(request: NextRequest): NextResponse {
     const hasAccess = isAdmin || guard.allowed.includes(role);
 
     if (!hasAccess) {
-      // Wrong role — send to their own dashboard, not an error page
+      // Wrong role â€” send to their own dashboard, not an error page
       const fallback = ROLE_DASHBOARD[role] ?? guard.fallback;
       const url = new URL(fallback, request.url);
       return addSecurityHeaders(NextResponse.redirect(url));
     }
   }
 
-  /* ── 6. All checks passed — add headers and continue ──────── */
+  /* â”€â”€ 6. All checks passed â€” add headers and continue â”€â”€â”€â”€â”€â”€â”€â”€ */
   return addSecurityHeaders(NextResponse.next());
 }
 
-/* ═══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MATCHER CONFIG
    Match ONLY routes that need processing.
    Exclude Next.js internals and static files explicitly.
-═══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 export const config = {
   matcher: [
     /*
