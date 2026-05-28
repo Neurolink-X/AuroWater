@@ -1,23 +1,18 @@
 import type { ProfileRow } from '@/lib/db/types';
 import type { AuthToken, User } from '@/types';
 import { clearAuthGateCookies } from '@/lib/auth/client-gate-cookies';
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
+import {
+  ApiError,
+  buildApiUrl,
+  fetchWithRetryParse,
+  fetchWithRetryRaw,
+  statusMessage,
+} from '@/lib/api/client';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+export { ApiError } from '@/lib/api/client';
 
 const TOKEN_KEY = 'auth_token';
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    /** Machine-readable code when API returns `{ code }` (e.g. DB_NOT_READY). */
-    public code?: string
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
 
 /** Safe message for UI when catching unknown rejections from `apiFetch` / auth helpers. */
 export function getApiErrorMessage(e: unknown): string {
@@ -49,91 +44,6 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-type Envelope<T> = { success: boolean; data?: T; error?: string; code?: string };
-
-const RETRY_503_MS = 800;
-
-async function parseJson(res: Response): Promise<Envelope<unknown>> {
-  try {
-    return (await res.json()) as Envelope<unknown>;
-  } catch {
-    return { success: false, error: 'Invalid response' };
-  }
-}
-
-/**
- * All app API calls: `credentials: 'include'`, one automatic retry after 800ms on HTTP 503.
- * Network failure → `ApiError` with code `NETWORK` (use `apiFetchSafe` to get `{ ok: false }` instead).
- */
-async function fetchWithRetryParse(
-  path: string,
-  init: RequestInit
-): Promise<{ res: Response; json: Envelope<unknown> }> {
-  const url = `${API_BASE}${path}`;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; json: Envelope<unknown> } | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const json = await parseJson(res);
-      last = { res, json };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      return last;
-    } catch {
-      throw new ApiError('Network error', 503, 'NETWORK');
-    }
-  }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
-}
-
-/** Same retry/credentials/network rules; parses JSON body without `{ success, data }` envelope (admin routes). */
-async function fetchWithRetryRaw(
-  path: string,
-  init: RequestInit
-): Promise<{ res: Response; body: unknown }> {
-  const url = `${API_BASE}${path}`;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; body: unknown } | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const body: unknown = await res.json().catch(() => ({}));
-      last = { res, body };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      return last;
-    } catch {
-      throw new ApiError('Network error', 503, 'NETWORK');
-    }
-  }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
-}
-
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { res, json } = await fetchWithRetryParse(path, init);
 
@@ -145,16 +55,48 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
           window.location.pathname.startsWith('/auth/register'));
       /** Failed login/register must not hard-redirect (breaks error UI + resend flows). */
       if (!onAuthEntry) {
-        clearToken();
-        clearUser();
         if (typeof window !== 'undefined') {
+          // 1) Try to refresh the session (getToken() already calls refreshSession()).
+          // 2) Retry the original request once with the updated bearer token.
+          try {
+            const refreshedToken = await getToken();
+            if (refreshedToken) {
+              const nextHeaders = new Headers(init.headers);
+              nextHeaders.set('Authorization', `Bearer ${refreshedToken}`);
+              const retryInit: RequestInit = {
+                ...init,
+                headers: Object.fromEntries(nextHeaders.entries()),
+                credentials: 'include',
+              };
+              const retry = await fetchWithRetryParse(path, retryInit);
+              const retryFailed = !retry.res.ok || retry.json.success === false;
+              if (!retryFailed) {
+                return retry.json.data as T;
+              }
+            }
+          } catch {
+            /* fallthrough to clearing cookies + redirect */
+          }
+
+          // Refresh failed: clear gate cookies and redirect to login.
+          clearToken();
+          clearUser();
+          clearAuthGateCookies();
           const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
           window.location.assign(`/auth/login?returnTo=${returnTo}`);
         }
       }
     }
-    const msg = typeof json.error === 'string' ? json.error : `HTTP ${res.status}`;
-    const code = typeof json.code === 'string' ? json.code : undefined;
+    const msg = typeof json.error === 'string' ? json.error : statusMessage(res.status);
+    const code =
+      typeof json.code === 'string'
+        ? json.code
+        : typeof json.details === 'object' &&
+            json.details !== null &&
+            'code' in (json.details as { code?: unknown }) &&
+            typeof (json.details as { code?: unknown }).code === 'string'
+          ? ((json.details as { code?: string }).code as string)
+          : undefined;
     throw new ApiError(msg, res.status, code);
   }
 
@@ -203,6 +145,12 @@ export type LoginResult = {
   profile: ProfileRow;
 };
 
+export type LoginApiResult = {
+  token: string;
+  role: string;
+  user: { id: string; email: string };
+};
+
 export async function authRegister(body: {
   email: string;
   password: string;
@@ -228,12 +176,12 @@ export async function authRegister(body: {
   return data;
 }
 
-export async function authLogin(email: string, password: string): Promise<LoginResult> {
-  const data = await apiFetch<LoginResult>('/auth/login', {
+export async function authLogin(email: string, password: string): Promise<LoginApiResult> {
+  const data = await apiFetch<LoginApiResult>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
-  setToken(data.access_token);
+  if (data.token) setToken(data.token);
   return data;
 }
 
@@ -246,7 +194,7 @@ export async function authResendConfirmation(email: string): Promise<void> {
 
 export async function authLogout(): Promise<void> {
   try {
-    await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
+    await fetch(buildApiUrl('/auth/logout'), { method: 'POST', credentials: 'include' });
   } catch {
     /* ignore */
   }

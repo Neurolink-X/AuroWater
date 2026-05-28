@@ -189,6 +189,8 @@ export default function CustomerHomePage() {
       if (!res.ok || json.success === false) throw new Error(json.error ?? 'Could not load stats');
       setStats(json.data ?? { total_spent: 0, cans_ordered: 0, member_since: null });
     } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not load stats';
+      toast.error(msg);
       setStats({ total_spent: 0, cans_ordered: 0, member_since: null });
     } finally {
       setStatsLoading(false);
@@ -222,7 +224,8 @@ export default function CustomerHomePage() {
           };
         })
       );
-    } catch {
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not load orders');
       setOrders([]);
     } finally {
       setOrdersLoading(false);
@@ -257,7 +260,8 @@ export default function CustomerHomePage() {
           };
         })
       );
-    } catch {
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not load notifications');
       setNotifs([]);
     } finally {
       setNotifsLoading(false);
@@ -275,8 +279,9 @@ export default function CustomerHomePage() {
         return;
       }
       setNotifs((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    } catch {
-      /* best-effort */
+    } catch (e: unknown) {
+      console.error('markAllRead failed', e);
+      toast.error(e instanceof Error ? e.message : 'Server error — please try again');
     }
   }, [authHeaders, router, pathname]);
 

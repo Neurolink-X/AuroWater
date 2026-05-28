@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
+import { getSiteUrl } from '@/lib/env';
 
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://aurowater.in';
+const BASE = getSiteUrl();
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();

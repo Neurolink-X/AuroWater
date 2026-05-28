@@ -34,7 +34,7 @@ export async function GET() {
     const { data, error } = await sb.from('settings').select('key, value');
     if (error) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { error: error.message },
         { status: 502, headers: CACHE_HEADER }
       );
     }

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ApiError, authRegister, profileToSession, type LoginResult } from '@/lib/api-client';
 import { writeSession } from '@/hooks/useAuth';
+import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 
 const UP_CITIES = [
   'Kanpur',
@@ -185,7 +186,7 @@ export default function RegisterPage() {
         });
 
         if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
-          toast.success('Check your inbox to confirm your email, then sign in.');
+          toast.success('Check your email');
           router.replace('/auth/login');
           return;
         }
@@ -198,6 +199,8 @@ export default function RegisterPage() {
             expires_at: ok.expires_at,
           })
         );
+        setAuthGateCookies(ok.profile.role);
+        await new Promise((r) => setTimeout(r, 200));
         toast.success('Welcome to AuroWater!');
         router.replace('/customer/home');
         return;
@@ -232,7 +235,7 @@ export default function RegisterPage() {
         });
 
         if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
-          toast.success('Confirm your email, then sign in.');
+          toast.success('Check your email');
           router.replace('/auth/login');
           return;
         }
@@ -244,6 +247,8 @@ export default function RegisterPage() {
             expires_at: ok.expires_at,
           })
         );
+        setAuthGateCookies(ok.profile.role);
+        await new Promise((r) => setTimeout(r, 200));
         toast.success('Welcome to AuroWater!');
         router.replace('/technician/dashboard');
         return;
@@ -276,7 +281,7 @@ export default function RegisterPage() {
         });
 
         if ('needsEmailConfirmation' in reg && reg.needsEmailConfirmation) {
-          toast.success('Confirm your email, then sign in.');
+          toast.success('Check your email');
           router.replace('/auth/login');
           return;
         }
@@ -288,6 +293,8 @@ export default function RegisterPage() {
             expires_at: ok.expires_at,
           })
         );
+        setAuthGateCookies(ok.profile.role);
+        await new Promise((r) => setTimeout(r, 200));
         toast.success('Welcome to AuroWater!');
         router.replace('/supplier/dashboard');
         return;
@@ -295,16 +302,18 @@ export default function RegisterPage() {
     } catch (e: unknown) {
       const msg =
         e instanceof ApiError
-          ? e.message
+          ? e.status === 401
+            ? 'Invalid email or password'
+            : e.status === 429
+              ? 'Too many attempts — please wait 60 seconds'
+              : e.status >= 500
+                ? 'Server error — please try again'
+                : e.message // expected 400 → API message
           : e instanceof Error
             ? e.message
             : 'Could not create account.';
       setErr(msg);
-      if (e instanceof ApiError && (e.code === 'DB_NOT_READY' || e.code === 'SERVICE_ROLE_MISSING' || e.code === 'MISCONFIG_ENV')) {
-        toast.error(msg, { duration: 12000 });
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -658,7 +667,17 @@ export default function RegisterPage() {
                 disabled={loading}
                 className="w-full rounded-xl bg-[#0D9B6C] text-white font-extrabold py-3 hover:bg-[#086D4C] active:scale-95 transition-all disabled:opacity-60"
               >
-                {loading ? 'Creating…' : 'Create Account'}
+                {loading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                      <path d="M22 12a10 10 0 0 0-10-10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    Creating…
+                  </span>
+                ) : (
+                  'Create Account'
+                )}
               </button>
 
               <div className="text-xs text-slate-500 pt-1">

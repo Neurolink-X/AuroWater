@@ -1,6 +1,15 @@
-import { jsonOk } from '@/lib/api/json-response';
+import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-/** Client clears tokens; this endpoint exists for symmetry and future server-side revoke. */
 export async function POST() {
-  return jsonOk({ ok: true as const });
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      return jsonErr(error.message, 400);
+    }
+    return jsonOk({ ok: true as const });
+  } catch {
+    return jsonOk({ ok: true as const });
+  }
 }

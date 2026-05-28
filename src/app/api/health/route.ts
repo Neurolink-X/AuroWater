@@ -1,32 +1,17 @@
-﻿import { createClient } from '@supabase/supabase-js'
-
-export const runtime = 'nodejs'
+import { createAnonServerClient } from '@/lib/supabase/server';
 
 export async function GET() {
-  const timestamp = new Date().toISOString()
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !key) {
-    return Response.json(
-      { status: 'degraded', db: 'error', detail: 'Missing Supabase env vars', timestamp },
-      { status: 503 }
-    )
-  }
-
+  const ts = new Date().toISOString();
   try {
-    const supabase = createClient(url, key)
-    const { error } = await supabase.from('profiles').select('id').limit(1)
-    if (error) throw new Error(error.message)
+    const supabase = createAnonServerClient();
+    const { error } = await supabase.from('profiles').select('id').limit(1);
+    if (error) throw error;
+
+    return Response.json({ status: 'ok', db: 'ok', env: process.env.NODE_ENV, ts });
+  } catch (e: unknown) {
     return Response.json(
-      { status: 'ok', db: 'ok', env: process.env.NODE_ENV, timestamp },
-      { status: 200 }
-    )
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return Response.json(
-      { status: 'degraded', db: 'error', detail: msg, timestamp },
+      { status: 'degraded', db: 'error', detail: String(e), ts },
       { status: 503 }
-    )
+    );
   }
 }

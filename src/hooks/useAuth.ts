@@ -262,8 +262,9 @@ export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
    * Synchronous initialiser — reads localStorage before first render.
    * Prevents the flash of "logged out" state on page load.
    */
-  const [session, setSession] = React.useState<Session | null>(() => readSession(ttlMs));
-  const [hydrated, setHydrated] = React.useState<boolean>(() => typeof window !== 'undefined');
+  // Server and first client paint: logged-out shape — avoids hydration mismatch.
+  const [session, setSession] = React.useState<Session | null>(null);
+  const [hydrated, setHydrated] = React.useState(false);
 
   /* ── Hydrate on mount (SSR → client handoff) ── */
   React.useEffect(() => {

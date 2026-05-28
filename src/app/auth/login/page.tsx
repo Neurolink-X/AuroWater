@@ -6,10 +6,10 @@ import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ApiError, authLogin, authResendConfirmation, profileToSession } from '@/lib/api-client';
+import { ApiError, authLogin, authResendConfirmation } from '@/lib/api-client';
 import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email.'),
@@ -19,6 +19,20 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 type Role = 'customer' | 'technician' | 'supplier' | 'admin';
+
+function dashboardFor(role: string) {
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'supplier') return '/supplier/dashboard';
+  if (role === 'technician') return '/technician/dashboard';
+  return '/customer/home';
+}
+
+function safeReturnTo(raw: string | null) {
+  if (!raw) return null;
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null;
+  if (raw.startsWith('/auth')) return null;
+  return raw;
+}
 
 function detectRoleFromEmail(email: string): Role {
   const e = email.toLowerCase().trim();
@@ -93,42 +107,48 @@ function LoginPageInner() {
     setLoading(true);
     try {
       const result = await authLogin(parsed.data.email, parsed.data.password);
-      const role = result.profile.role;
-      writeSession(
-        profileToSession(result.profile, {
-          access_token: result.access_token,
-          refresh_token: result.refresh_token,
-          expires_at: result.expires_at,
-        })
-      );
+      const { token, role: roleRaw, user } = result;
+      const role = roleRaw as Role;
+
+      // 1) Set edge-gate cookies first, then persist client session.
       setAuthGateCookies(role);
+
+      // 2) Store token + enough session fields for UI (useAuth requires a non-empty `name`).
+      const nameFromEmail = user.email?.split('@')[0]?.trim() || 'User';
+      writeSession({
+        name: nameFromEmail,
+        email: user.email,
+        role,
+        accessToken: token,
+        userId: user.id,
+      });
 
       toast.success('Welcome back! 👋');
 
-      const returnTo = searchParams.get('returnTo');
-      await new Promise((r) => window.setTimeout(r, 100));
-      if (returnTo && returnTo.startsWith('/')) {
-        router.push(returnTo);
-      } else {
-        if (role === 'admin') router.push('/admin/dashboard');
-        else if (role === 'supplier') router.push('/supplier/dashboard');
-        else if (role === 'technician') router.push('/technician/dashboard');
-        else router.push('/customer/home');
-      }
+      // 3) Give the browser a moment to flush cookies before redirect.
+      await new Promise((r) => setTimeout(r, 200));
+
+      // 4-5) Redirect to sanitized `returnTo` or the correct dashboard.
+      const sanitizedReturnTo = safeReturnTo(searchParams.get('returnTo'));
+      const dest = sanitizedReturnTo || dashboardFor(role);
+      router.replace(dest);
     } catch (e: unknown) {
       const msg =
         e instanceof ApiError
-          ? e.message
+          ? e.status === 401
+            ? 'Invalid email or password'
+            : e.status === 429
+              ? 'Too many attempts — please wait 60 seconds'
+              : e.status >= 500
+                ? 'Server error — please try again'
+                : e.message // expected 400 → API message
           : e instanceof Error
             ? e.message
             : 'Login failed. Please try again.';
+
       setErr(msg);
       setErrCode(e instanceof ApiError ? e.code ?? null : null);
-      if (e instanceof ApiError && (e.code === 'DB_NOT_READY' || e.code === 'SERVICE_ROLE_MISSING' || e.code === 'MISCONFIG_ENV')) {
-        toast.error(msg, { duration: 12000 });
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -240,7 +260,17 @@ function LoginPageInner() {
                 disabled={loading}
                 className="w-full rounded-xl bg-[#0D9B6C] text-white font-extrabold py-3 hover:bg-[#086D4C] active:scale-95 transition-all disabled:opacity-60"
               >
-                {loading ? 'Signing in…' : 'Sign In'}
+                {loading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                      <path d="M22 12a10 10 0 0 0-10-10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                    </svg>
+                    Signing in…
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
               </button>
 
               <div className="flex items-center gap-3 pt-2">

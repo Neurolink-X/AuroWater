@@ -9,8 +9,15 @@ import { seedSupplierRegistrationDefaults } from '@/lib/auth/seed-supplier-regis
 import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
 import { createServiceClient } from '@/utils/supabase/server';
 import type { ProfileRow } from '@/lib/db/types';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+  const rateCheck = checkRateLimit(`register:${ip}`);
+  if (!rateCheck.allowed) {
+    return jsonErr(`Too many attempts — please wait ${rateCheck.retryAfter} seconds`, 429);
+  }
+
   if (!isSupabaseConfigured()) {
     return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
   }
@@ -61,7 +68,20 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) {
+    console.error('Register error:', JSON.stringify(error));
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes('already registered') ||
+      msg.includes('already been registered') ||
+      msg.includes('user already registered')
+    ) {
+      return jsonErr('An account with this email already exists', 400);
+    }
     return jsonErr(error.message, 400);
+  }
+
+  if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+    return jsonErr('This email is already registered. Please sign in instead.', 400);
   }
 
   const session = data.session;

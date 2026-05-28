@@ -1,3 +1,33 @@
+## AuroWater — Production Deployment Guide
+
+### Step 1: Supabase Setup
+1. Create a new project at supabase.com
+2. Go to SQL Editor -> paste contents of supabase/schema_final.sql -> Run
+3. Go to Authentication -> URL Configuration:
+   - Site URL: https://your-production-domain.com
+   - Redirect URLs: https://your-production-domain.com/**
+4. Go to Settings -> API and copy:
+   - Project URL -> NEXT_PUBLIC_SUPABASE_URL
+   - anon public key -> NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - service_role key -> SUPABASE_SERVICE_ROLE_KEY (keep secret)
+
+### Step 2: Vercel Deployment
+1. Install Vercel CLI: npm i -g vercel
+2. From project root: vercel
+3. In Vercel dashboard -> Settings -> Environment Variables, add:
+   - NEXT_PUBLIC_SUPABASE_URL
+   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+   - SUPABASE_SERVICE_ROLE_KEY
+   - NEXT_PUBLIC_APP_URL (your Vercel domain)
+   - NEXT_PUBLIC_API_URL (leave empty or /api)
+   - JWT_SECRET (random 32+ char string)
+   - ADMIN_INVITE_CODE (your chosen admin code)
+   - NODE_ENV = production
+
+### Step 3: Verify Deployment
+- Visit: https://your-domain.com/api/health
+- Should return: { "status": "ok", "db": "ok" }
+- Test: register a new user, log in, check dashboard loads
 # AuroWater — Deployment Guide
 
 ## Vercel (recommended)

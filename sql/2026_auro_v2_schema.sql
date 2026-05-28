@@ -21,7 +21,12 @@ BEGIN
   END IF;
 END$$;
 
-CREATE TYPE user_status AS ENUM ('active', 'pending', 'suspended', 'banned');
+DO $$
+BEGIN
+  CREATE TYPE user_status AS ENUM ('active', 'pending', 'suspended', 'banned');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS status user_status NOT NULL DEFAULT 'active',
@@ -80,7 +85,12 @@ ALTER TABLE orders
 
 -- 5) Plumber jobs
 
-CREATE TYPE plumber_job_status AS ENUM ('pending','accepted','in_progress','completed','cancelled');
+DO $$
+BEGIN
+  CREATE TYPE plumber_job_status AS ENUM ('pending','accepted','in_progress','completed','cancelled');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS plumber_jobs (
   id SERIAL PRIMARY KEY,
@@ -100,7 +110,12 @@ CREATE TABLE IF NOT EXISTS plumber_jobs (
 
 -- 6) Bulk requests
 
-CREATE TYPE bulk_request_status AS ENUM ('new','quoted','confirmed','completed');
+DO $$
+BEGIN
+  CREATE TYPE bulk_request_status AS ENUM ('new','quoted','confirmed','completed');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS bulk_requests (
   id SERIAL PRIMARY KEY,
@@ -120,7 +135,13 @@ CREATE TABLE IF NOT EXISTS bulk_requests (
 
 -- 7) Key/value app_settings with seeded config
 
-ALTER TABLE app_settings RENAME TO app_settings_contact;
+DO $$
+BEGIN
+  IF to_regclass('public.app_settings') IS NOT NULL
+     AND to_regclass('public.app_settings_contact') IS NULL THEN
+    ALTER TABLE app_settings RENAME TO app_settings_contact;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS app_settings (
   id SERIAL PRIMARY KEY,
@@ -144,7 +165,7 @@ ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS admin_logs (
   id SERIAL PRIMARY KEY,
-  admin_id INTEGER NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
   target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   details TEXT,

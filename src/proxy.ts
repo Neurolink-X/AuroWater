@@ -1,7 +1,7 @@
-﻿// import { NextResponse, type NextRequest } from 'next/server';
+// import { NextResponse, type NextRequest } from 'next/server';
 
 // /**
-//  * Edge-only: `next/server` only â€” no @/ imports (no Node crypto / jwt chains).
+//  * Edge-only: `next/server` only — no @/ imports (no Node crypto / jwt chains).
 //  * Gate: aw_session === '1', aw_role decoded from cookie (set by useAuth + setAuthGateCookies).
 //  * Next.js 16+: file must be named `proxy.ts` (middleware filename is deprecated).
 //  */
@@ -58,16 +58,18 @@
 //   ],
 // };
 
+
+
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * AuroWater â€” Edge Middleware (proxy.ts)
+ * AuroWater — Edge Middleware (proxy.ts)
  *
  * Responsibilities (in execution order):
  *   1. Allow public routes without any auth check
- *   2. Enforce authentication â€” redirect to login if no valid session
- *   3. Enforce role-based access â€” redirect to own dashboard if wrong role
- *   4. Smart /dashboard redirect â†’ role-appropriate page
+ *   2. Enforce authentication — redirect to login if no valid session
+ *   3. Enforce role-based access — redirect to own dashboard if wrong role
+ *   4. Smart /dashboard redirect → role-appropriate page
  *   5. Add security headers on every response
  *   6. Sanitize returnTo to prevent open-redirect attacks
  *
@@ -75,12 +77,12 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   aw_session = '1'            (presence = authenticated)
  *   aw_role    = '<role>'       (URL-encoded role string)
  *
- * Edge-only: only next/server imports â€” no Node.js, no crypto, no @/ aliases.
+ * Edge-only: only next/server imports — no Node.js, no crypto, no @/ aliases.
  */
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    TYPES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════ */
 
 type AuthRole = 'customer' | 'technician' | 'supplier' | 'admin';
 
@@ -89,14 +91,45 @@ interface SessionData {
   role: AuthRole | null;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    ROUTE CONFIGURATION
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════ */
 
 /**
  * Routes that never require authentication.
  * Exact matches AND prefix matches (paths ending in /) are checked.
  */
+const PUBLIC_PATHS: readonly string[] = [
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/api/health',
+];
+
+const PUBLIC_PREFIXES: readonly string[] = [
+  '/_next/',
+  '/images/',
+  '/icons/',
+  '/fonts/',
+  '/api/auth/',
+  '/api/settings',
+  '/api/services',
+  '/api/contact',
+  '/api/founding-members',
+  '/blog/',
+];
+
+const PUBLIC_AUTH: readonly string[] = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/callback',
+  '/auth/confirm',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/verify',
+];
+
 const PUBLIC_EXACT: Set<string> = new Set([
   '/',
   '/services',
@@ -106,36 +139,29 @@ const PUBLIC_EXACT: Set<string> = new Set([
   '/about',
   '/technicians',
   '/book',
-  '/auth/login',
-  '/auth/register',
-  '/auth/forgot-password',
-  '/auth/reset-password',
-  '/auth/callback',       // OAuth return URL â€” MUST be public
-  '/auth/verify',
   '/register',
   '/register/pro',
   '/privacy',
   '/terms',
-  '/sitemap.xml',
-  '/robots.txt',
-  '/manifest.webmanifest',
-  '/favicon.ico',
+  ...PUBLIC_PATHS,
+  ...PUBLIC_AUTH,
 ]);
 
-const PUBLIC_PREFIXES: readonly string[] = [
-  '/api/auth/',          // all auth API routes are public
-  '/api/health',
-  '/api/settings',
-  '/api/services',
-  '/api/contact',
-  '/api/founding-members',
-  '/supplier/',          // public supplier profile pages e.g. /supplier/raj-kanpur
-  '/blog/',
-  '/_next/',
-  '/images/',
-  '/icons/',
-  '/fonts/',
-];
+/** Public storefront profile: /supplier/{slug} only — not /supplier/dashboard */
+function isPublicSupplierProfile(pathname: string): boolean {
+  const match = /^\/supplier\/([^/]+)\/?$/.exec(pathname);
+  if (!match) return false;
+  const segment = match[1].toLowerCase();
+  const protectedSegments = new Set([
+    'dashboard',
+    'register',
+    'settings',
+    'orders',
+    'inventory',
+    'login',
+  ]);
+  return !protectedSegments.has(segment);
+}
 
 /**
  * Which roles are allowed to access each protected prefix.
@@ -178,10 +204,10 @@ const ROLE_DASHBOARD: Record<AuthRole, string> = {
   customer:   '/customer/home',
 };
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    SECURITY HEADERS
-   Applied to every response â€” both authenticated and public.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+   Applied to every response — both authenticated and public.
+═══════════════════════════════════════════════════════════════ */
 
 const SECURITY_HEADERS: ReadonlyArray<[string, string]> = [
   // Prevent clickjacking
@@ -196,13 +222,13 @@ const SECURITY_HEADERS: ReadonlyArray<[string, string]> = [
   ['X-Powered-By', ''],
   // HSTS (only meaningful over HTTPS but harmless in dev)
   ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload'],
-  // XSS protection (legacy IE â€” harmless on modern browsers)
+  // XSS protection (legacy IE — harmless on modern browsers)
   ['X-XSS-Protection', '1; mode=block'],
 ];
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    HELPERS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════ */
 
 /** Parse session from cookies. Returns null if missing or invalid. */
 function readSession(request: NextRequest): SessionData {
@@ -299,6 +325,9 @@ function findRoleGuard(pathname: string) {
 
 /** Is this pathname public (no auth required)? */
 function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (PUBLIC_AUTH.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return true;
+  if (isPublicSupplierProfile(pathname)) return true;
   if (PUBLIC_EXACT.has(pathname)) return true;
 
   for (const prefix of PUBLIC_PREFIXES) {
@@ -311,7 +340,7 @@ function isPublicPath(pathname: string): boolean {
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico',
     'woff', 'woff2', 'ttf', 'otf', 'eot',
     'css', 'js', 'map',
-    'json', 'txt', 'xml', 'webmanifest', 'webmanifest',
+    'json', 'txt', 'xml',
     'pdf', 'mp4', 'webm',
   ]);
   if (STATIC_EXTS.has(ext)) return true;
@@ -319,34 +348,44 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    MAIN MIDDLEWARE FUNCTION
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════ */
 
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
 
-  /* â”€â”€ 1. Always allow public routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 0. Static / auth entry bypass (before any cookie read) ── */
+  if (
+    PUBLIC_PATHS.includes(pathname) ||
+    PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) ||
+    PUBLIC_AUTH.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
+    isPublicSupplierProfile(pathname)
+  ) {
+    return addSecurityHeaders(NextResponse.next());
+  }
+
+  /* ── 1. Always allow public routes ─────────────────────────── */
   if (isPublicPath(pathname)) {
     return addSecurityHeaders(NextResponse.next());
   }
 
-  /* â”€â”€ 2. Read session from cookies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 2. Read session from cookies ─────────────────────────── */
   const session = readSession(request);
 
-  /* â”€â”€ 3. Unauthenticated: redirect to login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 3. Unauthenticated: redirect to login ─────────────────── */
   if (!session.authenticated || !session.role) {
     return redirectToLogin(request, pathname);
   }
 
   const { role } = session;
 
-  /* â”€â”€ 4. /dashboard: smart redirect to role dashboard â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 4. /dashboard: smart redirect to role dashboard ─────── */
   if (pathname === '/dashboard' || pathname === '/dashboard/') {
     return redirectToDashboard(request, role);
   }
 
-  /* â”€â”€ 5. Role-based access control â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 5. Role-based access control ─────────────────────────── */
   const guard = findRoleGuard(pathname);
 
   if (guard) {
@@ -355,22 +394,22 @@ export function proxy(request: NextRequest): NextResponse {
     const hasAccess = isAdmin || guard.allowed.includes(role);
 
     if (!hasAccess) {
-      // Wrong role â€” send to their own dashboard, not an error page
+      // Wrong role — send to their own dashboard, not an error page
       const fallback = ROLE_DASHBOARD[role] ?? guard.fallback;
       const url = new URL(fallback, request.url);
       return addSecurityHeaders(NextResponse.redirect(url));
     }
   }
 
-  /* â”€â”€ 6. All checks passed â€” add headers and continue â”€â”€â”€â”€â”€â”€â”€â”€ */
+  /* ── 6. All checks passed — add headers and continue ──────── */
   return addSecurityHeaders(NextResponse.next());
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════════════════════════════
    MATCHER CONFIG
    Match ONLY routes that need processing.
    Exclude Next.js internals and static files explicitly.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════════════════════════════ */
 export const config = {
   matcher: [
     /*
@@ -380,6 +419,6 @@ export const config = {
      *   - favicon.ico  (favicon)
      *   - Files with extensions (images, fonts, etc.)
      */
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml|pdf)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml|pdf|webmanifest)$).*)',
   ],
 };
