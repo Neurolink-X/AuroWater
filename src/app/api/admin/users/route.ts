@@ -53,7 +53,7 @@ import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
 const VALID_ROLES    = new Set(['customer', 'supplier', 'technician', 'admin']);
-const VALID_STATUSES = new Set(['active', 'suspended', 'pending']);
+const VALID_STATUSES = new Set(['active', 'suspended', 'pending', 'pending_approval', 'rejected']);
 const VALID_SORT     = new Set(['created_at', 'full_name', 'role', 'updated_at']);
 
 const MAX_LIMIT     = 200;
@@ -67,6 +67,7 @@ interface UserRow {
   phone:       string | null;
   email:       string | null;
   role:        string;
+  status:      string | null;
   is_active:   boolean | null;
   city:        string | null;
   created_at:  string;
@@ -130,6 +131,7 @@ export async function GET(req: NextRequest) {
       phone,
       email,
       role,
+      status,
       is_active,
       city,
       created_at,
@@ -141,9 +143,11 @@ export async function GET(req: NextRequest) {
 
   /* Filters */
   if (role)   q = q.eq('role', role);
-  /* status filter: active | suspended — maps to is_active */
-  if (status === 'active') q = q.eq('is_active', true);
-  if (status === 'suspended') q = q.eq('is_active', false);
+  if (status === 'active') q = q.eq('status', 'active');
+  if (status === 'suspended') q = q.eq('status', 'suspended');
+  if (status === 'pending') q = q.in('status', ['pending', 'pending_approval']);
+  if (status === 'pending_approval') q = q.in('status', ['pending', 'pending_approval']);
+  if (status === 'rejected') q = q.eq('status', 'rejected');
   if (from)   q = q.gte('created_at', from);
   if (to)     q = q.lte('created_at', to);
 
@@ -203,6 +207,7 @@ export async function GET(req: NextRequest) {
       phone:       raw.phone      != null ? String(raw.phone)      : null,
       email:       raw.email      != null ? String(raw.email)      : null,
       role:        String(raw.role ?? 'customer'),
+      status:      raw.status != null ? String(raw.status) : null,
       is_active:   raw.is_active != null ? Boolean(raw.is_active) : true,
       city:        raw.city       != null ? String(raw.city)       : null,
       created_at:  String(raw.created_at ?? ''),

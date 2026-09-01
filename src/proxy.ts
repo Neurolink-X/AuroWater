@@ -114,7 +114,14 @@ const PUBLIC_EXACT: Set<string> = new Set([
   '/auth/reset-password',
   '/auth/callback',       // OAuth return URL — MUST be public
   '/auth/verify',
+  '/login',
   '/register',
+  '/register/pending',
+  '/auth/otp',
+  '/cookies',
+  '/security',
+  '/careers',
+  '/offline',
   '/register/pro',
   '/privacy',
   '/terms',
@@ -152,8 +159,13 @@ const ROLE_GUARDS: ReadonlyArray<{
     fallback: '/customer/home',
   },
   {
-    prefix:   '/supplier',
+    prefix:   '/seller',
     allowed:  ['supplier', 'admin'],
+    fallback: '/customer/home',
+  },
+  {
+    prefix:   '/agent',
+    allowed:  ['technician', 'admin'],
     fallback: '/customer/home',
   },
   {

@@ -5,9 +5,9 @@ import { createServiceClient } from '@/utils/supabase/server';
 
 function mapMetaRoleToProfileRole(meta: Record<string, unknown> | undefined): ProfileRole {
   const r = typeof meta?.role === 'string' ? meta.role.toLowerCase() : 'customer';
-  if (r === 'admin' || r === 'supplier' || r === 'technician' || r === 'customer') {
-    return r;
-  }
+  if (r === 'seller' || r === 'supplier') return 'supplier';
+  if (r === 'agent' || r === 'plumber' || r === 'technician') return 'technician';
+  if (r === 'admin' || r === 'customer') return r;
   return 'customer';
 }
 
@@ -58,7 +58,8 @@ export async function ensureProfileForUser(
       full_name,
       phone,
       role,
-      city: typeof initialData.city === 'string' ? initialData.city : null,
+      status: role === 'supplier' || role === 'technician' ? 'pending_approval' : 'active',
+      city: typeof initialData.city === 'string' ? initialData.city : typeof meta?.city === 'string' ? meta.city : null,
       referred_by:
         typeof initialData.referred_by === 'string' ? initialData.referred_by : null,
       avatar_url,

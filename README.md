@@ -1,130 +1,116 @@
-# AuroTap
+# AuroWater (aurotap.in)
 
-On-demand water delivery + plumber booking platform for Delhi & UP (India).
-Built with Next.js 16, React 19, Supabase, TypeScript, Tailwind 4.
+On-demand water can delivery and plumber booking for Uttar Pradesh. Live cities today: **Gorakhpur, Kanpur, Lucknow**. Other cities collect demand via waitlist.
+
+Stack: **Next.js 16** (App Router) · React 19 · TypeScript · Supabase · Tailwind.
 
 ## Quick start
 
 ```bash
-cp .env.example .env.local   # fill in the 3 required Supabase keys
+cp .env.example .env.local
 npm install
 npm run dev                  # http://localhost:3000
 ```
 
-## Required environment variables
+APIs are same-origin `/api`. Do not set `NEXT_PUBLIC_API_URL` in production.
 
-| Variable | Where to get it |
-|----------|----------------|
-| NEXT_PUBLIC_SUPABASE_URL | Supabase Dashboard → Settings → API → Project URL |
-| NEXT_PUBLIC_SUPABASE_ANON_KEY | Settings → API → anon/publishable key |
-| SUPABASE_SERVICE_ROLE_KEY | Settings → API → service_role (server-only, never expose) |
-| NEXT_PUBLIC_APP_URL | https://aurotap.in (or http://localhost:3000 for dev) |
-| NEXT_PUBLIC_API_URL | https://aurotap.in/api (or http://localhost:3000/api) |
-| ADMIN_INVITE_CODE | Secret invite code for admin registration |
+## Environment
 
-See `.env.example` for all optional variables.
+| Variable | Notes |
+|----------|--------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser / RLS key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Never expose to the client. Alias: `SUPABASE_SERVICE_KEY` |
+| `NEXT_PUBLIC_APP_URL` | `https://aurotap.in` or `http://localhost:3000` |
+| `ADMIN_INVITE_CODE` | Required for admin registration |
 
-### Troubleshooting: `SUPABASE_SERVICE_ROLE_KEY` / 503 `SERVICE_ROLE_MISSING`
+`npm run verify:env` exits 0 only when URL, anon, and service role are set.
 
-The service role key is **only** available from Supabase (it cannot be derived from the anon key).
+### Service role 503
 
-1. Open **Project → Settings → API** and copy the **service_role** secret (not the anon key).
-2. Set `SUPABASE_SERVICE_ROLE_KEY=<paste>` in `.env.local` (or `SUPABASE_SERVICE_KEY` as an alias on some hosts).
-3. Restart `npm run dev`. For Vercel/production, add the same variable in the hosting dashboard.
+Copy **service_role** from Supabase → Settings → API (not the anon key). Restart `npm run dev` after changing `.env.local`.
 
-Check locally:
+### Auth dashboard
 
-```bash
-npm run verify:env   # exits 0 only when URL, anon, and service role are non-empty
-```
+Disable **Confirm email** so phone/email + password accounts can sign in immediately. Sellers and agents still wait for **admin approval** (`pending_approval` on `profiles`).
 
-### Email confirmation / “redirects home” / login errors
+Redirect URLs (if you ever re-enable email links): `http://localhost:3000/auth/callback`, `https://aurotap.in/auth/callback`.
 
-- **Recommended for dev:** Authentication → **disable “Confirm email”** so users can sign in immediately after register.
-- If confirmation is **on** (or OAuth is used): add these under **Authentication → URL configuration** → *Redirect URLs*:
-  - `http://localhost:3000/auth/callback`
-  - `http://localhost:3000/**`
-  - `https://aurotap.in/auth/callback` (production)
-  - `https://aurotap.in/**` (production)
-- Set **Site URL** to your app origin (`http://localhost:3000` or production). The app forwards `?code=` from the home page to `/auth/callback` automatically (`AuthPkceBridge`).
-- If login says the email is not confirmed, use **Resend confirmation email** on the login page (calls `POST /api/auth/resend-confirmation`).
+## Database (SQL Editor only)
 
-## Database setup (one-time, Supabase SQL Editor only)
-
-Run in order — **do not** use Supabase CLI / `supabase db push`:
+Run in order. Do not use `supabase db push`.
 
 1. `sql/001_core_schema.sql`
 2. `sql/002_rls_policies.sql`
 3. `sql/003_seed_settings.sql`
-4. `sql/004_functions.sql` — creates auth trigger for profiles
+4. `sql/004_functions.sql`
 5. `sql/005_notifications_dedup.sql`
+6. `sql/006_schema_compat.sql` and `sql/006_production_readiness.sql`
+7. `sql/007_geo_payments_waitlist.sql`
+8. `sql/008_auth_approval.sql`
+9. `sql/009_cities_waitlist.sql` — `cities` catalogue + `city_waitlist`
 
-Then in Supabase Dashboard:
+Or paste the concatenated file: `sql/ALL_MIGRATIONS_ORDERED.sql` (rebuild with `node scripts/build-supabase-migrations.mjs`).
 
-- **Authentication → Settings** — disable email confirmations
-- **Database → Replication** — enable Realtime on: `orders`, `notifications`, `founding_members`
+After DDL: `SELECT pg_notify('pgrst', 'reload schema');`
 
-Verify: `GET /api/settings` → `{ success: true, data: { ... } }`
+Realtime (optional): `orders`, `notifications`.
 
-## User registration — what gets created
+`GET /api/settings` should return `{ success: true, data: { ... } }` within ~5s (never hangs; falls back to defaults).
 
-| Role | Auth table | profiles | Extra tables |
-|------|------------|----------|----------------|
-| Customer | `auth.users` row | `profiles` row (role=customer) | — |
-| Supplier | `auth.users` row | `profiles` row (role=supplier) | `supplier_settings`, `supplier_stock` |
-| Technician | `auth.users` row | `profiles` row (role=technician) | — (applications on apply) |
-| Admin | `auth.users` row | `profiles` row (role=admin) | Requires `ADMIN_INVITE_CODE` |
+## Auth and roles
 
-## Roles & URLs
+UI labels: **seller** = DB `supplier`, **agent** = DB `technician`.
 
-| Role | Home URL | Access |
-|------|----------|--------|
-| Customer | `/customer/home` | `aw_session=1` + any role |
-| Supplier | `/supplier/dashboard` | `aw_session=1` + role=supplier \| admin |
-| Technician | `/technician/dashboard` | `aw_session=1` + role=technician \| admin |
-| Admin | `/admin/dashboard` | `aw_session=1` + role=admin |
+| Role | Home | Notes |
+|------|------|--------|
+| customer | `/customer/home` | Register at `/register` if city is **active** |
+| supplier | `/supplier/dashboard` | Also `/seller/dashboard`. Needs admin approve |
+| technician | `/technician/dashboard` | Also `/agent/dashboard`. Needs admin approve |
+| admin | `/admin/dashboard` | Approvals + waitlist demand |
 
-Auth: `/auth/login` (all roles). Email confirm OFF. Password auth only.
+Login: **`/login`** (phone or email + password). Pending sellers/agents go to `/register/pending`.
 
-## Auth flow
+Phone auth emails are `{10digits}@users.aurotap.in`.
 
-1. `POST /api/auth/register` → Supabase creates `auth.users` row
-2. `ensureProfileForUser()` creates `public.profiles` row
-3. Client calls `writeSession()` → stores Bearer token + calls `setAuthGateCookies()`
-4. `setAuthGateCookies()` sets `aw_session=1` and `aw_role=<role>` (client-side)
-5. `src/proxy.ts` (Edge) reads `aw_session` + `aw_role` for routing only
-6. API routes use Bearer JWT via `requireSupabaseAuth()` for real auth
+Cookies `aw_session` / `aw_role` are set after login for `src/proxy.ts` (Next 16 edge gate). APIs use Bearer JWT via `requireSupabaseAuth()`.
 
-## Stack
+## Cities and waitlist
 
-Next.js 16 · React 19 · TypeScript strict · Supabase JS v2
-Tailwind 4 · Framer Motion · Sonner · Zod · React Hook Form · Recharts
+- `GET /api/cities` — public list (5s timeout, 5 min cache, hardcoded fallback if DB is down).
+- `POST /api/waitlist` — public join (phone or email).
+- `GET /api/waitlist` — **admin only**. Demand dashboard: `/admin/dashboard/waitlist`.
+
+Register blocks account create when the city is not `active`. Users join waitlist instead.
+
+Payments: QR + cash only (no card gateway).
 
 ## Scripts
 
 ```bash
-npm run dev          # development server
-npm run build        # production build
-npm run verify:env   # fail fast if Supabase env incomplete
-npm run smoke        # API smoke tests (needs dev server running)
-npx tsc --noEmit     # type check only
+npm run dev
+npm run build
+npm run verify:env
+npx tsc --noEmit
+node scripts/build-supabase-migrations.mjs
+node scripts/generate-pwa-icons.mjs
 ```
 
-## Deprecated
-
-`/api/customers/*` and `/api/orders/*` → return **410 Gone**. Use `/api/customer/*`.
+PWA icons live in `public/icons/`; manifest at `public/manifest.json`.
 
 ## Project structure
 
 | Path | Purpose |
 |------|---------|
-| `src/proxy.ts` | Edge routing gate (cookie check only, no JWT) |
-| `src/app/api/auth/*` | Login, register, me, refresh, logout |
-| `src/app/api/customer/*` | Orders, addresses, notifications, stats, reviews |
-| `src/app/api/supplier/*` | Orders, settings, stock, earnings, payouts |
-| `src/app/api/technician/*` | Jobs, payouts |
-| `src/app/api/admin/*` | Dashboard, orders, users, finance, settings |
-| `src/lib/api-client.ts` | Typed fetch helpers + `api.*` facade |
-| `src/lib/notifications.ts` | Order lifecycle notification inserts |
-| `src/lib/auth/ensure-profile.ts` | Upserts profiles row after auth |
-| `src/lib/auth/client-gate-cookies.ts` | Sets `aw_session=1` + `aw_role` |
+| `src/proxy.ts` | Edge routing (cookies only) |
+| `src/app/api/*` | Same-origin API |
+| `src/lib/cities.ts` | City types + fallback list |
+| `src/lib/storage.ts` | SSR-safe `localStorage` / `sessionStorage` |
+| `src/lib/auth/ensure-profile.ts` | Profile upsert after register |
+| `src/components/ui/CitySelector.tsx` | Searchable city picker |
+| `src/components/ui/WaitlistPanel.tsx` | Demand capture form |
+
+## Deprecated
+
+`/api/customers/*` and `/api/orders/*` → **410**. Use `/api/customer/*`.
+`NEXT_PUBLIC_API_URL` is unused; keep traffic on `/api`.

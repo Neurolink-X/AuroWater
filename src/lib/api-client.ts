@@ -2,8 +2,10 @@ import type { ProfileRow } from '@/lib/db/types';
 import type { AuthToken, User } from '@/types';
 import { clearAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/utils/supabase/client';
+import { safeGet, safeRemove, safeSet } from '@/lib/storage';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+/** Same-origin App Router API. Do not use NEXT_PUBLIC_API_URL (breaks production). */
+const API_BASE = '/api';
 
 const TOKEN_KEY = 'auth_token';
 
@@ -40,13 +42,11 @@ export async function getToken(): Promise<string | null> {
 }
 
 export function setToken(token: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, token);
+  safeSet(TOKEN_KEY, token);
 }
 
 export function clearToken(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
+  safeRemove(TOKEN_KEY);
 }
 
 type Envelope<T> = { success: boolean; data?: T; error?: string; code?: string };
@@ -204,12 +204,19 @@ export type LoginResult = {
 };
 
 export async function authRegister(body: {
-  email: string;
+  email?: string;
   password: string;
   full_name: string;
-  phone?: string;
+  phone: string;
   role?: string;
-}): Promise<LoginResult | { needsEmailConfirmation: true; email: string }> {
+  city?: string;
+  pincode?: string;
+  business_name?: string;
+  business_type?: string;
+  gst_number?: string;
+  vehicle_type?: string;
+  license_number?: string;
+}): Promise<LoginResult | { needsEmailConfirmation: true; email: string; pending?: boolean }> {
   const { res, json } = await fetchWithRetryParse('/auth/register', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -228,10 +235,14 @@ export async function authRegister(body: {
   return data;
 }
 
-export async function authLogin(email: string, password: string): Promise<LoginResult> {
+export async function authLogin(
+  email: string,
+  password: string,
+  extra?: { phone?: string }
+): Promise<LoginResult> {
   const data = await apiFetch<LoginResult>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, phone: extra?.phone }),
   });
   setToken(data.access_token);
   return data;
@@ -253,13 +264,7 @@ export async function authLogout(): Promise<void> {
   clearToken();
   clearUser();
   clearAuthGateCookies();
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.removeItem('aurowater_session');
-    } catch {
-      /* ignore */
-    }
-  }
+  safeRemove('aurowater_session');
 }
 
 export async function authMe(): Promise<ProfileRow> {
@@ -637,6 +642,7 @@ export type AdminUserRow = {
   phone: string | null;
   email: string | null;
   role: string;
+  status?: string | null;
   is_active: boolean | null;
   city: string | null;
   created_at: string;
@@ -667,7 +673,7 @@ export async function adminUsersWithMeta(params?: {
 
 export async function adminUserUpdate(
   id: string,
-  patch: { role?: string; is_active?: boolean; full_name?: string; phone?: string }
+  patch: { role?: string; is_active?: boolean; full_name?: string; phone?: string; status?: string; rejection_reason?: string }
 ): Promise<unknown> {
   return apiFetchAuth(`/admin/users/${id}`, {
     method: 'PUT',
@@ -741,21 +747,11 @@ export async function technicianEarnings(): Promise<unknown> {
 const USER_KEY = 'user';
 
 export function setUser(user: User): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  } catch {
-    /* quota */
-  }
+  safeSet(USER_KEY, JSON.stringify(user));
 }
 
 export function clearUser(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.removeItem(USER_KEY);
-  } catch {
-    /* ignore */
-  }
+  safeRemove(USER_KEY);
 }
 
 function safeParseJSON<T>(raw: string | null): T | null {
@@ -770,11 +766,11 @@ function safeParseJSON<T>(raw: string | null): T | null {
 /** Best-effort user for legacy screens — prefers `user` key, else derives from session. */
 export function getUser(): User | null {
   if (typeof window === 'undefined') return null;
-  const direct = safeParseJSON<User>(localStorage.getItem(USER_KEY));
+  const direct = safeParseJSON<User>(safeGet(USER_KEY));
   if (direct?.full_name) return direct;
 
   const SESSION_KEY = 'aurowater_session';
-  const raw = localStorage.getItem(SESSION_KEY);
+  const raw = safeGet(SESSION_KEY);
   const s = safeParseJSON<{
     loggedIn?: boolean;
     name?: string;

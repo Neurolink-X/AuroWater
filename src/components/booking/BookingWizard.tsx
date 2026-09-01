@@ -19,6 +19,8 @@ import {
 import { getMinDate } from '@/lib/validation/time-slot-client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
+import { safeSessionGet, safeSessionRemove, safeSessionSet } from '@/lib/storage';
+import ServiceZoneGate from '@/components/geo/ServiceZoneGate';
 
 /** Session draft — persisted so login redirect does not lose progress. */
 export interface BookingDraft {
@@ -243,7 +245,7 @@ export default function BookingWizard() {
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(DRAFT_KEY);
+      const raw = safeSessionGet(DRAFT_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { draft?: Partial<BookingDraft>; step?: number };
       if (parsed?.draft && typeof parsed.draft === 'object') {
@@ -259,7 +261,7 @@ export default function BookingWizard() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ draft, step }));
+      safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step }));
     } catch {
       /* quota */
     }
@@ -333,7 +335,7 @@ export default function BookingWizard() {
 
   const goLoginForCheckout = () => {
     try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ draft, step: 3 }));
+      safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 3 }));
     } catch {
       /* ignore */
     }
@@ -462,7 +464,7 @@ export default function BookingWizard() {
       setCreatedOrder(order);
       setStep(6);
       try {
-        sessionStorage.removeItem(DRAFT_KEY);
+        safeSessionRemove(DRAFT_KEY);
       } catch {
         /* ignore */
       }
@@ -470,7 +472,7 @@ export default function BookingWizard() {
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         try {
-          sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ draft, step: 5 }));
+          safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 5 }));
         } catch {
           /* ignore */
         }
@@ -751,6 +753,14 @@ export default function BookingWizard() {
         {step === 3 && !createdOrder && (
           <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6 space-y-6">
             <h2 className="text-lg font-bold text-slate-900">3 · Address</h2>
+            <ServiceZoneGate
+              onInZone={(city) =>
+                setDraft((d) => ({
+                  ...d,
+                  newAddress: { ...d.newAddress, city },
+                }))
+              }
+            />
 
             {!session?.loggedIn && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">

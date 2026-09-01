@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { safeGet, safeSet } from '@/lib/storage';
 
 export default function AnnouncementBar() {
   const [dismissed, setDismissed] = React.useState(false);
@@ -8,7 +9,7 @@ export default function AnnouncementBar() {
 
   React.useEffect(() => {
     try {
-      const d = localStorage.getItem('aurowater_bar_dismissed') === '1';
+      const d = safeGet('aurowater_bar_dismissed') === '1';
       setDismissed(d);
       setVisible(!d);
     } catch {
@@ -34,8 +35,8 @@ export default function AnnouncementBar() {
         type="button"
         onClick={() => {
           try {
-            localStorage.setItem('aw_announcement_dismissed', '1');
-            localStorage.setItem('aurowater_bar_dismissed', '1');
+            safeSet('aw_announcement_dismissed', '1');
+            safeSet('aurowater_bar_dismissed', '1');
           } catch {
             // ignore
           }

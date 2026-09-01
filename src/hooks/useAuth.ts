@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { clearToken, setToken } from '@/lib/api-client';
 import { clearAuthGateCookies, setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
+import { safeGet, safeRemove, safeSet } from '@/lib/storage';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -83,6 +84,13 @@ export interface UseAuthReturn {
   aurotapId:  string | null;
   phone:      string | null;
   avatarUrl:  string | null;
+  /** Alias for header / new screens */
+  user: {
+    email?: string;
+    full_name: string;
+    phone?: string;
+  } | null;
+  loading: boolean;
 
   /* ── Status ── */
   /** true once localStorage has been read (prevents SSR/client mismatch) */
@@ -94,6 +102,8 @@ export interface UseAuthReturn {
   isTechnician: boolean;
   isSupplier:   boolean;
   isAdmin:      boolean;
+  isSeller:     boolean;
+  isAgent:      boolean;
 
   /* ── Permission check ── */
   /**
@@ -204,8 +214,7 @@ function firstName(fullName: string | null | undefined): string | null {
 ═══════════════════════════════════════════════════════════════ */
 
 function readSession(ttlMs: number): Session | null {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(SESSION_KEY);
+  const raw = safeGet(SESSION_KEY);
   const parsed = safeParseJSON<Session>(raw);
   return isSessionValid(parsed, ttlMs) ? parsed : null;
 }
@@ -228,7 +237,7 @@ export function writeSession(
     loginTime: data.loginTime ?? Date.now(),
   };
   if (typeof window !== 'undefined') {
-    try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* quota */ }
+    safeSet(SESSION_KEY, JSON.stringify(session));
     if (session.accessToken) {
       setToken(session.accessToken);
     }
@@ -246,7 +255,7 @@ export function writeSession(
  */
 export function clearSession(): void {
   if (typeof window === 'undefined') return;
-  try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+  safeRemove(SESSION_KEY);
   clearToken();
   clearAuthGateCookies();
 }
@@ -258,12 +267,9 @@ export function clearSession(): void {
 export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
   const router = useRouter();
 
-  /**
-   * Synchronous initialiser — reads localStorage before first render.
-   * Prevents the flash of "logged out" state on page load.
-   */
-  const [session, setSession] = React.useState<Session | null>(() => readSession(ttlMs));
-  const [hydrated, setHydrated] = React.useState<boolean>(() => typeof window !== 'undefined');
+  /** Start empty so SSR HTML matches the first client render (hydration #418). */
+  const [session, setSession] = React.useState<Session | null>(null);
+  const [hydrated, setHydrated] = React.useState(false);
 
   /* ── Hydrate on mount (SSR → client handoff) ── */
   React.useEffect(() => {
@@ -325,11 +331,7 @@ export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
       setSession(prev => {
         if (!prev) return null;
         const next: Session = { ...prev, ...patch };
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(SESSION_KEY, JSON.stringify(next));
-          }
-        } catch { /* quota */ }
+        safeSet(SESSION_KEY, JSON.stringify(next));
         return next;
       });
     },
@@ -401,6 +403,12 @@ export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
     isTechnician,
     isSupplier,
     isAdmin,
+    isSeller: isSupplier,
+    isAgent: isTechnician,
+    user: isLoggedIn && session
+      ? { email: session.email, full_name: session.name, phone: session.phone }
+      : null,
+    loading: !hydrated,
     can,
     logout,
     updateSession,
@@ -472,8 +480,7 @@ export function dashboardPath(role: AuthRole | null | undefined): string {
  * Useful in middleware or server utilities.
  */
 export function getSessionFromStorage(ttlMs = DEFAULT_TTL_MS): Session | null {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(SESSION_KEY);
+  const raw = safeGet(SESSION_KEY);
   const s   = safeParseJSON<Session>(raw);
   return isSessionValid(s, ttlMs) ? s : null;
 }

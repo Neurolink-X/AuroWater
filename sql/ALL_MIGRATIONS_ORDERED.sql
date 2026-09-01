@@ -21,11 +21,36 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   role            TEXT NOT NULL DEFAULT 'customer'
                     CHECK (role IN ('customer','technician','supplier','admin')),
   aurotap_id      TEXT UNIQUE,
+  referral_code   TEXT UNIQUE GENERATED ALWAYS AS
+                    ('AT-' || UPPER(SUBSTRING(id::text,1,6))) STORED,
+  referred_by     UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  referral_credits INTEGER NOT NULL DEFAULT 0,
+  tier            TEXT NOT NULL DEFAULT 'bronze'
+                    CHECK (tier IN ('bronze','silver','gold','platinum')),
+  city            TEXT,
   avatar_url      TEXT,
   is_active       BOOLEAN NOT NULL DEFAULT true,
+  last_seen_at    TIMESTAMPTZ,
+  device_token    TEXT,
+  language        TEXT NOT NULL DEFAULT 'en',
+  deleted_at      TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Backfill / forward-compat for older core migrations
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS referral_code    TEXT UNIQUE GENERATED ALWAYS AS
+    ('AT-' || UPPER(SUBSTRING(id::text,1,6))) STORED,
+  ADD COLUMN IF NOT EXISTS referred_by      UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS referral_credits INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tier             TEXT NOT NULL DEFAULT 'bronze'
+    CHECK (tier IN ('bronze','silver','gold','platinum')),
+  ADD COLUMN IF NOT EXISTS city             TEXT,
+  ADD COLUMN IF NOT EXISTS last_seen_at     TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS device_token     TEXT,
+  ADD COLUMN IF NOT EXISTS language         TEXT NOT NULL DEFAULT 'en',
+  ADD COLUMN IF NOT EXISTS deleted_at       TIMESTAMPTZ;
 
 -- ── Service types ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.service_types (
@@ -88,9 +113,37 @@ CREATE TABLE IF NOT EXISTS public.orders (
   can_price_per_unit  NUMERIC(10,2),
   can_order_type      TEXT CHECK (can_order_type IS NULL OR can_order_type IN ('one_time','subscription')),
   can_frequency       TEXT CHECK (can_frequency IS NULL OR can_frequency IN ('daily','alternate','weekly')),
+  completed_at        TIMESTAMPTZ,
+  cancelled_at        TIMESTAMPTZ,
+  cancel_reason       TEXT,
+  rating              SMALLINT CHECK (rating BETWEEN 1 AND 5),
+  review_text         TEXT,
+  otp                 TEXT,
+  otp_verified        BOOLEAN NOT NULL DEFAULT false,
+  source              TEXT DEFAULT 'web',
+  promo_code          TEXT,
+  discount_amount     NUMERIC(10,2) DEFAULT 0,
+  final_amount        NUMERIC(10,2),
+  assigned_at         TIMESTAMPTZ,
+  notified_at         TIMESTAMPTZ,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS completed_at      TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS cancelled_at      TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS cancel_reason     TEXT,
+  ADD COLUMN IF NOT EXISTS rating            SMALLINT CHECK (rating BETWEEN 1 AND 5),
+  ADD COLUMN IF NOT EXISTS review_text       TEXT,
+  ADD COLUMN IF NOT EXISTS otp               TEXT,
+  ADD COLUMN IF NOT EXISTS otp_verified      BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS source            TEXT DEFAULT 'web',
+  ADD COLUMN IF NOT EXISTS promo_code        TEXT,
+  ADD COLUMN IF NOT EXISTS discount_amount   NUMERIC(10,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS final_amount      NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS assigned_at       TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS notified_at       TIMESTAMPTZ;
 
 -- ── Settings (key-value) ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.settings (
@@ -133,6 +186,142 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- ── Referral credits ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.referral_credits (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  amount      INTEGER NOT NULL,
+  reason      TEXT,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── Promo codes ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.promo_codes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  code          TEXT UNIQUE NOT NULL,
+  discount_pct  SMALLINT DEFAULT 0,
+  discount_flat NUMERIC(10,2) DEFAULT 0,
+  max_uses      INTEGER DEFAULT 100,
+  used_count    INTEGER DEFAULT 0,
+  valid_from    TIMESTAMPTZ DEFAULT now(),
+  valid_until   TIMESTAMPTZ,
+  is_active     BOOLEAN DEFAULT true
+);
+
+-- ── Push tokens ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.push_tokens (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  token       TEXT NOT NULL,
+  platform    TEXT CHECK (platform IN ('web','android','ios')),
+  created_at  TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, token)
+);
+
+-- ── Audit logs ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  action      TEXT NOT NULL,
+  entity      TEXT,
+  entity_id   UUID,
+  meta        JSONB,
+  created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- ── Technician jobs (if used by technician role) ────────────────────
+CREATE TABLE IF NOT EXISTS public.technician_jobs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  technician_id   UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  customer_id     UUID REFERENCES public.profiles(id),
+  order_id        UUID REFERENCES public.orders(id),
+  status          TEXT NOT NULL DEFAULT 'PENDING',
+  completed_at    TIMESTAMPTZ,
+  otp             TEXT,
+  otp_verified    BOOLEAN NOT NULL DEFAULT false,
+  customer_rating SMALLINT CHECK (customer_rating BETWEEN 1 AND 5),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── supplier_settings schema extensions (guarded) ───────────────────
+DO $$
+BEGIN
+  IF to_regclass('public.supplier_settings') IS NOT NULL THEN
+    ALTER TABLE public.supplier_settings
+      ADD COLUMN IF NOT EXISTS last_online_at TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS total_earned   NUMERIC(12,2) DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS pending_payout NUMERIC(12,2) DEFAULT 0;
+  END IF;
+END $$;
+
+-- ── technician_jobs schema extensions (guarded) ─────────────────────
+DO $$
+BEGIN
+  IF to_regclass('public.technician_jobs') IS NOT NULL THEN
+    ALTER TABLE public.technician_jobs
+      ADD COLUMN IF NOT EXISTS completed_at    TIMESTAMPTZ,
+      ADD COLUMN IF NOT EXISTS otp             TEXT,
+      ADD COLUMN IF NOT EXISTS otp_verified    BOOLEAN NOT NULL DEFAULT false,
+      ADD COLUMN IF NOT EXISTS customer_rating SMALLINT CHECK (customer_rating BETWEEN 1 AND 5);
+  END IF;
+END $$;
+
+-- ── Functions & triggers (customer tier + final amount + last seen) ─
+CREATE OR REPLACE FUNCTION public.update_customer_tier()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE public.profiles SET tier = CASE
+    WHEN (SELECT COUNT(*) FROM public.orders
+          WHERE customer_id = NEW.customer_id
+            AND status = 'COMPLETED') >= 100 THEN 'platinum'
+    WHEN (SELECT COUNT(*) FROM public.orders
+          WHERE customer_id = NEW.customer_id
+            AND status = 'COMPLETED') >= 50  THEN 'gold'
+    WHEN (SELECT COUNT(*) FROM public.orders
+          WHERE customer_id = NEW.customer_id
+            AND status = 'COMPLETED') >= 20  THEN 'silver'
+    ELSE 'bronze'
+  END
+  WHERE id = NEW.customer_id;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_update_tier ON public.orders;
+CREATE TRIGGER trg_update_tier
+  AFTER INSERT OR UPDATE OF status ON public.orders
+  FOR EACH ROW WHEN (NEW.status = 'COMPLETED')
+  EXECUTE FUNCTION public.update_customer_tier();
+
+CREATE OR REPLACE FUNCTION public.set_order_final_amount()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.final_amount := GREATEST(0,
+    COALESCE(NEW.total_amount, 0) - COALESCE(NEW.discount_amount, 0));
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_final_amount ON public.orders;
+CREATE TRIGGER trg_final_amount
+  BEFORE INSERT OR UPDATE OF total_amount, discount_amount ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.set_order_final_amount();
+
+CREATE OR REPLACE FUNCTION public.update_last_seen()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  UPDATE public.profiles SET last_seen_at = now()
+  WHERE id = NEW.id;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_update_last_seen ON auth.users;
+CREATE TRIGGER trg_update_last_seen
+  AFTER UPDATE ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.update_last_seen();
+
 -- ── Contact submissions (marketing / support) ───────────────────────
 CREATE TABLE IF NOT EXISTS public.contact_submissions (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -172,6 +361,10 @@ ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.founding_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.referral_credits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promo_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- ── Helper: current profile role (avoids recursion in simple cases) ──
 CREATE OR REPLACE FUNCTION public.current_profile_role()
@@ -199,6 +392,11 @@ CREATE POLICY "profiles_update_own_or_admin" ON public.profiles
   WITH CHECK (
     auth.uid() = id OR COALESCE(public.current_profile_role(), '') = 'admin'
   );
+
+-- No DELETE: soft-delete only (deleted_at)
+DROP POLICY IF EXISTS "profiles_delete_admin" ON public.profiles;
+CREATE POLICY "profiles_delete_admin" ON public.profiles
+  FOR DELETE USING (COALESCE(public.current_profile_role(), '') = 'admin');
 
 -- Inserts handled by trigger / service role on signup
 DROP POLICY IF EXISTS "profiles_insert_admin" ON public.profiles;
@@ -256,6 +454,39 @@ CREATE POLICY "orders_update_roles" ON public.orders
 DROP POLICY IF EXISTS "orders_delete_admin" ON public.orders;
 CREATE POLICY "orders_delete_admin" ON public.orders
   FOR DELETE USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── referral_credits (select own; inserts via service role/admin) ───
+DROP POLICY IF EXISTS "referral_credits_select_own" ON public.referral_credits;
+CREATE POLICY "referral_credits_select_own" ON public.referral_credits
+  FOR SELECT USING (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin');
+
+DROP POLICY IF EXISTS "referral_credits_insert_admin" ON public.referral_credits;
+CREATE POLICY "referral_credits_insert_admin" ON public.referral_credits
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── promo_codes (public read active; admin write) ───────────────────
+DROP POLICY IF EXISTS "promo_codes_select_active" ON public.promo_codes;
+CREATE POLICY "promo_codes_select_active" ON public.promo_codes
+  FOR SELECT USING (is_active = true);
+
+DROP POLICY IF EXISTS "promo_codes_write_admin" ON public.promo_codes;
+CREATE POLICY "promo_codes_write_admin" ON public.promo_codes
+  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── push_tokens (CRUD own) ──────────────────────────────────────────
+DROP POLICY IF EXISTS "push_tokens_crud_own" ON public.push_tokens;
+CREATE POLICY "push_tokens_crud_own" ON public.push_tokens
+  FOR ALL USING (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin')
+  WITH CHECK (user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin');
+
+-- ── audit_logs (admin read; inserts via service role/admin) ─────────
+DROP POLICY IF EXISTS "audit_logs_select_admin" ON public.audit_logs;
+CREATE POLICY "audit_logs_select_admin" ON public.audit_logs
+  FOR SELECT USING (COALESCE(public.current_profile_role(), '') = 'admin');
+
+DROP POLICY IF EXISTS "audit_logs_insert_admin" ON public.audit_logs;
+CREATE POLICY "audit_logs_insert_admin" ON public.audit_logs
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
 
 -- ── settings ───────────────────────────────────────────────────────
 DROP POLICY IF EXISTS "settings_select_all" ON public.settings;
@@ -559,13 +790,7 @@ ALTER TABLE public.profiles
 -- Optional KPI tables referenced by /api/admin/dashboard (minimal stubs)
 CREATE TABLE IF NOT EXISTS public.applications (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-  type       TEXT NOT NULL DEFAULT 'supplier' CHECK (type IN ('supplier','technician')),
-  payload    JSONB NOT NULL DEFAULT '{}'::jsonb,
   status     TEXT NOT NULL DEFAULT 'pending',
-  reviewed_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-  reviewed_at TIMESTAMPTZ,
-  rejection_note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -639,172 +864,376 @@ ORDER BY table_name;
 
 
 -- ═══════════════════════════════════════════════════════════════
--- FILE: sql/007_supplier_milestones.sql
+-- FILE: sql/007_geo_payments_waitlist.sql
 -- ═══════════════════════════════════════════════════════════════
 
--- Supplier milestone system + supplier settings tables used by the app.
--- Idempotent and safe to re-run.
+-- AuroWater — geo waitlist, QR payments, agent location, notifications, push, cans
+-- Apply in Supabase SQL Editor after ALL_MIGRATIONS_ORDERED.sql
+-- Then: SELECT pg_notify('pgrst', 'reload schema');
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS cube;
+CREATE EXTENSION IF NOT EXISTS earthdistance;
 
--- ── profiles: milestone fields ────────────────────────────────────
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS completed_orders integer NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS milestone_tier   text NOT NULL DEFAULT 'starter'
-    CHECK (milestone_tier IN ('starter','bronze','silver','gold','platinum')),
-  ADD COLUMN IF NOT EXISTS last_seen_at     timestamptz,
-  ADD COLUMN IF NOT EXISTS status           text NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active','suspended','pending'));
-
--- ── supplier_settings ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.supplier_settings (
-  user_id         uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  is_online       boolean NOT NULL DEFAULT false,
-  price_per_can   numeric(10,2) NOT NULL DEFAULT 12,
-  service_radius  integer NOT NULL DEFAULT 5,
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS public.waitlist (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone       TEXT,
+  email       TEXT,
+  city        TEXT,
+  lat         DOUBLE PRECISION,
+  lng         DOUBLE PRECISION,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.supplier_settings
-  ADD COLUMN IF NOT EXISTS zone_radius_km  integer NOT NULL DEFAULT 5,
-  ADD COLUMN IF NOT EXISTS commission_rate numeric(4,2) NOT NULL DEFAULT 8.00,
-  ADD COLUMN IF NOT EXISTS is_primary_zone boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS auto_accept     boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS upi_id          text,
-  ADD COLUMN IF NOT EXISTS bank_account    text,
-  ADD COLUMN IF NOT EXISTS ifsc            text,
-  ADD COLUMN IF NOT EXISTS qr_code_url     text;
+CREATE TABLE IF NOT EXISTS public.seller_payment_methods (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  seller_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  upi_id          TEXT,
+  qr_image_url    TEXT,
+  bank_name       TEXT,
+  account_holder  TEXT,
+  account_number  TEXT,
+  ifsc_code       TEXT,
+  is_active       BOOLEAN NOT NULL DEFAULT true,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
--- Keep the legacy `service_radius` aligned with `zone_radius_km` for older codepaths.
-CREATE OR REPLACE FUNCTION public.sync_supplier_radius()
+CREATE TABLE IF NOT EXISTS public.order_payments (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id         UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  method           TEXT NOT NULL CHECK (method IN ('qr_scan', 'cash', 'offline')),
+  status           TEXT NOT NULL DEFAULT 'pending'
+                     CHECK (status IN ('pending', 'screenshot_uploaded', 'verified', 'failed')),
+  amount_paise     INTEGER NOT NULL DEFAULT 0,
+  screenshot_url   TEXT,
+  verified_by      UUID REFERENCES auth.users(id),
+  verified_at      TIMESTAMPTZ,
+  notes            TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.agent_locations (
+  agent_id     UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  current_lat  DOUBLE PRECISION,
+  current_lng  DOUBLE PRECISION,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  endpoint    TEXT NOT NULL,
+  p256dh      TEXT NOT NULL,
+  auth        TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (user_id, endpoint)
+);
+
+CREATE TABLE IF NOT EXISTS public.otp_attempts (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone       TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.addresses ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE public.addresses ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_lat DOUBLE PRECISION;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS current_lng DOUBLE PRECISION;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS empty_cans_outstanding INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_seller_id ON public.orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_waitlist_city ON public.waitlist(city);
+CREATE INDEX IF NOT EXISTS idx_otp_attempts_phone_created ON public.otp_attempts(phone, created_at DESC);
+
+ALTER TABLE public.waitlist ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.seller_payment_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_locations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.otp_attempts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS waitlist_insert ON public.waitlist;
+CREATE POLICY waitlist_insert ON public.waitlist FOR INSERT TO anon, authenticated WITH CHECK (true);
+
+DROP POLICY IF EXISTS waitlist_admin_read ON public.waitlist;
+CREATE POLICY waitlist_admin_read ON public.waitlist FOR SELECT TO authenticated
+  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+
+DROP POLICY IF EXISTS seller_pay_own ON public.seller_payment_methods;
+CREATE POLICY seller_pay_own ON public.seller_payment_methods FOR ALL TO authenticated
+  USING (seller_id = auth.uid())
+  WITH CHECK (seller_id = auth.uid());
+
+DROP POLICY IF EXISTS seller_pay_customer_read ON public.seller_payment_methods;
+CREATE POLICY seller_pay_customer_read ON public.seller_payment_methods FOR SELECT TO authenticated
+  USING (is_active = true);
+
+DROP POLICY IF EXISTS order_pay_customer ON public.order_payments;
+CREATE POLICY order_pay_customer ON public.order_payments FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders o
+      WHERE o.id = order_id AND o.customer_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS order_pay_customer_insert ON public.order_payments;
+CREATE POLICY order_pay_customer_insert ON public.order_payments FOR INSERT TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.orders o
+      WHERE o.id = order_id AND o.customer_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS order_pay_seller ON public.order_payments;
+CREATE POLICY order_pay_seller ON public.order_payments FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders o
+      WHERE o.id = order_id AND o.supplier_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS order_pay_admin ON public.order_payments;
+CREATE POLICY order_pay_admin ON public.order_payments FOR ALL TO authenticated
+  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
+
+DROP POLICY IF EXISTS agent_loc_own ON public.agent_locations;
+CREATE POLICY agent_loc_own ON public.agent_locations FOR ALL TO authenticated
+  USING (agent_id = auth.uid())
+  WITH CHECK (agent_id = auth.uid());
+
+DROP POLICY IF EXISTS agent_loc_customer_read ON public.agent_locations;
+CREATE POLICY agent_loc_customer_read ON public.agent_locations FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders o
+      WHERE o.technician_id = agent_locations.agent_id
+        AND o.customer_id = auth.uid()
+        AND o.status NOT IN ('COMPLETED', 'CANCELLED', 'delivered', 'cancelled')
+    )
+  );
+
+DROP POLICY IF EXISTS push_own ON public.push_subscriptions;
+CREATE POLICY push_own ON public.push_subscriptions FOR ALL TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+CREATE OR REPLACE FUNCTION public.assign_nearest_supplier(p_order_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_lat DOUBLE PRECISION;
+  v_lng DOUBLE PRECISION;
+  v_city TEXT;
+  v_supplier UUID;
+BEGIN
+  SELECT a.lat, a.lng, a.city
+    INTO v_lat, v_lng, v_city
+  FROM public.orders o
+  LEFT JOIN public.addresses a ON a.id = o.address_id
+  WHERE o.id = p_order_id;
+
+  IF v_lat IS NULL OR v_lng IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT p.id INTO v_supplier
+  FROM public.profiles p
+  WHERE p.role = 'supplier'
+    AND p.is_active = true
+    AND (p.city IS NULL OR lower(p.city) = lower(v_city))
+    AND p.current_lat IS NOT NULL
+    AND p.current_lng IS NOT NULL
+    AND earth_distance(
+          ll_to_earth(p.current_lat, p.current_lng),
+          ll_to_earth(v_lat, v_lng)
+        ) / 1000.0 <= 15
+  ORDER BY earth_distance(
+             ll_to_earth(p.current_lat, p.current_lng),
+             ll_to_earth(v_lat, v_lng)
+           )
+  LIMIT 1;
+
+  IF v_supplier IS NOT NULL THEN
+    UPDATE public.orders SET supplier_id = v_supplier WHERE id = p_order_id;
+  END IF;
+
+  RETURN v_supplier;
+END;
+$$;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/008_auth_approval.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- Auth approval fields on existing profiles (do not duplicate as user_profiles)
+-- Apply in SQL Editor, then: SELECT pg_notify('pgrst', 'reload schema');
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS business_name TEXT,
+  ADD COLUMN IF NOT EXISTS business_type TEXT,
+  ADD COLUMN IF NOT EXISTS gst_number TEXT,
+  ADD COLUMN IF NOT EXISTS service_area_km INTEGER DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS vehicle_type TEXT,
+  ADD COLUMN IF NOT EXISTS license_number TEXT,
+  ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+  ADD COLUMN IF NOT EXISTS pincode TEXT,
+  ADD COLUMN IF NOT EXISTS address TEXT;
+
+-- Allow pending_approval / rejected alongside existing statuses
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_status_check;
+ALTER TABLE public.profiles
+  ADD CONSTRAINT profiles_status_check
+  CHECK (status IN ('active', 'suspended', 'pending', 'pending_approval', 'rejected', 'banned'));
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  v_role TEXT;
+  v_status TEXT;
 BEGIN
-  IF NEW.zone_radius_km IS NOT NULL THEN
-    NEW.service_radius := NEW.zone_radius_km;
+  v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'customer');
+  IF v_role IN ('seller') THEN v_role := 'supplier'; END IF;
+  IF v_role IN ('agent', 'plumber') THEN v_role := 'technician'; END IF;
+  IF v_role NOT IN ('customer', 'supplier', 'technician', 'admin') THEN
+    v_role := 'customer';
   END IF;
+
+  v_status := CASE
+    WHEN v_role IN ('supplier', 'technician') THEN 'pending_approval'
+    ELSE 'active'
+  END;
+
+  INSERT INTO public.profiles (id, full_name, email, phone, role, status, city)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', 'User'),
+    COALESCE(NEW.email, ''),
+    COALESCE(NEW.raw_user_meta_data->>'phone', NEW.phone, ''),
+    v_role,
+    v_status,
+    NEW.raw_user_meta_data->>'city'
+  )
+  ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS supplier_settings_sync_radius ON public.supplier_settings;
-CREATE TRIGGER supplier_settings_sync_radius
-  BEFORE INSERT OR UPDATE ON public.supplier_settings
-  FOR EACH ROW EXECUTE FUNCTION public.sync_supplier_radius();
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
-DROP TRIGGER IF EXISTS supplier_settings_updated_at ON public.supplier_settings;
-CREATE TRIGGER supplier_settings_updated_at
-  BEFORE UPDATE ON public.supplier_settings
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+SELECT pg_notify('pgrst', 'reload schema');
 
-ALTER TABLE public.supplier_settings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "supplier_settings_select_own_or_admin" ON public.supplier_settings;
-CREATE POLICY "supplier_settings_select_own_or_admin" ON public.supplier_settings
-  FOR SELECT USING (
-    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  );
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/009_cities_waitlist.sql
+-- ═══════════════════════════════════════════════════════════════
 
-DROP POLICY IF EXISTS "supplier_settings_update_own_or_admin" ON public.supplier_settings;
-CREATE POLICY "supplier_settings_update_own_or_admin" ON public.supplier_settings
-  FOR UPDATE USING (
-    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  )
-  WITH CHECK (
-    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  );
+-- Cities catalogue + city_waitlist (demand capture)
+-- RLS uses public.profiles (not user_profiles)
 
-DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
-CREATE POLICY "supplier_settings_insert_admin" ON public.supplier_settings
-  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
-
--- ── supplier_stock (used by seed + supplier flows) ─────────────────
-CREATE TABLE IF NOT EXISTS public.supplier_stock (
-  supplier_id     uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  cans_available  integer NOT NULL DEFAULT 0,
-  low_stock_alert integer NOT NULL DEFAULT 10,
-  updated_at      timestamptz NOT NULL DEFAULT now()
+CREATE TABLE IF NOT EXISTS public.cities (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          TEXT NOT NULL UNIQUE,
+  state         TEXT NOT NULL DEFAULT 'Uttar Pradesh',
+  slug          TEXT NOT NULL UNIQUE,
+  lat           NUMERIC(10,7) NOT NULL,
+  lng           NUMERIC(10,7) NOT NULL,
+  radius_km     INTEGER NOT NULL DEFAULT 25,
+  status        TEXT NOT NULL DEFAULT 'waitlist'
+                  CHECK (status IN ('active', 'coming_soon', 'waitlist')),
+  sort_order    INTEGER DEFAULT 99,
+  is_featured   BOOLEAN DEFAULT false,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.supplier_stock ENABLE ROW LEVEL SECURITY;
+INSERT INTO public.cities (name, slug, lat, lng, radius_km, status, sort_order, is_featured) VALUES
+  ('Gorakhpur', 'gorakhpur', 26.7606, 83.3732, 25, 'active',      1, true),
+  ('Kanpur',    'kanpur',    26.4499, 80.3319, 30, 'active',      2, true),
+  ('Lucknow',   'lucknow',   26.8467, 80.9462, 30, 'active',      3, true),
+  ('Varanasi',  'varanasi',  25.3176, 82.9739, 20, 'coming_soon', 4, true),
+  ('Agra',      'agra',      27.1767, 78.0081, 20, 'coming_soon', 5, false),
+  ('Prayagraj', 'prayagraj', 25.4358, 81.8463, 20, 'waitlist',    6, false),
+  ('Meerut',    'meerut',    28.9845, 77.7064, 20, 'waitlist',    7, false),
+  ('Mathura',   'mathura',   27.4924, 77.6737, 15, 'waitlist',    8, false),
+  ('Bareilly',  'bareilly',  28.3670, 79.4304, 15, 'waitlist',    9, false),
+  ('Aligarh',   'aligarh',   27.8974, 78.0880, 15, 'waitlist',   10, false)
+ON CONFLICT (slug) DO UPDATE SET
+  name = EXCLUDED.name,
+  lat = EXCLUDED.lat,
+  lng = EXCLUDED.lng,
+  radius_km = EXCLUDED.radius_km,
+  status = EXCLUDED.status,
+  sort_order = EXCLUDED.sort_order,
+  is_featured = EXCLUDED.is_featured;
 
-DROP POLICY IF EXISTS "supplier_stock_select_own_or_admin" ON public.supplier_stock;
-CREATE POLICY "supplier_stock_select_own_or_admin" ON public.supplier_stock
-  FOR SELECT USING (
-    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  );
-
-DROP POLICY IF EXISTS "supplier_stock_update_own_or_admin" ON public.supplier_stock;
-CREATE POLICY "supplier_stock_update_own_or_admin" ON public.supplier_stock
-  FOR UPDATE USING (
-    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  )
-  WITH CHECK (
-    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  );
-
-DROP POLICY IF EXISTS "supplier_stock_insert_admin" ON public.supplier_stock;
-CREATE POLICY "supplier_stock_insert_admin" ON public.supplier_stock
-  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
-
--- ── supplier_milestones ────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.supplier_milestones (
-  id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  supplier_id  uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  tier         text NOT NULL,
-  unlocked_at  timestamptz NOT NULL DEFAULT now(),
-  bonus_amount numeric(10,2) DEFAULT 0,
-  notified     boolean NOT NULL DEFAULT false
+CREATE TABLE IF NOT EXISTS public.city_waitlist (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  city_id        UUID REFERENCES public.cities(id) ON DELETE SET NULL,
+  custom_city    TEXT,
+  custom_state   TEXT,
+  name           TEXT NOT NULL,
+  phone          TEXT NOT NULL,
+  email          TEXT,
+  role           TEXT NOT NULL DEFAULT 'customer'
+                   CHECK (role IN ('customer', 'seller', 'agent')),
+  business_name  TEXT,
+  message         TEXT,
+  lat            NUMERIC(10,7),
+  lng            NUMERIC(10,7),
+  status         TEXT NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'notified', 'converted', 'dismissed')),
+  source         TEXT DEFAULT 'register',
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- ── atomic increment helper (used by admin order completion) ───────
-CREATE OR REPLACE FUNCTION public.increment_supplier_completed_orders(p_supplier_id uuid)
-RETURNS void
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  UPDATE public.profiles
-  SET completed_orders = completed_orders + 1
-  WHERE id = p_supplier_id;
-$$;
+CREATE INDEX IF NOT EXISTS idx_waitlist_city_id ON public.city_waitlist(city_id);
+CREATE INDEX IF NOT EXISTS idx_waitlist_role ON public.city_waitlist(role);
+CREATE INDEX IF NOT EXISTS idx_waitlist_status ON public.city_waitlist(status);
+CREATE INDEX IF NOT EXISTS idx_waitlist_created ON public.city_waitlist(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cities_status ON public.cities(status);
 
-ALTER TABLE public.supplier_milestones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.city_waitlist ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "supplier_milestones_select_own_or_admin" ON public.supplier_milestones;
-CREATE POLICY "supplier_milestones_select_own_or_admin" ON public.supplier_milestones
-  FOR SELECT USING (
-    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
-  );
+DROP POLICY IF EXISTS cities_public_read ON public.cities;
+CREATE POLICY cities_public_read ON public.cities FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "supplier_milestones_insert_admin" ON public.supplier_milestones;
-CREATE POLICY "supplier_milestones_insert_admin" ON public.supplier_milestones
-  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+DROP POLICY IF EXISTS admin_manage_cities ON public.cities;
+CREATE POLICY admin_manage_cities ON public.cities FOR ALL TO authenticated
+  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin')
+  WITH CHECK ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
 
--- ── audit_logs (used by admin/settings + routing fallback audits) ───
-CREATE TABLE IF NOT EXISTS public.audit_logs (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_id   uuid REFERENCES public.profiles(id),
-  action     text NOT NULL,
-  entity     text NOT NULL,
-  entity_id  text NOT NULL,
-  meta       jsonb,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+DROP POLICY IF EXISTS waitlist_insert_public ON public.city_waitlist;
+CREATE POLICY waitlist_insert_public ON public.city_waitlist
+  FOR INSERT WITH CHECK (true);
 
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS admin_read_waitlist ON public.city_waitlist;
+CREATE POLICY admin_read_waitlist ON public.city_waitlist FOR SELECT TO authenticated
+  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
 
-DROP POLICY IF EXISTS "audit_logs_admin_all" ON public.audit_logs;
-CREATE POLICY "audit_logs_admin_all" ON public.audit_logs
-  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin')
-  WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
-
--- ── settings: founding member discount key ──────────────────────────
-INSERT INTO public.settings (key, value)
-VALUES ('founding_member_discount', '10')
-ON CONFLICT (key) DO NOTHING;
+DROP POLICY IF EXISTS admin_update_waitlist ON public.city_waitlist;
+CREATE POLICY admin_update_waitlist ON public.city_waitlist FOR UPDATE TO authenticated
+  USING ((SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin');
 
 SELECT pg_notify('pgrst', 'reload schema');
 

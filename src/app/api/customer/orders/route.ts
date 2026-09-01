@@ -12,6 +12,7 @@ import {
   postgrestTableUnavailableUserMessage,
 } from '@/lib/supabase/postgrest-errors';
 import { createServiceClient } from '@/utils/supabase/server';
+import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 
 async function settingsMap(
   sb: ReturnType<typeof import('@/lib/db/supabase').createSupabaseUserClient>
@@ -152,6 +153,16 @@ export async function POST(req: NextRequest) {
   }
   if (!addr) {
     return jsonErr('Address not found', 404);
+  }
+
+  const addrLat = Number((addr as { lat?: number }).lat);
+  const addrLng = Number((addr as { lng?: number }).lng);
+  const inZone =
+    Number.isFinite(addrLat) && Number.isFinite(addrLng)
+      ? getServiceZone(addrLat, addrLng) !== null
+      : isCityServed(String(addr.city ?? ''));
+  if (!inZone) {
+    return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
   }
 
   const settingsResult = await settingsMap(auth.ctx.supabase);

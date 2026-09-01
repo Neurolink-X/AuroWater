@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { safeGet, safeSet } from '@/lib/storage';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -146,7 +147,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
 
 const CACHE_KEY        = 'aw_settings_v3';
 const CACHE_TS_KEY     = 'aw_settings_v3_ts';
-const DEFAULT_STALE_MS = 15 * 60 * 1000; // 15 min
+const DEFAULT_STALE_MS = 60 * 1000; // 60s — settings rarely change
 
 /* ═══════════════════════════════════════════════════════════════
    PURE HELPERS  (no React deps — independently testable)
@@ -254,7 +255,7 @@ type ApiEnvelope<T> = { success?: boolean; data?: T; error?: string };
 async function apiFetchSettings(
   signal?: AbortSignal
 ): Promise<Partial<PlatformSettings>> {
-  const res = await fetch('/api/settings', { cache: 'no-store', signal });
+  const res = await fetch('/api/settings', { signal });
   if (!res.ok) throw new Error(`Settings API ${res.status}: ${res.statusText}`);
   const json = (await res.json()) as ApiEnvelope<Partial<PlatformSettings>>;
   if (json?.success === false) throw new Error(json.error ?? 'API returned success:false');
@@ -283,21 +284,15 @@ async function apiSaveSettings(
 ═══════════════════════════════════════════════════════════════ */
 
 function readCache(): { settings: Partial<PlatformSettings> | null; ts: number } {
-  if (typeof window === 'undefined') return { settings: null, ts: 0 };
   return {
-    settings: safeParse<Partial<PlatformSettings>>(localStorage.getItem(CACHE_KEY)),
-    ts:       Number(localStorage.getItem(CACHE_TS_KEY) ?? '0'),
+    settings: safeParse<Partial<PlatformSettings>>(safeGet(CACHE_KEY)),
+    ts:       Number(safeGet(CACHE_TS_KEY) ?? '0'),
   };
 }
 
 function writeCache(s: PlatformSettings): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(CACHE_KEY,    JSON.stringify(s));
-    localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
-  } catch {
-    // Quota exceeded — silently skip
-  }
+  safeSet(CACHE_KEY, JSON.stringify(s));
+  safeSet(CACHE_TS_KEY, String(Date.now()));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -309,11 +304,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
    * Initialise synchronously from cache so the first render already has
    * real data (avoids flash of fallback values on page load).
    */
-  const [settings, setSettings] = React.useState<PlatformSettings>(() => {
-    const { settings: cached, ts } = readCache();
-    const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
-    return fresh ? mergeSettings(cached) : DEFAULT_SETTINGS;
-  });
+  const [settings, setSettings] = React.useState<PlatformSettings>(DEFAULT_SETTINGS);
 
   const [loading, setLoading] = React.useState(true);
   const [saving,  setSaving]  = React.useState(false);
@@ -326,6 +317,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const kill = window.setTimeout(() => ctrl.abort(), 5000);
 
     setLoading(true);
     setError(null);
@@ -337,12 +329,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
         setSettings(next);
         writeCache(next);
       }
-    } catch (e: unknown) {
-      if (ctrl.signal.aborted) return;
-      setError(e instanceof Error ? e.message : 'Failed to load settings');
-      // Keep current state — UI never breaks
+    } catch {
+      /* keep defaults */
     } finally {
-      if (!ctrl.signal.aborted) setLoading(false);
+      window.clearTimeout(kill);
+      setLoading(false);
     }
   }, []);
 

@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { getServiceZone, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
+import { PINCODE, sanitiseText } from '@/lib/sanitise';
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
@@ -36,15 +38,15 @@ export async function POST(req: NextRequest) {
     return jsonErr('Invalid JSON body', 400);
   }
 
-  const house_flat = typeof body.house_flat === 'string' ? body.house_flat.trim() : '';
-  const area = typeof body.area === 'string' ? body.area.trim() : '';
-  const city = typeof body.city === 'string' ? body.city.trim() : '';
+  const house_flat = sanitiseText(typeof body.house_flat === 'string' ? body.house_flat : '');
+  const area = sanitiseText(typeof body.area === 'string' ? body.area : '');
+  const city = sanitiseText(typeof body.city === 'string' ? body.city : '', 80);
   const pincode = typeof body.pincode === 'string' ? body.pincode.trim() : '';
 
   if (!house_flat || !city || !pincode) {
     return jsonErr('house_flat, city, and pincode are required', 400);
   }
-  if (!/^\d{6}$/.test(pincode)) {
+  if (!PINCODE.test(pincode)) {
     return jsonErr('pincode must be 6 digits', 400);
   }
   if (!city.trim()) {
@@ -54,15 +56,30 @@ export async function POST(req: NextRequest) {
     return jsonErr('house_flat is required', 400);
   }
 
+  const lat = Number(body.lat);
+  const lng = Number(body.lng);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  if (hasCoords) {
+    if (!getServiceZone(lat, lng)) {
+      return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
+    }
+  } else {
+    const served = ['gorakhpur', 'kanpur', 'lucknow'].includes(city.toLowerCase());
+    if (!served) {
+      return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
+    }
+  }
+
   const row = {
     user_id: auth.ctx.profile.id,
-    label: typeof body.label === 'string' ? body.label : 'Home',
+    label: typeof body.label === 'string' ? sanitiseText(body.label, 40) : 'Home',
     house_flat,
     area,
     city,
     pincode,
-    landmark: typeof body.landmark === 'string' ? body.landmark : null,
+    landmark: typeof body.landmark === 'string' ? sanitiseText(body.landmark, 120) : null,
     is_default: Boolean(body.is_default),
+    ...(hasCoords ? { lat, lng } : {}),
   };
 
   const { data: created, error } = await auth.ctx.supabase.from('addresses').insert(row).select('*').single();

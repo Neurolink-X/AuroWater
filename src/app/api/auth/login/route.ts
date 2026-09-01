@@ -29,13 +29,18 @@ export async function POST(req: NextRequest) {
     return jsonErr('Invalid JSON body', 400);
   }
 
-  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';
-  const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+  const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(-10) : '';
+
+  let email = emailRaw;
+  if (!email && /^\d{10}$/.test(phone)) {
+    email = `${phone}@users.aurotap.in`;
+  }
   const city = typeof body.city === 'string' ? body.city.trim() : '';
 
   if (!email || !password) {
-    return jsonErr('email and password are required', 400);
+    return jsonErr('Phone or email, and password, are required', 400);
   }
 
   const sb = createSupabaseAnonClient();
@@ -139,14 +144,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (resolved.status === 'suspended') {
-    return jsonErr('Account suspended', 403, 'ACCOUNT_SUSPENDED');
+  if (resolved.status === 'suspended' || resolved.status === 'banned') {
+    return jsonErr('Account suspended. Contact support.', 403, 'ACCOUNT_SUSPENDED');
+  }
+  if (resolved.status === 'rejected') {
+    return jsonErr(
+      resolved.rejection_reason
+        ? `Application rejected: ${resolved.rejection_reason}`
+        : 'Application was rejected. Contact support.',
+      403,
+      'ACCOUNT_REJECTED'
+    );
   }
   if (
-    resolved.status === 'pending' &&
+    (resolved.status === 'pending' || resolved.status === 'pending_approval') &&
     (resolved.role === 'supplier' || resolved.role === 'technician')
   ) {
-    return jsonErr('Application pending approval', 403, 'APPLICATION_PENDING');
+    return jsonErr('Your account is still under review.', 403, 'PENDING_APPROVAL');
   }
 
   // Fire-and-forget: update last_seen_at (never block login response).

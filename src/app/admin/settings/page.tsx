@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { adminSettingsGet, adminSettingsPut } from '@/lib/api-client';
+import { safeRemove } from '@/lib/storage';
 
 /** Keys validated by `PUT /api/admin/settings` (must match server SETTINGS_SCHEMA). */
 const MANAGED_KEYS = [
@@ -118,12 +119,8 @@ export default function AdminSettingsPage() {
         }
       }
       await adminSettingsPut(body);
-      try {
-        localStorage.removeItem('aw_settings_v3');
-        localStorage.removeItem('aw_settings_v3_ts');
-      } catch {
-        /* ignore */
-      }
+      safeRemove('aw_settings_v3');
+      safeRemove('aw_settings_v3_ts');
       toast.success('Settings saved. Public pricing will pick up changes on next cache refresh.');
       void load();
     } catch (e: unknown) {

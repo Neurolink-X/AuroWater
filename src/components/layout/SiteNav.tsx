@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { useAuth } from '@/hooks/useAuth';
+import { safeGet } from '@/lib/storage';
 
 /* ─────────────────────────────────────────────
    ICONS
@@ -105,8 +106,8 @@ export default function SiteNav({ offsetPx = 0 }: { offsetPx?: number }) {
     if (typeof window === 'undefined') return;
     try {
       if (
-        localStorage.getItem('aw_announcement_dismissed') === '1' ||
-        localStorage.getItem('aurowater_bar_dismissed') === '1'
+        safeGet('aw_announcement_dismissed') === '1' ||
+        safeGet('aurowater_bar_dismissed') === '1'
       ) {
         setAnnouncementTopPx(0);
       }

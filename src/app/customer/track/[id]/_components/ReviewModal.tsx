@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { toast } from 'sonner';
 
 import { api } from '@/lib/api-client';
+import { safeSet } from '@/lib/storage';
 
 type ReviewModalProps = {
   orderId: string;
@@ -48,9 +49,7 @@ export function ReviewModal({ orderId, onClose }: ReviewModalProps) {
         stars,
         comment: comment.trim() || undefined,
       });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(`reviewed_${orderId}`, '1');
-      }
+      safeSet(`reviewed_${orderId}`, '1');
       toast.success('Thanks for your review!');
       onClose();
     } catch (e: unknown) {

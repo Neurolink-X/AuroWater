@@ -258,6 +258,10 @@ function LoginPageInner() {
                 {googleLoading ? 'Redirecting to Google…' : 'Continue with Google'}
               </button>
 
+              <Link href="/auth/otp" className="block w-full rounded-xl border border-cyan-200 bg-cyan-50 py-3 text-center font-extrabold text-cyan-900 hover:bg-cyan-100">
+                Sign in with OTP (SMS)
+              </Link>
+
               <div className="text-sm text-slate-600 pt-2">
                 Don&apos;t have an account?{' '}
                 <Link href="/auth/register" className="text-[#0D9B6C] font-extrabold hover:underline">

@@ -110,7 +110,6 @@
 
 
 import type { Metadata, Viewport } from 'next';
-import Script from 'next/script';
 import './globals.css';
 import AuthPkceBridge from '@/components/auth/AuthPkceBridge';
 import RootChrome from '@/components/layout/RootChrome';
@@ -167,7 +166,7 @@ export const metadata: Metadata = {
 
   /* ── Titles ─────────────────────────────────────────────────────────── */
   title: {
-    default:  `${APP_NAME} — Pure Water & Plumber On Demand | Delhi & UP`,
+    default: 'AuroWater | Fresh Water Delivery in Gorakhpur, Kanpur & Lucknow',
     template: `%s | ${APP_NAME}`,
   },
 
@@ -383,7 +382,6 @@ export default function RootLayout({
            * Must render before RootChrome so session is established first.
            */}
           <AuthPkceBridge />
-
           <RootChrome>{children}</RootChrome>
 
           {/*

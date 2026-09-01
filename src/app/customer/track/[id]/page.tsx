@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { inr } from '@/hooks/useSettings';
 import BottomNav from '@/components/customer/BottomNav';
+import { safeGet } from '@/lib/storage';
 
 type ProfileLite = {
   id: string;
@@ -141,7 +142,7 @@ export default function TrackOrderPage() {
 
   useEffect(() => {
     if (order?.status !== 'COMPLETED' || typeof window === 'undefined') return;
-    if (localStorage.getItem(`reviewed_${id}`)) return;
+    if (safeGet(`reviewed_${id}`)) return;
     const t = window.setTimeout(() => setShowReview(true), 1200);
     return () => window.clearTimeout(t);
   }, [order?.status, id]);

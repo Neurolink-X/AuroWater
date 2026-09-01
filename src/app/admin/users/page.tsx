@@ -22,6 +22,7 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: 'green' | 
 }
 
 export default function AdminUsersPage() {
+  const [view, setView] = useState<'pending' | 'all' | 'suspended'>('pending');
   const [roleTab, setRoleTab] = useState<RoleTab>('ALL');
   const [q, setQ] = useState('');
   const [rawRows, setRawRows] = useState<AdminUserRow[]>([]);
@@ -35,10 +36,12 @@ export default function AdminUsersPage() {
     setLoading(true);
     setError(null);
     try {
-      const params: { role?: string; search?: string; limit: number; offset: number } = {
+      const params: { role?: string; search?: string; status?: string; limit: number; offset: number } = {
         limit: 200,
         offset: 0,
       };
+      if (view === 'pending') params.status = 'pending_approval';
+      if (view === 'suspended') params.status = 'suspended';
       if (roleTab !== 'ALL') params.role = roleTab.toLowerCase();
       if (q.trim()) params.search = q.trim();
       const res = await adminUsersWithMeta(params);
@@ -49,7 +52,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [roleTab, q]);
+  }, [roleTab, q, view]);
 
   useEffect(() => {
     if (!q.trim()) {
@@ -95,8 +98,22 @@ export default function AdminUsersPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Users</h1>
         <p className="text-sm text-slate-300 mt-1">
-          {totalCount} account(s) on server · showing {rows.length} for this tab/search.
+          {totalCount} account(s) · {view} view.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(['pending', 'all', 'suspended'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={`rounded-xl px-4 py-2 text-sm font-medium ${
+                view === v ? 'bg-cyan-500 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-200'
+              }`}
+            >
+              {v === 'pending' ? 'Pending approval' : v === 'all' ? 'All users' : 'Suspended'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-card p-4 sm:p-5">
@@ -221,7 +238,30 @@ export default function AdminUsersPage() {
                           <span className="text-slate-300 font-mono text-[11px]">{u.id.slice(0, 8)}…</span>
                           {u.phone ? <span> · {u.phone}</span> : null}
                           {u.email ? <span className="text-slate-500"> · {u.email}</span> : null}
+                          {u.status ? <span className="ml-2 text-cyan-300">{u.status}</span> : null}
                         </div>
+                        {view === 'pending' ? (
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              className="rounded-lg bg-emerald-600 px-3 py-1 text-xs font-bold text-white"
+                              onClick={() => void adminUserUpdate(u.id, { status: 'active' }).then(() => load())}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-lg bg-rose-600 px-3 py-1 text-xs font-bold text-white"
+                              onClick={() => {
+                                const reason = window.prompt('Reason for rejection');
+                                if (!reason?.trim()) return;
+                                void adminUserUpdate(u.id, { status: 'rejected', rejection_reason: reason }).then(() => load());
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex flex-col gap-2 max-w-[200px]">

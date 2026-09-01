@@ -8,6 +8,8 @@ import type { User } from '@/types';
 
 const NAV = [
   { href: '/admin/dashboard', label: 'Dashboard' },
+  { href: '/admin/dashboard/users', label: 'Approvals' },
+  { href: '/admin/dashboard/waitlist', label: 'Waitlist' },
   { href: '/admin/finance', label: 'Finance' },
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/users', label: 'Users' },

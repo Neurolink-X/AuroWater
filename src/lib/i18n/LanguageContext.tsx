@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { translations, type Language } from './translations';
+import { safeGet, safeSet } from '@/lib/storage';
 
 interface LanguageContextValue {
   language: Language;
@@ -23,18 +24,19 @@ const STORAGE_KEY = 'auro_lang';
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const stored = window.localStorage.getItem(STORAGE_KEY) as Language | null;
+    const stored = safeGet(STORAGE_KEY) as Language | null;
     if (stored === 'hi' || stored === 'en') {
       setLanguageState(stored);
     }
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(STORAGE_KEY, language);
+    if (!hydrated) return;
+    safeSet(STORAGE_KEY, language);
 
     // Apply font-family override for Hindi
     const body = document.body;

@@ -8,6 +8,7 @@ import type { ApiAddress } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import GlassCard from '@/components/ui/GlassCard';
 import BottomNav from '@/components/customer/BottomNav';
+import { ACTIVE_CITY_NAMES } from '@/lib/cities';
 
 type Address = {
   id: string;
@@ -20,22 +21,6 @@ type Address = {
   createdAt: number;
   isDefault?: boolean;
 };
-
-const UP_CITIES = [
-  'Kanpur',
-  'Gorakhpur',
-  'Lucknow',
-  'Varanasi',
-  'Prayagraj',
-  'Agra',
-  'Meerut',
-  'Bareilly',
-  'Aligarh',
-  'Mathura',
-  'Delhi',
-  'Noida',
-  'Ghaziabad',
-] as const;
 
 function mapApiToUi(a: ApiAddress): Address {
   return {
@@ -57,7 +42,7 @@ function isValidPincode(pin: string) {
 
 function isValidCity(city: string) {
   const normalized = city.trim().toLowerCase();
-  return UP_CITIES.some((c) => c.toLowerCase() === normalized);
+  return ACTIVE_CITY_NAMES.some((c) => c.toLowerCase() === normalized);
 }
 
 export default function AddressesPage() {
@@ -217,7 +202,7 @@ export default function AddressesPage() {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="">Select City</option>
-                {UP_CITIES.map((c) => (
+                {ACTIVE_CITY_NAMES.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>

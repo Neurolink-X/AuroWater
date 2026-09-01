@@ -9,6 +9,7 @@ import { seedSupplierRegistrationDefaults } from '@/lib/auth/seed-supplier-regis
 import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
 import { createServiceClient } from '@/utils/supabase/server';
 import type { ProfileRow } from '@/lib/db/types';
+import { needsApproval, phoneToAuthEmail, uiRoleToDb } from '@/lib/auth/roles';
 
 export async function POST(req: NextRequest) {
   if (!isSupabaseConfigured()) {
@@ -22,15 +23,14 @@ export async function POST(req: NextRequest) {
     return jsonErr('Invalid JSON body', 400);
   }
 
-  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
   const password = typeof body.password === 'string' ? body.password : '';
   const full_name = typeof body.full_name === 'string' ? body.full_name.trim() : '';
-  const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
-  const roleRaw = typeof body.role === 'string' ? body.role.toLowerCase() : 'customer';
-  const role =
-    roleRaw === 'technician' || roleRaw === 'supplier' || roleRaw === 'admin'
-      ? roleRaw
-      : 'customer';
+  const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(-10) : '';
+  const city = typeof body.city === 'string' ? body.city.trim() : '';
+  const pincode = typeof body.pincode === 'string' ? body.pincode.trim() : '';
+  const role = uiRoleToDb(typeof body.role === 'string' ? body.role : 'customer');
+  const email = emailRaw || (phone ? phoneToAuthEmail(phone) : '');
 
   if (role === 'admin') {
     const expected = process.env.ADMIN_INVITE_CODE?.trim();
@@ -40,11 +40,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!email || !password || !full_name) {
-    return jsonErr('full_name, email, and password are required', 400);
+  if (!password || !full_name || !phone) {
+    return jsonErr('full_name, phone, and password are required', 400);
   }
-  if (password.length < 6) {
-    return jsonErr('Password must be at least 6 characters', 400);
+  if (!/^[6-9]\d{9}$/.test(phone)) {
+    return jsonErr('Enter a valid 10-digit Indian mobile number', 400);
+  }
+  if (password.length < 8) {
+    return jsonErr('Password must be at least 8 characters', 400);
   }
 
   const sb = createSupabaseAnonClient();
@@ -56,6 +59,13 @@ export async function POST(req: NextRequest) {
         full_name,
         phone,
         role,
+        city,
+        pincode,
+        business_name: typeof body.business_name === 'string' ? body.business_name : undefined,
+        business_type: typeof body.business_type === 'string' ? body.business_type : undefined,
+        gst_number: typeof body.gst_number === 'string' ? body.gst_number : undefined,
+        vehicle_type: typeof body.vehicle_type === 'string' ? body.vehicle_type : undefined,
+        license_number: typeof body.license_number === 'string' ? body.license_number : undefined,
       },
     },
   });
@@ -65,10 +75,13 @@ export async function POST(req: NextRequest) {
   }
 
   const session = data.session;
+  const pending = needsApproval(role);
+
   if (!session?.access_token) {
     return jsonOk(
       {
-        needsEmailConfirmation: true as const,
+        needsEmailConfirmation: false as const,
+        pending,
         email,
       },
       201
@@ -122,12 +135,25 @@ export async function POST(req: NextRequest) {
     await seedSupplierRegistrationDefaults(resolved.id);
   }
 
+  if (needsApproval(resolved.role)) {
+    const extra: Record<string, unknown> = { status: 'pending_approval' };
+    if (city) extra.city = city;
+    if (pincode) extra.pincode = pincode;
+    if (typeof body.business_name === 'string') extra.business_name = body.business_name;
+    if (typeof body.business_type === 'string') extra.business_type = body.business_type;
+    if (typeof body.gst_number === 'string') extra.gst_number = body.gst_number;
+    if (typeof body.vehicle_type === 'string') extra.vehicle_type = body.vehicle_type;
+    if (typeof body.license_number === 'string') extra.license_number = body.license_number;
+    await userSb.from('profiles').update(extra).eq('id', resolved.id);
+  }
+
   return jsonOk(
     {
       access_token: session.access_token,
       refresh_token: session.refresh_token,
       expires_at: session.expires_at ?? null,
       profile: resolved,
+      pending: needsApproval(resolved.role),
     },
     201
   );

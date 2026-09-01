@@ -15,6 +15,7 @@ import {
   type SupplierEarningsSummary,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
+import { safeGet, safeSet } from '@/lib/storage';
 
 type TabKey =
   | 'overview'
@@ -214,9 +215,9 @@ export default function SupplierDashboardPage() {
   }, []);
 
   React.useEffect(() => {
-    const f = safeParse<Tanker[]>(localStorage.getItem(FLEET_KEY));
-    const p = safeParse<SupplierProfile>(localStorage.getItem(PROFILE_KEY));
-    const d = safeParse<SupplierDoc[]>(localStorage.getItem(DOCS_KEY));
+    const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
+    const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
+    const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
 
     const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
     const nextProfile = p ?? seedProfile();
@@ -226,9 +227,9 @@ export default function SupplierDashboardPage() {
     setProfile(nextProfile);
     setDocs(nextDocs);
 
-    localStorage.setItem(FLEET_KEY, JSON.stringify(nextFleet));
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(nextProfile));
-    localStorage.setItem(DOCS_KEY, JSON.stringify(nextDocs));
+    safeSet(FLEET_KEY, JSON.stringify(nextFleet));
+    safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
+    safeSet(DOCS_KEY, JSON.stringify(nextDocs));
   }, []);
 
   React.useEffect(() => {
@@ -267,15 +268,15 @@ export default function SupplierDashboardPage() {
   };
   const persistFleet = (next: Tanker[]) => {
     setFleet(next);
-    localStorage.setItem(FLEET_KEY, JSON.stringify(next));
+    safeSet(FLEET_KEY, JSON.stringify(next));
   };
   const persistProfile = (next: SupplierProfile) => {
     setProfile(next);
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
+    safeSet(PROFILE_KEY, JSON.stringify(next));
   };
   const persistDocs = (next: SupplierDoc[]) => {
     setDocs(next);
-    localStorage.setItem(DOCS_KEY, JSON.stringify(next));
+    safeSet(DOCS_KEY, JSON.stringify(next));
   };
 
   const filteredOrders = React.useMemo(() => {

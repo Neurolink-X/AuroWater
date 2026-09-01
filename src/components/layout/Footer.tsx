@@ -130,7 +130,6 @@
 
 import Link from 'next/link';
 import React from 'react';
-import { usePathname } from 'next/navigation';
 
 /* ─────────────────────────────────────────────
    ICONS — all inline, no external deps
@@ -196,15 +195,18 @@ const IconDroplet = () => (
    DATA
 ───────────────────────────────────────────── */
 const NAV_LINKS = [
-  { label: 'Home',        href: '/' },
-  { label: 'Services',   href: '/services' },
-  { label: 'How It Works', href: '/how-it-works' },
-  { label: 'Pricing',    href: '/pricing' },
+  { label: 'Home', href: '/' },
+  { label: 'About', href: '/about' },
+  { label: 'Contact', href: '/contact' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Book', href: '/book' },
   { label: 'Technicians', href: '/technicians' },
-  { label: 'About Us',   href: '/about' },
-  { label: 'Contact',    href: '/contact' },
-  { label: 'Dashboard',  href: '/dashboard' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
+  { label: 'Cookies', href: '/cookies' },
 ];
+
+const CITIES = ['Gorakhpur', 'Kanpur', 'Lucknow'] as const;
 
 const SERVICE_LINKS = [
   { label: 'RO Water Can Delivery', href: '/book?service=water_can' },
@@ -239,16 +241,6 @@ const TRUST_BADGES = [
    FOOTER COMPONENT
 ───────────────────────────────────────────── */
 export default function Footer() {
-  const pathname = usePathname() ?? '';
-  if (
-    pathname.startsWith('/customer') ||
-    pathname.startsWith('/supplier') ||
-    pathname.startsWith('/technician') ||
-    pathname.startsWith('/admin')
-  ) {
-    return null;
-  }
-
   return (
     <>
       <style>{`
@@ -566,8 +558,16 @@ export default function Footer() {
                 <span className="ft-brand-wordmark">AuroWater</span>
               </div>
               <p className="ft-brand-desc">
-                India's most transparent water service platform. Pure water cans, verified technicians, and reliable scheduling — across 13 UP cities.
+                Fresh water cans delivered daily across Uttar Pradesh. Same-day service, QR or cash — no app store required.
               </p>
+              <div className="ft-trust-badges" aria-label="Cities we serve">
+                {CITIES.map((city) => (
+                  <div key={city} className="ft-trust-badge">
+                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Available in</div>
+                    <div className="ft-trust-badge-lbl">{city}</div>
+                  </div>
+                ))}
+              </div>
 
               {/* Trust badges */}
               <div className="ft-trust-badges">
@@ -675,11 +675,13 @@ export default function Footer() {
           </div>
 
           <div className="ft-bottom-links">
-            <Link href="/privacy" className="ft-bottom-link">Privacy Policy</Link>
+            <Link href="/privacy" className="ft-bottom-link">Privacy</Link>
             <span className="ft-bottom-sep" />
-            <Link href="/terms" className="ft-bottom-link">Terms of Service</Link>
+            <Link href="/terms" className="ft-bottom-link">Terms</Link>
             <span className="ft-bottom-sep" />
-            <Link href="/sitemap" className="ft-bottom-link">Sitemap</Link>
+            <Link href="/cookies" className="ft-bottom-link">Cookies</Link>
+            <span className="ft-bottom-sep" />
+            <Link href="/security" className="ft-bottom-link">Security</Link>
           </div>
 
           <div className="ft-made-with">

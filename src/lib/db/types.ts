@@ -155,7 +155,7 @@
 ══════════════════════════════════════════════════ */
 
 export type ProfileRole    = 'customer' | 'supplier' | 'technician' | 'admin';
-export type ProfileStatus  = 'active'   | 'suspended' | 'pending' | 'banned';
+export type ProfileStatus  = 'active' | 'suspended' | 'pending' | 'pending_approval' | 'rejected' | 'banned';
 
 export type OrderStatus    = 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
 export type PaymentStatus  = 'pending' | 'paid' | 'refunded' | 'failed';
@@ -197,6 +197,8 @@ export interface ProfileRow {
   last_seen_at?:       string | null;
   language?:           string | null;
   deleted_at?:         string | null;
+  rejection_reason?:   string | null;
+  business_name?:      string | null;
   device_token?:       string | null;
   /** Legacy/other surfaces (may come from joins/views) */
   is_online?:          boolean | null;

@@ -19,6 +19,7 @@
 
 import React from 'react';
 import { customerOrdersList, getToken, type ApiOrder } from '@/lib/api-client';
+import { safeGet, safeSet } from '@/lib/storage';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -226,14 +227,12 @@ function safeParse<T>(raw: string | null): T | null {
 }
 
 function readFromStorage(): StoredOrder[] {
-  if (typeof window === 'undefined') return [];
-  const parsed = safeParse<StoredOrder[]>(localStorage.getItem(STORAGE_KEY));
+  const parsed = safeParse<StoredOrder[]>(safeGet(STORAGE_KEY));
   return Array.isArray(parsed) ? parsed : [];
 }
 
 function writeToStorage(orders: StoredOrder[]): void {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(orders)); } catch { /* quota */ }
+  safeSet(STORAGE_KEY, JSON.stringify(orders));
 }
 
 function mapApiOrderToStored(o: ApiOrder): StoredOrder {
@@ -378,12 +377,8 @@ export function calcOrderBreakdown(
 ═══════════════════════════════════════════════════════════════ */
 
 export function useOrders(): UseOrdersReturn {
-  /**
-   * Synchronous init — reads localStorage before first render.
-   * Eliminates the loading flicker entirely.
-   */
-  const [orders, setOrders] = React.useState<StoredOrder[]>(() => readFromStorage());
-  const [loading, setLoading] = React.useState<boolean>(() => typeof window === 'undefined');
+  const [orders, setOrders] = React.useState<StoredOrder[]>([]);
+  const [loading, setLoading] = React.useState(true);
 
   /* ── Client hydration (SSR → client handoff) ── */
   React.useEffect(() => {

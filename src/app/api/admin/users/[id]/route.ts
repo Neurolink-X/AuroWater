@@ -34,8 +34,19 @@ export async function PUT(
   if (typeof body.full_name === 'string') {
     patch.full_name = body.full_name;
   }
-  if (typeof body.phone === 'string') {
-    patch.phone = body.phone;
+  if (typeof body.status === 'string') {
+    const s = body.status.toLowerCase();
+    if (['active', 'suspended', 'pending_approval', 'pending', 'rejected'].includes(s)) {
+      patch.status = s;
+      if (s === 'active') {
+        patch.approved_at = new Date().toISOString();
+        patch.approved_by = auth.ctx.profile.id;
+        patch.is_active = true;
+      }
+      if (s === 'rejected' && typeof body.rejection_reason === 'string') {
+        patch.rejection_reason = body.rejection_reason;
+      }
+    }
   }
 
   if (Object.keys(patch).length === 0) {

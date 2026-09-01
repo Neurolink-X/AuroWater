@@ -1530,6 +1530,7 @@ import {
   getApiErrorMessage,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
+import { safeGet as lsGet, safeSet as lsSet } from '@/lib/storage';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -1647,18 +1648,6 @@ const KEYS = {
   PAYOUT: 'aurowater_tech_payout_history',
   USER_PROFILE: 'aurowater_profile',
 } as const;
-
-// ─── SSR-safe localStorage helpers ───────────────────────────────────────────
-
-function lsGet(key: string): string | null {
-  if (typeof window === 'undefined') return null;
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-
-function lsSet(key: string, val: string): void {
-  if (typeof window === 'undefined') return;
-  try { localStorage.setItem(key, val); } catch { /* ignore */ }
-}
 
 function safeParse<T>(raw: string | null): T | null {
   if (!raw) return null;
