@@ -143,10 +143,10 @@ export interface Notification {
 
 // API Request/Response Types
 export interface ApiResponse<T> {
-  success: boolean;
   data?: T;
   error?: string;
   message?: string;
+  details?: unknown;
 }
 
 export interface AuthToken {

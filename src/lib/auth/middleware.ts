@@ -9,18 +9,18 @@ export async function withAuth(
   const token = getTokenFromRequest(req);
 
   if (!token) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const decoded = verifyToken(token);
 
   if (!decoded) {
-    return NextResponse.json({ success: false, error: 'Invalid token' }, { status: 401 });
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
   }
 
   if (requiredRole && decoded.role !== requiredRole) {
     return NextResponse.json(
-      { success: false, error: 'Access denied' },
+      { error: 'Access denied' },
       { status: 403 }
     );
   }

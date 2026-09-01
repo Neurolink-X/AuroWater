@@ -1,180 +1,70 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne, transaction } from '@/lib/db/connection';
-import { withAuth } from '@/lib/auth/middleware';
-import { errorResponse, successResponse } from '@/lib/utils/helpers';
+import { NextRequest } from 'next/server';
+import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
+/** Legacy list — technician orders from Supabase. */
 export async function GET(req: NextRequest) {
-  return withAuth(req, async (req, user) => {
-    try {
-      const { searchParams } = new URL(req.url);
-      const status = searchParams.get('status') || 'PENDING';
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireRole(auth.ctx, 'technician')) return jsonErr('Forbidden', 403);
 
-      // Get technician record
-      const technician = await queryOne(
-        'SELECT id FROM technicians WHERE user_id = $1',
-        [user.id]
-      );
+  const { searchParams } = new URL(req.url);
+  const status = searchParams.get('status') ?? undefined;
+  const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
+  const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit') ?? '20') || 20));
+  const offset = (page - 1) * limit;
 
-      if (!technician) {
-        return NextResponse.json(errorResponse('Technician profile not found'), { status: 404 });
-      }
+  let q = auth.ctx.supabase
+    .from('orders')
+    .select('*', { count: 'exact' })
+    .eq('technician_id', auth.ctx.profile.id)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
 
-      const jobs = await query(
-        `SELECT j.*, o.id as order_id, o.total_amount, o.time_slot, o.scheduled_time,
-                st.name as service_name, a.house_no, a.area, a.city, a.lat, a.lng,
-                cu.full_name as customer_name, cu.phone as customer_phone
-         FROM jobs j
-         JOIN orders o ON j.order_id = o.id
-         JOIN service_types st ON o.service_type_id = st.id
-         JOIN addresses a ON o.address_id = a.id
-         JOIN users cu ON o.customer_id = cu.id
-         WHERE j.technician_id = $1 AND j.status = $2
-         ORDER BY j.assigned_at ASC`,
-        [technician.id, status]
-      );
+  if (status) q = q.eq('status', status);
 
-      return NextResponse.json(successResponse(jobs), { status: 200 });
-    } catch (error: any) {
-      console.error('Get jobs error:', error);
-      return NextResponse.json(errorResponse(error.message || 'Failed to fetch jobs'), {
-        status: 500,
-      });
-    }
-  }, 'TECHNICIAN');
+  const { data, error, count } = await q;
+  if (error) return jsonErr(error.message, 502);
+
+  const total = count ?? 0;
+  return jsonOk({
+    data: data ?? [],
+    total,
+    page,
+    totalPages: Math.max(1, Math.ceil(total / limit)),
+  });
 }
 
+/** Accept job — assigns technician if order is PENDING. */
 export async function POST(req: NextRequest) {
-  return withAuth(req, async (req, user) => {
-    try {
-      const { job_id, action, notes } = await req.json();
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireRole(auth.ctx, 'technician')) return jsonErr('Forbidden', 403);
 
-      if (!job_id || !action) {
-        return NextResponse.json(
-          errorResponse('job_id and action are required'),
-          { status: 400 }
-        );
-      }
+  let body: { order_id?: string };
+  try {
+    body = (await req.json()) as { order_id?: string };
+  } catch {
+    return jsonErr('Invalid JSON body', 400);
+  }
 
-      // Get technician record
-      const technician = await queryOne(
-        'SELECT id FROM technicians WHERE user_id = $1',
-        [user.id]
-      );
+  const orderId = body.order_id?.trim();
+  if (!orderId) return jsonErr('order_id is required', 400);
 
-      if (!technician) {
-        return NextResponse.json(errorResponse('Technician profile not found'), { status: 404 });
-      }
+  const { data, error } = await auth.ctx.supabase
+    .from('orders')
+    .update({
+      technician_id: auth.ctx.profile.id,
+      status: 'ASSIGNED',
+      assigned_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', orderId)
+    .eq('status', 'PENDING')
+    .select('*')
+    .maybeSingle();
 
-      // Verify job belongs to technician
-      const job = await queryOne('SELECT * FROM jobs WHERE id = $1 AND technician_id = $2', [
-        job_id,
-        technician.id,
-      ]);
-
-      if (!job) {
-        return NextResponse.json(errorResponse('Job not found'), { status: 404 });
-      }
-
-      let new_status = job.status;
-
-      if (action === 'accept') {
-        new_status = 'ACCEPTED';
-      } else if (action === 'reject') {
-        new_status = 'REJECTED';
-      } else if (action === 'on_the_way') {
-        new_status = 'ON_THE_WAY';
-      } else if (action === 'working') {
-        new_status = 'WORKING';
-      } else if (action === 'complete') {
-        new_status = 'COMPLETED';
-      }
-
-      // Update job in transaction
-      const updatedJob = await transaction(async (client) => {
-        const updateTime =
-          action === 'accept'
-            ? 'accepted_at = CURRENT_TIMESTAMP,'
-            : action === 'complete'
-              ? 'completed_at = CURRENT_TIMESTAMP,'
-              : '';
-
-        const result = await client.query(
-          `UPDATE jobs SET ${updateTime} status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
-          [new_status, job_id]
-        );
-
-        // Record status change
-        await client.query(
-          `INSERT INTO job_status_history (job_id, status, notes) VALUES ($1, $2, $3)`,
-          [job_id, new_status, notes || null]
-        );
-
-        // Update order status
-        const orderResult = await client.query(
-          'SELECT id FROM orders WHERE id = (SELECT order_id FROM jobs WHERE id = $1)',
-          [job_id]
-        );
-
-        if (orderResult.rows.length > 0) {
-          const orderId = orderResult.rows[0].id;
-          let order_status = 'PENDING';
-
-          if (new_status === 'ACCEPTED') {
-            order_status = 'ACCEPTED';
-          } else if (['ON_THE_WAY', 'WORKING'].includes(new_status)) {
-            order_status = 'IN_PROGRESS';
-          } else if (new_status === 'COMPLETED') {
-            order_status = 'COMPLETED';
-          }
-
-          await client.query('UPDATE orders SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [
-            order_status,
-            orderId,
-          ]);
-
-          // Create notification for customer
-          const custResult = await client.query(
-            'SELECT customer_id FROM orders WHERE id = $1',
-            [orderId]
-          );
-
-          if (custResult.rows.length > 0) {
-            const customer_id = custResult.rows[0].customer_id;
-            let title = '';
-            let message = '';
-
-            if (action === 'accept') {
-              title = 'Job Accepted';
-              message = 'Technician has accepted your job';
-            } else if (action === 'on_the_way') {
-              title = 'Technician On Way';
-              message = 'Technician is on the way to your location';
-            } else if (action === 'complete') {
-              title = 'Job Completed';
-              message = 'Your service has been completed';
-            }
-
-            if (title) {
-              await client.query(
-                `INSERT INTO notifications (user_id, title, message, type, related_id) VALUES ($1, $2, $3, 'JOB', $4)`,
-                [customer_id, title, message, orderId]
-              );
-            }
-          }
-        }
-
-        return result.rows[0];
-      });
-
-      return NextResponse.json(
-        successResponse(updatedJob, 'Job updated successfully'),
-        { status: 200 }
-      );
-    } catch (error: any) {
-      console.error('Update job error:', error);
-      return NextResponse.json(errorResponse(error.message || 'Failed to update job'), {
-        status: 500,
-      });
-    }
-  }, 'TECHNICIAN');
+  if (error) return jsonErr(error.message, 502);
+  if (!data) return jsonErr('Order not found or not available', 404);
+  return jsonOk(data);
 }

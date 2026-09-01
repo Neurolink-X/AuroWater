@@ -1,13 +1,21 @@
 -- AuroWater Database Schema
 
 -- Create ENUM types
-CREATE TYPE user_role AS ENUM ('CUSTOMER', 'TECHNICIAN', 'ADMIN');
-CREATE TYPE service_type AS ENUM ('WATER_SUPPLY', 'SUBMERSIBLE_INSTALLATION', 'REPAIR_MAINTENANCE');
-CREATE TYPE order_status AS ENUM ('PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
-CREATE TYPE job_status AS ENUM ('PENDING', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED', 'REJECTED');
+DO $$ BEGIN
+  CREATE TYPE user_role AS ENUM ('CUSTOMER', 'TECHNICIAN', 'ADMIN');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE service_type AS ENUM ('WATER_SUPPLY', 'SUBMERSIBLE_INSTALLATION', 'REPAIR_MAINTENANCE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE order_status AS ENUM ('PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE TYPE job_status AS ENUM ('PENDING', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED', 'REJECTED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Users Table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   phone VARCHAR(20) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE,
@@ -21,7 +29,7 @@ CREATE TABLE users (
 );
 
 -- Addresses Table
-CREATE TABLE addresses (
+CREATE TABLE IF NOT EXISTS addresses (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   house_no VARCHAR(100) NOT NULL,
@@ -38,7 +46,7 @@ CREATE TABLE addresses (
 );
 
 -- Zones/Locations Table
-CREATE TABLE zones (
+CREATE TABLE IF NOT EXISTS zones (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL UNIQUE,
   city VARCHAR(100) NOT NULL,
@@ -51,7 +59,7 @@ CREATE TABLE zones (
 );
 
 -- Service Types Table
-CREATE TABLE service_types (
+CREATE TABLE IF NOT EXISTS service_types (
   id SERIAL PRIMARY KEY,
   name service_type NOT NULL UNIQUE,
   description TEXT,
@@ -62,7 +70,7 @@ CREATE TABLE service_types (
 );
 
 -- Pricing Rules Table
-CREATE TABLE pricing_rules (
+CREATE TABLE IF NOT EXISTS pricing_rules (
   id SERIAL PRIMARY KEY,
   service_type_id INTEGER NOT NULL REFERENCES service_types(id),
   zone_id INTEGER REFERENCES zones(id),
@@ -77,7 +85,7 @@ CREATE TABLE pricing_rules (
 );
 
 -- Technicians Table
-CREATE TABLE technicians (
+CREATE TABLE IF NOT EXISTS technicians (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   specialization VARCHAR(255),
@@ -94,7 +102,7 @@ CREATE TABLE technicians (
 );
 
 -- Orders Table
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS orders (
   id SERIAL PRIMARY KEY,
   customer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   address_id INTEGER NOT NULL REFERENCES addresses(id),
@@ -126,7 +134,7 @@ CREATE TABLE orders (
 );
 
 -- Order Status History Table
-CREATE TABLE order_status_history (
+CREATE TABLE IF NOT EXISTS order_status_history (
   id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   status order_status NOT NULL,
@@ -136,7 +144,7 @@ CREATE TABLE order_status_history (
 );
 
 -- Jobs Table (for technician assignment)
-CREATE TABLE jobs (
+CREATE TABLE IF NOT EXISTS jobs (
   id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL UNIQUE REFERENCES orders(id) ON DELETE CASCADE,
   technician_id INTEGER NOT NULL REFERENCES technicians(id),
@@ -150,7 +158,7 @@ CREATE TABLE jobs (
 );
 
 -- Job Status History Table
-CREATE TABLE job_status_history (
+CREATE TABLE IF NOT EXISTS job_status_history (
   id SERIAL PRIMARY KEY,
   job_id INTEGER NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   status job_status NOT NULL,
@@ -159,7 +167,7 @@ CREATE TABLE job_status_history (
 );
 
 -- Notifications Table
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
@@ -171,7 +179,7 @@ CREATE TABLE notifications (
 );
 
 -- App Settings for contact/support (admin managed)
-CREATE TABLE app_settings (
+CREATE TABLE IF NOT EXISTS app_settings (
   id SERIAL PRIMARY KEY,
   support_email VARCHAR(255),
   secondary_email VARCHAR(255),
@@ -184,20 +192,20 @@ CREATE TABLE app_settings (
 
 
 -- Create Indexes for better performance
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_addresses_user_id ON addresses(user_id);
-CREATE INDEX idx_orders_customer_id ON orders(customer_id);
-CREATE INDEX idx_orders_technician_id ON orders(technician_id);
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
-CREATE INDEX idx_jobs_technician_id ON jobs(technician_id);
-CREATE INDEX idx_jobs_status ON jobs(status);
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_is_read ON notifications(is_read);
-CREATE INDEX idx_order_status_history_order_id ON order_status_history(order_id);
-CREATE INDEX idx_job_status_history_job_id ON job_status_history(job_id);
-CREATE INDEX idx_technicians_user_id ON technicians(user_id);
-CREATE INDEX idx_technicians_is_available ON technicians(is_available);
-CREATE INDEX idx_pricing_rules_service_zone ON pricing_rules(service_type_id, zone_id);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_addresses_user_id ON addresses(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_technician_id ON orders(technician_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_technician_id ON jobs(technician_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_order_status_history_order_id ON order_status_history(order_id);
+CREATE INDEX IF NOT EXISTS idx_job_status_history_job_id ON job_status_history(job_id);
+CREATE INDEX IF NOT EXISTS idx_technicians_user_id ON technicians(user_id);
+CREATE INDEX IF NOT EXISTS idx_technicians_is_available ON technicians(is_available);
+CREATE INDEX IF NOT EXISTS idx_pricing_rules_service_zone ON pricing_rules(service_type_id, zone_id);

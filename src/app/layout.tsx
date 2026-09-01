@@ -114,11 +114,13 @@ import './globals.css';
 import AuthPkceBridge from '@/components/auth/AuthPkceBridge';
 import RootChrome from '@/components/layout/RootChrome';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
+import { getSiteUrl, validateEnv } from '@/lib/env';
 import { Toaster } from 'sonner';
 
 /* ── Constants ────────────────────────────────────────────────────────── */
 
-const APP_URL  = process.env.NEXT_PUBLIC_APP_URL  ?? 'https://aurowater.in';
+validateEnv();
+const APP_URL  = getSiteUrl();
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? 'AuroWater';
 
 const OG_IMAGE = {
@@ -156,7 +158,7 @@ export const metadata: Metadata = {
   },
 
   /* ── PWA ────────────────────────────────────────────────────────────── */
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable:         true,
     title:           APP_NAME,

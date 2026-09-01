@@ -671,7 +671,7 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">
           <div className="ft-bottom-copy">
-            © {new Date().getFullYear()} AuroWater. All rights reserved.
+            <span suppressHydrationWarning>© {new Date().getFullYear()} AuroWater. All rights reserved.</span>
           </div>
 
           <div className="ft-bottom-links">

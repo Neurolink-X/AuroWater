@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -49,10 +49,12 @@ export default function OrderHistory() {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [reviewFor, setReviewFor] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadOrders = useCallback(async (mode: 'reset' | 'more') => {
     if (!isLoggedIn || !isCustomer) return;
     try {
+      setLoadError(null);
       if (mode === 'reset') {
         setLoading(true);
         setOffset(0);
@@ -63,10 +65,11 @@ export default function OrderHistory() {
 
       const lim = 20;
       const nextOffset = mode === 'reset' ? 0 : offset;
-      const url = new URL('/api/customer/orders', window.location.origin);
-      url.searchParams.set('limit', String(lim));
-      url.searchParams.set('offset', String(nextOffset));
-      if (statusFilter !== 'all') url.searchParams.set('status', statusFilter);
+      const params = new URLSearchParams();
+      params.set('limit', String(lim));
+      params.set('offset', String(nextOffset));
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const apiUrl = `/api/customer/orders?${params.toString()}`;
 
       const token = await getToken();
       if (!token) {
@@ -74,7 +77,7 @@ export default function OrderHistory() {
         router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
         return;
       }
-      const res = await fetch(url.toString(), {
+      const res = await fetch(apiUrl, {
         credentials: 'include',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -103,8 +106,11 @@ export default function OrderHistory() {
       setOrders((prev) => (mode === 'reset' ? mapped : [...prev, ...mapped]));
       setOffset(nextOffset + mapped.length);
       setHasMore(mapped.length === lim);
-    } catch {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Could not load orders';
+      setLoadError(msg);
       if (mode === 'reset') setOrders([]);
+      toast.error(msg);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -153,13 +159,13 @@ export default function OrderHistory() {
     { value: 'CANCELLED', label: 'Cancelled' },
   ];
 
-  const emptyMsg = useMemo(() => {
+  const emptyMsg = (() => {
     if (statusFilter === 'PENDING') return 'No pending orders yet';
     if (statusFilter === 'IN_PROGRESS') return 'No in-progress orders yet';
     if (statusFilter === 'COMPLETED') return 'No completed orders yet';
     if (statusFilter === 'CANCELLED') return 'No cancelled orders yet';
     return 'No orders yet';
-  }, [statusFilter]);
+  })();
 
   return (
     <div className="min-h-screen gradient-section pb-20">
@@ -208,6 +214,19 @@ export default function OrderHistory() {
             </button>
           ))}
         </div>
+
+        {loadError && !loading ? (
+          <div className="aw-card text-center py-8">
+            <p className="text-slate-600 mb-4">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => void loadOrders('reset')}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="aw-card">

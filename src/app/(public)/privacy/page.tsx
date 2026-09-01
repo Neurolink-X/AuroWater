@@ -9,7 +9,9 @@ export default function PrivacyPage() {
         This is a simplified privacy policy for AuroWater. For production, replace this with your legal text.
       </p>
       <div className="mt-8 text-sm text-slate-600">
-        <p>Last updated: {new Date().getFullYear()}</p>
+        <p>
+          Last updated: <span suppressHydrationWarning>{new Date().getFullYear()}</span>
+        </p>
         <Link href="/contact" className="text-emerald-600 hover:underline">Contact support</Link>
       </div>
     </main>

@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server';
-import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import { NextRequest, NextResponse } from 'next/server';
+import { jsonErr } from '@/lib/api/json-response';
 import {
   ensureProfileForUser,
   isProfilesSchemaMissingError,
@@ -9,15 +9,15 @@ import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigure
 import type { ProfileRow } from '@/lib/db/types';
 import { getSupabaseServiceRoleKey } from '@/lib/env/supabase-service-role';
 import { createServiceClient } from '@/utils/supabase/server';
-
-function roleDefaultUrl(role: string): string {
-  if (role === 'admin') return '/admin/dashboard';
-  if (role === 'supplier') return '/supplier/dashboard';
-  if (role === 'technician') return '/technician/dashboard';
-  return '/customer/home';
-}
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+  const rateCheck = checkRateLimit(`login:${ip}`);
+  if (!rateCheck.allowed) {
+    return jsonErr(`Too many attempts — please wait ${rateCheck.retryAfter} seconds`, 429);
+  }
+
   if (!isSupabaseConfigured()) {
     return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
   }
@@ -173,30 +173,30 @@ export async function POST(req: NextRequest) {
     /* ignore */
   }
 
-  const response = jsonOk({
-    ok: true as const,
-    role: resolved.role,
-    redirectTo: roleDefaultUrl(resolved.role),
-    user: { id: resolved.id, email: resolved.email, full_name: resolved.full_name },
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    expires_at: data.session.expires_at ?? null,
-    profile: resolved,
-  });
+  const responseBody = {
+    data: {
+      token: data.session.access_token,
+      role: resolved.role,
+      user: { id: resolved.id, email: resolved.email },
+    },
+    message: 'Login successful',
+  };
 
+  const cookieSecure = req.nextUrl.protocol === 'https:';
+  const response = NextResponse.json(responseBody);
   response.cookies.set('aw_session', '1', {
     maxAge: 60 * 60 * 24 * 7,
     path: '/',
     sameSite: 'lax',
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
+    secure: cookieSecure,
   });
   response.cookies.set('aw_role', resolved.role, {
     maxAge: 60 * 60 * 24 * 7,
     path: '/',
     sameSite: 'lax',
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
+    secure: cookieSecure,
   });
 
   return response;

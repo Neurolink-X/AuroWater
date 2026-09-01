@@ -2,15 +2,13 @@ import { ApiResponse } from '@/types';
 
 export function successResponse<T>(data: T, message?: string): ApiResponse<T> {
   return {
-    success: true,
     data,
-    message,
+    message: message ?? 'Success',
   };
 }
 
 export function errorResponse(error: string): ApiResponse<null> {
   return {
-    success: false,
     error,
   };
 }

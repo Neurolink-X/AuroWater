@@ -36,7 +36,7 @@ export default function SiteFooter() {
           </div>
         </div>
         <p className="mt-6 text-sm text-slate-500">
-          © {new Date().getFullYear()} AuroWater. Premium water supply and services.
+          <span suppressHydrationWarning>© {new Date().getFullYear()} AuroWater. Premium water supply and services.</span>
         </p>
       </div>
     </footer>
