@@ -107,20 +107,18 @@ function LoginPageInner() {
     setLoading(true);
     try {
       const result = await authLogin(parsed.data.email, parsed.data.password);
-      const { token, role: roleRaw, user } = result;
+      const access_token = result.access_token; const token = access_token; const roleRaw = (result as any).role ?? 'customer'; const user = null;
       const role = roleRaw as Role;
 
       // 1) Set edge-gate cookies first, then persist client session.
       setAuthGateCookies(role);
 
       // 2) Store token + enough session fields for UI (useAuth requires a non-empty `name`).
-      const nameFromEmail = user.email?.split('@')[0]?.trim() || 'User';
+      const nameFromEmail = parsed.data.email?.split('@')[0]?.trim() || 'User';
       writeSession({
         name: nameFromEmail,
-        email: user.email,
-        role,
-        accessToken: token,
-        userId: user.id,
+        email: parsed.data.email,
+        role, accessToken: token, userId: undefined,
       });
 
       toast.success('Welcome back! 👋');
@@ -326,4 +324,8 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+
+
+
+
 

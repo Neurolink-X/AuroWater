@@ -3,7 +3,7 @@ import { createSupabaseServer } from '@/lib/supabase/server';
 export async function GET() {
   const ts = new Date().toISOString();
   try {
-    const supabase = createSupabaseServer();
+    const supabase = await createSupabaseServer();
     const { error } = await supabase.from('profiles').select('id').limit(1);
     if (error) throw error;
 

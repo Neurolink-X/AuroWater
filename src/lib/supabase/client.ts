@@ -14,3 +14,7 @@ export function getSupabaseClient() {
   }
   return client;
 }
+
+
+// Compatibility aliases
+export const createClient = getSupabaseClient;
