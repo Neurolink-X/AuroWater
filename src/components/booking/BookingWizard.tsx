@@ -16,11 +16,12 @@ import {
   customerOrderCreate,
   type ApiOrder,
 } from '@/lib/api-client';
-import { getMinDate } from '@/lib/validation/time-slot-client';
+import { getMinDate, nextFutureSlot } from '@/lib/validation/time-slot-client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
 import { safeSessionGet, safeSessionRemove, safeSessionSet } from '@/lib/storage';
-import ServiceZoneGate from '@/components/geo/ServiceZoneGate';
+import { ACTIVE_CITY_NAMES } from '@/lib/cities';
+import WaitlistPanel from '@/components/ui/WaitlistPanel';
 
 /** Session draft — persisted so login redirect does not lose progress. */
 export interface BookingDraft {
@@ -64,21 +65,7 @@ const SERVICE_LIST: { key: string; emoji: string; title: string }[] = [
   { key: 'tank_cleaning', emoji: '✨', title: 'Tank cleaning' },
 ];
 
-const UP_CITIES = [
-  'Kanpur',
-  'Gorakhpur',
-  'Lucknow',
-  'Varanasi',
-  'Prayagraj',
-  'Agra',
-  'Meerut',
-  'Bareilly',
-  'Aligarh',
-  'Mathura',
-  'Delhi',
-  'Noida',
-  'Ghaziabad',
-] as const;
+const LIVE_CITIES = ACTIVE_CITY_NAMES;
 
 type AddressRow = {
   id: string;
@@ -92,17 +79,17 @@ type AddressRow = {
 };
 
 function emptyDraft(): BookingDraft {
-  const min = getMinDate();
+  const slot = nextFutureSlot();
   return {
     serviceKey: 'water_can',
     subOptionKey: 'standard',
     canQuantity: 1,
     canOrderType: 'one_time',
     canFrequency: 'weekly',
-    scheduledDate: min,
+    scheduledDate: slot.date,
     timeSlot: '',
-    startTime: '09:00',
-    endTime: '09:30',
+    startTime: slot.startTime,
+    endTime: slot.endTime,
     scheduled_time: '',
     isEmergency: false,
     paymentMethod: 'cash',
@@ -112,7 +99,7 @@ function emptyDraft(): BookingDraft {
       label: 'Home',
       house_flat: '',
       area: '',
-      city: 'Kanpur',
+      city: LIVE_CITIES[0] ?? 'Gorakhpur',
       pincode: '',
       landmark: '',
       is_default: true,
@@ -213,6 +200,7 @@ export default function BookingWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<ApiOrder | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [waitlistCity, setWaitlistCity] = useState('');
 
   const minDate = getMinDate();
   const datePills = useMemo(() => nextFourteenIsoDates(minDate), [minDate]);
@@ -753,14 +741,28 @@ export default function BookingWizard() {
         {step === 3 && !createdOrder && (
           <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-6 space-y-6">
             <h2 className="text-lg font-bold text-slate-900">3 · Address</h2>
-            <ServiceZoneGate
-              onInZone={(city) =>
-                setDraft((d) => ({
-                  ...d,
-                  newAddress: { ...d.newAddress, city },
-                }))
-              }
-            />
+            <p className="text-sm text-slate-600">
+              We currently deliver in {LIVE_CITIES.join(', ')}. Pick a live city, or join the waitlist if yours is not listed.
+            </p>
+            <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-slate-800">
+                My city is not listed — join waitlist
+              </summary>
+              <div className="mt-3 space-y-3 rounded-2xl bg-[#0A1628] p-3">
+                <input
+                  className="w-full rounded-xl border border-white/10 bg-[#0d1f35] px-3 py-2 text-sm text-white"
+                  placeholder="Your city"
+                  value={waitlistCity}
+                  onChange={(e) => setWaitlistCity(e.target.value)}
+                />
+                <WaitlistPanel
+                  cityName={waitlistCity.trim() || 'your city'}
+                  cityId={null}
+                  role="customer"
+                  source="book"
+                />
+              </div>
+            </details>
 
             {!session?.loggedIn && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">
@@ -845,7 +847,7 @@ export default function BookingWizard() {
                     />
                     <select
                       className="rounded-xl border border-slate-200 px-3 py-2"
-                      value={draft.newAddress?.city ?? 'Kanpur'}
+                      value={draft.newAddress?.city ?? LIVE_CITIES[0]}
                       onChange={(e) =>
                         setDraft((d) => ({
                           ...d,
@@ -853,7 +855,7 @@ export default function BookingWizard() {
                         }))
                       }
                     >
-                      {UP_CITIES.map((c) => (
+                      {LIVE_CITIES.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
@@ -923,13 +925,16 @@ export default function BookingWizard() {
                 <button
                   key={iso}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const n = nextFutureSlot(iso);
                     setDraft((d) => ({
                       ...d,
-                      scheduledDate: iso,
+                      scheduledDate: n.date,
+                      startTime: n.startTime,
+                      endTime: n.endTime,
                       slotValid: false,
-                    }))
-                  }
+                    }));
+                  }}
                   className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold whitespace-nowrap ${
                     draft.scheduledDate === iso ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200'
                   }`}

@@ -5,6 +5,7 @@ import {
   validateTimeSlotClient,
   getTimeOptions,
   getMinDate,
+  nextFutureSlot,
 } from '@/lib/validation/time-slot-client';
 
 export interface TimeSlotPickerValue {
@@ -38,10 +39,21 @@ export default function TimeSlotPicker({
   emergencyFee,
 }: TimeSlotPickerProps) {
   const min = minDate ?? getMinDate();
-  const [date, setDate] = useState(value?.date ?? min);
-  const [startTime, setStartTime] = useState(value?.startTime ?? '09:00');
-  const [endTime, setEndTime] = useState(value?.endTime ?? '09:30');
+  const boot = nextFutureSlot(value?.date ?? min);
+  const [date, setDate] = useState(value?.date && value.date >= min ? value.date : boot.date);
+  const [startTime, setStartTime] = useState(value?.startTime ?? boot.startTime);
+  const [endTime, setEndTime] = useState(value?.endTime ?? boot.endTime);
   const [touched, setTouched] = useState(false);
+
+  useEffect(() => {
+    const check = validateTimeSlotClient(startTime, endTime, date);
+    if (check.valid) return;
+    const n = nextFutureSlot(date >= min ? date : min);
+    setDate(n.date);
+    setStartTime(n.startTime);
+    setEndTime(n.endTime);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time bump if default slot is already in the past
+  }, []);
 
   const runValidation = useCallback(() => {
     const result = validateTimeSlotClient(startTime, endTime, date);

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { jsonErr } from '@/lib/api/json-response';
+import { NextRequest } from 'next/server';
+import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import {
   ensureProfileForUser,
   isProfilesSchemaMissingError,
@@ -47,7 +47,9 @@ export async function POST(req: NextRequest) {
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
 
   if (error || !data.session?.access_token) {
-    return jsonErr(error?.message ?? 'Invalid credentials', 401);
+    const msg = error?.message ?? 'Invalid credentials';
+    const code = /confirm/i.test(msg) ? 'EMAIL_NOT_CONFIRMED' : undefined;
+    return jsonErr(msg, 401, code);
   }
 
   const userSb = createSupabaseUserClient(data.session.access_token);
@@ -173,17 +175,13 @@ export async function POST(req: NextRequest) {
     /* ignore */
   }
 
-  const responseBody = {
-    data: {
-      token: data.session.access_token,
-      role: resolved.role,
-      user: { id: resolved.id, email: resolved.email },
-    },
-    message: 'Login successful',
-  };
-
   const cookieSecure = req.nextUrl.protocol === 'https:';
-  const response = NextResponse.json(responseBody);
+  const response = jsonOk({
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_at: data.session.expires_at ?? null,
+    profile: resolved,
+  });
   response.cookies.set('aw_session', '1', {
     maxAge: 60 * 60 * 24 * 7,
     path: '/',

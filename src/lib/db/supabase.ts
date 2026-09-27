@@ -331,15 +331,20 @@ import {
   createUserClient,
 } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
+import { getSupabaseUrl } from '@/lib/env';
 
 // ─── Env (lazy helpers — no module-level crash) ───────────────────────────────
 
 function getUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-    process.env.SUPABASE_URL?.trim() ||
-    ''
-  );
+  try {
+    return getSupabaseUrl();
+  } catch {
+    return (
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+      process.env.SUPABASE_URL?.trim() ||
+      ''
+    );
+  }
 }
 
 function getAnonKey(): string {

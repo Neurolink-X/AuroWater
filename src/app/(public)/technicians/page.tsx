@@ -304,6 +304,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getTechnicians } from '@/lib/api-client';
 
 type ServiceKey = 'water_tanker' | 'ro_service' | 'plumbing' | 'borewell' | 'motor_pump' | 'tank_cleaning';
 
@@ -691,64 +692,53 @@ export default function TechniciansPage() {
   const [onlyAvailable, setOnlyAvailable] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const [techs, setTechs] = useState<Technician[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+
   useEffect(() => { setMounted(true); }, []);
 
-  const techs: Technician[] = useMemo(() => [
-    {
-      id: 't1', name: 'Rahul Verma', initials: 'RV',
-      skills: ['Plumbing', 'RO Service'],
-      city: 'Kanpur', rating: 4.9, jobs: 234,
-      verified: true, available: true,
-      preferredServiceKey: 'plumbing',
-      speciality: 'Expert in leak detection & filtration systems',
-      experience: '6 yrs exp',
-    },
-    {
-      id: 't2', name: 'Suresh Kumar', initials: 'SK',
-      skills: ['Borewell', 'Motor Repair'],
-      city: 'Gorakhpur', rating: 4.8, jobs: 189,
-      verified: true, available: false,
-      preferredServiceKey: 'borewell',
-      speciality: 'Specialist in deep borewell drilling & pumps',
-      experience: '9 yrs exp',
-    },
-    {
-      id: 't3', name: 'Amit Srivastava', initials: 'AS',
-      skills: ['Water Tanker', 'Tank Cleaning'],
-      city: 'Lucknow', rating: 4.7, jobs: 156,
-      verified: true, available: true,
-      preferredServiceKey: 'water_tanker',
-      speciality: 'Bulk water supply & hygienic tank sanitization',
-      experience: '5 yrs exp',
-    },
-    {
-      id: 't4', name: 'Pradeep Mishra', initials: 'PM',
-      skills: ['Plumbing', 'Motor Repair'],
-      city: 'Varanasi', rating: 4.9, jobs: 312,
-      verified: true, available: true,
-      preferredServiceKey: 'motor_pump',
-      speciality: 'Top-rated motor winding & pipe fitting expert',
-      experience: '11 yrs exp',
-    },
-    {
-      id: 't5', name: 'Vinod Yadav', initials: 'VY',
-      skills: ['RO Service', 'Tank Cleaning'],
-      city: 'Prayagraj', rating: 4.6, jobs: 98,
-      verified: true, available: false,
-      preferredServiceKey: 'ro_service',
-      speciality: 'Certified RO membrane specialist',
-      experience: '4 yrs exp',
-    },
-    {
-      id: 't6', name: 'Deepak Tiwari', initials: 'DT',
-      skills: ['Borewell', 'Plumbing'],
-      city: 'Agra', rating: 4.8, jobs: 201,
-      verified: true, available: true,
-      preferredServiceKey: 'borewell',
-      speciality: 'Underground pipeline & borewell inspection pro',
-      experience: '8 yrs exp',
-    },
-  ], []);
+  useEffect(() => {
+    let cancelled = false;
+    void getTechnicians()
+      .then((rows) => {
+        if (cancelled) return;
+        const mapped: Technician[] = (Array.isArray(rows) ? rows : []).map((raw) => {
+          const r = raw as Partial<Technician> & { name?: string; id?: string };
+          const name = r.name || 'Technician';
+          const initials =
+            r.initials ||
+            name
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((p) => p[0]?.toUpperCase() ?? '')
+              .join('');
+          return {
+            id: String(r.id ?? name),
+            name,
+            initials,
+            skills: r.skills?.length ? r.skills : ['Plumbing'],
+            city: r.city || 'Uttar Pradesh',
+            rating: typeof r.rating === 'number' ? r.rating : 4.8,
+            jobs: typeof r.jobs === 'number' ? r.jobs : 0,
+            verified: r.verified !== false,
+            available: r.available !== false,
+            preferredServiceKey: (r.preferredServiceKey as ServiceKey) || 'plumbing',
+            speciality: r.speciality || 'AuroWater technician',
+            experience: r.experience || 'On platform',
+          };
+        });
+        setTechs(mapped);
+      })
+      .catch(() => {
+        if (!cancelled) setTechs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const allSkills = useMemo(() => {
     const set = new Set<string>();
@@ -1131,7 +1121,9 @@ export default function TechniciansPage() {
 
         {/* ── Grid ── */}
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 24px 60px' }}>
-          {filtered.length > 0 ? (
+          {listLoading ? (
+            <p style={{ textAlign: 'center', color: '#6B7280', padding: 48 }}>Loading technicians…</p>
+          ) : filtered.length > 0 ? (
             <div
               className="card-grid"
               style={{
@@ -1159,10 +1151,31 @@ export default function TechniciansPage() {
               }}
             >
               <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>No technicians found</h3>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
+                {techs.length === 0 ? 'No technicians on the platform yet' : 'No technicians found'}
+              </h3>
               <p style={{ margin: '8px 0 24px', color: '#6B7280', fontSize: 14 }}>
-                Try adjusting your filters or search query.
+                {techs.length === 0
+                  ? 'Approved technicians from Supabase will appear here. Join as a technician from Register.'
+                  : 'Try adjusting your filters or search query.'}
               </p>
+                {techs.length === 0 ? (
+                  <a
+                    href="/register"
+                    style={{
+                      background: '#0D9B6C',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontSize: 14,
+                      padding: '10px 24px',
+                      borderRadius: 12,
+                      textDecoration: 'none',
+                      display: 'inline-block',
+                    }}
+                  >
+                    Become a technician
+                  </a>
+                ) : (
               <button
                 type="button"
                 onClick={() => { setSkill('All'); setCity('All'); setOnlyAvailable(false); setSearchQuery(''); }}
@@ -1179,6 +1192,7 @@ export default function TechniciansPage() {
               >
                 Clear all filters
               </button>
+                )}
             </div>
           )}
         </div>

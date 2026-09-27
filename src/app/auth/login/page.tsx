@@ -6,7 +6,7 @@ import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { ApiError, authLogin, authResendConfirmation } from '@/lib/api-client';
+import { ApiError, authLogin, authResendConfirmation, profileToSession } from '@/lib/api-client';
 import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/lib/supabase/client';
@@ -107,19 +107,16 @@ function LoginPageInner() {
     setLoading(true);
     try {
       const result = await authLogin(parsed.data.email, parsed.data.password);
-      const access_token = result.access_token; const token = access_token; const roleRaw = (result as any).role ?? 'customer'; const user = null;
-      const role = roleRaw as Role;
+      const role = (result.profile.role as Role) || 'customer';
 
-      // 1) Set edge-gate cookies first, then persist client session.
       setAuthGateCookies(role);
-
-      // 2) Store token + enough session fields for UI (useAuth requires a non-empty `name`).
-      const nameFromEmail = parsed.data.email?.split('@')[0]?.trim() || 'User';
-      writeSession({
-        name: nameFromEmail,
-        email: parsed.data.email,
-        role, accessToken: token, userId: undefined,
-      });
+      writeSession(
+        profileToSession(result.profile, {
+          access_token: result.access_token,
+          refresh_token: result.refresh_token,
+          expires_at: result.expires_at,
+        })
+      );
 
       toast.success('Welcome back! 👋');
 

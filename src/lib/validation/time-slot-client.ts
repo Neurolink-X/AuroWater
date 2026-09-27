@@ -83,8 +83,32 @@ export function getTimeOptions(): string[] {
   return options;
 }
 
-/** Min date for picker (today) */
+/** Local calendar date (not UTC) so India evening is still “today”. */
 export function getMinDate(): string {
   const d = new Date();
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Next 30-minute slot that is still in the future. */
+export function nextFutureSlot(preferredDate?: string): { date: string; startTime: string; endTime: string } {
+  const now = new Date();
+  const today = getMinDate();
+  const date = preferredDate && preferredDate > today ? preferredDate : today;
+  if (date > today) {
+    return { date, startTime: '09:00', endTime: '09:30' };
+  }
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const start = Math.ceil((mins + 1) / 30) * 30;
+  if (start + 30 >= 24 * 60) {
+    const t = new Date(now);
+    t.setDate(t.getDate() + 1);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const day = String(t.getDate()).padStart(2, '0');
+    return { date: `${y}-${m}-${day}`, startTime: '09:00', endTime: '09:30' };
+  }
+  return { date, startTime: formatTime(start), endTime: formatTime(start + 30) };
 }

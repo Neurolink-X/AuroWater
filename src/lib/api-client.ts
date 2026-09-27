@@ -231,6 +231,17 @@ export async function authRegister(body: {
   const data = json.data as LoginResult | { needsEmailConfirmation: true; email: string };
   if ('access_token' in data && data.access_token) {
     setToken(data.access_token);
+    if ('refresh_token' in data && data.refresh_token) {
+      try {
+        const supabase = createClient();
+        await supabase.auth.setSession({
+          access_token: data.access_token,
+          refresh_token: data.refresh_token,
+        });
+      } catch {
+        /* localStorage token still set */
+      }
+    }
   }
   return data;
 }
@@ -245,6 +256,17 @@ export async function authLogin(
     body: JSON.stringify({ email, password, phone: extra?.phone }),
   });
   setToken(data.access_token);
+  if (data.refresh_token) {
+    try {
+      const supabase = createClient();
+      await supabase.auth.setSession({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+      });
+    } catch {
+      /* token still in storage */
+    }
+  }
   return data;
 }
 

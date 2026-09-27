@@ -138,6 +138,40 @@ export default function Header() {
               </select>
             </div>
 
+            <div className="hidden items-center gap-1 xl:flex">
+              <Link
+                href="/register"
+                title="Customer"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-cyan-400"
+                aria-label="Customer signup"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </Link>
+              <Link
+                href="/technicians"
+                title="Technician"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-cyan-400"
+                aria-label="Technicians"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.7 6.3a1 1 0 00-1.4 0l-8 8a1 1 0 000 1.4l3 3a1 1 0 001.4 0l8-8a1 1 0 000-1.4l-3-3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 19l3-3" />
+                </svg>
+              </Link>
+              <Link
+                href="/register"
+                title="Supplier"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-cyan-400"
+                aria-label="Supplier signup"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 7l2 12h10l2-12M9 11v4M15 11v4" />
+                </svg>
+              </Link>
+            </div>
+
             {isLoggedIn && user ? (
               <Link
                 href={dashboardHref}

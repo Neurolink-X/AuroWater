@@ -50,42 +50,64 @@ export async function POST(req: NextRequest) {
     return jsonErr('Password must be at least 8 characters', 400);
   }
 
-  const sb = createSupabaseAnonClient();
-  const { data, error } = await sb.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name,
-        phone,
-        role,
-        city,
-        pincode,
-        business_name: typeof body.business_name === 'string' ? body.business_name : undefined,
-        business_type: typeof body.business_type === 'string' ? body.business_type : undefined,
-        gst_number: typeof body.gst_number === 'string' ? body.gst_number : undefined,
-        vehicle_type: typeof body.vehicle_type === 'string' ? body.vehicle_type : undefined,
-        license_number: typeof body.license_number === 'string' ? body.license_number : undefined,
-      },
-    },
-  });
+  const userMeta = {
+    full_name,
+    phone,
+    role,
+    city,
+    pincode,
+    business_name: typeof body.business_name === 'string' ? body.business_name : undefined,
+    business_type: typeof body.business_type === 'string' ? body.business_type : undefined,
+    gst_number: typeof body.gst_number === 'string' ? body.gst_number : undefined,
+    vehicle_type: typeof body.vehicle_type === 'string' ? body.vehicle_type : undefined,
+    license_number: typeof body.license_number === 'string' ? body.license_number : undefined,
+  };
 
-  if (error) {
-    return jsonErr(error.message, 400);
+  const sb = createSupabaseAnonClient();
+  let session = null as Awaited<ReturnType<typeof sb.auth.signInWithPassword>>['data']['session'];
+  let authErrorMessage: string | null = null;
+  let authErrorCode: string | undefined;
+
+  try {
+    const admin = createServiceClient();
+    const created = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: userMeta,
+    });
+    if (created.error) {
+      authErrorMessage = created.error.message;
+      authErrorCode = (created.error as { code?: string }).code;
+    } else {
+      const signed = await sb.auth.signInWithPassword({ email, password });
+      if (signed.error) {
+        authErrorMessage = signed.error.message;
+        authErrorCode = (signed.error as { code?: string }).code;
+      } else {
+        session = signed.data.session;
+      }
+    }
+  } catch {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password,
+      options: { data: userMeta },
+    });
+    if (error) {
+      authErrorMessage = error.message;
+      authErrorCode = (error as { code?: string }).code;
+    } else {
+      session = data.session;
+    }
   }
 
-  const session = data.session;
-  const pending = needsApproval(role);
-
   if (!session?.access_token) {
-    return jsonOk(
-      {
-        needsEmailConfirmation: false as const,
-        pending,
-        email,
-      },
-      201
-    );
+    const msg = authErrorMessage ?? 'Registration failed';
+    if (/already|registered|exists/i.test(msg)) {
+      return jsonErr('This phone or email already has an account. Sign in instead.', 400, authErrorCode);
+    }
+    return jsonErr(msg, 400, authErrorCode);
   }
 
   const userSb = createSupabaseUserClient(session.access_token);
@@ -135,15 +157,18 @@ export async function POST(req: NextRequest) {
     await seedSupplierRegistrationDefaults(resolved.id);
   }
 
+  const extra: Record<string, unknown> = {};
+  if (city) extra.city = city;
+  if (pincode) extra.pincode = pincode;
   if (needsApproval(resolved.role)) {
-    const extra: Record<string, unknown> = { status: 'pending_approval' };
-    if (city) extra.city = city;
-    if (pincode) extra.pincode = pincode;
+    extra.status = 'pending_approval';
     if (typeof body.business_name === 'string') extra.business_name = body.business_name;
     if (typeof body.business_type === 'string') extra.business_type = body.business_type;
     if (typeof body.gst_number === 'string') extra.gst_number = body.gst_number;
     if (typeof body.vehicle_type === 'string') extra.vehicle_type = body.vehicle_type;
     if (typeof body.license_number === 'string') extra.license_number = body.license_number;
+  }
+  if (Object.keys(extra).length > 0) {
     await userSb.from('profiles').update(extra).eq('id', resolved.id);
   }
 

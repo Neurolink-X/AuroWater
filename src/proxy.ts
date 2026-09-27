@@ -118,6 +118,9 @@ const PUBLIC_EXACT: Set<string> = new Set([
   '/register',
   '/register/pending',
   '/auth/otp',
+  '/auth/update-password',
+  '/manifest.json',
+  '/manifest.webmanifest',
   '/cookies',
   '/security',
   '/careers',
@@ -203,7 +206,7 @@ const SECURITY_HEADERS: ReadonlyArray<[string, string]> = [
   // Strict referrer
   ['Referrer-Policy', 'strict-origin-when-cross-origin'],
   // Disable FLoC/Topics
-  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()'],
+  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)'],
   // Remove server fingerprint
   ['X-Powered-By', ''],
   // HSTS (only meaningful over HTTPS but harmless in dev)
@@ -323,7 +326,7 @@ function isPublicPath(pathname: string): boolean {
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico',
     'woff', 'woff2', 'ttf', 'otf', 'eot',
     'css', 'js', 'map',
-    'json', 'txt', 'xml',
+    'json', 'webmanifest', 'txt', 'xml',
     'pdf', 'mp4', 'webm',
   ]);
   if (STATIC_EXTS.has(ext)) return true;
@@ -392,6 +395,6 @@ export const config = {
      *   - favicon.ico  (favicon)
      *   - Files with extensions (images, fonts, etc.)
      */
-    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml|pdf)$).*)',
+    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.webmanifest|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf|eot|css|js|map|txt|xml|pdf|webmanifest|json)$).*)',
   ],
 };

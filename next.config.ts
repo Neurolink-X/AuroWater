@@ -49,8 +49,18 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: '/icons/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+        source: '/manifest.json',
+        headers: [
+          { key: 'Content-Type', value: 'application/manifest+json; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
+      {
+        source: '/manifest.webmanifest',
+        headers: [
+          { key: 'Content-Type', value: 'application/manifest+json; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
       },
       {
         source: '/api/settings',

@@ -2,19 +2,16 @@
 
 import React, { useState } from 'react';
 import { z } from 'zod';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { ApiError } from '@/lib/api-client';
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email.'),
+  email: z.string().min(5, 'Enter email or 10-digit phone.'),
 });
 
-type FormValues = z.infer<typeof schema>;
-
 export default function ForgotPasswordPage() {
-  const router = useRouter();
-  const [values, setValues] = useState<FormValues>({ email: '' });
+  const [values, setValues] = useState({ email: '' });
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -24,17 +21,32 @@ export default function ForgotPasswordPage() {
     setErr(null);
     const parsed = schema.safeParse(values);
     if (!parsed.success) {
-      setErr(parsed.error.issues[0]?.message || 'Invalid email.');
+      setErr(parsed.error.issues[0]?.message || 'Invalid input.');
       return;
     }
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000));
+      const digits = parsed.data.email.replace(/\D/g, '');
+      const body =
+        /^[6-9]\d{9}$/.test(digits) && !parsed.data.email.includes('@')
+          ? { phone: digits }
+          : { email: parsed.data.email.trim() };
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const json = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok || json.success === false) {
+        throw new ApiError(json.error ?? 'Could not send reset link', res.status);
+      }
       setDone(true);
-      toast.success('Reset link sent (simulated).');
-    } catch {
-      setErr('Could not send reset link.');
-      toast.error('Could not send reset link.');
+      toast.success('If that account exists, a reset email is on the way.');
+    } catch (e: unknown) {
+      const msg = e instanceof ApiError ? e.message : 'Could not send reset link.';
+      setErr(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -42,42 +54,41 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="rounded-3xl bg-[#0F172A] text-white p-8 sm:p-10 relative overflow-hidden">
-            <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-cyan-500/10 blur-2xl" />
-            <div className="relative">
-              <h2 className="text-3xl font-extrabold">Forgot Password</h2>
-              <p className="mt-3 text-white/70 text-sm">We’ll send a reset link to your email.</p>
-              <ul className="mt-7 space-y-3 text-sm text-white/80">
-                <li>◎ Safe simulated flow for now</li>
-                <li>◎ No backend required</li>
-              </ul>
-            </div>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="relative overflow-hidden rounded-3xl bg-[#0F172A] p-8 text-white sm:p-10">
+            <h2 className="text-3xl font-extrabold">Forgot Password</h2>
+            <p className="mt-3 text-sm text-white/70">We send a real reset link through Supabase Auth (email).</p>
+            <ul className="mt-7 space-y-3 text-sm text-white/80">
+              <li>◎ Phone accounts use {`{10digits}`}@users.aurotap.in</li>
+              <li>◎ Configure SMTP in Supabase Auth settings for delivery</li>
+            </ul>
           </div>
 
-          <div className="rounded-3xl bg-white border border-slate-100 shadow-card p-7 sm:p-8">
+          <div className="rounded-3xl border border-slate-100 bg-white p-7 shadow-card sm:p-8">
             {!done ? (
               <>
                 <h2 className="text-2xl font-extrabold text-[#0F1C18]">Send Reset Link</h2>
-                <p className="text-slate-600 mt-2 text-sm">Enter your email address.</p>
-
-                <form onSubmit={onSubmit} className="mt-6 space-y-4">
+                <p className="mt-2 text-sm text-slate-600">Email or 10-digit mobile number.</p>
+                <form onSubmit={(e) => void onSubmit(e)} className="mt-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700">Email</label>
+                    <label className="block text-sm font-semibold text-slate-700">Email or phone</label>
                     <input
-                      type="email"
                       value={values.email}
                       onChange={(e) => setValues({ email: e.target.value })}
-                      className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]"
-                      placeholder="you@company.com"
+                      className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-800"
+                      placeholder="you@company.com or 98XXXXXXXX"
                     />
                   </div>
-                  {err ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700 text-sm font-semibold">{err}</div> : null}
+                  {err ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                      {err}
+                    </div>
+                  ) : null}
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full rounded-xl bg-[#0D9B6C] text-white font-extrabold py-3 hover:bg-[#086D4C] active:scale-95 transition-all disabled:opacity-60"
+                    className="w-full rounded-xl bg-[#0D9B6C] py-3 font-extrabold text-white disabled:opacity-60"
                   >
                     {loading ? 'Sending…' : 'Send Reset Link'}
                   </button>
@@ -85,12 +96,13 @@ export default function ForgotPasswordPage() {
               </>
             ) : (
               <div className="mt-3">
-                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-5">
-                  <div className="text-3xl">📧</div>
-                  <div className="text-lg font-extrabold text-[#0F1C18] mt-2">Check your email</div>
-                  <div className="text-slate-600 mt-2 text-sm">If the address exists, you’ll receive a reset link shortly (simulated).</div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                  <div className="text-lg font-extrabold text-[#0F1C18]">Check your email</div>
+                  <div className="mt-2 text-sm text-slate-600">
+                    If the account exists, open the link and set a new password.
+                  </div>
                 </div>
-                <Link href="/auth/login" className="mt-5 inline-flex text-[#0D9B6C] font-extrabold hover:underline">
+                <Link href="/login" className="mt-5 inline-flex font-extrabold text-[#0D9B6C] hover:underline">
                   Back to Sign In
                 </Link>
               </div>
@@ -101,4 +113,3 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
-

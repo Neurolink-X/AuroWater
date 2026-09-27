@@ -27,11 +27,23 @@ export function isLocalhostSiteUrl(url: string): boolean {
   return /localhost|127\.0\.0\.1/i.test(url);
 }
 
+/** Live AuroWater project. Do not use any other ref. */
+export const CANONICAL_SUPABASE_REF = 'mwfcwhxdlnqldciigicl';
+const WRONG_SUPABASE_REF = 'nozizhfliljitspkgjix';
+
 export function getSupabaseUrl(): string {
-  const url =
+  let url =
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-    process.env.SUPABASE_URL?.trim();
+    process.env.SUPABASE_URL?.trim() ||
+    '';
   if (!url) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL');
+  if (url.includes(WRONG_SUPABASE_REF)) {
+    console.error(
+      `[AuroWater] Env points at the wrong Supabase project (${WRONG_SUPABASE_REF}). ` +
+        `Using https://${CANONICAL_SUPABASE_REF}.supabase.co — update Vercel/.env keys to match.`
+    );
+    url = url.replace(WRONG_SUPABASE_REF, CANONICAL_SUPABASE_REF);
+  }
   return url;
 }
 
@@ -50,19 +62,19 @@ export function getSupabaseServiceRoleKey(): string | undefined {
 
 /** Validates required env vars at startup (server-side). */
 export function validateEnv(): void {
-  const required: Array<[string, string]> = [
-    ['NEXT_PUBLIC_SUPABASE_URL', 'Supabase project URL'],
-    ['NEXT_PUBLIC_SUPABASE_ANON_KEY', 'Supabase anon/publishable key'],
-  ];
   const serverRequired: Array<[string, string]> = [
     ['SUPABASE_SERVICE_ROLE_KEY', 'Supabase service role key (server only)'],
   ];
 
   const missing: string[] = [];
-  for (const [key, label] of required) {
-    if (!process.env[key]?.trim()) {
-      missing.push(`  ${key} — ${label}`);
-    }
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()) {
+    missing.push('  NEXT_PUBLIC_SUPABASE_URL — Supabase project URL');
+  }
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() &&
+    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()
+  ) {
+    missing.push('  NEXT_PUBLIC_SUPABASE_ANON_KEY — Supabase anon/publishable key');
   }
   if (typeof window === 'undefined') {
     for (const [key, label] of serverRequired) {

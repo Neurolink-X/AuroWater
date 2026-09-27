@@ -45,23 +45,27 @@
  * Server-only Supabase clients. Never import in Client Components.
  */
 import { createServerClient } from '@supabase/ssr';
-import { type cookies } from 'next/headers';
+import { cookies } from 'next/headers';
+import { getSupabaseUrl } from '@/lib/env';
 import {
   getSupabaseServiceRoleKey,
   serviceRoleSetupHint,
 } from '@/lib/env/supabase-service-role';
 
-// ─── Env resolution (lazy, never module-level crash) ─────────────────────────
-
 function getUrl(): string {
-  const val =
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-    process.env.SUPABASE_URL?.trim();           // Vercel integration alias
-  if (!val) throw new Error(
-    '[AuroWater] NEXT_PUBLIC_SUPABASE_URL is not set.\n' +
-    '  Add it to .env.local or Vercel Environment Variables.'
-  );
-  return val;
+  try {
+    return getSupabaseUrl();
+  } catch {
+    const val =
+      process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || process.env.SUPABASE_URL?.trim();
+    if (!val) {
+      throw new Error(
+        '[AuroWater] NEXT_PUBLIC_SUPABASE_URL is not set.\n' +
+          '  Add it to .env.local or Vercel Environment Variables.'
+      );
+    }
+    return val;
+  }
 }
 
 function getAnonKey(): string {
