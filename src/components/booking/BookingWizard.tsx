@@ -256,11 +256,31 @@ export default function BookingWizard() {
   }, [draft, step]);
 
   useEffect(() => {
-    const svc = searchParams.get('service');
-    if (!svc) return;
-    if (SERVICE_LIST.some((s) => s.key === svc)) {
-      setDraft((d) => ({ ...d, serviceKey: svc }));
-    }
+    const serviceKey = searchParams.get('service');
+    if (!serviceKey || !SERVICE_LIST.some((service) => service.key === serviceKey)) return;
+
+    const planCanCounts: Record<string, number> = {
+      starter: 30,
+      pro: 60,
+      office: 120,
+    };
+    const selectedPlan = searchParams.get('plan');
+    const canQuantity = selectedPlan ? planCanCounts[selectedPlan] : undefined;
+    const billing = searchParams.get('billing');
+
+    setDraft((draft) => ({
+      ...draft,
+      serviceKey,
+      // Pricing plan CTAs should carry their selection into the booking flow,
+      // rather than silently reverting to a one-time, one-can order.
+      ...(serviceKey === 'water_can' && canQuantity
+        ? {
+            canQuantity,
+            canOrderType: 'subscription' as const,
+            canFrequency: billing === 'yearly' ? 'monthly' : draft.canFrequency ?? 'weekly',
+          }
+        : {}),
+    }));
   }, [searchParams]);
 
   useEffect(() => {
