@@ -114,12 +114,13 @@ import './globals.css';
 import AuthPkceBridge from '@/components/auth/AuthPkceBridge';
 import RootChrome from '@/components/layout/RootChrome';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
-import { getSiteUrl, validateEnv } from '@/lib/env';
+import { getSiteUrl } from '@/lib/env';
 import { Toaster } from 'sonner';
 
 /* ── Constants ────────────────────────────────────────────────────────── */
 
-validateEnv();
+// Keep public pages and Next's build-time error routes renderable without database secrets.
+// API routes validate credentials lazily when they are invoked; instrumentation logs setup gaps.
 const APP_URL  = getSiteUrl();
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? 'AuroWater';
 

@@ -1619,15 +1619,15 @@ export default function PricingPage() {
             <p style={{ margin:'0 0 22px',fontSize:14,color:'#6B7280' }}>All prices transparent. You see the full breakdown before confirming.</p>
             <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16 }}>
               {[
-                { emoji:'🚰',name:'Water Tanker',price:'₹299–₹799',unit:'per tanker',note:'Up to 5000L. Same-day in 8 cities.', tag:'Popular' },
-                { emoji:'🔧',name:'Plumber',price:'₹149',unit:'per visit',note:'Starting rate. Pay after service.', tag:'' },
-                { emoji:'⛏️',name:'Borewell Service',price:'₹499',unit:'per visit',note:'Drilling & inspection included.', tag:'' },
-                { emoji:'⚙️',name:'Motor Repair',price:'₹299',unit:'per visit',note:'All motor types. Warranty on parts.', tag:'' },
-                { emoji:'💧',name:'RO Service',price:'₹349',unit:'per visit',note:'Filter change + sanitization.', tag:'New' },
-                { emoji:'🪣',name:'Tank Cleaning',price:'₹599',unit:'per tank',note:'Certified hygienic cleaning.', tag:'' },
+                { key:'water_tanker', emoji:'🚰',name:'Water Tanker',price:'₹299–₹799',unit:'per tanker',note:'Up to 5000L. Same-day in 8 cities.', tag:'Popular' },
+                { key:'plumbing', emoji:'🔧',name:'Plumber',price:'₹149',unit:'per visit',note:'Starting rate. Pay after service.', tag:'' },
+                { key:'borewell', emoji:'⛏️',name:'Borewell Service',price:'₹499',unit:'per visit',note:'Drilling & inspection included.', tag:'' },
+                { key:'motor_pump', emoji:'⚙️',name:'Motor Repair',price:'₹299',unit:'per visit',note:'All motor types. Warranty on parts.', tag:'' },
+                { key:'ro_service', emoji:'💧',name:'RO Service',price:'₹349',unit:'per visit',note:'Filter change + sanitization.', tag:'New' },
+                { key:'tank_cleaning', emoji:'🪣',name:'Tank Cleaning',price:'₹599',unit:'per tank',note:'Certified hygienic cleaning.', tag:'' },
               ].map(s => (
-                <div key={s.name} style={{ background:'#fff',borderRadius:16,border:'1.5px solid #E5E7EB',padding:'18px 20px',display:'flex',flexDirection:'column',gap:10,transition:'all 0.2s',cursor:'pointer' }}
-                  onClick={() => router.push(`/book?service=${s.name.toLowerCase().replace(/\s+/g,'_')}`)}
+                <div key={s.key} style={{ background:'#fff',borderRadius:16,border:'1.5px solid #E5E7EB',padding:'18px 20px',display:'flex',flexDirection:'column',gap:10,transition:'all 0.2s',cursor:'pointer' }}
+                  onClick={() => router.push(`/book?service=${s.key}`)}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor='#0D9B6C'; (e.currentTarget as HTMLDivElement).style.boxShadow='0 6px 20px rgba(13,155,108,0.1)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor='#E5E7EB'; (e.currentTarget as HTMLDivElement).style.boxShadow='none'; }}
                 >
