@@ -10,6 +10,8 @@
     "db:setup": "node scripts/setup-db.js",
     "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
     "smoke": "node scripts/smoke-test.mjs",
+    "test:regression": "node tests/routes-and-access.regression.mjs",
+    "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
     "verify:env": "node scripts/verify-env.mjs"
   },
   "dependencies": {

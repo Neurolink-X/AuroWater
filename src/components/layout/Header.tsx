@@ -8,6 +8,7 @@ import { FALLBACK_CITIES, type City } from '@/lib/cities';
 import { safeGet, safeSet } from '@/lib/storage';
 
 const NAV_LINKS = [
+  { label: 'Services', href: '/services' },
   { label: 'How It Works', href: '/how-it-works' },
   { label: 'Pricing', href: '/pricing' },
   { label: 'Technicians', href: '/technicians' },
@@ -140,7 +141,7 @@ export default function Header() {
 
             <div className="hidden items-center gap-1 xl:flex">
               <Link
-                href="/register"
+                href="/auth/register"
                 title="Customer"
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-cyan-400"
                 aria-label="Customer signup"
@@ -161,7 +162,7 @@ export default function Header() {
                 </svg>
               </Link>
               <Link
-                href="/register"
+                href="/auth/register?role=supplier"
                 title="Supplier"
                 className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/5 hover:text-cyan-400"
                 aria-label="Supplier signup"
@@ -186,7 +187,7 @@ export default function Header() {
               </Link>
             ) : (
               <Link
-                href="/login"
+                href="/auth/login"
                 className="hidden text-sm text-neutral-400 transition-colors hover:text-white sm:block"
               >
                 Sign In

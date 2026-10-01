@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { sanitiseText } from '@/lib/sanitise';
 
 export async function PUT(
   req: NextRequest,
@@ -22,10 +23,10 @@ export async function PUT(
   }
 
   const patch: Record<string, unknown> = {};
-  if (typeof body.label === 'string') patch.label = body.label;
-  if (typeof body.house_flat === 'string') patch.house_flat = body.house_flat;
-  if (typeof body.area === 'string') patch.area = body.area;
-  if (typeof body.city === 'string') patch.city = body.city;
+  if (typeof body.label === 'string') patch.label = sanitiseText(body.label, 40);
+  if (typeof body.house_flat === 'string') patch.house_flat = sanitiseText(body.house_flat);
+  if (typeof body.area === 'string') patch.area = sanitiseText(body.area);
+  if (typeof body.city === 'string') patch.city = sanitiseText(body.city, 80);
   if (typeof body.pincode === 'string') patch.pincode = body.pincode;
   if (typeof patch.pincode === 'string' && !/^\d{6}$/.test(patch.pincode.trim())) {
     return jsonErr('pincode must be 6 digits', 400);
@@ -36,8 +37,11 @@ export async function PUT(
   if (typeof patch.house_flat === 'string' && !patch.house_flat.trim()) {
     return jsonErr('house_flat is required', 400);
   }
+  if (typeof patch.area === 'string' && !patch.area.trim()) {
+    return jsonErr('area is required', 400);
+  }
 
-  if (typeof body.landmark === 'string') patch.landmark = body.landmark;
+  if (typeof body.landmark === 'string') patch.landmark = sanitiseText(body.landmark, 120);
   if (typeof body.is_default === 'boolean') patch.is_default = body.is_default;
 
   const { data, error } = await auth.ctx.supabase

@@ -43,8 +43,8 @@ export async function POST(req: NextRequest) {
   const city = sanitiseText(typeof body.city === 'string' ? body.city : '', 80);
   const pincode = typeof body.pincode === 'string' ? body.pincode.trim() : '';
 
-  if (!house_flat || !city || !pincode) {
-    return jsonErr('house_flat, city, and pincode are required', 400);
+  if (!house_flat || !area || !city || !pincode) {
+    return jsonErr('house_flat, area, city, and pincode are required', 400);
   }
   if (!PINCODE.test(pincode)) {
     return jsonErr('pincode must be 6 digits', 400);
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
   }
   if (!house_flat.trim()) {
     return jsonErr('house_flat is required', 400);
+  }
+  if (!area.trim()) {
+    return jsonErr('area is required', 400);
   }
 
   const lat = Number(body.lat);
