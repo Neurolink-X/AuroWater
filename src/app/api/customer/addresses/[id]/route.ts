@@ -1,7 +1,22 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { sanitiseText } from '@/lib/sanitise';
+
+// Live database contract for public.addresses:
+//   owner column ........ customer_id
+//   address text ........ line1, line2 (kept in sync with house_flat, area)
+
+const SERVED_CITIES = ['gorakhpur', 'kanpur', 'lucknow'];
+
+function withFormFields(row: Record<string, unknown>) {
+  return {
+    ...row,
+    house_flat: row.house_flat ?? row.line1 ?? '',
+    area: row.area ?? row.line2 ?? '',
+  };
+}
 
 export async function PUT(
   req: NextRequest,
@@ -15,6 +30,7 @@ export async function PUT(
 
   const { id } = await ctx.params;
 
+
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;
@@ -23,52 +39,78 @@ export async function PUT(
   }
 
   const patch: Record<string, unknown> = {};
-  if (typeof body.label === 'string') patch.label = sanitiseText(body.label, 40);
-  if (typeof body.house_flat === 'string') patch.house_flat = sanitiseText(body.house_flat);
-  if (typeof body.area === 'string') patch.area = sanitiseText(body.area);
-  if (typeof body.city === 'string') patch.city = sanitiseText(body.city, 80);
-  if (typeof body.pincode === 'string') patch.pincode = body.pincode;
-  if (typeof patch.pincode === 'string' && !/^\d{6}$/.test(patch.pincode.trim())) {
-    return jsonErr('pincode must be 6 digits', 400);
+
+  if (typeof body.label === 'string') {
+    patch.label = sanitiseText(body.label, 40);
   }
-  if (typeof patch.city === 'string' && !patch.city.trim()) {
-    return jsonErr('city is required', 400);
+  if (typeof body.house_flat === 'string') {
+    const value = sanitiseText(body.house_flat);
+    if (!value.trim()) return jsonErr('house_flat is required', 400);
+    patch.house_flat = value;
+    patch.line1 = value;
   }
-  if (typeof patch.house_flat === 'string' && !patch.house_flat.trim()) {
-    return jsonErr('house_flat is required', 400);
+  if (typeof body.area === 'string') {
+    const value = sanitiseText(body.area);
+    if (!value.trim()) return jsonErr('area is required', 400);
+    patch.area = value;
+    patch.line2 = value;
   }
-  if (typeof patch.area === 'string' && !patch.area.trim()) {
-    return jsonErr('area is required', 400);
+  if (typeof body.city === 'string') {
+    const value = sanitiseText(body.city, 80);
+    if (!value.trim()) return jsonErr('city is required', 400);
+    if (!SERVED_CITIES.includes(value.trim().toLowerCase())) {
+      return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
+    }
+    patch.city = value;
   }
 
-  if (typeof body.landmark === 'string') patch.landmark = sanitiseText(body.landmark, 120);
-  if (typeof body.is_default === 'boolean') patch.is_default = body.is_default;
+  if (typeof body.pincode === 'string') {
+    const value = body.pincode.trim();
+    if (!/^\d{6}$/.test(value)) return jsonErr('pincode must be 6 digits', 400);
+    patch.pincode = value;
+  }
+  if (typeof body.landmark === 'string') {
+    patch.landmark = sanitiseText(body.landmark, 120);
+  }
+  if (typeof body.is_default === 'boolean') {
+    patch.is_default = body.is_default;
+  }
+
+  if (Object.keys(patch).length === 0) {
+    return jsonErr('Nothing to update', 400);
+  }
 
   const { data, error } = await auth.ctx.supabase
     .from('addresses')
     .update(patch)
     .eq('id', id)
-    .eq('user_id', auth.ctx.profile.id)
+    .eq('customer_id', auth.ctx.profile.id)
     .select('*')
     .maybeSingle();
 
   if (error) {
+    console.error('[addresses:PUT]', error.message);
     return jsonErr(error.message, 500);
   }
   if (!data) {
     return jsonErr('Address not found', 404);
   }
 
+
   if (patch.is_default === true) {
     await auth.ctx.supabase
       .from('addresses')
       .update({ is_default: false })
-      .eq('user_id', auth.ctx.profile.id)
+      .eq('customer_id', auth.ctx.profile.id)
       .neq('id', id);
-    await auth.ctx.supabase.from('addresses').update({ is_default: true }).eq('id', id);
+    await auth.ctx.supabase
+      .from('addresses')
+      .update({ is_default: true })
+      .eq('id', id)
+      .eq('customer_id', auth.ctx.profile.id);
   }
 
-  return jsonOk(data);
+  return jsonOk(withFormFields(data));
 }
 
 export async function DELETE(
@@ -83,14 +125,20 @@ export async function DELETE(
 
   const { id } = await ctx.params;
 
-  const { error } = await auth.ctx.supabase
+  const { data, error } = await auth.ctx.supabase
     .from('addresses')
     .delete()
     .eq('id', id)
-    .eq('user_id', auth.ctx.profile.id);
+
+    .eq('customer_id', auth.ctx.profile.id)
+    .select('id');
 
   if (error) {
+    console.error('[addresses:DELETE]', error.message);
     return jsonErr(error.message, 500);
+  }
+  if (!data || data.length === 0) {
+    return jsonErr('Address not found', 404);
   }
 
   return jsonOk({ deleted: true as const });
