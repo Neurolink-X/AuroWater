@@ -51,6 +51,11 @@ function withCompat(o: any) {
     can_quantity: o.can_count ?? null,
     notes: o.note ?? null,
     cancellation_reason: o.cancel_reason ?? null,
+    base_amount: o.base_amount ?? 0,
+    convenience_fee: o.convenience_fee ?? o.platform_fee ?? 0,
+    emergency_charge: o.emergency_charge ?? 0,
+    gst_amount: o.gst_amount ?? 0,
+    address_snapshot: o.address_snapshot ?? (o.address ? { house_flat: o.address } : null),
   };
 }
 
@@ -308,9 +313,15 @@ export async function POST(req: NextRequest) {
   let base_amount: number;
 
   if (isWater) {
-    const unit = Number.isFinite(Number(flat.default_can_price))
-      ? Number(flat.default_can_price)
-      : Number(st.base_price) || 12;
+    // Subscription cans use their own price (same rule as the booking page)
+    const subPrice = Number(flat.subscription_can_price);
+    const defPrice = Number(flat.default_can_price);
+    const unit =
+      str(body.can_order_type) === 'subscription' && Number.isFinite(subPrice) && subPrice > 0
+        ? subPrice
+        : Number.isFinite(defPrice)
+          ? defPrice
+          : Number(st.base_price) || 12;
     qty = Math.min(
       Math.max(1, Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1),
       500
@@ -329,6 +340,25 @@ export async function POST(req: NextRequest) {
     console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
     return jsonErr('Price validation failed — totals do not match platform rates', 400);
   }
+
+  const { gst: gst_amount } = computeExpectedTotal(
+    base_amount,
+    convenience,
+    emergency_charge,
+    gstRate
+  );
+
+  const address_snapshot = {
+    label: a.label ?? null,
+    house_flat: a.house_flat ?? a.line1 ?? null,
+    area: a.area ?? a.line2 ?? null,
+    landmark: a.landmark ?? null,
+    city: a.city ?? null,
+    state: a.state ?? null,
+    pincode: a.pincode ?? null,
+    lat: Number.isFinite(addrLat) ? addrLat : null,
+    lng: Number.isFinite(addrLng) ? addrLng : null,
+  };
 
   // ── Build the row using ONLY real columns ──
   const addressText = [
@@ -371,6 +401,11 @@ export async function POST(req: NextRequest) {
       total_amount: total,
       platform_fee: convenience,
       final_amount: total,
+      base_amount,
+      convenience_fee: convenience,
+      emergency_charge,
+      gst_amount,
+      address_snapshot,
       payment_status: 'pending',
       payment_method: str(body.payment_method) ?? 'cash',
       address: addressText || null,
