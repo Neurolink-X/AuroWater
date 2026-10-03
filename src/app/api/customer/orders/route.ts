@@ -14,9 +14,15 @@ import {
 import { createServiceClient } from '@/utils/supabase/server';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 
+/*
+ * Real `orders` columns used here:
+ * customer_id, supplier_id, service_type, status, can_count, total_amount,
+ * platform_fee, payment_status, payment_method, address, address_id,
+ * is_emergency, note, scheduled_at, final_amount, assigned_at
+ */
+
 type PgErr = { message?: string; code?: string } | null;
 
-/** Map a PostgREST error to a consistent JSON response. */
 function dbErr(error: NonNullable<PgErr>, table: string, fallback: string) {
   console.error(`[orders] ${table}:`, error);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,14 +34,25 @@ function dbErr(error: NonNullable<PgErr>, table: string, fallback: string) {
   return jsonErr(error.message || fallback, 502);
 }
 
-/** null / '' / undefined become NaN (never 0). */
 function toNum(v: unknown): number {
   if (v === null || v === undefined || v === '') return NaN;
   return Number(v);
 }
 
-const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Add old field names so existing frontend code keeps working. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function withCompat(o: any) {
+  return {
+    ...o,
+    service_type_key: o.service_type ?? null,
+    can_quantity: o.can_count ?? null,
+    notes: o.note ?? null,
+    cancellation_reason: o.cancel_reason ?? null,
+  };
+}
 
 async function settingsMap(
   sb: ReturnType<typeof import('@/lib/db/supabase').createSupabaseUserClient>
@@ -66,7 +83,6 @@ async function settingsMap(
   };
 }
 
-/** Notifications must never break an order that is already created. */
 async function safeNotify(
   userId: string,
   title: string,
@@ -92,16 +108,12 @@ const TIER_RANK: Record<string, number> = {
   platinum: 4,
 };
 
-/**
- * Supplier routing (affinity first, then best tier).
- * Uses the service client: customers cannot read other suppliers' rows under RLS.
- */
+/** Supplier routing on the service client (customers can't read other suppliers under RLS). */
 async function assignSupplier(orderId: string, customerId: string): Promise<string | null> {
   try {
     const admin = createServiceClient();
     let supplierId: string | null = null;
 
-    // 1) Preferred supplier from last COMPLETED order, if online
     const { data: last } = await admin
       .from('orders')
       .select('supplier_id')
@@ -122,7 +134,6 @@ async function assignSupplier(orderId: string, customerId: string): Promise<stri
       if ((ps as { is_online?: boolean } | null)?.is_online) supplierId = preferred;
     }
 
-    // 2) Otherwise best online supplier by tier, then radius
     if (!supplierId) {
       const { data: online } = await admin
         .from('supplier_settings')
@@ -165,7 +176,11 @@ async function assignSupplier(orderId: string, customerId: string): Promise<stri
     if (supplierId) {
       const { data: updated, error } = await admin
         .from('orders')
-        .update({ supplier_id: supplierId, status: 'ASSIGNED' })
+        .update({
+          supplier_id: supplierId,
+          status: 'ASSIGNED',
+          assigned_at: new Date().toISOString(),
+        })
         .eq('id', orderId)
         .eq('status', 'PENDING')
         .select('id')
@@ -177,7 +192,6 @@ async function assignSupplier(orderId: string, customerId: string): Promise<stri
       return supplierId;
     }
 
-    // 3) Nobody available: alert admins + audit log (best effort)
     const { data: admins } = await admin.from('profiles').select('id').eq('role', 'admin').limit(20);
     for (const a of (admins ?? []) as { id?: string }[]) {
       if (!a.id) continue;
@@ -227,20 +241,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await q;
   if (error) return dbErr(error, 'orders', 'Orders load failed');
 
-  const orders = data ?? [];
-  const typeIds = [...new Set(orders.map((o) => o.service_type_id).filter(Boolean))];
-  let keyById: Record<number, string> = {};
-  if (typeIds.length) {
-    const { data: types } = await auth.ctx.supabase
-      .from('service_types')
-      .select('id, key')
-      .in('id', typeIds as number[]);
-    keyById = Object.fromEntries((types ?? []).map((t) => [t.id as number, t.key as string]));
-  }
-
-  return jsonOk(
-    orders.map((o) => ({ ...o, service_type_key: keyById[Number(o.service_type_id)] ?? null }))
-  );
+  return jsonOk((data ?? []).map(withCompat));
 }
 
 export async function POST(req: NextRequest) {
@@ -263,16 +264,16 @@ export async function POST(req: NextRequest) {
 
   const customerId = auth.ctx.profile.id;
 
+  // service_types has: id, key, label, description, base_price, is_active
   const { data: st, error: stErr } = await auth.ctx.supabase
     .from('service_types')
-    .select('id, base_price, key, name')
+    .select('id, key, label, base_price')
     .eq('key', service_type_key)
     .eq('is_active', true)
     .maybeSingle();
   if (stErr) return dbErr(stErr, 'service_types', 'Service lookup failed');
   if (!st) return jsonErr('Invalid or inactive service', 400);
 
-  // FIX: addresses are owned via customer_id (was user_id)
   const { data: addr, error: aErr } = await auth.ctx.supabase
     .from('addresses')
     .select('*')
@@ -282,180 +283,101 @@ export async function POST(req: NextRequest) {
   if (aErr) return dbErr(aErr, 'addresses', 'Address lookup failed');
   if (!addr) return jsonErr('Address not found', 404);
 
-  // FIX: null coordinates must NOT become 0,0
-  const addrLat = toNum((addr as { lat?: unknown }).lat);
-  const addrLng = toNum((addr as { lng?: unknown }).lng);
+  const a = addr as Record<string, unknown>;
+  const addrLat = toNum(a.lat);
+  const addrLng = toNum(a.lng);
   const inZone =
     Number.isFinite(addrLat) && Number.isFinite(addrLng)
       ? getServiceZone(addrLat, addrLng) !== null
-      : isCityServed(String(addr.city ?? ''));
+      : isCityServed(String(a.city ?? ''));
   if (!inZone) return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
 
   const settingsResult = await settingsMap(auth.ctx.supabase);
   if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
   const flat = settingsResult.map;
 
-  // Works for both old (house_flat/area) and new (line1/line2) address shapes
-  const a = addr as Record<string, unknown>;
-  const address_snapshot = {
-    label: a.label ?? null,
-    house_flat: a.house_flat ?? a.line1 ?? null,
-    area: a.area ?? a.line2 ?? null,
-    city: a.city ?? null,
-    state: a.state ?? null,
-    pincode: a.pincode ?? null,
-    landmark: a.landmark ?? null,
-  };
-
-  const common = {
-    customer_id: customerId,
-    service_type_id: st.id,
-    sub_option_key: str(body.sub_option_key),
-    address_id: addr.id,
-    address_snapshot,
-    scheduled_date: str(body.scheduled_date),
-    time_slot: str(body.time_slot),
-    scheduled_time: str(body.scheduled_time),
-    status: 'PENDING' as const,
-    supplier_payout: 0,
-    payment_method: str(body.payment_method) ?? 'cash',
-    payment_status: 'unpaid' as const,
-    payout_status: 'pending' as const,
-    notes: str(body.notes),
-    can_order_type: str(body.can_order_type),
-    can_frequency: str(body.can_frequency),
-  };
-
-  const serviceName = typeof st.name === 'string' && st.name.trim() ? st.name : service_type_key;
-  const slotText = `${common.scheduled_date ?? 'your slot'}${
-    common.time_slot ? ` · ${common.time_slot}` : ''
-  }`;
-
-  // ───────────────────────── Water can flow ─────────────────────────
-  if (service_type_key === 'water_can') {
-    const { data: priceRows, error: prErr } = await auth.ctx.supabase
-      .from('settings')
-      .select('key, value')
-      .in('key', ['default_can_price', 'platform_fee', 'platform_fee_per_order']);
-    if (prErr) return dbErr(prErr, 'settings', 'Price load failed');
-
-    const pm: Record<string, number> = {};
-    for (const row of priceRows ?? []) {
-      if (typeof row.key === 'string') pm[row.key] = Number(row.value);
-    }
-
-    const unit = Number.isFinite(pm.default_can_price) ? pm.default_can_price : 12;
-    const fee = Number.isFinite(pm.platform_fee)
-      ? pm.platform_fee
-      : Number.isFinite(pm.platform_fee_per_order)
-        ? pm.platform_fee_per_order
-        : 2;
-
-    const qty = Math.min(
-      Math.max(1, Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1),
-      500
-    );
-
-    const serverTotal = round2(qty * unit + fee);
-    const clientTotal = Number(body.total_amount);
-    if (!Number.isFinite(clientTotal) || Math.abs(clientTotal - serverTotal) > 1) {
-      return jsonErr(
-        `Price validation failed — expected ₹${serverTotal} for ${qty} unit(s)`,
-        400
-      );
-    }
-
-    const { data: orderW, error: oErrW } = await auth.ctx.supabase
-      .from('orders')
-      .insert({
-        ...common,
-        is_emergency: false,
-        base_amount: round2(qty * unit),
-        convenience_fee: fee,
-        emergency_charge: 0,
-        gst_amount: 0,
-        total_amount: serverTotal,
-        platform_fee: fee,
-        can_quantity: qty,
-        can_price_per_unit: unit,
-      })
-      .select('*')
-      .single();
-
-    if (oErrW || !orderW) {
-      if (oErrW) return dbErr(oErrW, 'orders', 'Failed to create order');
-      return jsonErr('Failed to create order', 500);
-    }
-
-    const orderId = String(orderW.id);
-    const supplierId = await assignSupplier(orderId, customerId);
-    if (supplierId) {
-      (orderW as Record<string, unknown>).supplier_id = supplierId;
-      (orderW as Record<string, unknown>).status = 'ASSIGNED';
-    }
-
-    await safeNotify(
-      customerId,
-      'Order placed successfully',
-      `Your ${serviceName} is booked for ${slotText}.`,
-      'booking',
-      orderId,
-      'created'
-    );
-    if (supplierId) {
-      await safeNotify(
-        supplierId,
-        'New order incoming',
-        'A new order has been assigned to you.',
-        'system',
-        orderId,
-        'assigned'
-      );
-      return jsonOk(orderW, 201);
-    }
-    return jsonOk({ ...(orderW as Record<string, unknown>), supplier_status: 'searching' }, 201);
-  }
-
-  // ───────────────────────── Generic service flow ─────────────────────────
+  // ── Pricing (same formula the booking page shows the customer) ──
   const gstRate = pickGstRateFromFlat(flat);
   const convenience = Number(flat.convenience_fee ?? 29);
   const emergencyFee = Number(flat.emergency_surcharge ?? 199);
   const is_emergency = Boolean(body.is_emergency);
+  const emergency_charge = is_emergency ? emergencyFee : 0;
 
-  let base_amount = Number(body.base_amount ?? 0);
-  if (!Number.isFinite(base_amount) || base_amount < 0) {
-    base_amount = Number(st.base_price);
+  const isWater = service_type_key === 'water_can';
+  let qty: number | null = null;
+  let base_amount: number;
+
+  if (isWater) {
+    const unit = Number.isFinite(Number(flat.default_can_price))
+      ? Number(flat.default_can_price)
+      : Number(st.base_price) || 12;
+    qty = Math.min(
+      Math.max(1, Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1),
+      500
+    );
+    base_amount = round2(qty * unit);
+  } else {
+    base_amount = Number(body.base_amount ?? 0);
+    if (!Number.isFinite(base_amount) || base_amount < 0) base_amount = Number(st.base_price);
   }
 
-  const emergency_charge = is_emergency ? emergencyFee : 0;
   const clientTotal = Number(body.total_amount);
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
   if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 3)) {
+    const expected = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
+    console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
     return jsonErr('Price validation failed — totals do not match platform rates', 400);
   }
 
-  // GST is always computed on the server, never trusted from the client
-  const { gst: gst_amount } = computeExpectedTotal(
-    base_amount,
-    convenience,
-    emergency_charge,
-    gstRate
-  );
+  // ── Build the row using ONLY real columns ──
+  const addressText = [
+    a.house_flat ?? a.line1,
+    a.area ?? a.line2,
+    a.landmark,
+    a.city,
+    a.state,
+    a.pincode,
+  ]
+    .filter((x) => typeof x === 'string' && x.trim())
+    .join(', ');
+
+  let scheduledAt: string | null = null;
+  const stRaw = str(body.scheduled_time);
+  const sdRaw = str(body.scheduled_date);
+  if (stRaw && !Number.isNaN(new Date(stRaw).getTime())) {
+    scheduledAt = new Date(stRaw).toISOString();
+  } else if (sdRaw && !Number.isNaN(new Date(`${sdRaw}T00:00:00+05:30`).getTime())) {
+    scheduledAt = new Date(`${sdRaw}T00:00:00+05:30`).toISOString();
+  }
+
+  const noteParts = [
+    str(body.notes),
+    str(body.time_slot) ? `Slot: ${str(body.time_slot)}` : null,
+    str(body.sub_option_key) ? `Option: ${str(body.sub_option_key)}` : null,
+    str(body.can_order_type) ? `Type: ${str(body.can_order_type)}` : null,
+    str(body.can_frequency) ? `Frequency: ${str(body.can_frequency)}` : null,
+  ].filter(Boolean);
+
+  const total = round2(clientTotal);
 
   const { data: order, error: oErr } = await auth.ctx.supabase
     .from('orders')
     .insert({
-      ...common,
+      customer_id: customerId,
+      service_type: service_type_key,
+      status: 'PENDING',
+      can_count: qty,
+      total_amount: total,
+      platform_fee: convenience,
+      final_amount: total,
+      payment_status: 'unpaid',
+      payment_method: str(body.payment_method) ?? 'cash',
+      address: addressText || null,
+      address_id: addr.id,
       is_emergency,
-      base_amount,
-      convenience_fee: convenience,
-      emergency_charge,
-      gst_amount,
-      total_amount: clientTotal,
-      platform_fee: 0,
-      can_quantity: body.can_quantity != null ? Number(body.can_quantity) : null,
-      can_price_per_unit: null,
+      note: noteParts.length ? noteParts.join(' | ') : null,
+      scheduled_at: scheduledAt,
     })
     .select('*')
     .single();
@@ -465,16 +387,40 @@ export async function POST(req: NextRequest) {
     return jsonErr('Failed to create order', 500);
   }
 
+  const orderId = String(order.id);
+  const label = typeof st.label === 'string' && st.label.trim() ? st.label : service_type_key.replace(/_/g, ' ');
+  const slotText = `${sdRaw ?? 'your slot'}${str(body.time_slot) ? ` · ${str(body.time_slot)}` : ''}`;
+
+  let supplierId: string | null = null;
+  if (isWater) {
+    supplierId = await assignSupplier(orderId, customerId);
+    if (supplierId) {
+      (order as Record<string, unknown>).supplier_id = supplierId;
+      (order as Record<string, unknown>).status = 'ASSIGNED';
+    }
+  }
+
   await safeNotify(
     customerId,
-    'Booking Confirmed 🎉',
-    `Your ${serviceName} is booked for ${slotText}.`,
+    isWater ? 'Order placed successfully' : 'Booking Confirmed 🎉',
+    `Your ${label} is booked for ${slotText}.`,
     'booking',
-    String(order.id),
+    orderId,
     'created'
   );
+  if (supplierId) {
+    await safeNotify(
+      supplierId,
+      'New order incoming',
+      'A new order has been assigned to you.',
+      'system',
+      orderId,
+      'assigned'
+    );
+  }
 
-  return jsonOk(order, 201);
+  const out = withCompat(order);
+  return jsonOk(isWater && !supplierId ? { ...out, supplier_status: 'searching' } : out, 201);
 }
 
 
