@@ -1,65 +1,3 @@
-// import { NextResponse, type NextRequest } from 'next/server';
-
-// /**
-//  * Edge-only: `next/server` only — no @/ imports (no Node crypto / jwt chains).
-//  * Gate: aw_session === '1', aw_role decoded from cookie (set by useAuth + setAuthGateCookies).
-//  * Next.js 16+: file must be named `proxy.ts` (middleware filename is deprecated).
-//  */
-
-// function roleFromCookie(raw: string | undefined): string {
-//   if (!raw) return '';
-//   try {
-//     return decodeURIComponent(raw);
-//   } catch {
-//     return raw;
-//   }
-// }
-
-// function redirectToLogin(request: NextRequest, pathname: string): NextResponse {
-//   const url = request.nextUrl.clone();
-//   url.pathname = '/auth/login';
-//   url.searchParams.set('returnTo', pathname + request.nextUrl.search);
-//   return NextResponse.redirect(url);
-// }
-
-// export function proxy(request: NextRequest) {
-//   const { pathname } = request.nextUrl;
-
-//   const session = request.cookies.get('aw_session')?.value;
-//   const role = roleFromCookie(request.cookies.get('aw_role')?.value);
-
-//   if (!session || session !== '1' || !role) {
-//     return redirectToLogin(request, pathname);
-//   }
-
-//   if (pathname === '/dashboard') {
-//     const dest =
-//       role === 'admin'
-//         ? '/admin/dashboard'
-//         : role === 'supplier'
-//           ? '/supplier/dashboard'
-//           : role === 'technician'
-//             ? '/technician/dashboard'
-//             : '/customer/home';
-//     return NextResponse.redirect(new URL(dest, request.url));
-//   }
-
-//   return NextResponse.next();
-// }
-
-// export const config = {
-//   matcher: [
-//     '/customer/:path*',
-//     '/supplier/:path*',
-//     '/technician/:path*',
-//     '/admin/:path*',
-//     '/dashboard/:path*',
-//     '/dashboard',
-//   ],
-// };
-
-
-
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
@@ -139,7 +77,6 @@ const PUBLIC_PREFIXES: readonly string[] = [
   '/api/services',
   '/api/contact',
   '/api/founding-members',
-  '/supplier/',          // public supplier profile pages e.g. /supplier/raj-kanpur
   '/blog/',
   '/_next/',
   '/images/',
@@ -163,6 +100,11 @@ const ROLE_GUARDS: ReadonlyArray<{
   },
   {
     prefix:   '/seller',
+    allowed:  ['supplier', 'admin'],
+    fallback: '/customer/home',
+  },
+  {
+    prefix:   '/supplier',
     allowed:  ['supplier', 'admin'],
     fallback: '/customer/home',
   },
@@ -309,7 +251,9 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
 /** Find which role guard applies to this pathname (if any). */
 function findRoleGuard(pathname: string) {
-  return ROLE_GUARDS.find(g => pathname.startsWith(g.prefix)) ?? null;
+  return ROLE_GUARDS.find(
+    (g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`)
+  ) ?? null;
 }
 
 /** Is this pathname public (no auth required)? */

@@ -1,91 +1,63 @@
-## AuroWater — Production Deployment Guide
+# AuroWater deployment, Supabase, and migration runbook
 
-### Step 1: Supabase Setup
-1. Create a new project at supabase.com
-2. Go to SQL Editor -> paste contents of supabase/schema_final.sql -> Run
-3. Go to Authentication -> URL Configuration:
-   - Site URL: https://your-production-domain.com
-   - Redirect URLs: https://your-production-domain.com/**
-4. Go to Settings -> API and copy:
-   - Project URL -> NEXT_PUBLIC_SUPABASE_URL
-   - anon public key -> NEXT_PUBLIC_SUPABASE_ANON_KEY
-   - service_role key -> SUPABASE_SERVICE_ROLE_KEY (keep secret)
+This is the single operational guide for local development, Supabase migrations, Vercel deployment, and verification. Do not commit `.env.local` or service-role credentials.
 
-### Step 2: Vercel Deployment
-1. Install Vercel CLI: npm i -g vercel
-2. From project root: vercel
-3. In Vercel dashboard -> Settings -> Environment Variables, add:
-   - NEXT_PUBLIC_SUPABASE_URL
-   - NEXT_PUBLIC_SUPABASE_ANON_KEY
-   - SUPABASE_SERVICE_ROLE_KEY
-   - NEXT_PUBLIC_APP_URL (your Vercel domain)
-   - NEXT_PUBLIC_API_URL (leave empty or /api)
-   - JWT_SECRET (random 32+ char string)
-   - ADMIN_INVITE_CODE (your chosen admin code)
-   - NODE_ENV = production
+## 1. Configure a project
 
-### Step 3: Verify Deployment
-- Visit: https://your-domain.com/api/health
-- Should return: { "status": "ok", "db": "ok" }
-- Test: register a new user, log in, check dashboard loads
-# AuroWater — Deployment Guide
+Use the intended AuroWater Supabase project: `mwfcwhxdlnqldciigicl`.
 
-## Vercel (recommended)
+1. Copy `.env.example` to `.env.local` (or create `.env.local` with the variables below).
+2. In Supabase **Settings → API**, copy the project URL, the anon/publishable key, and the service-role secret.
+3. Run `npm run verify:env`. It verifies presence only and never prints secrets.
 
-### 1. Connect repo
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://mwfcwhxdlnqldciigicl.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-or-publishable-key>
+SUPABASE_SERVICE_ROLE_KEY=<service-role-secret>
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
-In the Vercel dashboard: New Project → import from GitHub.
+`SUPABASE_SERVICE_ROLE_KEY` is server-only. Never put it in a `NEXT_PUBLIC_*` variable, browser code, source control, or a client-side test.
 
-### 2. Environment variables
+## 2. Apply migrations
 
-Set in the Vercel project (**Production** and **Preview** as needed). Match **`.env.example`** — copy values from your local **`.env.local`** (never commit secrets).
+1. Run `npm run db:bundle-sql` to regenerate `sql/ALL_MIGRATIONS_ORDERED.sql` when migration sources change.
+2. In Supabase SQL Editor, run `sql/ALL_MIGRATIONS_ORDERED.sql` as one transaction-aware bundle.
+3. Reload PostgREST after DDL:
 
-| Variable | Notes |
-|----------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (same as publishable in current Supabase UI) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Optional if `ANON_KEY` is set (same value) |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Server-only** — never expose to the client |
-| `NEXT_PUBLIC_APP_URL` | Canonical URL, e.g. `https://aurowater.in` |
-| `NEXT_PUBLIC_API_URL` | Same-origin API base, e.g. `https://aurowater.in/api` |
-| `NEXT_PUBLIC_APP_NAME` | e.g. `AuroWater` |
-| `NEXT_PUBLIC_WHATSAPP_NUMBER` | 10-digit India fallback for WhatsApp links |
-| `JWT_SECRET` | If you use legacy JWT helpers |
-| `DATABASE_URL` | Optional — direct Postgres for scripts; app uses Supabase API |
-| `ADMIN_EMAIL`, `ADMIN_PHONE`, `ADMIN_INVITE_CODE` | As needed |
-| `SUPPORT_EMAIL`, `SUPPORT_PHONE` | As needed |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | If maps are enabled |
+   ```sql
+   SELECT pg_notify('pgrst', 'reload schema');
+   ```
 
-After saving env vars, **Redeploy** so the build picks them up.
+4. Confirm the core tables exist and enable Realtime on `orders` and `notifications` when dashboard live updates are required.
 
-### 3. Build settings
+If an API returns `PGRST205` or `DB_NOT_READY`, rerun the bundle and reload PostgREST before changing application code.
 
-- **Build command:** `npm run build`
-- **Output:** Next.js default (`.next`)
-- **Node:** 20.x LTS
+## 3. Deploy to Vercel
 
-### 4. Supabase
+Set the same variables for the applicable Preview and Production environments, then redeploy. Use Node 20.x LTS, `npm run build`, and Next.js default output (`.next`). Set `NEXT_PUBLIC_APP_URL` to the canonical HTTPS domain in production. Add that domain plus preview URLs in **Supabase Auth → URL Configuration**.
 
-1. Run SQL in order: `sql/001_core_schema.sql` … `sql/005_notifications_dedup.sql` (see **README**).
-2. Enable **Realtime** on `orders` and `notifications` if dashboards rely on live updates.
-3. In Supabase **Auth → URL configuration**, add your Vercel preview and production domains.
+Additional optional server configuration: `JWT_SECRET`, `ADMIN_INVITE_CODE`, `ADMIN_EMAIL`, `ADMIN_PHONE`, `SUPPORT_EMAIL`, `SUPPORT_PHONE`, and `DATABASE_URL`. `NEXT_PUBLIC_API_URL` is deprecated; browser requests must stay same-origin under `/api`.
 
-### 5. Custom domain
+## 4. Production checklist
 
-Add the domain under Vercel → Domains and point DNS (A/CNAME) as instructed.
+- [ ] `npm run lint`, `npm run test:regression`, and `npm run build` pass.
+- [ ] `GET /api/settings`, `/sitemap.xml`, `/robots.txt`, and `/og-image.png` return successful responses.
+- [ ] `/auth/login` works and redirects each role to its own dashboard.
+- [ ] A customer can save an address, select it, schedule a service, and see the order under `/customer/home`.
+- [ ] Supplier, technician, and admin routes reject unauthenticated and incorrect-role users.
+- [ ] No service-role key is present in client bundles or committed files.
 
-### 6. Post-deploy checklist
+## 5. Safe authenticated smoke test
 
-- [ ] `GET /api/settings` returns 200 with JSON
-- [ ] `/auth/login` works and sets gate cookies + Bearer token as designed
-- [ ] `/book` completes a test order and row appears in Supabase `orders`
-- [ ] `/customer/home` lists orders for a test customer
-- [ ] `/admin/dashboard` loads for an admin user
-- [ ] Order status / Realtime updates where enabled
-- [ ] WhatsApp FAB reads phone / enable flag from settings
-- [ ] `/sitemap.xml` and `/robots.txt` respond 200
-- [ ] `/og-image.png` returns 200 (Open Graph)
+Create a dedicated **development-project** customer account with no production data. Start the app, then run:
 
-### 7. Caching
+```bash
+BASE_URL=http://localhost:3000 \
+SMOKE_TEST_EMAIL=dev-smoke@example.test \
+SMOKE_TEST_PASSWORD='<password>' \
+SMOKE_EXPECTED_ROLE=customer \
+npm run smoke:auth
+```
 
-API routes that mutate data use `Cache-Control: private, no-store` where implemented. Public `GET /api/settings` may be cached in the app via `useSettings` localStorage; admins clearing keys after save is documented on the Admin Settings page.
+The test logs in, reads the profile and addresses, and sends an intentionally invalid order payload. It must receive `400`, so it verifies authentication and customer authorization without creating an order or modifying data. Do not point it at production.

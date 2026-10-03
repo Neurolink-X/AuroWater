@@ -432,9 +432,9 @@ export default function BookingWizard() {
         landmark: na.landmark?.trim() ?? '',
         is_default: na.is_default ?? true,
       })) as AddressRow;
-      setDraft((d) => ({ ...d, addressId: created.id }));
-      toast.success('Address saved.');
       await loadAddresses();
+      setDraft((d) => ({ ...d, addressId: created.id, newAddress: undefined }));
+      toast.success('Address saved and selected.');
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'Could not save address.');
     }
@@ -846,6 +846,7 @@ export default function BookingWizard() {
                     <input
                       className="rounded-xl border border-slate-200 px-3 py-2"
                       placeholder="Flat / house no."
+                      required
                       value={draft.newAddress?.house_flat ?? ''}
                       onChange={(e) =>
                         setDraft((d) => ({
@@ -857,6 +858,7 @@ export default function BookingWizard() {
                     <input
                       className="rounded-xl border border-slate-200 px-3 py-2 sm:col-span-2"
                       placeholder="Area / locality"
+                      required
                       value={draft.newAddress?.area ?? ''}
                       onChange={(e) =>
                         setDraft((d) => ({
@@ -885,6 +887,8 @@ export default function BookingWizard() {
                       className="rounded-xl border border-slate-200 px-3 py-2"
                       placeholder="Pincode"
                       inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      required
                       value={draft.newAddress?.pincode ?? ''}
                       onChange={(e) =>
                         setDraft((d) => ({
