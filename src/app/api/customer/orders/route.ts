@@ -371,7 +371,7 @@ export async function POST(req: NextRequest) {
       total_amount: total,
       platform_fee: convenience,
       final_amount: total,
-      payment_status: 'unpaid',
+      payment_status: 'pending',
       payment_method: str(body.payment_method) ?? 'cash',
       address: addressText || null,
       address_id: addr.id,
