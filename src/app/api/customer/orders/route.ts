@@ -189,13 +189,27 @@ export async function POST(req: NextRequest) {
   if (!addr) return jsonErr('Address not found', 404);
 
   const a = addr as Record<string, unknown>;
-  const addrLat = toNum(a.lat);
-  const addrLng = toNum(a.lng);
-  const inZone =
-    Number.isFinite(addrLat) && Number.isFinite(addrLng)
-      ? getServiceZone(addrLat, addrLng) !== null
-      : isCityServed(String(a.city ?? ''));
-  if (!inZone) return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
+
+const addrLat = toNum(a.lat);
+const addrLng = toNum(a.lng);
+
+const serviceability = await resolveServiceability(
+  a,
+  service_type_key
+);
+
+if (!serviceability.serviceable) {
+  return jsonErr(serviceability.message, 400);
+}
+  
+  // const a = addr as Record<string, unknown>;
+  // const addrLat = toNum(a.lat);
+  // const addrLng = toNum(a.lng);
+  // const inZone =
+  //   Number.isFinite(addrLat) && Number.isFinite(addrLng)
+  //     ? getServiceZone(addrLat, addrLng) !== null
+  //     : isCityServed(String(a.city ?? ''));
+  // if (!inZone) return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
 
   const settingsResult = await settingsMap(auth.ctx.supabase);
   if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
