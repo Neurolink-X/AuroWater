@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { sweepCustomerOrders } from '@/lib/dispatch';
 
 export async function GET(
   req: NextRequest,
@@ -13,6 +14,9 @@ export async function GET(
   }
 
   const { id } = await ctx.params;
+
+  // Lazy dispatch maintenance (releases unanswered offers, retries unassigned orders)
+  await sweepCustomerOrders(auth.ctx.profile.id);
 
   const { data, error } = await auth.ctx.supabase
     .from('orders')
@@ -38,12 +42,14 @@ export async function GET(
     can_quantity: row.can_count ?? null,
     notes: row.note ?? null,
     cancellation_reason: row.cancel_reason ?? null,
+    base_amount: row.base_amount ?? 0,
+    convenience_fee: row.convenience_fee ?? row.platform_fee ?? 0,
+    emergency_charge: row.emergency_charge ?? 0,
+    gst_amount: row.gst_amount ?? 0,
+    address_snapshot:
+      row.address_snapshot ?? (row.address ? { house_flat: row.address } : null),
   });
 }
-
-
-
-
 
 
 
@@ -74,21 +80,29 @@ export async function GET(
 //     .maybeSingle();
 
 //   if (error) {
+//     console.error('[orders/:id] load failed:', error);
 //     return jsonErr(error.message, 500);
 //   }
 //   if (!data) {
 //     return jsonErr('Order not found', 404);
 //   }
 
-//   let service_type_key: string | null = null;
-//   if (data.service_type_id != null) {
-//     const { data: st } = await auth.ctx.supabase
-//       .from('service_types')
-//       .select('key')
-//       .eq('id', data.service_type_id)
-//       .maybeSingle();
-//     service_type_key = st?.key ?? null;
-//   }
-
-//   return jsonOk({ ...data, service_type_key });
+//   // Orders store the service key directly in `service_type`.
+//   // Old field names are added so existing frontend code keeps working.
+//   const row = data as Record<string, unknown>;
+//   return jsonOk({
+//     ...row,
+//     service_type_key: row.service_type ?? null,
+//     can_quantity: row.can_count ?? null,
+//     notes: row.note ?? null,
+//     cancellation_reason: row.cancel_reason ?? null,
+//   });
 // }
+
+
+
+
+
+
+
+
