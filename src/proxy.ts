@@ -72,11 +72,36 @@ const PUBLIC_EXACT: Set<string> = new Set([
 ]);
 
 const PUBLIC_PREFIXES: readonly string[] = [
-  '/api/auth/',          // all auth API routes are public
+  /*
+   * Public APIs
+   */
+  '/api/auth/',
   '/api/settings',
   '/api/services',
   '/api/contact',
   '/api/founding-members',
+
+  /*
+   * Protected application APIs.
+   *
+   * These must pass through the proxy without a browser-login redirect
+   * because the individual API route handlers authenticate the request
+   * using the Supabase session / Bearer token.
+   *
+   * IMPORTANT:
+   * Never redirect API requests to /auth/login.
+   * API routes must return JSON 401/403 responses instead.
+   */
+  '/api/customer/',
+  '/api/admin/',
+  '/api/supplier/',
+  '/api/technician/',
+  '/api/seller/',
+  '/api/agent/',
+
+  /*
+   * Public application assets/routes
+   */
   '/blog/',
   '/_next/',
   '/images/',
