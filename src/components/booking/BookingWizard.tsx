@@ -13,6 +13,7 @@ import {
   ApiError,
   customerAddressCreate,
   customerAddresses,
+  customerServiceability,
   customerOrderCreate,
   type ApiOrder,
 } from '@/lib/api-client';
@@ -234,6 +235,20 @@ export default function BookingWizard() {
   const [createdOrder, setCreatedOrder] = useState<ApiOrder | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [waitlistCity, setWaitlistCity] = useState('');
+  
+  const [serviceability, setServiceability] = useState<{
+  serviceable: boolean;
+  status: string;
+  zone: {
+    id: string;
+    name: string;
+    city: string;
+  } | null;
+  message: string;
+  services: string[] | null;
+} | null>(null);
+
+const [checkingServiceability, setCheckingServiceability] = useState(false);
 
   const submitLock = useRef(false);
   const firstScroll = useRef(true);
@@ -419,22 +434,82 @@ export default function BookingWizard() {
   }, [session?.loggedIn]);
 
   useEffect(() => {
-    if (view >= 3 && session?.loggedIn) void loadAddresses();
-  }, [view, session?.loggedIn, loadAddresses]);
+  if (!session?.loggedIn || !draft.addressId || view !== 3) {
+  setServiceability(null);
+  setCheckingServiceability(false);
+  return;
+}
 
-  /* Auto-select a sensible address; drop a stale one */
-  useEffect(() => {
-    if (!addressesLoaded) return;
-    setDraft((d) => {
-      if (d.addressId && addresses.some((a) => a.id === d.addressId)) return d;
-      if (!addresses.length) return d.addressId ? { ...d, addressId: undefined } : d;
-      const pick = addresses.find((a) => a.is_default) ?? addresses[0];
-      return { ...d, addressId: pick.id };
-    });
-  }, [addresses, addressesLoaded]);
+  let cancelled = false;
 
-  const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
-  const breakdown = useMemo(
+  const checkServiceability = async () => {
+    setCheckingServiceability(true);
+
+    try {
+      const result = await customerServiceability(
+        draft.addressId!,
+        draft.serviceKey
+      );
+
+      if (!cancelled) {
+        setServiceability(result);
+      }
+    } catch (e) {
+      if (!cancelled) {
+        setServiceability({
+          serviceable: false,
+          status: 'ERROR',
+          zone: null,
+          message:
+            e instanceof ApiError
+              ? e.message
+              : 'Could not check service availability right now.',
+          services: null,
+        });
+      }
+    } finally {
+      if (!cancelled) {
+        setCheckingServiceability(false);
+      }
+    }
+  };
+
+  void checkServiceability();
+
+  return () => {
+    cancelled = true;
+  };
+}, [draft.addressId, draft.serviceKey, session?.loggedIn, view]);
+  
+ useEffect(() => {
+  if (view >= 3 && session?.loggedIn) {
+    void loadAddresses();
+  }
+}, [view, session?.loggedIn, loadAddresses]);
+
+/* Auto-select a sensible address; drop a stale one */
+useEffect(() => {
+  setDraft((d) => {
+    if (d.addressId && addresses.some((a) => a.id === d.addressId)) {
+      return d;
+    }
+
+    if (!addresses.length) {
+      return d.addressId ? { ...d, addressId: undefined } : d;
+    }
+
+    const pick = addresses.find((a) => a.is_default) ?? addresses[0];
+
+    return { ...d, addressId: pick.id };
+  });
+}, [addresses, addressesLoaded]);
+
+const baseAmount = useMemo(
+  () => computeBaseAmount(draft, settings),
+  [draft, settings]
+);
+
+const breakdown = useMemo(
     () => {
       const raw = calcOrderTotal(baseAmount, draft.isEmergency);
       // GST is not charged: remove it from the total everywhere.
@@ -495,17 +570,43 @@ export default function BookingWizard() {
       }
       return true;
     }
+    // if (s === 3) {
+    //   if (!session?.loggedIn) {
+    //     toast.error('Sign in to continue.');
+    //     return false;
+    //   }
+    //   if (!draft.addressId) {
+    //     toast.error('Select or add a delivery address.');
+    //     return false;
+    //   }
+    //   return true;
+    // }
     if (s === 3) {
-      if (!session?.loggedIn) {
-        toast.error('Sign in to continue.');
-        return false;
-      }
-      if (!draft.addressId) {
-        toast.error('Select or add a delivery address.');
-        return false;
-      }
-      return true;
-    }
+  if (!session?.loggedIn) {
+    toast.error('Sign in to continue.');
+    return false;
+  }
+
+  if (!draft.addressId) {
+    toast.error('Select or add a delivery address.');
+    return false;
+  }
+
+  if (checkingServiceability) {
+    toast.error('Checking service availability. Please wait.');
+    return false;
+  }
+
+  if (!serviceability?.serviceable) {
+    toast.error(
+      serviceability?.message ??
+        'This address is not currently serviceable.'
+    );
+    return false;
+  }
+
+  return true;
+}
     if (s === 4) {
       if (!draft.slotValid) {
         toast.error('Pick a valid date and time slot.');
@@ -1035,7 +1136,10 @@ export default function BookingWizard() {
                           type="radio"
                           name="addr"
                           checked={draft.addressId === a.id}
-                          onChange={() => setDraft((d) => ({ ...d, addressId: a.id }))}
+                          onChange={() => {
+                          setServiceability(null);
+                          setDraft((d) => ({ ...d, addressId: a.id }));
+                    }}
                           className="mt-1"
                         />
                         <div>
@@ -1053,6 +1157,56 @@ export default function BookingWizard() {
                     ))}
                   </div>
                 )}
+
+                {/* SERVICEABILITY MESSAGE — START */}
+                {draft.addressId && (
+                  <div
+                    className={`rounded-2xl border p-4 ${
+                      checkingServiceability
+                        ? 'border-slate-200 bg-slate-50'
+                        : serviceability?.serviceable
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-amber-200 bg-amber-50'
+                    }`}
+                    aria-live="polite"
+                  >
+                    {checkingServiceability || !serviceability ? (
+                      <p className="text-sm font-medium text-slate-700">
+                        Checking service availability for this address…
+                      </p>
+                    ) : (
+                      <>
+                        <p
+                          className={`font-semibold ${
+                            serviceability?.serviceable
+                              ? 'text-emerald-800'
+                              : 'text-amber-900'
+                          }`}
+                        >
+                          {serviceability?.serviceable
+                            ? '✓ Service available'
+                            : 'Service not currently available'}
+                        </p>
+
+                        <p className="mt-1 text-sm text-slate-700">
+                          {serviceability?.message}
+                        </p>
+
+                        {serviceability?.status === 'COMING_SOON' && (
+                          <div className="mt-3">
+                            <WaitlistPanel
+                              cityName={serviceability.zone?.name ?? 'your area'}
+                              cityId={null}
+                              role="customer"
+                              source="book-zone"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {/* SERVICEABILITY MESSAGE — END */}
 
                 <div className="border-t border-slate-100 pt-6 space-y-3">
                   <h3 className="font-semibold text-slate-800">Add new address</h3>
@@ -1154,7 +1308,12 @@ export default function BookingWizard() {
               <button
                 type="button"
                 onClick={nextStep}
-                disabled={!session?.loggedIn || !draft.addressId}
+                disabled={
+                  !session?.loggedIn ||
+                  !draft.addressId ||
+                  checkingServiceability ||
+                   !serviceability?.serviceable
+}
                 className={btnPrimary}
               >
                 Continue
