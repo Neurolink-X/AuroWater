@@ -7,7 +7,7 @@ type Props = {
   cityName: string;
   cityId: string | null;
   role: 'customer' | 'seller' | 'agent';
-  source?: 'register' | 'homepage' | 'book';
+  source?: 'register' | 'homepage' | 'book' | 'book-zone';
   defaultName?: string;
   defaultPhone?: string;
   onClose?: () => void;
@@ -65,7 +65,13 @@ export default function WaitlistPanel({
         }),
       });
       const data = (await res.json()) as { error?: string; success?: boolean; message?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Failed');
+      if (!res.ok) {
+  throw new Error(
+    data.error && data.error.length < 160
+      ? data.error
+      : 'Unable to join the waitlist. Please try again.'
+  );
+}
       setDone(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
