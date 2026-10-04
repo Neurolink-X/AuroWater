@@ -345,6 +345,7 @@ if (!serviceability.serviceable) {
       customer_id: customerId,
       service_type: service_type_key,
       status: 'PENDING',
+      zone_id: serviceability.zone?.id ?? null,
       can_count: qty,
       total_amount: total,
       platform_fee: convenience,
