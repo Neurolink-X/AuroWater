@@ -399,7 +399,20 @@ export type ApiAddress = {
   pincode?: string | null;
   landmark?: string | null;
   is_default?: boolean | null;
+  zone_id?: string | null;
   created_at?: string | null;
+};
+
+export type CustomerServiceability = {
+  serviceable: boolean;
+  status: string;
+  zone: {
+    id: string;
+    name: string;
+    city: string;
+  } | null;
+  message: string;
+  services: string[] | null;
 };
 
 export type ApiNotification = {
@@ -458,6 +471,23 @@ export async function customerStats(): Promise<CustomerStats> {
 
 export async function customerAddresses(): Promise<ApiAddress[]> {
   return apiFetchAuth<ApiAddress[]>('/customer/addresses');
+}
+
+export async function customerServiceability(
+  addressId: string,
+  service?: string
+): Promise<CustomerServiceability> {
+  const sp = new URLSearchParams({
+    address_id: addressId,
+  });
+
+  if (service) {
+    sp.set('service', service);
+  }
+
+  return apiFetchAuth<CustomerServiceability>(
+    `/customer/serviceability?${sp.toString()}`
+  );
 }
 
 export type NewAddressPayload = {
