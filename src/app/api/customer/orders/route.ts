@@ -7,6 +7,7 @@ import {
   isRlsOrPermissionDeniedError,
   postgrestTableUnavailableUserMessage,
 } from '@/lib/supabase/postgrest-errors';
+import { resolveServiceability } from '@/lib/zones';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder, sweepCustomerOrders } from '@/lib/dispatch';
 
