@@ -442,7 +442,13 @@ export default function BookingWizard() {
       const list = (await customerAddresses()) as AddressRow[];
       setAddresses(Array.isArray(list) ? list : []);
       setAddressesLoaded(true);
-    } catch { toast.error('Could not load addresses.'); }
+   } catch (error) {
+  console.error('[BookingWizard] address load failed:', error);
+
+  toast.error(
+    'We couldn’t load your saved addresses. Please try again or add a new address.'
+  );
+}
     finally { setLoadingAddresses(false); }
   }, [session?.loggedIn]);
 
