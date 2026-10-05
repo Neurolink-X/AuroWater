@@ -1355,8 +1355,6 @@ const useMyLocation = () => {
                     />
                   </div>
 
-                                    </div>
-
                   {detectedLocation && (
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <div className="flex items-start gap-3">
