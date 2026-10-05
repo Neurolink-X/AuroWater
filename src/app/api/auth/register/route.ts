@@ -547,11 +547,13 @@ export async function POST(
       );
     }
 
-    return jsonErr(
-      message,
-      400,
-      authErrorCode,
-    );
+  return jsonErr(
+  /password/i.test(message)
+    ? 'Your password could not be accepted. Please use a stronger password and try again.'
+    : 'We could not create your account right now. Please try again.',
+  400,
+  authErrorCode,
+);
   }
 
   const userSb =
