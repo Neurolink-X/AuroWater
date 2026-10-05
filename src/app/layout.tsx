@@ -6,6 +6,7 @@ import RootChrome from '@/components/layout/RootChrome';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 import { getSiteUrl } from '@/lib/env';
 import { Toaster } from 'sonner';
+import OrganizationJsonLd from '@/components/seo/OrganizationJsonLd';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Site configuration
@@ -239,21 +240,21 @@ export const metadata: Metadata = {
  * verified and actually represented on those pages.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const organizationJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
+// const organizationJsonLd = {
+//   '@context': 'https://schema.org',
+//   '@type': 'Organization',
 
-  '@id': `${APP_URL}/#organization`,
+//   '@id': `${APP_URL}/#organization`,
 
-  name: APP_NAME,
+//   name: APP_NAME,
 
-  url: APP_URL,
+//   url: APP_URL,
 
-  logo: {
-    '@type': 'ImageObject',
-    url: `${APP_URL}/splash-logo.svg`,
-  },
-};
+//   logo: {
+//     '@type': 'ImageObject',
+//     url: `${APP_URL}/splash-logo.svg`,
+//   },
+// };
 
 const websiteJsonLd = {
   '@context': 'https://schema.org',
@@ -287,6 +288,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+          <OrganizationJsonLd />
+        
         {/* ── Supabase connection hints ──────────────────────────────── */}
 
         <link
@@ -360,12 +363,12 @@ export default function RootLayout({
 
         {/* ── Organization structured data ───────────────────────────── */}
 
-        <script
+        {/* <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify(organizationJsonLd),
           }}
-        />
+        /> */}
 
         {/* ── WebSite structured data ───────────────────────────────── */}
 
