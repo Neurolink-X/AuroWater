@@ -1,201 +1,755 @@
 import { NextRequest } from 'next/server';
-import { jsonErr, jsonOk } from '@/lib/api/json-response';
+
+import {
+  jsonErr,
+  jsonOk,
+} from '@/lib/api/json-response';
+
 import {
   ensureProfileForUser,
   isProfilesSchemaMissingError,
   profileTableUnavailableMessage,
 } from '@/lib/auth/ensure-profile';
-import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
-import type { ProfileRow } from '@/lib/db/types';
-import { getSupabaseServiceRoleKey } from '@/lib/env/supabase-service-role';
-import { createServiceClient } from '@/utils/supabase/server';
-import { checkRateLimit } from '@/lib/rate-limit';
 
-export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
-  const rateCheck = checkRateLimit(`login:${ip}`);
+import {
+  createSupabaseAnonClient,
+  createSupabaseUserClient,
+  isSupabaseConfigured,
+} from '@/lib/db/supabase';
+
+import type { ProfileRow } from '@/lib/db/types';
+
+import {
+  getSupabaseServiceRoleKey,
+} from '@/lib/env/supabase-service-role';
+
+import {
+  createServiceClient,
+} from '@/utils/supabase/server';
+
+import {
+  checkRateLimit,
+} from '@/lib/rate-limit';
+
+const EMAIL_PATTERN =
+  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+const PROFILE_SELECT = `
+  id,
+  email,
+  full_name,
+  role,
+  status,
+  phone,
+  city,
+  avatar_url,
+  aurotap_id,
+  created_at,
+  updated_at,
+  deleted_at,
+  is_active,
+  rejection_reason
+`;
+
+function getClientIp(
+  req: NextRequest,
+): string {
+  const forwarded =
+    req.headers.get(
+      'x-forwarded-for',
+    );
+
+  if (forwarded) {
+    return (
+      forwarded
+        .split(',')[0]
+        ?.trim() || 'unknown'
+    );
+  }
+
+  return (
+    req.headers.get(
+      'x-real-ip',
+    ) ?? 'unknown'
+  );
+}
+
+function normalizeEmail(
+  value: unknown,
+): string {
+  return typeof value === 'string'
+    ? value.trim().toLowerCase()
+    : '';
+}
+
+export async function POST(
+  req: NextRequest,
+) {
+  const ip =
+    getClientIp(req);
+
+  const rateCheck =
+    checkRateLimit(
+      `login:${ip}`,
+    );
+
   if (!rateCheck.allowed) {
-    return jsonErr(`Too many attempts — please wait ${rateCheck.retryAfter} seconds`, 429);
+    return jsonErr(
+      `Too many attempts — please wait ${rateCheck.retryAfter} seconds`,
+      429,
+      'RATE_LIMITED',
+    );
   }
 
   if (!isSupabaseConfigured()) {
-    return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
+    return jsonErr(
+      'Supabase is not configured on the server',
+      503,
+      'MISCONFIG_ENV',
+    );
   }
 
-  let body: Record<string, unknown>;
+  let body: Record<
+    string,
+    unknown
+  >;
+
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    body =
+      (await req.json()) as Record<
+        string,
+        unknown
+      >;
   } catch {
-    return jsonErr('Invalid JSON body', 400);
+    return jsonErr(
+      'Invalid JSON body',
+      400,
+    );
   }
 
-  const emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-  const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(-10) : '';
-
-  let email = emailRaw;
-  if (!email && /^\d{10}$/.test(phone)) {
-    email = `${phone}@users.aurotap.in`;
-  }
-  const city = typeof body.city === 'string' ? body.city.trim() : '';
-
-  if (!email || !password) {
-    return jsonErr('Phone or email, and password, are required', 400);
+  if (
+    !body ||
+    typeof body !== 'object' ||
+    Array.isArray(body)
+  ) {
+    return jsonErr(
+      'Invalid JSON body',
+      400,
+    );
   }
 
-  const sb = createSupabaseAnonClient();
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  const email =
+    normalizeEmail(
+      body.email,
+    );
 
-  if (error || !data.session?.access_token) {
-    const msg = error?.message ?? 'Invalid credentials';
-    const code = /confirm/i.test(msg) ? 'EMAIL_NOT_CONFIRMED' : undefined;
-    return jsonErr(msg, 401, code);
+  const password =
+    typeof body.password ===
+    'string'
+      ? body.password
+      : '';
+
+  if (!email) {
+    return jsonErr(
+      'Email is required',
+      400,
+    );
   }
 
-  const userSb = createSupabaseUserClient(data.session.access_token);
-  const { data: profile, error: pErr } = await userSb
+  if (
+    !EMAIL_PATTERN.test(email)
+  ) {
+    return jsonErr(
+      'Enter a valid email address',
+      400,
+    );
+  }
+
+  if (!password) {
+    return jsonErr(
+      'Password is required',
+      400,
+    );
+  }
+
+  if (
+    password.length > 128
+  ) {
+    return jsonErr(
+      'Invalid email or password',
+      401,
+      'INVALID_CREDENTIALS',
+    );
+  }
+
+  const sb =
+    createSupabaseAnonClient();
+
+  /*
+   * Primary authentication:
+   * Email + Password.
+   */
+  const {
+    data,
+    error,
+  } =
+    await sb.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+  if (
+    error ||
+    !data.session?.access_token
+  ) {
+    const message =
+      error?.message ??
+      'Invalid credentials';
+
+    const code =
+      /confirm/i.test(message)
+        ? 'EMAIL_NOT_CONFIRMED'
+        : 'INVALID_CREDENTIALS';
+
+    /*
+     * Do not expose raw Supabase
+     * authentication errors.
+     */
+    if (
+      code ===
+      'EMAIL_NOT_CONFIRMED'
+    ) {
+      return jsonErr(
+        'Please confirm your email before signing in.',
+        401,
+        code,
+      );
+    }
+
+    return jsonErr(
+      'Invalid email or password',
+      401,
+      code,
+    );
+  }
+
+  const userSb =
+    createSupabaseUserClient(
+      data.session.access_token,
+    );
+
+  /*
+   * Load the authenticated user's
+   * application profile.
+   */
+  const {
+    data: profile,
+    error: profileError,
+  } = await userSb
     .from('profiles')
-    .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
-    .eq('id', data.session.user.id)
+    .select(
+      PROFILE_SELECT,
+    )
+    .eq(
+      'id',
+      data.session.user.id,
+    )
     .maybeSingle();
 
-  if (pErr) {
-    const code = (pErr as { code?: string }).code;
+  if (profileError) {
+    const code =
+      (
+        profileError as {
+          code?: string;
+        }
+      ).code;
+
     if (code === '42501') {
-      return jsonErr(pErr.message || 'Forbidden', 403);
+      return jsonErr(
+        'Forbidden',
+        403,
+      );
     }
-    if (isProfilesSchemaMissingError(pErr)) {
-      return jsonErr(profileTableUnavailableMessage(pErr), 503, 'DB_NOT_READY');
+
+    if (
+      isProfilesSchemaMissingError(
+        profileError,
+      )
+    ) {
+      return jsonErr(
+        profileTableUnavailableMessage(
+          profileError,
+        ),
+        503,
+        'DB_NOT_READY',
+      );
     }
-    return jsonErr(pErr.message || 'Could not load profile', 502);
+
+    return jsonErr(
+      'Could not load your profile',
+      502,
+    );
   }
 
-  let resolved = profile as ProfileRow | null;
+  let resolved =
+    profile as ProfileRow | null;
 
+  /*
+   * Repair missing profile.
+   */
   if (!resolved) {
-    const { data: inserted, error: insErr } = await userSb
-      .from('profiles')
-      .insert({
-        id: data.session.user.id,
-        email: data.session.user.email ?? email,
-        full_name:
-          (data.session.user.user_metadata?.full_name as string | undefined) ??
-          (data.session.user.user_metadata?.name as string | undefined) ??
-          '',
-        role: 'customer',
-        status: 'active',
-      })
-      .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
-      .maybeSingle();
-    if (!insErr && inserted) {
-      resolved = inserted as ProfileRow;
-    } else {
-      resolved = await ensureProfileForUser(data.session.user);
-    }
-  }
-
-  if (!resolved) {
-    const sr = getSupabaseServiceRoleKey();
-    if (!sr) {
-      return jsonErr('Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set', 503, 'SERVICE_ROLE_MISSING');
-    }
     try {
-      const admin = createServiceClient();
-      const { data: svcRow, error: svcErr } = await admin
+      const {
+        data: inserted,
+        error: insertError,
+      } = await userSb
         .from('profiles')
-        .select('*')
-        .eq('id', data.session.user.id)
+        .insert({
+          id: data.session.user.id,
+          email:
+            data.session.user.email ??
+            email,
+          full_name:
+            (
+              data.session.user
+                .user_metadata
+                ?.full_name as
+                | string
+                | undefined
+            ) ??
+            (
+              data.session.user
+                .user_metadata
+                ?.name as
+                | string
+                | undefined
+            ) ??
+            '',
+          role: 'customer',
+          status: 'active',
+        })
+        .select(
+          PROFILE_SELECT,
+        )
         .maybeSingle();
-      if (!svcErr && svcRow) {
-        resolved = svcRow as ProfileRow;
+
+      if (
+        !insertError &&
+        inserted
+      ) {
+        resolved =
+          inserted as ProfileRow;
       }
-    } catch {
-      /* service client unavailable */
+    } catch (error) {
+      console.error(
+        '[auth/login] profile creation failed:',
+        error,
+      );
+    }
+  }
+
+  if (!resolved) {
+    resolved =
+      await ensureProfileForUser(
+        data.session.user,
+      );
+  }
+
+  /*
+   * Service-role fallback for profile
+   * recovery if normal RLS prevents it.
+   */
+  if (!resolved) {
+    const serviceRoleKey =
+      getSupabaseServiceRoleKey();
+
+    if (serviceRoleKey) {
+      try {
+        const admin =
+          createServiceClient();
+
+        const {
+          data: serviceProfile,
+          error:
+            serviceProfileError,
+        } = await admin
+          .from('profiles')
+          .select('*')
+          .eq(
+            'id',
+            data.session.user.id,
+          )
+          .maybeSingle();
+
+        if (
+          !serviceProfileError &&
+          serviceProfile
+        ) {
+          resolved =
+            serviceProfile as ProfileRow;
+        }
+      } catch (error) {
+        console.error(
+          '[auth/login] service profile fallback failed:',
+          error,
+        );
+      }
     }
   }
 
   if (!resolved) {
     return jsonErr(
-      'Profile not found for this account. Apply migrations (001–006), auth trigger (004_functions.sql), then retry.',
-      404
+      'Profile not found for this account. Please contact support.',
+      404,
+      'PROFILE_NOT_FOUND',
     );
   }
 
-  if (resolved.deleted_at) {
-    return jsonErr('Account deleted', 403, 'ACCOUNT_DELETED');
-  }
-  if (resolved.is_active === false) {
-    return jsonErr('Account suspended. Contact support.', 403, 'ACCOUNT_SUSPENDED');
-  }
-
-  // First-login hydration: store phone/city on the profile if provided.
-  if ((phone || city) && (resolved.phone !== phone || resolved.city !== city)) {
-    try {
-      const patch: Record<string, string> = {};
-      if (phone) patch.phone = phone;
-      if (city) patch.city = city;
-      const { data: updated, error: uErr } = await userSb
-        .from('profiles')
-        .update(patch)
-        .eq('id', resolved.id)
-        .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
-        .maybeSingle();
-      if (!uErr && updated) resolved = updated as ProfileRow;
-    } catch (e) {
-      console.error('profiles update (phone/city) failed', e);
-    }
+  /*
+   * Account-level security checks.
+   */
+  if (
+    resolved.deleted_at
+  ) {
+    return jsonErr(
+      'Account deleted',
+      403,
+      'ACCOUNT_DELETED',
+    );
   }
 
-  if (resolved.status === 'suspended' || resolved.status === 'banned') {
-    return jsonErr('Account suspended. Contact support.', 403, 'ACCOUNT_SUSPENDED');
+  if (
+    resolved.is_active === false
+  ) {
+    return jsonErr(
+      'Account suspended. Contact support.',
+      403,
+      'ACCOUNT_SUSPENDED',
+    );
   }
-  if (resolved.status === 'rejected') {
+
+  if (
+    resolved.status ===
+      'suspended' ||
+    resolved.status ===
+      'banned'
+  ) {
+    return jsonErr(
+      'Account suspended. Contact support.',
+      403,
+      'ACCOUNT_SUSPENDED',
+    );
+  }
+
+  if (
+    resolved.status ===
+    'rejected'
+  ) {
     return jsonErr(
       resolved.rejection_reason
         ? `Application rejected: ${resolved.rejection_reason}`
         : 'Application was rejected. Contact support.',
       403,
-      'ACCOUNT_REJECTED'
+      'ACCOUNT_REJECTED',
     );
   }
+
   if (
-    (resolved.status === 'pending' || resolved.status === 'pending_approval') &&
-    (resolved.role === 'supplier' || resolved.role === 'technician')
+    (
+      resolved.status ===
+        'pending' ||
+      resolved.status ===
+        'pending_approval'
+    ) &&
+    (
+      resolved.role ===
+        'supplier' ||
+      resolved.role ===
+        'technician'
+    )
   ) {
-    return jsonErr('Your account is still under review.', 403, 'PENDING_APPROVAL');
+    return jsonErr(
+      'Your account is still under review.',
+      403,
+      'PENDING_APPROVAL',
+    );
   }
 
-  // Fire-and-forget: update last_seen_at (never block login response).
-  try {
-    void userSb
-      .from('profiles')
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq('id', resolved.id);
-  } catch {
-    /* ignore */
-  }
+  /*
+   * Non-blocking last-seen update.
+   */
+  void userSb
+    .from('profiles')
+    .update({
+      last_seen_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      'id',
+      resolved.id,
+    );
 
-  const cookieSecure = req.nextUrl.protocol === 'https:';
-  const response = jsonOk({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-    expires_at: data.session.expires_at ?? null,
-    profile: resolved,
-  });
-  response.cookies.set('aw_session', '1', {
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-    sameSite: 'lax',
-    httpOnly: false,
-    secure: cookieSecure,
-  });
-  response.cookies.set('aw_role', resolved.role, {
-    maxAge: 60 * 60 * 24 * 7,
-    path: '/',
-    sameSite: 'lax',
-    httpOnly: false,
-    secure: cookieSecure,
-  });
+  /*
+   * These cookies are UI/session hints.
+   * Server authorization must still verify
+   * the actual authenticated profile.
+   */
+  const secure =
+    req.nextUrl.protocol ===
+    'https:';
+
+  const response =
+    jsonOk({
+      access_token:
+        data.session.access_token,
+
+      refresh_token:
+        data.session.refresh_token,
+
+      expires_at:
+        data.session.expires_at ??
+        null,
+
+      profile:
+        resolved,
+    });
+
+  response.cookies.set(
+    'aw_session',
+    '1',
+    {
+      maxAge:
+        60 * 60 * 24 * 7,
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      secure,
+    },
+  );
+
+  response.cookies.set(
+    'aw_role',
+    resolved.role,
+    {
+      maxAge:
+        60 * 60 * 24 * 7,
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      secure,
+    },
+  );
 
   return response;
 }
+
+
+
+
+
+
+
+
+
+
+// import { NextRequest } from 'next/server';
+// import { jsonErr, jsonOk } from '@/lib/api/json-response';
+// import {
+//   ensureProfileForUser,
+//   isProfilesSchemaMissingError,
+//   profileTableUnavailableMessage,
+// } from '@/lib/auth/ensure-profile';
+// import { createSupabaseAnonClient, createSupabaseUserClient, isSupabaseConfigured } from '@/lib/db/supabase';
+// import type { ProfileRow } from '@/lib/db/types';
+// import { getSupabaseServiceRoleKey } from '@/lib/env/supabase-service-role';
+// import { createServiceClient } from '@/utils/supabase/server';
+// import { checkRateLimit } from '@/lib/rate-limit';
+
+// export async function POST(req: NextRequest) {
+//   const ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? 'unknown';
+//   const rateCheck = checkRateLimit(`login:${ip}`);
+//   if (!rateCheck.allowed) {
+//     return jsonErr(`Too many attempts — please wait ${rateCheck.retryAfter} seconds`, 429);
+//   }
+
+//   if (!isSupabaseConfigured()) {
+//     return jsonErr('Supabase is not configured on the server', 503, 'MISCONFIG_ENV');
+//   }
+
+//   let body: Record<string, unknown>;
+//   try {
+//     body = (await req.json()) as Record<string, unknown>;
+//   } catch {
+//     return jsonErr('Invalid JSON body', 400);
+//   }
+
+//   const emailRaw = typeof body.email === 'string' ? body.email.trim() : '';
+//   const password = typeof body.password === 'string' ? body.password : '';
+//   const phone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '').slice(-10) : '';
+
+//   let email = emailRaw;
+//   if (!email && /^\d{10}$/.test(phone)) {
+//     email = `${phone}@users.aurotap.in`;
+//   }
+//   const city = typeof body.city === 'string' ? body.city.trim() : '';
+
+//   if (!email || !password) {
+//     return jsonErr('Phone or email, and password, are required', 400);
+//   }
+
+//   const sb = createSupabaseAnonClient();
+//   const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+//   if (error || !data.session?.access_token) {
+//     const msg = error?.message ?? 'Invalid credentials';
+//     const code = /confirm/i.test(msg) ? 'EMAIL_NOT_CONFIRMED' : undefined;
+//     return jsonErr(msg, 401, code);
+//   }
+
+//   const userSb = createSupabaseUserClient(data.session.access_token);
+//   const { data: profile, error: pErr } = await userSb
+//     .from('profiles')
+//     .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
+//     .eq('id', data.session.user.id)
+//     .maybeSingle();
+
+//   if (pErr) {
+//     const code = (pErr as { code?: string }).code;
+//     if (code === '42501') {
+//       return jsonErr(pErr.message || 'Forbidden', 403);
+//     }
+//     if (isProfilesSchemaMissingError(pErr)) {
+//       return jsonErr(profileTableUnavailableMessage(pErr), 503, 'DB_NOT_READY');
+//     }
+//     return jsonErr(pErr.message || 'Could not load profile', 502);
+//   }
+
+//   let resolved = profile as ProfileRow | null;
+
+//   if (!resolved) {
+//     const { data: inserted, error: insErr } = await userSb
+//       .from('profiles')
+//       .insert({
+//         id: data.session.user.id,
+//         email: data.session.user.email ?? email,
+//         full_name:
+//           (data.session.user.user_metadata?.full_name as string | undefined) ??
+//           (data.session.user.user_metadata?.name as string | undefined) ??
+//           '',
+//         role: 'customer',
+//         status: 'active',
+//       })
+//       .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
+//       .maybeSingle();
+//     if (!insErr && inserted) {
+//       resolved = inserted as ProfileRow;
+//     } else {
+//       resolved = await ensureProfileForUser(data.session.user);
+//     }
+//   }
+
+//   if (!resolved) {
+//     const sr = getSupabaseServiceRoleKey();
+//     if (!sr) {
+//       return jsonErr('Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY is not set', 503, 'SERVICE_ROLE_MISSING');
+//     }
+//     try {
+//       const admin = createServiceClient();
+//       const { data: svcRow, error: svcErr } = await admin
+//         .from('profiles')
+//         .select('*')
+//         .eq('id', data.session.user.id)
+//         .maybeSingle();
+//       if (!svcErr && svcRow) {
+//         resolved = svcRow as ProfileRow;
+//       }
+//     } catch {
+//       /* service client unavailable */
+//     }
+//   }
+
+//   if (!resolved) {
+//     return jsonErr(
+//       'Profile not found for this account. Apply migrations (001–006), auth trigger (004_functions.sql), then retry.',
+//       404
+//     );
+//   }
+
+//   if (resolved.deleted_at) {
+//     return jsonErr('Account deleted', 403, 'ACCOUNT_DELETED');
+//   }
+//   if (resolved.is_active === false) {
+//     return jsonErr('Account suspended. Contact support.', 403, 'ACCOUNT_SUSPENDED');
+//   }
+
+//   // First-login hydration: store phone/city on the profile if provided.
+//   if ((phone || city) && (resolved.phone !== phone || resolved.city !== city)) {
+//     try {
+//       const patch: Record<string, string> = {};
+//       if (phone) patch.phone = phone;
+//       if (city) patch.city = city;
+//       const { data: updated, error: uErr } = await userSb
+//         .from('profiles')
+//         .update(patch)
+//         .eq('id', resolved.id)
+//         .select('id,email,full_name,role,status,phone,city,avatar_url,aurotap_id,created_at,updated_at')
+//         .maybeSingle();
+//       if (!uErr && updated) resolved = updated as ProfileRow;
+//     } catch (e) {
+//       console.error('profiles update (phone/city) failed', e);
+//     }
+//   }
+
+//   if (resolved.status === 'suspended' || resolved.status === 'banned') {
+//     return jsonErr('Account suspended. Contact support.', 403, 'ACCOUNT_SUSPENDED');
+//   }
+//   if (resolved.status === 'rejected') {
+//     return jsonErr(
+//       resolved.rejection_reason
+//         ? `Application rejected: ${resolved.rejection_reason}`
+//         : 'Application was rejected. Contact support.',
+//       403,
+//       'ACCOUNT_REJECTED'
+//     );
+//   }
+//   if (
+//     (resolved.status === 'pending' || resolved.status === 'pending_approval') &&
+//     (resolved.role === 'supplier' || resolved.role === 'technician')
+//   ) {
+//     return jsonErr('Your account is still under review.', 403, 'PENDING_APPROVAL');
+//   }
+
+//   // Fire-and-forget: update last_seen_at (never block login response).
+//   try {
+//     void userSb
+//       .from('profiles')
+//       .update({ last_seen_at: new Date().toISOString() })
+//       .eq('id', resolved.id);
+//   } catch {
+//     /* ignore */
+//   }
+
+//   const cookieSecure = req.nextUrl.protocol === 'https:';
+//   const response = jsonOk({
+//     access_token: data.session.access_token,
+//     refresh_token: data.session.refresh_token,
+//     expires_at: data.session.expires_at ?? null,
+//     profile: resolved,
+//   });
+//   response.cookies.set('aw_session', '1', {
+//     maxAge: 60 * 60 * 24 * 7,
+//     path: '/',
+//     sameSite: 'lax',
+//     httpOnly: false,
+//     secure: cookieSecure,
+//   });
+//   response.cookies.set('aw_role', resolved.role, {
+//     maxAge: 60 * 60 * 24 * 7,
+//     path: '/',
+//     sameSite: 'lax',
+//     httpOnly: false,
+//     secure: cookieSecure,
+//   });
+
+//   return response;
+// }
