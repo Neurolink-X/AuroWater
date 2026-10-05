@@ -490,8 +490,19 @@ export default function BookingWizard() {
   }, [draft.addressId, draft.serviceKey, session?.loggedIn, view]);
 
   useEffect(() => {
-    if (view >= 3 && session?.loggedIn) void loadAddresses();
-  }, [view, session?.loggedIn, loadAddresses]);
+  if (
+    view >= 3 &&
+    session?.loggedIn &&
+    session.role === 'customer'
+  ) {
+    void loadAddresses();
+  }
+}, [
+  view,
+  session?.loggedIn,
+  session?.role,
+  loadAddresses,
+]);
 
   useEffect(() => {
     setDraft((d) => {
