@@ -131,7 +131,7 @@ export default function CustomerFeedbackPage() {
               quality for every customer.
             </p>
 
-            {rating <= 3 && (
+            {rating !== null && rating <= 3 && (
               <div className="mt-6 rounded-2xl bg-blue-50 p-4 text-left">
                 <div className="flex items-start gap-3">
                   <MessageCircle className="mt-0.5 h-5 w-5 text-blue-600" />
