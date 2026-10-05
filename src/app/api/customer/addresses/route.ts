@@ -85,9 +85,13 @@ export async function GET(req: NextRequest) {
     return auth.response;
   }
 
-  if (!requireRole(auth.ctx, 'customer')) {
-    return jsonErr('Forbidden', 403);
-  }
+if (!requireRole(auth.ctx, 'customer')) {
+  return jsonErr(
+    'A customer account is required for this service.',
+    403,
+    'CUSTOMER_ROLE_REQUIRED'
+  );
+}
 
   const { data, error } = await auth.ctx.supabase
     .from('addresses')
