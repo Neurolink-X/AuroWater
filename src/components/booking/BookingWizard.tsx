@@ -1420,11 +1420,12 @@ const useMyLocation = () => {
                         ? '📍 Location detected ✓'
                         : '📍 Use my current location'}
                   </button>
+
                   <button
                     type="button"
                     onClick={() => void saveInlineAddress()}
                     disabled={savingAddress}
-                    className="rounded-xl border border-emerald-600 text-emerald-700 px-4 py-2 font-semibold hover:bg-emerald-50 disabled:opacity-50"
+                    className="rounded-xl border border-emerald-600 px-4 py-2 font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
                   >
                     {savingAddress ? 'Saving…' : 'Save address'}
                   </button>
