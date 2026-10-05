@@ -1408,7 +1408,7 @@ const useMyLocation = () => {
                     </div>
                   ) : null}
 
-                                  <button
+                  <button
                     type="button"
                     onClick={useMyLocation}
                     disabled={locating}
