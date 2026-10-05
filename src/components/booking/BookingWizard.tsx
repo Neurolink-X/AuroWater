@@ -15,8 +15,10 @@ import {
   customerAddresses,
   customerServiceability,
   customerOrderCreate,
+  reverseGeocode,
   type ApiOrder,
 } from '@/lib/api-client';
+
 import { getMinDate, nextFutureSlot } from '@/lib/validation/time-slot-client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
@@ -249,6 +251,17 @@ export default function BookingWizard() {
 } | null>(null);
 
 const [checkingServiceability, setCheckingServiceability] = useState(false);
+
+  const [locating, setLocating] = useState(false);
+
+const [locationError, setLocationError] = useState<string | null>(null);
+
+const [detectedLocation, setDetectedLocation] = useState<{
+  formattedAddress: string | null;
+  city: string | null;
+  area: string | null;
+  pincode: string | null;
+} | null>(null);
 
   const submitLock = useRef(false);
   const firstScroll = useRef(true);
@@ -692,23 +705,82 @@ const breakdown = useMemo(
     }
   };
 
-  const useMyLocation = () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      toast.error('Location is not available on this device.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
+const useMyLocation = () => {
+  if (!session?.loggedIn) {
+    toast.error('Please sign in to detect your location.');
+    return;
+  }
+
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    toast.error('Location is not available on this device.');
+    return;
+  }
+
+  if (locating) return;
+
+  setLocating(true);
+  setLocationError(null);
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      try {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+
+        const result = await reverseGeocode(lat, lng);
+
         setDraft((d) => ({
           ...d,
-          newAddress: { ...d.newAddress, lat: pos.coords.latitude, lng: pos.coords.longitude },
+          newAddress: {
+            ...d.newAddress,
+            lat,
+            lng,
+            area: result.area ?? d.newAddress?.area ?? '',
+            city: result.city ?? d.newAddress?.city ?? '',
+            pincode: result.pincode ?? d.newAddress?.pincode ?? '',
+          },
         }));
-        toast.success('Location added. Your supplier will be matched by distance.');
-      },
-      () => toast.error('Could not get your location. You can still save the address.'),
-      { enableHighAccuracy: true, timeout: 10_000 }
-    );
-  };
+
+        setDetectedLocation({
+          formattedAddress: result.formattedAddress,
+          city: result.city,
+          area: result.area,
+          pincode: result.pincode,
+        });
+
+        toast.success('Location detected. Please review your address.');
+      } catch (e) {
+        const message =
+          e instanceof ApiError
+            ? e.message
+            : 'Could not determine your address from this location.';
+
+        setLocationError(message);
+        toast.error(message);
+      } finally {
+        setLocating(false);
+      }
+    },
+    (error) => {
+      let message = 'Could not get your location. You can enter the address manually.';
+
+      if (error.code === error.PERMISSION_DENIED) {
+        message = 'Location permission was denied. Please allow location access or enter the address manually.';
+      } else if (error.code === error.TIMEOUT) {
+        message = 'Location detection timed out. Please try again or enter the address manually.';
+      }
+
+      setLocationError(message);
+      setLocating(false);
+      toast.error(message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 15_000,
+      maximumAge: 0,
+    }
+  );
+};
 
   const confirmOrder = async () => {
     // Hard lock: a fast double-click can never create two orders
@@ -1282,13 +1354,76 @@ const breakdown = useMemo(
                       }
                     />
                   </div>
+
+                                    </div>
+
+                  {detectedLocation && (
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className="text-xl"
+                          aria-hidden="true"
+                        >
+                          📍
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="font-semibold text-emerald-900">
+                            Location detected
+                          </p>
+
+                          <p className="mt-1 text-sm text-emerald-800">
+                            {[
+                              detectedLocation.area,
+                              detectedLocation.city,
+                            ]
+                              .filter(Boolean)
+                              .join(', ') || 'Location detected'}
+                            {detectedLocation.pincode
+                              ? ` · ${detectedLocation.pincode}`
+                              : ''}
+                          </p>
+
+                          {detectedLocation.formattedAddress ? (
+                            <p className="mt-1 text-xs text-emerald-700">
+                              {detectedLocation.formattedAddress}
+                            </p>
+                          ) : null}
+
+                          <p className="mt-2 text-xs text-emerald-700">
+                            GPS location is approximate. Please review
+                            and confirm your delivery address before saving.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {locationError ? (
+                    <div
+                      className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                      role="alert"
+                    >
+                      {locationError}
+                    </div>
+                  ) : null}
+
                   <button
                     type="button"
                     onClick={useMyLocation}
-                    className="mr-2 rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {typeof draft.newAddress?.lat === 'number' ? '📍 Location added ✓' : '📍 Use my location'}
-                  </button>
+                  
+              <button
+  type="button"
+  onClick={useMyLocation}
+  disabled={locating}
+  className="mr-2 rounded-xl border border-slate-200 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+>
+  {locating
+    ? '⏳ Finding your location…'
+    : typeof draft.newAddress?.lat === 'number'
+      ? '📍 Location detected ✓'
+      : '📍 Use my current location'}
+</button>
                   <button
                     type="button"
                     onClick={() => void saveInlineAddress()}
