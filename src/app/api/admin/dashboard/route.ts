@@ -159,7 +159,7 @@ async function fetchRecentOrders(sb: SupabaseClient): Promise<OrderRow[]> {
     .select(`
       id, status, total_amount, created_at, is_emergency, customer_id,
       customer:profiles!orders_customer_id_fkey ( full_name ),
-      service_types ( name )
+      service_types ( label )
     `)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -173,9 +173,9 @@ async function fetchRecentOrders(sb: SupabaseClient): Promise<OrderRow[]> {
       id: string; status: string; total_amount: unknown;
       created_at: string; is_emergency: unknown; customer_id: unknown;
       customer: Array<{ full_name: string }> | null;
-      service_types: Array<{ name: string }> | null;
+      service_types: Array<{ label: string }> | null;
     };
-    const svcName = row.service_types?.[0]?.name ?? null;
+    const svcName = row.service_types?.[0]?.label ?? null;
     return {
       id:            row.id,
       status:        row.status,
