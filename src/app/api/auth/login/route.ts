@@ -233,28 +233,35 @@ export async function POST(
     );
   }
 
-  const userSb =
-    createSupabaseUserClient(
-      data.session.access_token,
-    );
+/*
+ * Load the authenticated user's application
+ * profile using the server-side service role.
+ *
+ * Password authentication has already succeeded
+ * above. Using service role here prevents login
+ * from depending on profiles RLS policies.
+ */
+const userSb =
+  createSupabaseUserClient(
+    data.session.access_token,
+  );
 
-  /*
-   * Load the authenticated user's
-   * application profile.
-   */
-  const {
-    data: profile,
-    error: profileError,
-  } = await userSb
-    .from('profiles')
-    .select(
-      PROFILE_SELECT,
-    )
-    .eq(
-      'id',
-      data.session.user.id,
-    )
-    .maybeSingle();
+const adminSb =
+  createServiceClient();
+
+const {
+  data: profile,
+  error: profileError,
+} = await adminSb
+  .from('profiles')
+  .select(
+    PROFILE_SELECT,
+  )
+  .eq(
+    'id',
+    data.session.user.id,
+  )
+  .maybeSingle();
 
   if (profileError) {
     const code =
