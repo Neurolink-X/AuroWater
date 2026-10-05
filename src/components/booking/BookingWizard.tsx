@@ -435,22 +435,42 @@ export default function BookingWizard() {
     });
   }, [draft.serviceKey]);
 
-  const loadAddresses = useCallback(async () => {
-    if (!session?.loggedIn) return;
-    setLoadingAddresses(true);
-    try {
-      const list = (await customerAddresses()) as AddressRow[];
-      setAddresses(Array.isArray(list) ? list : []);
-      setAddressesLoaded(true);
-   } catch (error) {
-  console.error('[BookingWizard] address load failed:', error);
+ const loadAddresses = useCallback(async () => {
+  // Guests can browse the booking flow,
+  // but customer-only APIs must never be called for other roles.
+  if (!session?.loggedIn || session.role !== 'customer') {
+    setAddresses([]);
+    setAddressesLoaded(true);
+    setLoadingAddresses(false);
+    return;
+  }
 
-  toast.error(
-    'We couldn’t load your saved addresses. Please try again or add a new address.'
-  );
-}
-    finally { setLoadingAddresses(false); }
-  }, [session?.loggedIn]);
+  setLoadingAddresses(true);
+
+  try {
+    const list = (await customerAddresses()) as AddressRow[];
+
+    setAddresses(Array.isArray(list) ? list : []);
+    setAddressesLoaded(true);
+  } catch (error) {
+    console.error('[BookingWizard] address load failed:', error);
+
+    setAddressesLoaded(true);
+
+    if (
+      error instanceof ApiError &&
+      error.code === 'CUSTOMER_ROLE_REQUIRED'
+    ) {
+      return;
+    }
+
+    toast.error(
+      'We couldn’t load your saved addresses. Please try again or add a new address.'
+    );
+  } finally {
+    setLoadingAddresses(false);
+  }
+}, [session?.loggedIn, session?.role]);
 
   useEffect(() => {
     if (!session?.loggedIn || !draft.addressId || view !== 3) {
