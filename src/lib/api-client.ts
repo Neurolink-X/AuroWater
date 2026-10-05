@@ -399,6 +399,8 @@ export type ApiAddress = {
   pincode?: string | null;
   landmark?: string | null;
   is_default?: boolean | null;
+  lat?: number | null;
+  lng?: number | null;
   zone_id?: string | null;
   created_at?: string | null;
 };
@@ -490,6 +492,31 @@ export async function customerServiceability(
   );
 }
 
+export type ReverseGeocodeResult = {
+  lat: number;
+  lng: number;
+  formattedAddress: string | null;
+  placeId: string | null;
+  houseNumber: string | null;
+  route: string | null;
+  area: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  country: string | null;
+  types: string[];
+};
+
+export async function reverseGeocode(
+  lat: number,
+  lng: number
+): Promise<ReverseGeocodeResult> {
+  return apiFetchAuth<ReverseGeocodeResult>('/geocode/reverse', {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng }),
+  });
+}
+
 export type NewAddressPayload = {
   label?: string;
   house_flat: string;
@@ -498,6 +525,8 @@ export type NewAddressPayload = {
   pincode: string;
   landmark?: string;
   is_default?: boolean;
+  lat?: number;
+  lng?: number;
 };
 
 export async function customerAddressCreate(body: NewAddressPayload): Promise<ApiAddress> {
