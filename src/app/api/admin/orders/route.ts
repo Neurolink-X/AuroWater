@@ -1,125 +1,192 @@
 /**
  * GET /api/admin/orders
  *
- * Fix applied (lines 140-143):
- *   Supabase embedded FK selects always return an ARRAY, never a single object.
- *   `profiles!orders_customer_id_fkey` → `{ full_name: string }[]`
- *   Previous cast to `{ full_name: string } | null` was structurally incompatible.
- *   Fixed: type as array, access [0] to get the first (and only) joined profile.
+ * Admin-only order listing endpoint.
  *
- * All other upgrades retained:
- *  ✓ X-Total-Count response header
- *  ✓ Status enum whitelist — prevents bad DB queries
- *  ✓ ISO date validation — returns 400 instead of 500
- *  ✓ Cursor-based pagination for infinite scroll
- *  ✓ DB-level service_type filter (no post-filter JS hack)
- *  ✓ Sort direction param
+ * Features:
+ * - Status whitelist
+ * - ISO date validation
+ * - DB-level service filter
+ * - Offset pagination
+ * - Cursor pagination
+ * - Stable cursor ordering using created_at + id
+ * - X-Total-Count response header
+ * - Supabase FK joins normalized from arrays
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { jsonErr } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
-/* ── Constants ───────────────────────────────────────────────────────────── */
-
 const VALID_STATUSES = new Set([
-  'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'FAILED',
+  'PENDING',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+  'FAILED',
 ]);
 
-const MAX_LIMIT      = 200;
-const DEFAULT_LIMIT  = 50;
-
-/* ── Output type ─────────────────────────────────────────────────────────── */
+const MAX_LIMIT = 200;
+const DEFAULT_LIMIT = 50;
 
 interface OrderRow {
-  id:               string;
-  status:           string;
-  total_amount:     number | null;
-  platform_fee:     number | null;
-  created_at:       string;
-  updated_at:       string | null;
-  service_type:     string | null;
-  address:          string | null;
-  is_emergency:     boolean | null;
-  customer_id:      string | null;
-  technician_id:    string | null;
-  payment_status:   string | null;
-  /** Flattened from the joined profiles row */
-  customer_name:    string | null;
-  technician_name:  string | null;
+  id: string;
+  status: string;
+  total_amount: number | null;
+  platform_fee: number | null;
+  created_at: string;
+  updated_at: string | null;
+  service_type: string | null;
+  address: string | null;
+  is_emergency: boolean | null;
+  customer_id: string | null;
+  technician_id: string | null;
+  payment_status: string | null;
+  customer_name: string | null;
+  technician_name: string | null;
 }
 
-/**
- * The raw shape Supabase returns for an embedded FK select.
- * Supabase ALWAYS returns the related rows as an array, even for to-one relations.
- * e.g. `profiles!orders_customer_id_fkey ( full_name )` → `{ full_name: string }[]`
- */
 interface RawOrderRow {
-  id:              unknown;
-  status:          unknown;
-  total_amount:    unknown;
-  platform_fee:    unknown;
-  created_at:      unknown;
-  updated_at:      unknown;
-  service_type:    unknown;
-  address:         unknown;
-  is_emergency:    unknown;
-  customer_id:     unknown;
-  technician_id:   unknown;
-  payment_status:  unknown;
-  /** Array — Supabase FK join, never a plain object */
-  customer:        Array<{ full_name: string }> | null;
-  /** Array — Supabase FK join, never a plain object */
-  technician:      Array<{ full_name: string }> | null;
+  id: unknown;
+  status: unknown;
+  total_amount: unknown;
+  platform_fee: unknown;
+  created_at: unknown;
+  updated_at: unknown;
+  service_type: unknown;
+  address: unknown;
+  is_emergency: unknown;
+  customer_id: unknown;
+  technician_id: unknown;
+  payment_status: unknown;
+  customer: Array<{ full_name: string }> | null;
+  technician: Array<{ full_name: string }> | null;
 }
-
-/* ── Param helpers ───────────────────────────────────────────────────────── */
 
 function parsePositiveInt(raw: string | null, fallback: number): number {
   if (!raw) return fallback;
-  const n = parseInt(raw, 10);
-  return isNaN(n) || n < 0 ? fallback : n;
+
+  const n = Number(raw);
+
+  if (!Number.isInteger(n) || n < 0) {
+    return fallback;
+  }
+
+  return n;
+}
+
+function parseLimit(raw: string | null): number {
+  if (!raw) return DEFAULT_LIMIT;
+
+  const n = Number(raw);
+
+  if (!Number.isInteger(n) || n < 1) {
+    return DEFAULT_LIMIT;
+  }
+
+  return Math.min(n, MAX_LIMIT);
 }
 
 function parseISODate(raw: string | null): string | null {
   if (!raw) return null;
+
   const d = new Date(raw);
-  if (isNaN(d.getTime())) return null;
+
+  if (Number.isNaN(d.getTime())) {
+    return null;
+  }
+
   return d.toISOString();
 }
 
-/* ── Route handler ───────────────────────────────────────────────────────── */
+/**
+ * Cursor format:
+ *   created_at|id
+ *
+ * Both values are encoded with encodeURIComponent so timestamps/UUIDs
+ * remain safe inside a query parameter.
+ */
+function parseCursor(raw: string | null): { createdAt: string; id: string } | null {
+  if (!raw) return null;
+
+  const separator = raw.lastIndexOf('|');
+
+  if (separator <= 0 || separator === raw.length - 1) {
+    return null;
+  }
+
+  const createdAt = raw.slice(0, separator);
+  const id = raw.slice(separator + 1);
+
+  const parsedDate = new Date(createdAt);
+
+  if (Number.isNaN(parsedDate.getTime()) || !id.trim()) {
+    return null;
+  }
+
+  return {
+    createdAt: parsedDate.toISOString(),
+    id: id.trim(),
+  };
+}
+
+function encodeCursor(createdAt: string, id: string): string {
+  return `${createdAt}|${id}`;
+}
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
+
   if (!auth.ok) return auth.response;
-  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
+
+  if (!requireAdmin(auth.ctx)) {
+    return jsonErr('Forbidden', 403);
+  }
 
   const sp = new URL(req.url).searchParams;
 
-  /* Parse + validate params */
-  const status  = sp.get('status')?.toUpperCase() ?? undefined;
-  const service = sp.get('service') ?? undefined;
-  const sortDir = sp.get('sort') === 'asc';
-  const limit   = Math.min(parsePositiveInt(sp.get('limit'),  DEFAULT_LIMIT), MAX_LIMIT);
-  const offset  = parsePositiveInt(sp.get('offset'), 0);
-  const cursor  = sp.get('cursor') ?? undefined;
-  const from    = parseISODate(sp.get('from'));
-  const to      = parseISODate(sp.get('to'));
+  const status = sp.get('status')?.toUpperCase() ?? undefined;
+  const service = sp.get('service')?.trim() || undefined;
+  const sortAscending = sp.get('sort') === 'asc';
+
+  const limit = parseLimit(sp.get('limit'));
+  const offset = parsePositiveInt(sp.get('offset'), 0);
+
+  const cursorRaw = sp.get('cursor');
+  const cursor = parseCursor(cursorRaw);
+
+  const fromRaw = sp.get('from');
+  const toRaw = sp.get('to');
+
+  const from = parseISODate(fromRaw);
+  const to = parseISODate(toRaw);
 
   if (status && !VALID_STATUSES.has(status)) {
     return jsonErr(
       `Invalid status "${status}". Allowed: ${[...VALID_STATUSES].join(', ')}`,
-      400
+      400,
     );
   }
-  if (sp.get('from') && !from) return jsonErr('Invalid "from" date — use ISO 8601', 400);
-  if (sp.get('to')   && !to)   return jsonErr('Invalid "to" date — use ISO 8601',   400);
-  if (from && to && from > to) return jsonErr('"from" must be before "to"',          400);
+
+  if (fromRaw && !from) {
+    return jsonErr('Invalid "from" date — use ISO 8601', 400);
+  }
+
+  if (toRaw && !to) {
+    return jsonErr('Invalid "to" date — use ISO 8601', 400);
+  }
+
+  if (from && to && from > to) {
+    return jsonErr('"from" must be before "to"', 400);
+  }
+
+  if (cursorRaw && !cursor) {
+    return jsonErr('Invalid "cursor"', 400);
+  }
 
   const sb = auth.ctx.supabase;
 
-  /* Build query — single round-trip with joined names */
   let q = sb
     .from('orders')
     .select(
@@ -139,18 +206,47 @@ export async function GET(req: NextRequest) {
       customer:profiles!orders_customer_id_fkey ( full_name ),
       technician:profiles!orders_technician_id_fkey ( full_name )
       `,
-      { count: 'exact' }
+      { count: 'exact' },
     )
-    .order('created_at', { ascending: sortDir });
+    .order('created_at', { ascending: sortAscending })
+    .order('id', { ascending: sortAscending });
 
-  if (status)  q = q.eq('status', status);
-  if (service) q = q.eq('service_type', service);
-  if (from)    q = q.gte('created_at', from);
-  if (to)      q = q.lte('created_at', to);
+  if (status) {
+    q = q.eq('status', status);
+  }
 
+  if (service) {
+    q = q.eq('service_type', service);
+  }
+
+  if (from) {
+    q = q.gte('created_at', from);
+  }
+
+  if (to) {
+    q = q.lte('created_at', to);
+  }
+
+  /*
+   * Cursor pagination uses a stable composite key:
+   *
+   * ASC: (created_at > cursorDate)
+   *   OR (created_at = cursorDate AND id > cursorId)
+   *
+   * DESC:
+   *   OR (created_at = cursorDate AND id < cursorId)
+   *
+   * This prevents duplicate/skipped rows when several orders share
+   * the same created_at timestamp.
+   */
   if (cursor) {
-    /* Cursor pagination — no offset drift on live data */
-    q = sortDir ? q.gt('created_at', cursor) : q.lt('created_at', cursor);
+    const comparison = sortAscending ? 'gt' : 'lt';
+    const idComparison = sortAscending ? 'gt' : 'lt';
+
+    q = q.or(
+      `created_at.${comparison}.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.${idComparison}.${cursor.id})`,
+    );
+
     q = q.limit(limit);
   } else {
     q = q.range(offset, offset + limit - 1);
@@ -158,113 +254,64 @@ export async function GET(req: NextRequest) {
 
   const { data: raw, error, count } = await q;
 
-  if (error) return jsonErr(error.message, 500);
+  if (error) {
+    return jsonErr(error.message, 502);
+  }
 
-  /* ── Normalize: flatten the Supabase array-join into a flat name string ── */
   const orders: OrderRow[] = (raw ?? []).map((r) => {
-    /*
-     * THE FIX:
-     * Supabase returns FK-joined rows as arrays, so we type them explicitly
-     * as `Array<{ full_name: string }> | null` and access index [0].
-     * Casting directly to `{ full_name: string } | null` fails at compile time
-     * because the types do not overlap — arrays are not assignable to plain objects.
-     */
     const row = r as unknown as RawOrderRow;
 
     return {
-      id:              String(row.id ?? ''),
-      status:          String(row.status ?? ''),
-      total_amount:    row.total_amount != null ? Number(row.total_amount) : null,
-      platform_fee:    row.platform_fee != null ? Number(row.platform_fee) : null,
-      created_at:      String(row.created_at ?? ''),
-      updated_at:      row.updated_at != null ? String(row.updated_at) : null,
-      service_type:    row.service_type != null ? String(row.service_type) : null,
-      address:         row.address != null ? String(row.address) : null,
-      is_emergency:    row.is_emergency != null ? Boolean(row.is_emergency) : null,
-      customer_id:     row.customer_id != null ? String(row.customer_id) : null,
-      technician_id:   row.technician_id != null ? String(row.technician_id) : null,
-      payment_status:  row.payment_status != null ? String(row.payment_status) : null,
-      /* Access [0] — FK joins are arrays even for to-one relations */
-      customer_name:   row.customer?.[0]?.full_name ?? null,
+      id: String(row.id ?? ''),
+      status: String(row.status ?? ''),
+      total_amount:
+        row.total_amount != null ? Number(row.total_amount) : null,
+      platform_fee:
+        row.platform_fee != null ? Number(row.platform_fee) : null,
+      created_at: String(row.created_at ?? ''),
+      updated_at:
+        row.updated_at != null ? String(row.updated_at) : null,
+      service_type:
+        row.service_type != null ? String(row.service_type) : null,
+      address: row.address != null ? String(row.address) : null,
+      is_emergency:
+        row.is_emergency != null ? Boolean(row.is_emergency) : null,
+      customer_id:
+        row.customer_id != null ? String(row.customer_id) : null,
+      technician_id:
+        row.technician_id != null ? String(row.technician_id) : null,
+      payment_status:
+        row.payment_status != null ? String(row.payment_status) : null,
+      customer_name: row.customer?.[0]?.full_name ?? null,
       technician_name: row.technician?.[0]?.full_name ?? null,
     };
   });
 
-  const nextCursor = orders.length === limit
-    ? (orders[orders.length - 1]?.created_at ?? null)
-    : null;
+  const lastOrder = orders[orders.length - 1];
+
+  const nextCursor =
+    orders.length === limit && lastOrder
+      ? encodeCursor(lastOrder.created_at, lastOrder.id)
+      : null;
 
   return NextResponse.json(
     {
-      ok:   true,
+      ok: true,
       data: orders,
       meta: {
-        total:       count ?? 0,
+        total: count ?? 0,
         limit,
-        offset:      cursor ? null : offset,
+        offset: cursor ? null : offset,
         next_cursor: nextCursor,
-        has_more:    orders.length === limit,
+        has_more: orders.length === limit,
       },
     },
     {
       status: 200,
       headers: {
         'X-Total-Count': String(count ?? 0),
-        'Cache-Control':  'private, no-store',
+        'Cache-Control': 'private, no-store',
       },
-    }
+    },
   );
 }
-
-
-// import { NextRequest } from 'next/server';
-// import { jsonErr, jsonOk } from '@/lib/api/json-response';
-// import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
-
-// export async function GET(req: NextRequest) {
-//   const auth = await requireSupabaseAuth(req);
-//   if (!auth.ok) return auth.response;
-//   if (!requireAdmin(auth.ctx)) {
-//     return jsonErr('Forbidden', 403);
-//   }
-
-//   const { searchParams } = new URL(req.url);
-//   const status = searchParams.get('status') ?? undefined;
-//   const service = searchParams.get('service') ?? undefined;
-//   const from = searchParams.get('from') ?? undefined;
-//   const to = searchParams.get('to') ?? undefined;
-//   const limit = Math.min(Number(searchParams.get('limit') ?? '50') || 50, 200);
-//   const offset = Math.max(Number(searchParams.get('offset') ?? '0') || 0, 0);
-
-//   let q = auth.ctx.supabase.from('orders').select('*').order('created_at', { ascending: false });
-
-//   if (status) {
-//     q = q.eq('status', status);
-//   }
-//   if (from) {
-//     q = q.gte('created_at', from);
-//   }
-//   if (to) {
-//     q = q.lte('created_at', to);
-//   }
-
-//   const { data: orders, error } = await q.range(offset, offset + limit - 1);
-
-//   if (error) {
-//     return jsonErr(error.message, 500);
-//   }
-
-//   let list = orders ?? [];
-//   if (service) {
-//     const { data: st } = await auth.ctx.supabase
-//       .from('service_types')
-//       .select('id')
-//       .eq('key', service)
-//       .maybeSingle();
-//     if (st?.id != null) {
-//       list = list.filter((o) => Number(o.service_type_id) === Number(st.id));
-//     }
-//   }
-
-//   return jsonOk(list);
-// }
