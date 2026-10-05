@@ -192,14 +192,12 @@ export async function POST(
     );
   }
 
-  if (
-    city.length < 2
-  ) {
-    return jsonErr(
-      'Enter your city',
-      400,
-    );
-  }
+ if (role !== 'admin' && city.length < 2) {
+  return jsonErr(
+    'Enter your city',
+    400,
+  );
+}
 
   /*
    * Password is required because AuroWater
