@@ -112,8 +112,8 @@ function whenIdle(cb: () => void): () => void {
     const id = window.requestIdleCallback(() => cb(), { timeout: 2000 });
     return () => window.cancelIdleCallback(id);
   }
-  const t = window.setTimeout(cb, 400);
-  return () => window.clearTimeout(t);
+  const t = setTimeout(cb, 400);
+  return () => clearTimeout(t);
 }
 
 /** Close a dropdown on outside click/tap or Escape. */
