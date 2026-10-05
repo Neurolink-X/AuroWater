@@ -124,9 +124,22 @@ function LoginPageInner() {
       await new Promise((r) => setTimeout(r, 200));
 
       // 4-5) Redirect to sanitized `returnTo` or the correct dashboard.
-      const sanitizedReturnTo = safeReturnTo(searchParams.get('returnTo'));
-      const dest = sanitizedReturnTo || dashboardFor(role);
-      router.replace(dest);
+      
+     const sanitizedReturnTo = safeReturnTo(
+  searchParams.get('returnTo')
+);
+
+const isCustomerOnlyRoute =
+  sanitizedReturnTo === '/book' ||
+  sanitizedReturnTo?.startsWith('/book?') ||
+  sanitizedReturnTo?.startsWith('/book#');
+
+const dest =
+  isCustomerOnlyRoute && role !== 'customer'
+    ? dashboardFor(role)
+    : sanitizedReturnTo || dashboardFor(role);
+
+router.replace(dest);
     } catch (e: unknown) {
       const msg =
         e instanceof ApiError
