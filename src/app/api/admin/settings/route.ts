@@ -1,258 +1,994 @@
-// import { NextRequest } from 'next/server';
-// import { jsonErr, jsonOk } from '@/lib/api/json-response';
-// import { rowsToSettingsPayload } from '@/lib/api/settings-map';
-// import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
-
-// export async function GET(req: NextRequest) {
-//   const auth = await requireSupabaseAuth(req);
-//   if (!auth.ok) return auth.response;
-//   if (!requireAdmin(auth.ctx)) {
-//     return jsonErr('Forbidden', 403);
-//   }
-
-//   const { data, error } = await auth.ctx.supabase.from('settings').select('key, value');
-//   if (error) {
-//     return jsonErr(error.message, 500);
-//   }
-
-//   const flat = rowsToSettingsPayload(data ?? []);
-//   return jsonOk(flat);
-// }
-
-// export async function PUT(req: NextRequest) {
-//   const auth = await requireSupabaseAuth(req);
-//   if (!auth.ok) return auth.response;
-//   if (!requireAdmin(auth.ctx)) {
-//     return jsonErr('Forbidden', 403);
-//   }
-
-//   let body: Record<string, unknown>;
-//   try {
-//     body = (await req.json()) as Record<string, unknown>;
-//   } catch {
-//     return jsonErr('Invalid JSON body', 400);
-//   }
-
-//   const rows = Object.entries(body).map(([key, value]) => ({
-//     key,
-//     value: typeof value === 'string' ? value : JSON.stringify(value),
-//     updated_at: new Date().toISOString(),
-//   }));
-
-//   const { error } = await auth.ctx.supabase.from('settings').upsert(rows, { onConflict: 'key' });
-
-//   if (error) {
-//     return jsonErr(error.message, 500);
-//   }
-
-//   const { data: next } = await auth.ctx.supabase.from('settings').select('key, value');
-//   return jsonOk(rowsToSettingsPayload(next ?? []));
-// }
-
-
-
-/**
- * GET|PUT /api/admin/settings
- *
- * Upgrades over original:
- *  ✓ Typed SETTINGS_SCHEMA — every key has type + min/max/pattern/label
- *  ✓ Per-key validation — invalid keys collected + returned, valid keys still upserted
- *  ✓ Audit log — every PUT writes actor_id, old_value, new_value, timestamp
- *  ✓ ETag-based 304 Not Modified on GET — avoids redundant reads for polling UIs
- *  ✓ Input size guard — rejects bodies > 50 keys to prevent abuse
- *  ✓ Unknown keys stored as-is (forward-compatible)
- *  ✓ Zero `any`/`unknown` leaks in the public response shape
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { jsonErr } from '@/lib/api/json-response';
-import { rowsToSettingsPayload } from '@/lib/api/settings-map';
-import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-/* ── Schema ──────────────────────────────────────────────────────────────── */
+import { jsonErr } from '@/lib/api/json-response';
+import { rowsToSettingsPayload } from '@/lib/api/settings-map';
+import {
+  requireAdmin,
+  requireSupabaseAuth,
+} from '@/lib/api/supabase-request';
 
-type SettingType = 'number' | 'string' | 'boolean';
+/* -------------------------------------------------------------------------- */
+/* Configuration                                                              */
+/* -------------------------------------------------------------------------- */
+
+const MAX_KEYS_PER_REQUEST = 50;
+const MAX_KEY_LENGTH = 100;
+
+const SETTINGS_KEY_PATTERN =
+  /^[a-z][a-z0-9_]*$/;
+
+type SettingType =
+  | 'number'
+  | 'string'
+  | 'boolean';
 
 interface SettingMeta {
   type: SettingType;
+  label: string;
   min?: number;
   max?: number;
-  label: string;
+  maxLength?: number;
   pattern?: RegExp;
 }
 
-export const SETTINGS_SCHEMA: Record<string, SettingMeta> = {
-  platform_fee:        { type: 'number', min: 0,   max: 100,  label: 'Platform fee (₹)' },
-  default_can_price:   { type: 'number', min: 1,   max: 500,  label: 'Default can price (₹)' },
-  min_can_price:       { type: 'number', min: 1,   max: 500,  label: 'Min can price (₹)' },
-  max_can_price:       { type: 'number', min: 1,   max: 1000, label: 'Max can price (₹)' },
-  plumber_booking_fee: { type: 'number', min: 0,   max: 5000, label: 'Plumber booking fee (₹)' },
-  supplier_commission: { type: 'number', min: 0,   max: 50,   label: 'Supplier commission (%)' },
-  bulk_commission:     { type: 'number', min: 0,   max: 50,   label: 'Bulk commission (%)' },
-  service_radius_km:   { type: 'number', min: 1,   max: 100,  label: 'Service radius (km)' },
-  max_cans_per_order:  { type: 'number', min: 1,   max: 500,  label: 'Max cans per order' },
-  emergency_surcharge: { type: 'number', min: 0,   max: 500,  label: 'Emergency surcharge (₹)' },
-  support_phone:    { type: 'string', pattern: /^\d{10}$/, label: 'Support phone (10 digits)' },
-  support_email:    { type: 'string', pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, label: 'Support email' },
-  whatsapp_number:  { type: 'string', pattern: /^\d{10}$/, label: 'WhatsApp number (10 digits)' },
-  maintenance_mode:   { type: 'boolean', label: 'Maintenance mode' },
-  auto_assign_orders: { type: 'boolean', label: 'Auto-assign orders' },
+/**
+ * These are the only settings that the Admin Control Center
+ * is allowed to modify through this endpoint.
+ *
+ * Do not add arbitrary keys here without deciding:
+ * - business meaning
+ * - allowed range
+ * - frontend usage
+ * - production impact
+ */
+export const SETTINGS_SCHEMA: Record<
+  string,
+  SettingMeta
+> = {
+  platform_fee: {
+    type: 'number',
+    min: 0,
+    max: 100,
+    label: 'Platform fee (₹)',
+  },
+
+  default_can_price: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Default can price (₹)',
+  },
+
+  min_can_price: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Minimum can price (₹)',
+  },
+
+  max_can_price: {
+    type: 'number',
+    min: 1,
+    max: 1000,
+    label: 'Maximum can price (₹)',
+  },
+
+  plumber_booking_fee: {
+    type: 'number',
+    min: 0,
+    max: 5000,
+    label: 'Plumber booking fee (₹)',
+  },
+
+  supplier_commission: {
+    type: 'number',
+    min: 0,
+    max: 50,
+    label: 'Supplier commission (%)',
+  },
+
+  bulk_commission: {
+    type: 'number',
+    min: 0,
+    max: 50,
+    label: 'Bulk commission (%)',
+  },
+
+  service_radius_km: {
+    type: 'number',
+    min: 1,
+    max: 100,
+    label: 'Service radius (km)',
+  },
+
+  max_cans_per_order: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Maximum cans per order',
+  },
+
+  emergency_surcharge: {
+    type: 'number',
+    min: 0,
+    max: 500,
+    label: 'Emergency surcharge (₹)',
+  },
+
+  support_phone: {
+    type: 'string',
+    maxLength: 10,
+    pattern: /^\d{10}$/,
+    label: 'Support phone',
+  },
+
+  support_email: {
+    type: 'string',
+    maxLength: 254,
+    pattern:
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    label: 'Support email',
+  },
+
+  whatsapp_number: {
+    type: 'string',
+    maxLength: 10,
+    pattern: /^\d{10}$/,
+    label: 'WhatsApp number',
+  },
+
+  maintenance_mode: {
+    type: 'boolean',
+    label: 'Maintenance mode',
+  },
+
+  auto_assign_orders: {
+    type: 'boolean',
+    label: 'Auto-assign orders',
+  },
 };
 
-/* ── Validation ──────────────────────────────────────────────────────────── */
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
-type ValidResult   = { ok: true;  serialized: string };
-type InvalidResult = { ok: false; error: string };
+type ValidSetting = {
+  ok: true;
+  value: string;
+};
 
-function validate(key: string, raw: unknown): ValidResult | InvalidResult {
-  const meta = SETTINGS_SCHEMA[key];
+type InvalidSetting = {
+  ok: false;
+  error: string;
+};
+
+type SettingResult =
+  | ValidSetting
+  | InvalidSetting;
+
+type SettingRow = {
+  key: string;
+  value: string;
+  updated_at: string;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Validation                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function validateSetting(
+  key: string,
+  raw: unknown,
+): SettingResult {
+  const meta =
+    SETTINGS_SCHEMA[key];
+
+  /*
+   * Unknown keys are intentionally rejected.
+   *
+   * This prevents accidental configuration
+   * pollution through the Admin API.
+   */
   if (!meta) {
-    // Unknown key — store as-is for forward compat
-    return { ok: true, serialized: typeof raw === 'string' ? raw : JSON.stringify(raw) };
+    return {
+      ok: false,
+      error: 'Unknown setting key',
+    };
   }
 
   switch (meta.type) {
     case 'number': {
-      const n = Number(raw);
-      if (!isFinite(n))
-        return { ok: false, error: `${meta.label}: must be a number` };
-      if (meta.min !== undefined && n < meta.min)
-        return { ok: false, error: `${meta.label}: must be ≥ ${meta.min}` };
-      if (meta.max !== undefined && n > meta.max)
-        return { ok: false, error: `${meta.label}: must be ≤ ${meta.max}` };
-      return { ok: true, serialized: String(n) };
+      if (
+        typeof raw !== 'number' ||
+        !Number.isFinite(raw)
+      ) {
+        return {
+          ok: false,
+          error: `${meta.label} must be a valid number`,
+        };
+      }
+
+      if (
+        meta.min !== undefined &&
+        raw < meta.min
+      ) {
+        return {
+          ok: false,
+          error: `${meta.label} must be at least ${meta.min}`,
+        };
+      }
+
+      if (
+        meta.max !== undefined &&
+        raw > meta.max
+      ) {
+        return {
+          ok: false,
+          error: `${meta.label} must be at most ${meta.max}`,
+        };
+      }
+
+      return {
+        ok: true,
+        value: String(raw),
+      };
     }
+
     case 'boolean': {
-      const b = raw === true || raw === 'true' || raw === 1 || raw === '1';
-      return { ok: true, serialized: b ? 'true' : 'false' };
+      /*
+       * Do NOT accept:
+       * "true"
+       * "false"
+       * 1
+       * 0
+       *
+       * The API contract is JSON boolean.
+       */
+      if (typeof raw !== 'boolean') {
+        return {
+          ok: false,
+          error: `${meta.label} must be true or false`,
+        };
+      }
+
+      return {
+        ok: true,
+        value: raw
+          ? 'true'
+          : 'false',
+      };
     }
+
     case 'string': {
-      const s = String(raw ?? '').trim();
-      if (!s) return { ok: false, error: `${meta.label}: must not be empty` };
-      if (meta.pattern && !meta.pattern.test(s))
-        return { ok: false, error: `${meta.label}: invalid format` };
-      return { ok: true, serialized: s };
+      if (typeof raw !== 'string') {
+        return {
+          ok: false,
+          error: `${meta.label} must be a string`,
+        };
+      }
+
+      const value = raw.trim();
+
+      if (!value) {
+        return {
+          ok: false,
+          error: `${meta.label} cannot be empty`,
+        };
+      }
+
+      if (
+        meta.maxLength !== undefined &&
+        value.length >
+          meta.maxLength
+      ) {
+        return {
+          ok: false,
+          error: `${meta.label} is too long`,
+        };
+      }
+
+      if (
+        meta.pattern &&
+        !meta.pattern.test(value)
+      ) {
+        return {
+          ok: false,
+          error: `${meta.label} has an invalid format`,
+        };
+      }
+
+      return {
+        ok: true,
+        value,
+      };
     }
   }
 }
 
-/* ── Audit log ───────────────────────────────────────────────────────────── */
+/* -------------------------------------------------------------------------- */
+/* Cross-setting business validation                                          */
+/* -------------------------------------------------------------------------- */
+
+function validateBusinessRules(
+  values: Map<string, string>,
+): InvalidSetting | null {
+  const minCanPrice =
+    values.has('min_can_price')
+      ? Number(
+          values.get(
+            'min_can_price',
+          ),
+        )
+      : null;
+
+  const defaultCanPrice =
+    values.has(
+      'default_can_price',
+    )
+      ? Number(
+          values.get(
+            'default_can_price',
+          ),
+        )
+      : null;
+
+  const maxCanPrice =
+    values.has('max_can_price')
+      ? Number(
+          values.get(
+            'max_can_price',
+          ),
+        )
+      : null;
+
+  if (
+    minCanPrice !== null &&
+    defaultCanPrice !== null &&
+    defaultCanPrice <
+      minCanPrice
+  ) {
+    return {
+      ok: false,
+      error:
+        'Default can price cannot be lower than minimum can price',
+    };
+  }
+
+  if (
+    defaultCanPrice !== null &&
+    maxCanPrice !== null &&
+    defaultCanPrice >
+      maxCanPrice
+  ) {
+    return {
+      ok: false,
+      error:
+        'Default can price cannot be higher than maximum can price',
+    };
+  }
+
+  if (
+    minCanPrice !== null &&
+    maxCanPrice !== null &&
+    minCanPrice >
+      maxCanPrice
+  ) {
+    return {
+      ok: false,
+      error:
+        'Minimum can price cannot be higher than maximum can price',
+    };
+  }
+
+  return null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* ETag                                                                       */
+/* -------------------------------------------------------------------------- */
+
+function createEtag(
+  payload: unknown,
+): string {
+  return `"${createHash('sha256')
+    .update(
+      JSON.stringify(payload),
+    )
+    .digest('hex')
+    .slice(0, 24)}"`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Audit log                                                                  */
+/* -------------------------------------------------------------------------- */
 
 async function writeAuditLog(
   sb: SupabaseClient,
   adminId: string,
-  changes: Array<{ key: string; old_value: string | null; new_value: string }>
-) {
-  if (!changes.length) return;
-  await sb.from('audit_logs').insert(
-    changes.map((c) => ({
-      actor_id:  adminId,
-      action:    'settings.update',
-      entity:    'settings',
-      entity_id: c.key,
-      meta:      { old: c.old_value, new: c.new_value },
-    }))
-  );
-}
-
-/* ── GET ─────────────────────────────────────────────────────────────────── */
-
-export async function GET(req: NextRequest) {
-  const auth = await requireSupabaseAuth(req);
-  if (!auth.ok) return auth.response;
-  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
-
-  const { data, error } = await auth.ctx.supabase
-    .from('settings')
-    .select('key, value, updated_at');
-
-  if (error) return jsonErr(error.message, 500);
-
-  const flat = rowsToSettingsPayload(data ?? []);
-
-  // ETag: skip response body if settings haven't changed (polling-friendly)
-  const etag = `"${createHash('sha1').update(JSON.stringify(flat)).digest('hex').slice(0, 16)}"`;
-  if (req.headers.get('if-none-match') === etag) {
-    return new NextResponse(null, { status: 304, headers: { ETag: etag } });
+  changes: Array<{
+    key: string;
+    old_value: string | null;
+    new_value: string;
+  }>,
+): Promise<void> {
+  if (!changes.length) {
+    return;
   }
 
-  return NextResponse.json(
-    { ok: true, data: flat },
-    { headers: { ETag: etag, 'Cache-Control': 'private, no-cache' } }
-  );
+  const { error } =
+    await sb
+      .from('audit_logs')
+      .insert(
+        changes.map(
+          (change) => ({
+            actor_id: adminId,
+            action:
+              'settings.update',
+            entity: 'settings',
+            entity_id:
+              change.key,
+            meta: {
+              old:
+                change.old_value,
+              new:
+                change.new_value,
+            },
+          }),
+        ),
+      );
+
+  if (error) {
+    /*
+     * Settings have already been saved.
+     * Do not report the operation as failed
+     * only because the audit write failed.
+     *
+     * Keep the failure visible to server logs.
+     */
+    console.error(
+      '[admin/settings] audit log failed:',
+      error.message,
+    );
+  }
 }
 
-/* ── PUT ─────────────────────────────────────────────────────────────────── */
+/* -------------------------------------------------------------------------- */
+/* JSON body                                                                  */
+/* -------------------------------------------------------------------------- */
 
-export async function PUT(req: NextRequest) {
-  const auth = await requireSupabaseAuth(req);
-  if (!auth.ok) return auth.response;
-  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
-
-  let body: Record<string, unknown>;
+async function readJsonBody(
+  req: NextRequest,
+): Promise<
+  | {
+      ok: true;
+      body: Record<
+        string,
+        unknown
+      >;
+    }
+  | {
+      ok: false;
+    }
+> {
   try {
-    body = (await req.json()) as Record<string, unknown>;
+    const body =
+      (await req.json()) as unknown;
+
+    if (
+      !body ||
+      typeof body !==
+        'object' ||
+      Array.isArray(body)
+    ) {
+      return {
+        ok: false,
+      };
+    }
+
+    return {
+      ok: true,
+      body:
+        body as Record<
+          string,
+          unknown
+        >,
+    };
   } catch {
-    return jsonErr('Invalid JSON body', 400);
+    return {
+      ok: false,
+    };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* GET                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export async function GET(
+  req: NextRequest,
+) {
+  const auth =
+    await requireSupabaseAuth(req);
+
+  if (!auth.ok) {
+    return auth.response;
   }
 
-  const entries = Object.entries(body);
-  if (entries.length === 0) return jsonErr('Body must contain at least one setting', 400);
-  if (entries.length > 50)  return jsonErr('Too many keys (max 50 per request)', 400);
-
-  /* Validate all incoming keys */
-  const validRows:   Array<{ key: string; value: string; updated_at: string }> = [];
-  const invalidKeys: Array<{ key: string; error: string }> = [];
-
-  for (const [key, raw] of entries) {
-    const r = validate(key, raw);
-    if (r.ok) validRows.push({ key, value: r.serialized, updated_at: new Date().toISOString() });
-    else invalidKeys.push({ key, error: r.error });
-  }
-
-  if (validRows.length === 0) {
-    return NextResponse.json(
-      { ok: false, error: 'All settings failed validation', invalid: invalidKeys },
-      { status: 422 }
+  if (!requireAdmin(auth.ctx)) {
+    return jsonErr(
+      'Forbidden',
+      403,
     );
   }
 
-  const sb = auth.ctx.supabase;
-
-  /* Snapshot old values for audit trail */
-  const { data: oldRows } = await sb
+  const {
+    data,
+    error,
+  } = await auth.ctx.supabase
     .from('settings')
-    .select('key, value')
-    .in('key', validRows.map((r) => r.key));
-  const oldMap = new Map((oldRows ?? []).map((r) => [r.key as string, r.value as string]));
+    .select(
+      'key, value, updated_at',
+    )
+    .order(
+      'key',
+      {
+        ascending: true,
+      },
+    );
 
-  /* Upsert */
-  const { error } = await sb.from('settings').upsert(validRows, { onConflict: 'key' });
-  if (error) return jsonErr(error.message, 500);
+  if (error) {
+    return jsonErr(
+      error.message,
+      502,
+    );
+  }
 
-  /* Audit log — fire and forget */
-  void writeAuditLog(
-    sb,
-    auth.ctx.user?.id ?? 'unknown',
-    validRows.map((r) => ({
-      key:       r.key,
-      old_value: oldMap.get(r.key) ?? null,
-      new_value: r.value,
-    }))
-  );
+  const payload =
+    rowsToSettingsPayload(
+      data ?? [],
+    );
 
-  /* Return full updated settings + any per-key warnings */
-  const { data: next } = await sb.from('settings').select('key, value');
+  const etag =
+    createEtag(payload);
+
+  /*
+   * Conditional request.
+   *
+   * Admin dashboards polling settings
+   * can avoid downloading the same payload.
+   */
+  if (
+    req.headers.get(
+      'if-none-match',
+    ) === etag
+  ) {
+    return new NextResponse(
+      null,
+      {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'Cache-Control':
+            'private, no-cache',
+        },
+      },
+    );
+  }
 
   return NextResponse.json(
     {
-      ok:    true,
-      data:  rowsToSettingsPayload(next ?? []),
-      saved: validRows.map((r) => r.key),
-      ...(invalidKeys.length ? { invalid: invalidKeys } : {}),
+      ok: true,
+      data: payload,
     },
-    { status: 200 }
+    {
+      status: 200,
+      headers: {
+        ETag: etag,
+        'Cache-Control':
+          'private, no-cache',
+      },
+    },
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* PUT                                                                        */
+/* -------------------------------------------------------------------------- */
+
+export async function PUT(
+  req: NextRequest,
+) {
+  const auth =
+    await requireSupabaseAuth(req);
+
+  if (!auth.ok) {
+    return auth.response;
+  }
+
+  if (!requireAdmin(auth.ctx)) {
+    return jsonErr(
+      'Forbidden',
+      403,
+    );
+  }
+
+  const parsedBody =
+    await readJsonBody(req);
+
+  if (!parsedBody.ok) {
+    return jsonErr(
+      'Invalid JSON body. Expected an object.',
+      400,
+    );
+  }
+
+  const entries =
+    Object.entries(
+      parsedBody.body,
+    );
+
+  if (!entries.length) {
+    return jsonErr(
+      'Body must contain at least one setting',
+      400,
+    );
+  }
+
+  if (
+    entries.length >
+    MAX_KEYS_PER_REQUEST
+  ) {
+    return jsonErr(
+      `Too many settings. Maximum is ${MAX_KEYS_PER_REQUEST}.`,
+      400,
+    );
+  }
+
+  /*
+   * Validate setting key names.
+   */
+  for (const [
+    key,
+  ] of entries) {
+    if (
+      key.length >
+      MAX_KEY_LENGTH
+    ) {
+      return jsonErr(
+        `Setting key "${key}" is too long`,
+        400,
+      );
+    }
+
+    if (
+      !SETTINGS_KEY_PATTERN.test(
+        key,
+      )
+    ) {
+      return jsonErr(
+        `Invalid setting key "${key}"`,
+        400,
+      );
+    }
+  }
+
+  const validRows: SettingRow[] =
+    [];
+
+  const invalidKeys: Array<{
+    key: string;
+    error: string;
+  }> = [];
+
+  /*
+   * Validate individual settings.
+   */
+  for (const [
+    key,
+    raw,
+  ] of entries) {
+    const result =
+      validateSetting(
+        key,
+        raw,
+      );
+
+    if (result.ok) {
+      validRows.push({
+        key,
+        value:
+          result.value,
+        updated_at:
+          new Date().toISOString(),
+      });
+    } else {
+      invalidKeys.push({
+        key,
+        error:
+          result.error,
+      });
+    }
+  }
+
+  /*
+   * If every setting is invalid,
+   * do not touch the database.
+   */
+  if (!validRows.length) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          'All settings failed validation',
+        invalid:
+          invalidKeys,
+      },
+      {
+        status: 422,
+      },
+    );
+  }
+
+  const sb =
+    auth.ctx.supabase;
+
+  /*
+   * Read current values.
+   *
+   * We need them for:
+   * - change detection
+   * - audit logging
+   * - cross-setting validation
+   */
+  const {
+    data: oldRows,
+    error: oldError,
+  } = await sb
+    .from('settings')
+    .select(
+      'key, value',
+    )
+    .in(
+      'key',
+      validRows.map(
+        (row) => row.key,
+      ),
+    );
+
+  if (oldError) {
+    return jsonErr(
+      oldError.message,
+      502,
+    );
+  }
+
+  const currentValues =
+    new Map<string, string>();
+
+  for (const row of
+    oldRows ?? []) {
+    currentValues.set(
+      String(row.key),
+      String(row.value),
+    );
+  }
+
+  /*
+   * Build a complete configuration map:
+   *
+   * existing values +
+   * incoming values.
+   *
+   * This lets us validate relationships
+   * even when the admin changes only one
+   * side of a related setting.
+   */
+  const finalValues =
+    new Map(
+      currentValues,
+    );
+
+  for (const row of
+    validRows) {
+    finalValues.set(
+      row.key,
+      row.value,
+    );
+  }
+
+  /*
+   * Cross-setting validation.
+   */
+  const businessError =
+    validateBusinessRules(
+      finalValues,
+    );
+
+  if (businessError) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          businessError.error,
+      },
+      {
+        status: 422,
+      },
+    );
+  }
+
+  /*
+   * Only write values that actually changed.
+   */
+  const changedRows =
+    validRows.filter(
+      (row) =>
+        currentValues.get(
+          row.key,
+        ) !== row.value,
+    );
+
+  /*
+   * Nothing changed.
+   */
+  if (!changedRows.length) {
+    const {
+      data: latestRows,
+      error: latestError,
+    } = await sb
+      .from('settings')
+      .select(
+        'key, value, updated_at',
+      )
+      .order(
+        'key',
+        {
+          ascending: true,
+        },
+      );
+
+    if (latestError) {
+      return jsonErr(
+        latestError.message,
+        502,
+      );
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+
+        data:
+          rowsToSettingsPayload(
+            latestRows ?? [],
+          ),
+
+        saved: [],
+
+        unchanged:
+          validRows.map(
+            (row) => row.key,
+          ),
+
+        ...(invalidKeys.length
+          ? {
+              invalid:
+                invalidKeys,
+            }
+          : {}),
+      },
+      {
+        status: 200,
+      },
+    );
+  }
+
+  /*
+   * Save changed settings.
+   */
+  const {
+    error: upsertError,
+  } = await sb
+    .from('settings')
+    .upsert(
+      changedRows,
+      {
+        onConflict: 'key',
+      },
+    );
+
+  if (upsertError) {
+    return jsonErr(
+      upsertError.message,
+      502,
+    );
+  }
+
+  /*
+   * Audit every actual change.
+   */
+  await writeAuditLog(
+    sb,
+    auth.ctx.user?.id ??
+      'unknown',
+    changedRows.map(
+      (row) => ({
+        key: row.key,
+        old_value:
+          currentValues.get(
+            row.key,
+          ) ?? null,
+        new_value:
+          row.value,
+      }),
+    ),
+  );
+
+  /*
+   * Return the authoritative
+   * database state after the update.
+   */
+  const {
+    data: latestRows,
+    error: latestError,
+  } = await sb
+    .from('settings')
+    .select(
+      'key, value, updated_at',
+    )
+    .order(
+      'key',
+      {
+        ascending: true,
+      },
+    );
+
+  if (latestError) {
+    return jsonErr(
+      latestError.message,
+      502,
+    );
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+
+      data:
+        rowsToSettingsPayload(
+          latestRows ?? [],
+        ),
+
+      saved:
+        changedRows.map(
+          (row) => row.key,
+        ),
+
+      unchanged:
+        validRows
+          .filter(
+            (row) =>
+              !changedRows.some(
+                (changed) =>
+                  changed.key ===
+                  row.key,
+              ),
+          )
+          .map(
+            (row) => row.key,
+          ),
+
+      ...(invalidKeys.length
+        ? {
+            invalid:
+              invalidKeys,
+          }
+        : {}),
+    },
+    {
+      status: 200,
+    },
   );
 }
