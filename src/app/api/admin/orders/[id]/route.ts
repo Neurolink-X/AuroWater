@@ -3,70 +3,164 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { checkAndUpgradeMilestone } from '@/lib/milestone';
 
+const VALID_STATUSES = new Set([
+  'PENDING',
+  'ASSIGNED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'CANCELLED',
+  'FAILED',
+]);
+
+const VALID_PAYMENT_STATUSES = new Set([
+  'pending',
+  'paid',
+  'failed',
+  'refunded',
+  'cancelled',
+]);
+
+const ALLOWED_UPDATE_FIELDS = [
+  'status',
+  'supplier_id',
+  'technician_id',
+  'scheduled_date',
+  'time_slot',
+  'payment_status',
+  'notes',
+  'total_amount',
+  'base_amount',
+  'gst_amount',
+] as const;
+
 function formatAddressSnapshot(snapshot: unknown): string {
   if (!snapshot || typeof snapshot !== 'object') return '';
+
   const o = snapshot as Record<string, unknown>;
+
   const parts = [o.house_flat, o.area, o.city, o.pincode, o.landmark]
     .filter((x) => typeof x === 'string' && x.trim())
     .map((x) => (x as string).trim());
+
   return parts.join(', ');
 }
 
+function isValidNonNegativeNumber(value: unknown): boolean {
+  const n = typeof value === 'number' ? value : Number(value);
+
+  return Number.isFinite(n) && n >= 0;
+}
+
 export async function GET(
-  _req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireSupabaseAuth(_req);
+  const auth = await requireSupabaseAuth(req);
+
   if (!auth.ok) return auth.response;
+
   if (!requireAdmin(auth.ctx)) {
     return jsonErr('Forbidden', 403);
   }
 
   const { id } = await ctx.params;
+
+  if (!id?.trim()) {
+    return jsonErr('Order id is required', 400);
+  }
+
   const sb = auth.ctx.supabase;
 
-  const { data: order, error } = await sb.from('orders').select('*').eq('id', id).maybeSingle();
+  const { data: order, error } = await sb
+    .from('orders')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
   if (error) {
-    return jsonErr(error.message, 500);
+    return jsonErr(error.message, 502);
   }
+
   if (!order) {
     return jsonErr('Order not found', 404);
   }
 
   const row = order as Record<string, unknown>;
-  const customerId = row.customer_id != null ? String(row.customer_id) : '';
-  const technicianId = row.technician_id != null ? String(row.technician_id) : '';
+
+  const customerId =
+    row.customer_id != null ? String(row.customer_id) : '';
+
+  const technicianId =
+    row.technician_id != null ? String(row.technician_id) : '';
 
   let customer_name: string | null = null;
   let customer_phone: string | null = null;
+
   if (customerId) {
-    const { data: c } = await sb.from('profiles').select('full_name, phone').eq('id', customerId).maybeSingle();
-    customer_name = c?.full_name != null ? String(c.full_name) : null;
-    customer_phone = c?.phone != null ? String(c.phone) : null;
+    const { data: customer } = await sb
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('id', customerId)
+      .maybeSingle();
+
+    customer_name =
+      customer?.full_name != null
+        ? String(customer.full_name)
+        : null;
+
+    customer_phone =
+      customer?.phone != null
+        ? String(customer.phone)
+        : null;
   }
 
   let technician_name: string | null = null;
   let technician_phone: string | null = null;
+
   if (technicianId) {
-    const { data: t } = await sb.from('profiles').select('full_name, phone').eq('id', technicianId).maybeSingle();
-    technician_name = t?.full_name != null ? String(t.full_name) : null;
-    technician_phone = t?.phone != null ? String(t.phone) : null;
+    const { data: technician } = await sb
+      .from('profiles')
+      .select('full_name, phone')
+      .eq('id', technicianId)
+      .maybeSingle();
+
+    technician_name =
+      technician?.full_name != null
+        ? String(technician.full_name)
+        : null;
+
+    technician_phone =
+      technician?.phone != null
+        ? String(technician.phone)
+        : null;
   }
 
   let service_name: string | null = null;
   let service_key: string | null = null;
+
   if (row.service_type_id != null) {
-    const { data: st } = await sb
+    const { data: service } = await sb
       .from('service_types')
       .select('key, name')
       .eq('id', row.service_type_id as number)
       .maybeSingle();
-    if (st?.name != null) service_name = String(st.name);
-    if (st?.key != null) service_key = String(st.key);
+
+    if (service?.name != null) {
+      service_name = String(service.name);
+    }
+
+    if (service?.key != null) {
+      service_key = String(service.key);
+    }
   }
 
-  const flatAddress = typeof row.address === 'string' && row.address.trim() ? String(row.address).trim() : '';
-  const address_text = flatAddress || formatAddressSnapshot(row.address_snapshot);
+  const flatAddress =
+    typeof row.address === 'string' && row.address.trim()
+      ? row.address.trim()
+      : '';
+
+  const address_text =
+    flatAddress || formatAddressSnapshot(row.address_snapshot);
 
   return jsonOk({
     ...order,
@@ -82,40 +176,35 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  ctx: { params: Promise<{ id: string }> }
+  ctx: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireSupabaseAuth(req);
+
   if (!auth.ok) return auth.response;
+
   if (!requireAdmin(auth.ctx)) {
     return jsonErr('Forbidden', 403);
   }
 
   const { id } = await ctx.params;
 
+  if (!id?.trim()) {
+    return jsonErr('Order id is required', 400);
+  }
+
   let body: Record<string, unknown>;
+
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
     return jsonErr('Invalid JSON body', 400);
   }
 
-  const allowed = [
-    'status',
-    'supplier_id',
-    'technician_id',
-    'scheduled_date',
-    'time_slot',
-    'payment_status',
-    'notes',
-    'total_amount',
-    'base_amount',
-    'gst_amount',
-  ] as const;
-
   const patch: Record<string, unknown> = {};
-  for (const k of allowed) {
-    if (body[k] !== undefined) {
-      patch[k] = body[k];
+
+  for (const key of ALLOWED_UPDATE_FIELDS) {
+    if (body[key] !== undefined) {
+      patch[key] = body[key];
     }
   }
 
@@ -123,19 +212,99 @@ export async function PUT(
     return jsonErr('No updatable fields provided', 400);
   }
 
-  // Fetch current row first so we can detect status transitions.
+  /* Validate order status */
+  if (patch.status !== undefined) {
+    if (
+      typeof patch.status !== 'string' ||
+      !VALID_STATUSES.has(patch.status.toUpperCase())
+    ) {
+      return jsonErr(
+        `Invalid status. Allowed: ${[...VALID_STATUSES].join(', ')}`,
+        400,
+      );
+    }
+
+    patch.status = patch.status.toUpperCase();
+  }
+
+  /* Validate payment status */
+  if (patch.payment_status !== undefined) {
+    if (
+      typeof patch.payment_status !== 'string' ||
+      !VALID_PAYMENT_STATUSES.has(
+        patch.payment_status.toLowerCase(),
+      )
+    ) {
+      return jsonErr(
+        `Invalid payment_status. Allowed: ${[
+          ...VALID_PAYMENT_STATUSES,
+        ].join(', ')}`,
+        400,
+      );
+    }
+
+    patch.payment_status = patch.payment_status.toLowerCase();
+  }
+
+  /* Validate financial values */
+  for (const key of [
+    'total_amount',
+    'base_amount',
+    'gst_amount',
+  ] as const) {
+    if (patch[key] === undefined) continue;
+
+    if (!isValidNonNegativeNumber(patch[key])) {
+      return jsonErr(
+        `${key} must be a valid non-negative number`,
+        400,
+      );
+    }
+
+    patch[key] = Number(patch[key]);
+  }
+
   const sb = auth.ctx.supabase;
+
+  /*
+   * Fetch current order before update.
+   * This allows us to detect a real transition into COMPLETED.
+   */
   const { data: before, error: beforeErr } = await sb
     .from('orders')
-    .select('id, status, supplier_id, customer_id, can_quantity')
+    .select(
+      'id, status, supplier_id, customer_id, can_quantity',
+    )
     .eq('id', id)
     .maybeSingle();
-  if (beforeErr) return jsonErr(beforeErr.message, 500);
-  if (!before) return jsonErr('Order not found', 404);
 
-  const prevStatus = String((before as Record<string, unknown>).status ?? '');
-  const patchStatus = typeof patch.status === 'string' ? String(patch.status) : '';
-  if (prevStatus !== 'COMPLETED' && patchStatus === 'COMPLETED') {
+  if (beforeErr) {
+    return jsonErr(beforeErr.message, 502);
+  }
+
+  if (!before) {
+    return jsonErr('Order not found', 404);
+  }
+
+  const beforeRow = before as Record<string, unknown>;
+
+  const previousStatus = String(
+    beforeRow.status ?? '',
+  );
+
+  const requestedStatus =
+    typeof patch.status === 'string'
+      ? patch.status
+      : '';
+
+  /*
+   * Set completion timestamp only on the actual
+   * transition into COMPLETED.
+   */
+  if (
+    previousStatus !== 'COMPLETED' &&
+    requestedStatus === 'COMPLETED'
+  ) {
     patch.completed_at = new Date().toISOString();
   }
 
@@ -147,79 +316,186 @@ export async function PUT(
     .maybeSingle();
 
   if (error) {
-    return jsonErr(error.message, 500);
+    return jsonErr(error.message, 502);
   }
+
   if (!data) {
     return jsonErr('Order not found', 404);
   }
 
-  const nextStatus = String((data as Record<string, unknown>).status ?? '');
-  const supplierIdRaw = (data as Record<string, unknown>).supplier_id;
-  const supplierId = supplierIdRaw != null ? String(supplierIdRaw) : '';
+  const updatedRow = data as Record<string, unknown>;
 
-  // When status changes TO COMPLETED and order has supplier_id:
-  // - increment profiles.completed_orders atomically
-  // - check milestone upgrade and update supplier benefits
-  if (prevStatus !== 'COMPLETED' && nextStatus === 'COMPLETED' && supplierId) {
-    const { error: incErr } = await sb.rpc('increment_supplier_completed_orders', {
-      p_supplier_id: supplierId,
-    });
-    if (incErr) {
-      // Fallback: best-effort read + write (not atomic).
-      const { data: p } = await sb
+  const nextStatus = String(
+    updatedRow.status ?? '',
+  );
+
+  const supplierIdRaw = updatedRow.supplier_id;
+
+  const supplierId =
+    supplierIdRaw != null
+      ? String(supplierIdRaw)
+      : '';
+
+  /*
+   * COMPLETED transition side effects.
+   */
+  if (
+    previousStatus !== 'COMPLETED' &&
+    nextStatus === 'COMPLETED' &&
+    supplierId
+  ) {
+    /*
+     * Increment supplier completed-order count.
+     */
+    const { error: incrementError } = await sb.rpc(
+      'increment_supplier_completed_orders',
+      {
+        p_supplier_id: supplierId,
+      },
+    );
+
+    if (incrementError) {
+      /*
+       * Fallback for environments where the RPC
+       * has not been installed.
+       *
+       * This is intentionally best-effort.
+       */
+      const { data: profile } = await sb
         .from('profiles')
         .select('completed_orders')
         .eq('id', supplierId)
         .maybeSingle();
-      const curr = Number((p as { completed_orders?: number } | null)?.completed_orders ?? 0);
-      await sb.from('profiles').update({ completed_orders: curr + 1 }).eq('id', supplierId);
+
+      const currentCompletedOrders = Number(
+        (
+          profile as {
+            completed_orders?: number;
+          } | null
+        )?.completed_orders ?? 0,
+      );
+
+      await sb
+        .from('profiles')
+        .update({
+          completed_orders:
+            currentCompletedOrders + 1,
+        })
+        .eq('id', supplierId);
     }
 
+    /*
+     * Supplier milestone upgrade.
+     */
     try {
-      await checkAndUpgradeMilestone(supplierId, sb);
-    } catch (e: unknown) {
-      console.error('[milestone upgrade]', e instanceof Error ? e.message : String(e));
+      await checkAndUpgradeMilestone(
+        supplierId,
+        sb,
+      );
+    } catch (error) {
+      console.error(
+        '[milestone upgrade]',
+        error instanceof Error
+          ? error.message
+          : String(error),
+      );
     }
 
-    // Decrement supplier stock (best-effort).
+    /*
+     * Decrease supplier stock.
+     *
+     * Best-effort because the current implementation
+     * does not use an atomic stock-decrement RPC.
+     */
     try {
-      const qty = Math.max(0, Number((before as { can_quantity?: number | null }).can_quantity ?? 0));
-      if (qty > 0) {
+      const quantity = Math.max(
+        0,
+        Number(
+          (
+            beforeRow as {
+              can_quantity?: number | null;
+            }
+          ).can_quantity ?? 0,
+        ),
+      );
+
+      if (quantity > 0) {
         const { data: stockRow } = await sb
           .from('supplier_stock')
           .select('cans_available')
           .eq('supplier_id', supplierId)
           .maybeSingle();
-        const available = Math.max(0, Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0));
+
+        const available = Math.max(
+          0,
+          Number(
+            (
+              stockRow as {
+                cans_available?: number;
+              } | null
+            )?.cans_available ?? 0,
+          ),
+        );
+
         await sb
           .from('supplier_stock')
           .upsert(
-            { supplier_id: supplierId, cans_available: Math.max(0, available - qty), updated_at: new Date().toISOString() },
-            { onConflict: 'supplier_id' }
+            {
+              supplier_id: supplierId,
+              cans_available: Math.max(
+                0,
+                available - quantity,
+              ),
+              updated_at:
+                new Date().toISOString(),
+            },
+            {
+              onConflict: 'supplier_id',
+            },
           );
       }
-    } catch (e) {
-      console.error('[admin/orders] supplier_stock decrement failed', e);
+    } catch (error) {
+      console.error(
+        '[admin/orders] supplier_stock decrement failed',
+        error,
+      );
     }
   }
 
-  if (prevStatus !== 'COMPLETED' && nextStatus === 'COMPLETED') {
-    // Notify customer (best-effort).
+  /*
+   * Customer completion notification.
+   *
+   * Runs only once when status actually changes
+   * into COMPLETED.
+   */
+  if (
+    previousStatus !== 'COMPLETED' &&
+    nextStatus === 'COMPLETED'
+  ) {
     try {
-      const customerId = String((before as { customer_id?: string | null }).customer_id ?? '');
+      const customerId = String(
+        beforeRow.customer_id ?? '',
+      );
+
       if (customerId) {
-        const { createNotification } = await import('@/lib/notifications');
+        const {
+          createNotification,
+        } = await import('@/lib/notifications');
+
         await createNotification(
           customerId,
           'Order delivered!',
           'Your order has been delivered. Thank you for choosing AuroWater.',
           'booking',
           String(id),
-          'completed'
+          'completed',
         );
       }
-    } catch (e) {
-      console.error('[admin/orders] customer notification failed', e);
+    } catch (error) {
+      console.error(
+        '[admin/orders] customer notification failed',
+        error,
+      );
     }
   }
 
