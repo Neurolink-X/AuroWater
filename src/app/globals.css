@@ -1,357 +1,323 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=clash-display@600,700&display=swap');
+/* AuroWater global styles
+   Fonts are loaded with next/font in layout.tsx (no render-blocking @imports). */
 @import "tailwindcss";
 
+/* ───────────── Tokens ───────────── */
 :root {
+  color-scheme: light;
+
   --background: #f8fafc;
   --foreground: #0f172a;
+
   --primary: #0D9B6C;
   --primary-dark: #086D4C;
   --primary-light: #E8F8F2;
   --accent: #38BDF8;
-  --surface: #F0FAF6;
   --text: #0F1C18;
   --muted: #6B7280;
   --danger: #EF4444;
   --warning: #F59E0B;
   --card: #FFFFFF;
-  --border: #E2EFE9;
+  --surface: #FFFFFF;
+  --border: #E5E7EB;
+  /* Previous green-tinted values, kept in case you want them back */
+  --surface-tint: #F0FAF6;
+  --border-tint: #E2EFE9;
+
   --footer-bg: #0D3D2E;
-  /* Footer bridge (see Footer.tsx): pages can override for a seamless handoff from the last section */
+  /* Footer bridge (see Footer.tsx): pages can override for a seamless handoff */
   --footer-prev-bg: #ffffff;
+
+  --blue-primary: #2563EB;
+  --blue-light: #EFF6FF;
+  --text-primary: #0A1628;
+  --text-muted: #6B7280;
 
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.2);
-  --shadow-soft: 0 4px 20px -4px rgba(0, 0, 0, 0.08);
-  --shadow-card: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
   --space-section: 5rem;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-heading: 'Clash Display', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
 
-  --blue-primary: #2563EB;
-  --blue-light:   #EFF6FF;
-  --surface:      #FFFFFF;
-  --border:       #E5E7EB;
-  --text-primary: #0A1628;
-  --text-muted:   #6B7280;
+  /* Each family falls back per glyph, so Hindi text never drops to a random system font */
+  --font-heading: var(--font-clash, 'Clash Display'), var(--font-noto-deva, 'Noto Sans Devanagari'), system-ui, sans-serif;
+  --font-body: var(--font-dm-sans, 'DM Sans'), var(--font-noto-deva, 'Noto Sans Devanagari'), system-ui, sans-serif;
+
+  --reveal-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --reveal-duration: 900ms;
+  --reveal-distance: 18px;
 }
 
+/* Registers utilities: bg-primary, text-primary-dark, font-heading, shadow-soft ... */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-card: var(--card);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-footer: var(--footer-bg);
+  --font-heading: var(--font-heading);
+  --font-body: var(--font-body);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f1f5f9;
+@theme static {
+  --shadow-soft: 0 4px 20px -4px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+}
+
+/* ───────────── Base (in a layer so Tailwind utilities can override it) ───────────── */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-padding-top: 5rem; /* anchor links clear the sticky header */
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: clip;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.1;
+    overflow: visible;
+    text-wrap: balance;
+  }
+  h1, h2, .stat-number, .aw-heading {
+    font-family: var(--font-heading);
+  }
+  p, li { text-wrap: pretty; }
+  button, input, select, textarea { font: inherit; }
+
+  /* Hindi / Devanagari */
+  :lang(hi), .hindi-text, .hindi, .font-devanagari {
+    font-family: var(--font-noto-deva, 'Noto Sans Devanagari'), var(--font-body);
+    line-height: 1.4;
+    letter-spacing: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  /* 44px touch targets on touch devices only, so desktop layouts are untouched */
+  @media (pointer: coarse) {
+    button, [role="button"], input[type="submit"], .aw-touch {
+      min-height: 44px;
+      min-width: 44px;
+    }
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-}
-
-.stat-number,
-h1,
-h2 {
-  font-family: var(--font-heading);
-}
-
-p,
-button,
-input,
-select {
-  font-family: var(--font-body);
-}
-
-/* Customer design system */
-.aw-heading {
-  font-family: var(--font-heading);
-}
-
-.aw-card {
-  background: #ffffff;
-  border: 1px solid #E5E7EB;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(37,99,235,0.04);
-  padding: 16px 18px;
-}
-
-/* Touch targets */
-.aw-touch,
-button,
-a,
-input[type="submit"] {
-  min-height: 44px;
-  min-width: 44px;
-}
-
-/* Scroll animations */
-.fade-up {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-.fade-up.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-.fade-up-delay-1 { transition-delay: 0.1s; }
-.fade-up-delay-2 { transition-delay: 0.2s; }
-.fade-up-delay-3 { transition-delay: 0.3s; }
-.fade-up-delay-4 { transition-delay: 0.4s; }
-.fade-up-delay-5 { transition-delay: 0.5s; }
-
-/* Animated gradient hero background */
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-.hero-gradient {
-  background: linear-gradient(-45deg, #0D9B6C, #0a7a55, #38BDF8, #0e4d3a);
-  background-size: 400% 400%;
-  animation: gradientShift 8s ease infinite;
-}
-
-/* Count-up animation trigger */
-@keyframes countUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Marquee for testimonials */
-@keyframes marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-.marquee-track {
-  display: flex;
-  animation: marquee 30s linear infinite;
-  width: max-content;
-}
-.marquee-track:hover { animation-play-state: paused; }
-
-/* Pulse ring for WhatsApp FAB */
-@keyframes pulseRing {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-.pulse-ring::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 9999px;
-  background: #25D366;
-  animation: pulseRing 1.8s ease-out infinite;
-  z-index: -1;
-}
-
-.hero-water-bg {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(0,188,212,0.16), transparent 55%),
-    radial-gradient(circle at 100% 0%, rgba(0,188,212,0.18), transparent 55%),
-    radial-gradient(circle at 50% 120%, rgba(0,188,212,0.2), transparent 60%);
-  mix-blend-mode: screen;
-  opacity: 0.9;
-  pointer-events: none;
-}
-
-.hero-ripple {
-  position: absolute;
-  width: 480px;
-  height: 480px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(0,188,212,0.35), transparent 60%);
-  filter: blur(2px);
-  animation: ripple-spin 26s linear infinite;
-  opacity: 0.8;
-}
-
-@keyframes ripple-spin {
-  0% {
-    transform: translate3d(-20%, -10%, 0) rotate(0deg);
+/* ───────────── Components ───────────── */
+@layer components {
+  .aw-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(37, 99, 235, 0.04);
+    padding: 16px 18px;
   }
-  50% {
-    transform: translate3d(10%, 5%, 0) rotate(180deg);
+
+  .glass-card {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-soft);
   }
-  100% {
-    transform: translate3d(-20%, -10%, 0) rotate(360deg);
+
+  .gradient-section { background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #f8fafc 100%); }
+  .gradient-hero { background: linear-gradient(160deg, #064e3b 0%, #065f46 30%, #047857 60%, #059669 100%); }
+
+  .gradient-text, [class*="gradient-text"] {
+    display: inline-block;
+    padding-bottom: 0.05em;
+    overflow: visible;
+  }
+
+  .display-text {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    line-height: 1.06;
+    letter-spacing: -0.3px;
+    padding-block: 0.04em;
+    overflow: visible;
+  }
+
+  /* Hover only where hover exists, so touch screens don't get stuck states */
+  .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  @media (hover: hover) {
+    .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
+  }
+
+  /* Hero background: transform-only animation (GPU), no per-frame repaint */
+  .hero-gradient {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: #0D9B6C;
+  }
+  .hero-gradient::before {
+    content: '';
+    position: absolute;
+    inset: -25%;
+    z-index: -1;
+    background: linear-gradient(-45deg, #0D9B6C, #0a7a55, #38BDF8, #0e4d3a);
+    animation: aw-drift 14s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  .hero-water-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 0% 0%, rgba(0, 188, 212, 0.16), transparent 55%),
+      radial-gradient(circle at 100% 0%, rgba(0, 188, 212, 0.18), transparent 55%),
+      radial-gradient(circle at 50% 120%, rgba(0, 188, 212, 0.2), transparent 60%);
+    opacity: 0.9;
+    pointer-events: none;
+  }
+
+  .hero-ripple {
+    position: absolute;
+    width: 480px;
+    height: 480px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(0, 188, 212, 0.35), transparent 60%);
+    animation: aw-ripple 26s ease-in-out infinite;
+    will-change: transform;
+    opacity: 0.8;
+  }
+
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: aw-marquee 30s linear infinite;
+    will-change: transform;
+  }
+  .marquee-track:hover { animation-play-state: paused; }
+
+  .pulse-ring::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: #25D366;
+    animation: aw-pulse-ring 1.8s ease-out infinite;
+    z-index: -1;
+  }
+
+  .animate-float { animation: aw-float 3s ease-in-out infinite; }
+  .animate-in { animation: aw-fade-in 0.35s ease-out forwards; }
+  .animate-scale-in { animation: aw-scale-in 0.4s ease forwards; }
+  .bounce-arrow { animation: aw-bounce 1.5s ease-in-out infinite; }
+  .animate-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: aw-shimmer 1.5s infinite;
+  }
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+
+  .text-safe {
+    overflow: visible !important;
+    clip: auto !important;
+    clip-path: none !important;
   }
 }
 
-/* Design system utilities */
-.gradient-section {
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #f8fafc 100%);
+/* Skip rendering work for below-the-fold sections: <section className="cv-auto"> */
+@utility cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
 }
 
-.gradient-hero {
-  background: linear-gradient(160deg, #064e3b 0%, #065f46 30%, #047857 60%, #059669 100%);
-}
+/* ───────────── Scroll reveal (pairs with useScrollAnimation) ─────────────
+   Content is hidden only after JS sets html[data-reveal-ready], so no-JS users,
+   crawlers and reduced-motion users always see everything. */
+@layer components {
+  [data-reveal-ready] :is([data-reveal], .fade-up) {
+    transition:
+      opacity var(--reveal-duration) var(--reveal-ease) var(--reveal-delay, 0ms),
+      transform var(--reveal-duration) var(--reveal-ease) var(--reveal-delay, 0ms),
+      clip-path calc(var(--reveal-duration) * 1.2) var(--reveal-ease) var(--reveal-delay, 0ms);
+  }
 
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--shadow-soft);
-}
+  /* Legacy delay classes still work */
+  .fade-up-delay-1 { --reveal-delay: 100ms; }
+  .fade-up-delay-2 { --reveal-delay: 200ms; }
+  .fade-up-delay-3 { --reveal-delay: 300ms; }
+  .fade-up-delay-4 { --reveal-delay: 400ms; }
+  .fade-up-delay-5 { --reveal-delay: 500ms; }
 
-.shadow-soft {
-  box-shadow: var(--shadow-soft);
-}
-
-.shadow-card {
-  box-shadow: var(--shadow-card);
-}
-
-.rounded-xl {
-  border-radius: var(--radius-xl);
-}
-
-.rounded-2xl {
-  border-radius: var(--radius-2xl);
-}
-
-/* Micro animations */
-@keyframes fade-in {
-  from {
+  /* rise (default) */
+  [data-reveal-ready] :is([data-reveal=''], [data-reveal='rise'], .fade-up):not([data-revealed], .visible) {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translate3d(0, var(--reveal-distance), 0);
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  [data-reveal-ready] [data-reveal='fade']:not([data-revealed]) { opacity: 0; }
+  [data-reveal-ready] [data-reveal='scale']:not([data-revealed]) { opacity: 0; transform: scale(0.96); }
+
+  /* wipe: uncovered from the top */
+  [data-reveal-ready] [data-reveal='wipe']:not([data-revealed]) { clip-path: inset(0 0 100% 0); transform: scale(1.04); }
+  [data-reveal-ready] [data-reveal='wipe'][data-revealed] { clip-path: inset(0); }
+
+  /* draw: dividers growing from the left */
+  [data-reveal-ready] [data-reveal='draw'] { transform-origin: left center; }
+  [data-reveal-ready] [data-reveal='draw']:not([data-revealed]) { transform: scaleX(0); }
+
+  /* fill: rises like water filling a glass (bottles, product shots, stats) */
+  [data-reveal-ready] [data-reveal='fill']:not([data-revealed]) { clip-path: inset(100% 0 0 0); }
+  [data-reveal-ready] [data-reveal='fill'][data-revealed] { clip-path: inset(0); }
+
+  /* ripple: opens outward like a drop hitting water (hero image, key card) */
+  [data-reveal-ready] [data-reveal='ripple']:not([data-revealed]) { clip-path: circle(0% at 50% 50%); opacity: 0.4; }
+  [data-reveal-ready] [data-reveal='ripple'][data-revealed] { clip-path: circle(75% at 50% 50%); }
+}
+
+/* ───────────── Keyframes (prefixed so they never clash with Tailwind's) ───────────── */
+@keyframes aw-drift {
+  from { transform: translate3d(-4%, -3%, 0) rotate(0deg) scale(1); }
+  to   { transform: translate3d(4%, 3%, 0) rotate(6deg) scale(1.08); }
+}
+@keyframes aw-ripple {
+  0%, 100% { transform: translate3d(-20%, -10%, 0); }
+  50%      { transform: translate3d(10%, 5%, 0); }
+}
+@keyframes aw-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes aw-pulse-ring { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes aw-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes aw-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
+@keyframes aw-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes aw-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes aw-scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+
+/* ───────────── Reduced motion: one switch for everything decorative ───────────── */
+@media (prefers-reduced-motion: reduce) {
+  .hero-gradient::before, .hero-ripple, .marquee-track, .pulse-ring::before,
+  .animate-float, .animate-in, .animate-scale-in, .animate-shimmer, .bounce-arrow {
+    animation: none !important;
   }
-}
-
-.animate-in {
-  animation: fade-in 0.35s ease-out forwards;
-}
-
-.hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
-}
-
-/* Focus visible for a11y */
-:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-/* Phase 3 micro-animations */
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(30px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.animate-float { animation: float 3s ease-in-out infinite; }
-.animate-shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-.animate-scale-in { animation: scaleIn 0.4s ease forwards; }
-
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-
-/* Phase 3 home scroll indicator bounce */
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(8px); }
-}
-.bounce-arrow { animation: bounce 1.5s ease-in-out infinite; }
-
-/* ── AuroWater: prevent display / Devanagari text clipping ── */
-
-h1, h2, h3, h4, h5, h6 {
-  overflow: visible;
-  line-height: 1.1;
-}
-
-.gradient-text,
-[class*="gradient-text"] {
-  display: inline-block;
-  padding-bottom: 0.05em;
-  overflow: visible;
-}
-
-/* Hindi / Devanagari — Syne/Bricolage lack glyphs */
-.hindi-text,
-.hindi,
-:lang(hi),
-.font-devanagari {
-  font-family: 'Noto Sans Devanagari', 'DM Sans', system-ui, sans-serif;
-  line-height: 1.4;
-  letter-spacing: 0;
-  overflow: visible;
-}
-
-/* Safe clipping override for tight layouts */
-.text-safe {
-  overflow: visible !important;
-  clip: auto !important;
-  clip-path: none !important;
-}
-
-/* Bricolage hero line when marked Hindi (matras / crown line) */
-.hero-headline:lang(hi),
-.hero-headline .hindi {
-  font-family: 'Noto Sans Devanagari', system-ui, sans-serif;
-  line-height: 1.35;
-  letter-spacing: 0;
-  padding-top: 0.1em;
-  overflow: visible;
-}
-
-.display-text {
-  font-family: 'Bricolage Grotesque', 'Syne', system-ui, sans-serif;
-  font-weight: 800;
-  line-height: 1.06;
-  letter-spacing: -0.3px;
-  padding-block: 0.04em;
-  overflow: visible;
-  -webkit-font-smoothing: antialiased;
+  [data-reveal], .fade-up {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
 }
