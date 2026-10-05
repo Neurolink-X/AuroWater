@@ -2,11 +2,13 @@
 /**
  * src/components/booking/BookingWizard.tsx
  *
- * FIXES:
- *  1. Mobile input visibility  — bg-white + text-slate-900 + color-scheme light + 16px text on mobile
- *  2. Location on phones       — network-first (fast), GPS fallback, no fallback on permission denied
- *  3. Location fills fields    — area/city/pincode filled, form scrolls into view and highlights
- *  4. 3-hour slot windows      — TimeSlotPicker uses slot cards
+ * Upgrades in this version:
+ *  - Mobile-safe inputs (light colours, 16px text)
+ *  - Location: permission pre-check, network-first then GPS, stale-request guard,
+ *    geocode timeout, coordinates kept even if street lookup fails
+ *  - 3-hour delivery windows + ASAP window for emergency bookings
+ *  - Draft v2: restored drafts are sanitised, slot is re-validated on restore and on confirm
+ *  - Offline guard, unsaved-address guard, focus management between steps
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,7 +29,16 @@ import {
   reverseGeocode,
   type ApiOrder,
 } from '@/lib/api-client';
-import { getMinDate, nextFutureSlot } from '@/lib/validation/time-slot-client';
+import {
+  ASAP_SLOT_ID,
+  CLOSE_HOUR,
+  OPEN_HOUR,
+  buildSlotValue,
+  getAvailableSlots,
+  getMinDate,
+  getSlotBlock,
+  nextFutureSlot,
+} from '@/lib/validation/time-slot-client';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
 import { safeSessionGet, safeSessionRemove, safeSessionSet } from '@/lib/storage';
@@ -70,10 +81,18 @@ export interface BookingDraft {
   slotValid?: boolean;
 }
 
-const DRAFT_KEY = 'aw_booking_draft_v1';
+const DRAFT_KEY = 'aw_booking_draft_v2';
 const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
+const QUICK_QTY = [1, 2, 3, 5, 10, 20];
+const SCOPE_SERVICES = ['borewell', 'motor_pump', 'tank_cleaning'];
+
+const MSG_DENIED =
+  'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, then try again — or type your address below.';
+const MSG_TIMEOUT =
+  'Could not get a location fix. Move near a window or open area and retry — or type your address below.';
+const MSG_UNAVAILABLE = 'Your device could not detect its location. Please type your address below.';
 
 function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
   return d.canOrderType === 'subscription' ? MAX_CANS_SUBSCRIPTION : MAX_CANS_ONE_TIME;
@@ -89,7 +108,7 @@ const SERVICE_LIST = [
   { key: 'tank_cleaning', emoji: '✨', title: 'Tank cleaning' },
 ];
 
-const LIVE_CITIES = ACTIVE_CITY_NAMES;
+const LIVE_CITIES: readonly string[] = ACTIVE_CITY_NAMES;
 
 const CITY_PIN_PREFIX: Record<string, string[]> = {
   Kanpur:    ['208', '209'],
@@ -137,6 +156,27 @@ function emptyDraft(): BookingDraft {
   };
 }
 
+/** Never trust sessionStorage: keep only well-formed fields. */
+function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
+  if (!raw || typeof raw !== 'object') return {};
+  const r = raw as Record<string, unknown>;
+  const out: Partial<BookingDraft> = {};
+  if (typeof r.serviceKey === 'string' && SERVICE_LIST.some((s) => s.key === r.serviceKey)) out.serviceKey = r.serviceKey;
+  if (typeof r.subOptionKey === 'string') out.subOptionKey = r.subOptionKey;
+  const q = Number(r.canQuantity);
+  if (Number.isFinite(q) && q >= 1) out.canQuantity = Math.min(MAX_CANS_SUBSCRIPTION, Math.floor(q));
+  if (r.canOrderType === 'one_time' || r.canOrderType === 'subscription') out.canOrderType = r.canOrderType;
+  if (typeof r.canFrequency === 'string' && ['weekly', 'biweekly', 'monthly'].includes(r.canFrequency)) out.canFrequency = r.canFrequency;
+  if (typeof r.addressId === 'string') out.addressId = r.addressId;
+  if (r.newAddress && typeof r.newAddress === 'object') out.newAddress = r.newAddress as BookingDraft['newAddress'];
+  if (typeof r.scheduledDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.scheduledDate)) out.scheduledDate = r.scheduledDate;
+  if (typeof r.slotId === 'string') out.slotId = r.slotId;
+  if (r.paymentMethod === 'cash' || r.paymentMethod === 'online' || r.paymentMethod === 'upi') out.paymentMethod = r.paymentMethod;
+  if (typeof r.isEmergency === 'boolean') out.isEmergency = r.isEmergency;
+  if (typeof r.notes === 'string') out.notes = r.notes.slice(0, 500);
+  return out;
+}
+
 function subOptionDelta(serviceKey: string, subOptionKey: string): number {
   if (serviceKey === 'ro_service')   return ({ service: 0, filter_change: 49, amc: 149, new_installation: 599 } as Record<string, number>)[subOptionKey] ?? 0;
   if (serviceKey === 'plumbing')     return ({ pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 } as Record<string, number>)[subOptionKey] ?? 0;
@@ -169,10 +209,9 @@ function nextFourteenIsoDates(min: string): string[] {
   const [y, m, d0] = min.split('-').map(Number);
   for (let i = 0; i < 14; i++) {
     const d = new Date(y, m - 1, d0 + i, 12, 0, 0);
-    const yy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    out.push(`${yy}-${mm}-${dd}`);
+    out.push(`${d.getFullYear()}-${mm}-${dd}`);
   }
   return out;
 }
@@ -190,7 +229,7 @@ function to12h(t: string): string {
   return `${h}:${m[2]} ${ap}`;
 }
 
-/* FIX 1: explicit light colours; 16px on mobile stops iOS zoom; color-scheme light beats phone dark mode */
+/* Light colours + 16px on mobile (no iOS zoom) + color-scheme light (beats phone dark mode) */
 const inputCls =
   'w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-base sm:text-sm text-slate-900 ' +
   'placeholder:text-slate-400 [color-scheme:light] focus:outline-none focus:ring-2 focus:ring-emerald-300 ' +
@@ -207,6 +246,11 @@ const btnPrimary =
 const btnGhost =
   'rounded-xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 ' +
   'hover:bg-slate-50 transition-colors';
+
+const optionBtn = (active: boolean) =>
+  `rounded-xl border px-4 py-3 text-sm font-semibold text-slate-900 transition-colors ${
+    active ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-200'
+  }`;
 
 export default function BookingWizard() {
   const router       = useRouter();
@@ -234,23 +278,31 @@ export default function BookingWizard() {
   } | null>(null);
   const [checkingServiceability, setCheckingServiceability] = useState(false);
 
-  /* Location state */
   const [locating, setLocating]         = useState(false);
   const [locationStep, setLocationStep] = useState<'idle' | 'network' | 'gps' | 'geocoding' | 'done' | 'error'>('idle');
   const [locationError, setLocationError] = useState<string | null>(null);
   const [flashFields, setFlashFields]   = useState(false);
   const [detectedLocation, setDetectedLocation] = useState<{
-    formattedAddress: string | null; city: string | null; area: string | null; pincode: string | null;
+    formattedAddress: string | null; city: string | null; area: string | null;
+    pincode: string | null; accuracy: number | null;
   } | null>(null);
 
   const submitLock     = useRef(false);
   const firstScroll    = useRef(true);
+  const geoReq         = useRef(0);
+  const stepRef        = useRef<HTMLDivElement | null>(null);
   const addressFormRef = useRef<HTMLDivElement | null>(null);
   const houseInputRef  = useRef<HTMLInputElement | null>(null);
 
   const view    = createdOrder ? 6 : Math.min(step, MAX_FORM_STEP);
   const minDate = getMinDate();
   const datePills = useMemo(() => nextFourteenIsoDates(minDate), [minDate]);
+  const todayOpen = useMemo(
+    () => draft.isEmergency || getAvailableSlots(minDate).length > 0,
+    // view included so availability is re-read whenever the user reaches the schedule step
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [minDate, draft.isEmergency, view],
+  );
 
   const cardMotion = {
     initial: { opacity: 0, y: 10 },
@@ -264,17 +316,23 @@ export default function BookingWizard() {
     setFurthest((f) => Math.max(f, clamped));
   }, []);
 
-  /* Hydration */
+  /* Cancel any in-flight geolocation work on unmount */
+  useEffect(() => {
+    return () => { geoReq.current += 1; };
+  }, []);
+
+  /* ───────── Hydration ───────── */
   useEffect(() => {
     let restored: Partial<BookingDraft> | null = null;
     let restoredStep = 1;
     try {
       const raw = safeSessionGet(DRAFT_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as { draft?: Partial<BookingDraft>; step?: number };
+        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number };
         const s = Number(parsed?.step);
         if (parsed?.draft && typeof parsed.draft === 'object' && s >= 1 && s <= MAX_FORM_STEP) {
-          restored = parsed.draft; restoredStep = Math.floor(s);
+          restored = sanitizeDraft(parsed.draft);
+          restoredStep = Math.floor(s);
         } else { safeSessionRemove(DRAFT_KEY); }
       }
     } catch { try { safeSessionRemove(DRAFT_KEY); } catch { /* */ } }
@@ -285,14 +343,7 @@ export default function BookingWizard() {
       newAddress: { ...(fresh.newAddress ?? {}), ...(restored?.newAddress ?? {}) },
       canFrequency: restored?.canFrequency ?? fresh.canFrequency,
     };
-
-    const min = getMinDate();
-    if (!base.scheduledDate || base.scheduledDate < min || !base.slotId) {
-      const slot = nextFutureSlot();
-      base.scheduledDate = slot.date; base.slotId = slot.slotId;
-      base.startTime = slot.startTime; base.endTime = slot.endTime;
-      base.timeSlot = ''; base.scheduled_time = ''; base.slotValid = false;
-    }
+    base.canQuantity = Math.min(maxCansFor(base), Math.max(1, base.canQuantity ?? 1));
 
     const serviceParam = searchParams?.get('service') ?? '';
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
@@ -318,6 +369,23 @@ export default function BookingWizard() {
       const h = parseInt(hm[1], 10);
       if (h >= 1 && h <= MAX_FORM_STEP) start = Math.min(h, restored ? restoredStep : 1);
     } else if (serviceOk && start === 1) { start = 2; }
+
+    /* Re-validate the schedule: a draft from earlier today/yesterday may be stale */
+    const min = getMinDate();
+    const knownSlot = base.slotId === ASAP_SLOT_ID || !!getSlotBlock(base.slotId);
+    let sv = base.scheduledDate >= min && knownSlot ? buildSlotValue(base.scheduledDate, base.slotId) : null;
+    if (!sv || !sv.valid) {
+      const n = nextFutureSlot();
+      base.scheduledDate = n.date;
+      base.slotId = n.slotId;
+      sv = buildSlotValue(n.date, n.slotId);
+      if (start > 4) start = 4;
+    }
+    base.startTime = sv.startTime;
+    base.endTime = sv.endTime;
+    base.timeSlot = sv.time_slot;
+    base.scheduled_time = sv.scheduled_time;
+    base.slotValid = sv.valid;
 
     setDraft(base); setStep(start); setFurthest(start); setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,10 +415,12 @@ export default function BookingWizard() {
     return () => window.removeEventListener('hashchange', onHash);
   }, [furthest, createdOrder]);
 
+  /* Scroll to top + move focus to the new step (screen-reader & keyboard friendly) */
   useEffect(() => {
     if (!hydrated) return;
     if (firstScroll.current) { firstScroll.current = false; return; }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    stepRef.current?.focus({ preventScroll: true });
   }, [view, hydrated]);
 
   useEffect(() => {
@@ -417,6 +487,8 @@ export default function BookingWizard() {
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
+  const perCan = draft.canOrderType === 'subscription' ? settings.subscription_can_price : settings.default_can_price;
+
   const goLoginForCheckout = () => {
     try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 3 })); } catch { /* */ }
     router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-3')}`);
@@ -437,112 +509,135 @@ export default function BookingWizard() {
     });
   }, []);
 
-  /* ─────────────────────────────────────────────────────────────
-   * Location: network-first (fast on phones), GPS only as fallback.
-   * Permission denied => stop immediately (GPS would fail too).
-   * ───────────────────────────────────────────────────────────── */
-  const detectLocation = useCallback(() => {
+  /* ───────────────────────── Location ─────────────────────────
+   * 1. Pre-check permission (instant message if blocked)
+   * 2. Network location first (fast on phones), GPS only as fallback
+   * 3. Reverse-geocode with a timeout; keep coordinates even if it fails
+   * 4. Ignore results from superseded/unmounted requests
+   * ─────────────────────────────────────────────────────────── */
+  const detectLocation = useCallback(async () => {
     if (!session?.loggedIn) { toast.error('Please sign in to detect your location.'); return; }
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       toast.error('Location is not supported on this browser. Please type your address.');
       return;
     }
     if (locating) return;
 
-    setLocating(true);
-    setLocationError(null);
-    setLocationStep('network');
+    const reqId = ++geoReq.current;
+    const stale = () => reqId !== geoReq.current;
 
     const fail = (msg: string) => {
+      if (stale()) return;
       setLocating(false);
       setLocationStep('error');
       setLocationError(msg);
       toast.error(msg);
     };
 
-    const doGeocode = async (lat: number, lng: number) => {
-      setLocationStep('geocoding');
+    if (!window.isSecureContext) {
+      fail('Location needs a secure (https) connection. Please type your address.');
+      return;
+    }
+
+    setLocating(true);
+    setLocationError(null);
+    setLocationStep('network');
+
+    try {
+      const perm = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
+      if (perm?.state === 'denied') { fail(MSG_DENIED); return; }
+    } catch { /* Permissions API unsupported — continue */ }
+
+    const getPos = (opts: PositionOptions) =>
+      new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, opts);
+      });
+
+    const acquire = async (): Promise<GeolocationPosition | null> => {
       try {
-        const result = await reverseGeocode(lat, lng);
-        const matchedCity =
-          LIVE_CITIES.find((c) => c.toLowerCase() === (result.city ?? '').trim().toLowerCase()) ?? null;
-
-        setDraft((d) => ({
-          ...d,
-          newAddress: {
-            ...d.newAddress,
-            lat,
-            lng,
-            area:    result.area || d.newAddress?.area || '',
-            city:    matchedCity ?? d.newAddress?.city ?? LIVE_CITIES[0] ?? '',
-            pincode: result.pincode || d.newAddress?.pincode || '',
-          },
-        }));
-
-        setDetectedLocation({
-          formattedAddress: result.formattedAddress,
-          city: result.city, area: result.area, pincode: result.pincode,
-        });
-        setLocationStep('done');
-        setLocating(false);
-
-        if (!matchedCity && result.city) {
-          toast.warning(`We detected "${result.city}", which isn't live yet. Please check the city.`);
-        } else {
-          toast.success('Location detected — please add flat/house no. and save.');
-        }
-
-        // Bring the filled fields into view, highlight them, focus the next empty field.
-        setFlashFields(true);
-        setTimeout(() => {
-          addressFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          houseInputRef.current?.focus({ preventScroll: true });
-        }, 250);
-        setTimeout(() => setFlashFields(false), 2500);
+        return await getPos({ enableHighAccuracy: false, timeout: 6_000, maximumAge: 60_000 });
       } catch (e) {
-        fail(e instanceof ApiError ? e.message : 'Could not read your address from this location. Please type it.');
+        if ((e as GeolocationPositionError).code === 1) { fail(MSG_DENIED); return null; }
+      }
+      if (stale()) return null;
+      setLocationStep('gps');
+      try {
+        return await getPos({ enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 });
+      } catch (e) {
+        const code = (e as GeolocationPositionError).code;
+        fail(code === 1 ? MSG_DENIED : code === 3 ? MSG_TIMEOUT : MSG_UNAVAILABLE);
+        return null;
       }
     };
 
-    const onSuccess = (pos: GeolocationPosition) => {
-      void doGeocode(pos.coords.latitude, pos.coords.longitude);
-    };
+    const pos = await acquire();
+    if (!pos || stale()) return;
 
-    const tryGPS = () => {
-      setLocationStep('gps');
-      navigator.geolocation.getCurrentPosition(
-        onSuccess,
-        (err) => {
-          fail(
-            err.code === err.PERMISSION_DENIED
-              ? 'Location permission is blocked. Allow location for this site in browser settings, or type your address.'
-              : err.code === err.TIMEOUT
-              ? 'Could not get a location fix. Move near a window / open area, or type your address.'
-              : 'Could not detect location. Please type your address.',
-          );
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    setLocationStep('geocoding');
+
+    try {
+      const result = await Promise.race([
+        reverseGeocode(lat, lng),
+        new Promise<never>((_, reject) => { setTimeout(() => reject(new Error('geocode-timeout')), 12_000); }),
+      ]);
+      if (stale()) return;
+
+      const matchedCity =
+        LIVE_CITIES.find((c) => c.toLowerCase() === (result.city ?? '').trim().toLowerCase()) ?? null;
+
+      setDraft((d) => ({
+        ...d,
+        newAddress: {
+          ...d.newAddress,
+          lat,
+          lng,
+          area:    result.area || d.newAddress?.area || '',
+          city:    matchedCity ?? d.newAddress?.city ?? LIVE_CITIES[0] ?? '',
+          pincode: result.pincode || d.newAddress?.pincode || '',
         },
-        { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
-      );
-    };
+      }));
+      setDetectedLocation({
+        formattedAddress: result.formattedAddress,
+        city: result.city, area: result.area, pincode: result.pincode,
+        accuracy: Number.isFinite(accuracy) ? accuracy : null,
+      });
+      setLocationStep('done');
+      setLocating(false);
 
-    navigator.geolocation.getCurrentPosition(
-      onSuccess,
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          fail('Location permission is blocked. Allow location for this site in browser settings, or type your address.');
-        } else {
-          tryGPS();
-        }
-      },
-      { enableHighAccuracy: false, timeout: 6_000, maximumAge: 60_000 },
-    );
+      if (!matchedCity && result.city) {
+        toast.warning(`We detected "${result.city}", which isn't live yet. Please check the city.`);
+      } else {
+        toast.success('Location detected — add flat/house no. and save.');
+      }
+
+      setFlashFields(true);
+      setTimeout(() => {
+        addressFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        houseInputRef.current?.focus({ preventScroll: true });
+      }, 250);
+      setTimeout(() => setFlashFields(false), 2500);
+    } catch (e) {
+      if (stale()) return;
+      // Keep the GPS point so the nearest supplier can still be assigned
+      setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, lat, lng } }));
+      setLocating(false);
+      setLocationStep('error');
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : 'We found your position but could not read the street address. Please type your area and pincode.';
+      setLocationError(msg);
+      toast.warning(msg);
+    }
   }, [session?.loggedIn, locating]);
 
   const locationButtonLabel = () => {
     if (locationStep === 'network')   return 'Checking network…';
     if (locationStep === 'gps')       return 'Getting GPS…';
     if (locationStep === 'geocoding') return 'Finding address…';
-    if (locationStep === 'done' && typeof draft.newAddress?.lat === 'number') return '📍 Detected ✓';
+    if (locationStep === 'done')      return '📍 Detected ✓ · Retry';
+    if (locationStep === 'error')     return '📍 Try again';
     return '📍 Detect my location';
   };
 
@@ -560,13 +655,19 @@ export default function BookingWizard() {
     }
     if (s === 3) {
       if (!session?.loggedIn)   { toast.error('Sign in to continue.'); return false; }
+      const na = draft.newAddress;
+      if (na?.house_flat?.trim() && na.area?.trim() && na.pincode?.trim().length === 6) {
+        toast.info('You filled a new address — tap "Save address" first, or clear it.');
+        return false;
+      }
       if (!draft.addressId)     { toast.error('Select or add a delivery address.'); return false; }
       if (checkingServiceability) { toast.error('Checking availability — please wait.'); return false; }
       if (!serviceability?.serviceable) { toast.error(serviceability?.message ?? 'Address not serviceable.'); return false; }
       return true;
     }
     if (s === 4) {
-      if (!draft.slotValid) { toast.error('Pick an available delivery window.'); return false; }
+      const v = buildSlotValue(draft.scheduledDate, draft.slotId);
+      if (!draft.slotValid || !v.valid) { toast.error('Pick an available delivery window.'); return false; }
       return true;
     }
     return true;
@@ -578,8 +679,17 @@ export default function BookingWizard() {
   const resetWizard = useCallback(() => {
     try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
     submitLock.current = false;
+    geoReq.current += 1;
     setCreatedOrder(null); setSubmitError(null);
-    setDraft(emptyDraft()); setStep(1); setFurthest(1);
+    setLocating(false); setLocationStep('idle'); setLocationError(null); setDetectedLocation(null);
+    const fresh = emptyDraft();
+    const sv = buildSlotValue(fresh.scheduledDate, fresh.slotId);
+    setDraft({
+      ...fresh,
+      startTime: sv.startTime, endTime: sv.endTime, timeSlot: sv.time_slot,
+      scheduled_time: sv.scheduled_time, slotValid: sv.valid,
+    });
+    setStep(1); setFurthest(1);
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', `${window.location.pathname}#step-1`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -608,7 +718,7 @@ export default function BookingWizard() {
       const created = (await customerAddressCreate(payload as Parameters<typeof customerAddressCreate>[0])) as AddressRow;
       await loadAddresses();
       setDraft((d) => ({ ...d, addressId: created.id, newAddress: { ...emptyDraft().newAddress } }));
-      setLocationStep('idle'); setDetectedLocation(null);
+      setLocationStep('idle'); setDetectedLocation(null); setLocationError(null);
       toast.success('Address saved and selected ✓');
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : 'Could not save address.');
@@ -618,14 +728,28 @@ export default function BookingWizard() {
   const confirmOrder = async () => {
     if (submitLock.current || createdOrder) return;
     if (!draft.addressId || !session?.loggedIn) { toast.error('Missing address or session.'); return; }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      toast.error('You appear to be offline. Check your connection and try again.');
+      return;
+    }
+
+    /* Re-validate the window right before submitting (time has passed since step 4) */
+    const sv = buildSlotValue(draft.scheduledDate, draft.slotId);
+    if (!sv.valid) {
+      setDraft((d) => ({ ...d, slotValid: false }));
+      toast.error('Your delivery window is no longer available. Please pick another.');
+      goTo(4);
+      return;
+    }
+
     submitLock.current = true;
     setSubmitting(true); setSubmitError(null);
     try {
       const order = await customerOrderCreate({
         service_type_key: draft.serviceKey, address_id: draft.addressId,
         sub_option_key: draft.subOptionKey || 'standard',
-        scheduled_date: draft.scheduledDate, time_slot: draft.timeSlot,
-        scheduled_time: draft.scheduled_time, is_emergency: draft.isEmergency,
+        scheduled_date: draft.scheduledDate, time_slot: sv.time_slot,
+        scheduled_time: sv.scheduled_time, is_emergency: draft.isEmergency,
         base_amount: baseAmount, convenience_fee: breakdown.convenience,
         gst_amount: breakdown.gst, total_amount: breakdown.total,
         payment_method: draft.paymentMethod, notes: draft.notes?.trim() || undefined,
@@ -634,6 +758,7 @@ export default function BookingWizard() {
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
       });
       try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
+      setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
       toast.success('Booking confirmed! 🎉');
     } catch (e) {
@@ -661,11 +786,8 @@ export default function BookingWizard() {
   const newPinHint      = pinHint(draft.newAddress?.city, draft.newAddress?.pincode);
   const orderStatus     = String((createdOrder as unknown as Record<string, unknown> | null)?.status ?? '');
   const supplierSearching = (createdOrder as unknown as Record<string, unknown> | null)?.supplier_status === 'searching' || orderStatus === 'PENDING';
-  const etaText = draft.startTime && draft.endTime
-    ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}`
-    : draft.timeSlot || 'Within your selected window';
   const windowText = draft.startTime && draft.endTime
-    ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}`
+    ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
 
   return (
@@ -686,6 +808,9 @@ export default function BookingWizard() {
 
         <BookingProgress step={view} maxStep={furthest} onStepClick={createdOrder ? undefined : (n) => goTo(n)} />
 
+        {/* Focus target for step changes */}
+        <div ref={stepRef} tabIndex={-1} className="outline-none" aria-live="polite">
+
         {/* STEP 1 */}
         {view === 1 && (
           <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
@@ -701,7 +826,7 @@ export default function BookingWizard() {
                       ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
                       : 'border-slate-200 bg-white',
                   ].join(' ')}>
-                  <div className="text-2xl">{s.emoji}</div>
+                  <div className="text-2xl" aria-hidden>{s.emoji}</div>
                   <div className="mt-2 font-semibold text-slate-900 text-sm leading-tight">{s.title}</div>
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
                     From ₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
@@ -714,7 +839,7 @@ export default function BookingWizard() {
                 onChange={(e) => setDraft((d) => ({ ...d, isEmergency: e.target.checked }))}
                 className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
               <span className="text-sm text-slate-700">
-                Emergency booking (+ {inr(settings.emergency_surcharge)} surcharge)
+                Emergency booking (+ {inr(settings.emergency_surcharge)} surcharge) · arrives ASAP, even outside {to12h(`${OPEN_HOUR}:00`)}–{to12h(`${CLOSE_HOUR}:00`)}
               </span>
             </label>
             <div className="flex justify-end">
@@ -738,19 +863,30 @@ export default function BookingWizard() {
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button type="button" aria-label="Decrease"
+                    <button type="button" aria-label="Decrease quantity"
                       className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-900 text-lg font-bold hover:bg-slate-50 active:scale-95"
                       onClick={() => setDraft((d) => ({ ...d, canQuantity: Math.max(1, (d.canQuantity ?? 1) - 1) }))}>−</button>
                     <span className="font-extrabold w-10 text-center text-lg text-slate-900" aria-live="polite">{draft.canQuantity ?? 1}</span>
-                    <button type="button" aria-label="Increase"
+                    <button type="button" aria-label="Increase quantity"
                       className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-900 text-lg font-bold hover:bg-slate-50 active:scale-95"
                       onClick={() => setDraft((d) => ({ ...d, canQuantity: Math.min(maxCansFor(d), (d.canQuantity ?? 1) + 1) }))}>+</button>
                   </div>
                 </div>
+
+                <div className="flex flex-wrap gap-2" aria-label="Quick quantity">
+                  {QUICK_QTY.filter((n) => n <= maxCansFor(draft)).map((n) => (
+                    <button key={n} type="button" aria-pressed={(draft.canQuantity ?? 1) === n}
+                      onClick={() => setDraft((d) => ({ ...d, canQuantity: n }))}
+                      className={`rounded-full border px-4 py-1.5 text-sm font-semibold text-slate-900 ${(draft.canQuantity ?? 1) === n ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   {(['one_time', 'subscription'] as const).map((t) => (
                     <button key={t} type="button" aria-pressed={draft.canOrderType === t}
-                      className={`rounded-xl border py-3 text-sm font-semibold text-slate-900 ${draft.canOrderType === t ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}
+                      className={`${optionBtn(draft.canOrderType === t)} text-center`}
                       onClick={() => setDraft((d) => ({ ...d, canOrderType: t, canQuantity: t === 'one_time' ? Math.min(d.canQuantity ?? 1, MAX_CANS_ONE_TIME) : d.canQuantity }))}>
                       {t === 'one_time' ? 'One-time' : 'Subscription'}
                     </button>
@@ -768,6 +904,7 @@ export default function BookingWizard() {
                     </select>
                   </div>
                 )}
+                <p className="text-xs text-slate-500">{inr(perCan)} per can</p>
               </div>
             )}
 
@@ -776,7 +913,7 @@ export default function BookingWizard() {
                 {[['service','Routine service'],['filter_change','Filter change'],['amc','AMC'],['new_installation','New installation']].map(([k,l]) => (
                   <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
                     onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-                    className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold text-slate-900 ${draft.subOptionKey === k ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>{l}</button>
+                    className={`${optionBtn(draft.subOptionKey === k)} text-left`}>{l}</button>
                 ))}
               </div>
             )}
@@ -786,7 +923,7 @@ export default function BookingWizard() {
                 {[['pipe_leak','Pipe leak'],['tap','Tap repair'],['drainage','Drainage'],['new_fitting','New fitting'],['other','Other']].map(([k,l]) => (
                   <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
                     onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-                    className={`rounded-xl border px-4 py-3 text-left text-sm font-semibold text-slate-900 ${draft.subOptionKey === k ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>{l}</button>
+                    className={`${optionBtn(draft.subOptionKey === k)} text-left`}>{l}</button>
                 ))}
               </div>
             )}
@@ -796,12 +933,12 @@ export default function BookingWizard() {
                 {[['500','500L'],['1000','1000L'],['2000','2000L'],['custom','Custom']].map(([k,l]) => (
                   <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
                     onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-                    className={`rounded-xl border px-4 py-3 text-sm font-semibold text-slate-900 ${draft.subOptionKey === k ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white'}`}>{l}</button>
+                    className={optionBtn(draft.subOptionKey === k)}>{l}</button>
                 ))}
               </div>
             )}
 
-            {['borewell','motor_pump','tank_cleaning'].includes(draft.serviceKey) && (
+            {SCOPE_SERVICES.includes(draft.serviceKey) && (
               <div>
                 <label htmlFor="scope" className="text-sm font-medium text-slate-700">Describe the issue / scope</label>
                 <textarea id="scope" className={`mt-1 min-h-[90px] resize-y ${inputCls}`}
@@ -816,7 +953,7 @@ export default function BookingWizard() {
                 <span className="text-slate-600">Estimated base</span>
                 <span className="font-bold text-slate-900">{inr(baseAmount)}</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Platform fees added at checkout.</p>
+              <p className="text-xs text-slate-500 mt-1">Platform fees are added at checkout.</p>
             </div>
 
             <div className="flex justify-between gap-3">
@@ -836,7 +973,7 @@ export default function BookingWizard() {
               <summary className="cursor-pointer text-sm font-semibold text-slate-700">My city isn&apos;t listed — join waitlist</summary>
               <div className="mt-3 rounded-2xl bg-[#0A1628] p-3 space-y-3">
                 <input className="w-full rounded-xl border border-white/10 bg-[#0d1f35] px-3 py-2.5 text-base sm:text-sm text-white placeholder:text-white/40"
-                  placeholder="Your city" value={waitlistCity} onChange={(e) => setWaitlistCity(e.target.value)} />
+                  placeholder="Your city" aria-label="Your city" value={waitlistCity} onChange={(e) => setWaitlistCity(e.target.value)} />
                 <WaitlistPanel cityName={waitlistCity.trim() || 'your city'} cityId={null} role="customer" source="book" />
               </div>
             </details>
@@ -852,7 +989,7 @@ export default function BookingWizard() {
             {session?.loggedIn && (
               <>
                 {loadingAddresses && !addressesLoaded ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3" aria-busy="true">
                     <div className="h-16 rounded-2xl bg-slate-100 animate-pulse" />
                     <div className="h-16 rounded-2xl bg-slate-100 animate-pulse" />
                   </div>
@@ -883,8 +1020,8 @@ export default function BookingWizard() {
 
                 {draft.addressId && (
                   <div className={`rounded-2xl border p-4 transition-colors ${
-                    checkingServiceability ? 'border-slate-200 bg-slate-50' :
-                    serviceability?.serviceable ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+                    checkingServiceability || !serviceability ? 'border-slate-200 bg-slate-50' :
+                    serviceability.serviceable ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
                   }`} aria-live="polite">
                     {checkingServiceability || !serviceability ? (
                       <div className="flex items-center gap-2">
@@ -917,7 +1054,7 @@ export default function BookingWizard() {
                         <p className="text-sm font-semibold text-slate-800">Auto-detect location</p>
                         <p className="text-xs text-slate-500 mt-0.5">Fills area, city &amp; pincode automatically</p>
                       </div>
-                      <button type="button" onClick={detectLocation} disabled={locating}
+                      <button type="button" onClick={() => void detectLocation()} disabled={locating}
                         className={[
                           'shrink-0 rounded-xl px-4 py-3 text-sm font-semibold transition-all w-full sm:w-auto',
                           locating
@@ -945,7 +1082,15 @@ export default function BookingWizard() {
                           {[detectedLocation.area, detectedLocation.city].filter(Boolean).join(', ')}
                           {detectedLocation.pincode ? ` · ${detectedLocation.pincode}` : ''}
                         </p>
-                        <p className="text-xs text-emerald-600 mt-1">Add your flat/house no., then tap Save address.</p>
+                        {detectedLocation.formattedAddress && (
+                          <p className="text-xs text-emerald-700 mt-1 break-words">{detectedLocation.formattedAddress}</p>
+                        )}
+                        <p className="text-xs text-emerald-600 mt-1">
+                          {detectedLocation.accuracy !== null && detectedLocation.accuracy > 500
+                            ? 'Location is approximate — please check the area and pincode. '
+                            : ''}
+                          Add your flat/house no., then tap Save address.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -971,7 +1116,7 @@ export default function BookingWizard() {
 
                     <div>
                       <input className={`${inputCls}${flashCls}`} placeholder="Pincode *" aria-label="Pincode"
-                        inputMode="numeric" pattern="[0-9]{6}" required
+                        inputMode="numeric" pattern="[0-9]{6}" autoComplete="postal-code" required
                         value={draft.newAddress?.pincode ?? ''}
                         onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) } }))} />
                       {newPinHint && <p className="mt-1 text-xs text-amber-700">{newPinHint}</p>}
@@ -999,33 +1144,44 @@ export default function BookingWizard() {
           </motion.div>
         )}
 
-        {/* STEP 4: 3-hour windows */}
+        {/* STEP 4 */}
         {view === 4 && (
           <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
             <h2 className="text-base font-bold text-slate-900">4 · Schedule</h2>
-            <p className="text-sm text-slate-500">Pick a date and a 3-hour delivery window.</p>
+            <p className="text-sm text-slate-500">
+              Pick a date and a delivery window ({to12h(`${OPEN_HOUR}:00`)} – {to12h(`${CLOSE_HOUR}:00`)}).
+            </p>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-              {datePills.map((iso) => (
-                <button key={iso} type="button" aria-pressed={draft.scheduledDate === iso}
-                  onClick={() => {
-                    const n = nextFutureSlot(iso);
-                    setDraft((d) => ({ ...d, scheduledDate: iso, slotId: iso === n.date ? n.slotId : d.slotId, slotValid: false }));
-                  }}
-                  className={[
-                    'shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors',
-                    draft.scheduledDate === iso ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-700',
-                  ].join(' ')}>
-                  {shortDateLabel(iso)}
-                </button>
-              ))}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Delivery date">
+              {datePills.map((iso) => {
+                const disabled = iso === minDate && !todayOpen;
+                return (
+                  <button key={iso} type="button" aria-pressed={draft.scheduledDate === iso} disabled={disabled}
+                    onClick={() => {
+                      const n = nextFutureSlot(iso);
+                      setDraft((d) => ({
+                        ...d,
+                        scheduledDate: iso,
+                        slotId: n.date === iso ? n.slotId : '',
+                        slotValid: false,
+                      }));
+                    }}
+                    className={[
+                      'shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold whitespace-nowrap transition-colors',
+                      disabled ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed'
+                        : draft.scheduledDate === iso ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                        : 'border-slate-200 bg-white text-slate-700',
+                    ].join(' ')}>
+                    {shortDateLabel(iso)}
+                  </button>
+                );
+              })}
             </div>
 
             <TimeSlotPicker
-              key={`${draft.scheduledDate}-${view}`}
+              key={`${draft.scheduledDate}-${draft.isEmergency ? 'e' : 'n'}`}
               minDate={minDate}
-              showEmergency
-              emergencyFee={settings.emergency_surcharge}
+              emergency={draft.isEmergency}
               value={{ date: draft.scheduledDate || minDate, startTime: draft.startTime, endTime: draft.endTime, slotId: draft.slotId }}
               onChange={onSlotChange}
             />
@@ -1035,7 +1191,7 @@ export default function BookingWizard() {
             </p>
             <div className="flex justify-between gap-3">
               <button type="button" onClick={prevStep} className={btnGhost}>Back</button>
-              <button type="button" onClick={nextStep} className={btnPrimary}>Continue</button>
+              <button type="button" onClick={nextStep} disabled={!draft.slotValid} className={btnPrimary}>Continue</button>
             </div>
           </motion.div>
         )}
@@ -1059,6 +1215,7 @@ export default function BookingWizard() {
               <hr className="border-slate-200" />
               <div className="flex justify-between text-slate-900"><span className="text-slate-600">Base price</span><span>{inr(breakdown.base)}</span></div>
               <div className="flex justify-between text-slate-900"><span className="text-slate-600">Convenience</span><span>{inr(breakdown.convenience)}</span></div>
+              {breakdown.gst > 0 && <div className="flex justify-between text-slate-900"><span className="text-slate-600">GST</span><span>{inr(breakdown.gst)}</span></div>}
               {draft.isEmergency && <div className="flex justify-between text-amber-700"><span>Emergency</span><span>{inr(breakdown.emergency)}</span></div>}
               <hr className="border-slate-200" />
               <div className="flex justify-between text-base font-extrabold text-emerald-800">
@@ -1066,20 +1223,30 @@ export default function BookingWizard() {
               </div>
             </div>
 
+            {!SCOPE_SERVICES.includes(draft.serviceKey) && (
+              <div>
+                <label htmlFor="notes" className="text-sm font-medium text-slate-700">Note for the supplier (optional)</label>
+                <textarea id="notes" className={`mt-1 min-h-[70px] resize-y ${inputCls}`}
+                  value={draft.notes ?? ''} maxLength={500}
+                  onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+                  placeholder="e.g. Call on arrival, gate code, 3rd floor" />
+              </div>
+            )}
+
             <div className="space-y-2">
               <p className="text-sm font-semibold text-slate-800">Payment method</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(['cash','upi','online'] as const).map((k) => (
                   <button key={k} type="button" aria-pressed={draft.paymentMethod === k}
                     onClick={() => setDraft((d) => ({ ...d, paymentMethod: k }))}
-                    className={`rounded-xl border px-4 py-3 text-sm font-semibold text-left text-slate-900 transition-colors ${draft.paymentMethod === k ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-200'}`}>
+                    className={`${optionBtn(draft.paymentMethod === k)} text-left`}>
                     {k === 'cash' ? '💵 Cash on delivery' : k === 'upi' ? '📱 UPI' : '💳 Card / netbanking'}
                   </button>
                 ))}
               </div>
               {draft.paymentMethod !== 'cash' && (
                 <p className="text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                  Online payment coming soon — you&apos;ll pay cash on delivery for now.
+                  Online payment is coming soon — this choice is recorded for fulfilment only. You pay on delivery for now.
                 </p>
               )}
             </div>
@@ -1107,15 +1274,15 @@ export default function BookingWizard() {
 
         {/* STEP 6 */}
         {view === 6 && createdOrder && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-7 sm:p-10 text-center space-y-6" role="status" aria-live="polite">
-            <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-3xl">✓</div>
+          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-7 sm:p-10 text-center space-y-6" role="status">
+            <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-3xl" aria-hidden>✓</div>
             <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest">You&apos;re booked</p>
             <div className="text-4xl sm:text-5xl font-extrabold text-[#0F172A]" style={{ fontFamily: 'var(--font-syne,Syne,system-ui,sans-serif)' }}>
               #{orderNo}
             </div>
             <div className="text-slate-600 space-y-1 text-sm">
-              <p>{serviceLabel(draft.serviceKey)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
-              <p>Window: <span className="font-semibold text-slate-900">{etaText}</span></p>
+              <p>{serviceLabel(draft.serviceKey)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
+              <p>Window: <span className="font-semibold text-slate-900">{windowText}</span></p>
               <p>{supplierSearching ? 'Finding the nearest supplier…' : 'Supplier assigned. Tracking updates automatically.'}</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -1132,6 +1299,7 @@ export default function BookingWizard() {
             </div>
           </motion.div>
         )}
+        </div>
       </div>
     </div>
   );
