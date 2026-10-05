@@ -109,14 +109,16 @@ export async function requireSupabaseAuth(
 
   /* ───────────────────────── Profile ───────────────────────── */
 
-  const {
-    data: profile,
-    error: profErr,
-  } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
+ const admin = createServiceClient();
+
+const {
+  data: profile,
+  error: profErr,
+} = await admin
+  .from('profiles')
+  .select('*')
+  .eq('id', user.id)
+  .maybeSingle();
 
   if (profErr) {
     const code = (profErr as { code?: string }).code;
