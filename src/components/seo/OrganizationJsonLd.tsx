@@ -8,7 +8,7 @@ const organizationJsonLd = {
   url: 'https://aurotap.in/',
   logo: {
     '@type': 'ImageObject',
-    url: 'https://aurotap.in/logo.png',
+    url: 'https://aurotap.in/icons/icon-512x512.png',
   },
 };
 
