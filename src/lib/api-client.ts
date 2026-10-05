@@ -507,20 +507,6 @@ export async function customerServiceability(
   );
 }
 
-export type ReverseGeocodeResult = {
-  lat: number;
-  lng: number;
-  formattedAddress: string | null;
-  placeId: string | null;
-  houseNumber: string | null;
-  route: string | null;
-  area: string | null;
-  city: string | null;
-  state: string | null;
-  pincode: string | null;
-  country: string | null;
-  types: string[];
-};
 
 export async function reverseGeocode(
   lat: number,
