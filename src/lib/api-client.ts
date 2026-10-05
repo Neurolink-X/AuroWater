@@ -531,15 +531,6 @@ export async function reverseGeocode(
     body: JSON.stringify({ lat, lng }),
   });
 }
-export async function reverseGeocode(
-  lat: number,
-  lng: number
-): Promise<ReverseGeocodeResult> {
-  return apiFetchAuth<ReverseGeocodeResult>('/geocode/reverse', {
-    method: 'POST',
-    body: JSON.stringify({ lat, lng }),
-  });
-}
 export type NewAddressPayload = {
   label?: string;
   house_flat: string;
