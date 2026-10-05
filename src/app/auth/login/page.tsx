@@ -134,10 +134,15 @@ const isCustomerOnlyRoute =
   sanitizedReturnTo?.startsWith('/book?') ||
   sanitizedReturnTo?.startsWith('/book#');
 
-const dest =
+// const dest =
+//   isCustomerOnlyRoute && role !== 'customer'
+//     ? dashboardFor(role)
+//     : sanitizedReturnTo || dashboardFor(role);
+
+      const dest =
   isCustomerOnlyRoute && role !== 'customer'
     ? dashboardFor(role)
-    : sanitizedReturnTo || dashboardFor(role);
+    : sanitizedReturnTo || (role === 'customer' ? '/' : dashboardFor(role));
 
 router.replace(dest);
     } catch (e: unknown) {
