@@ -101,7 +101,7 @@ const GENERIC_MESSAGES: Record<
   },
 
   NOT_FOUND: {
-    title: 'We couldn't find that',
+    title: "We couldn't find that",
     message: 'The information you requested is no longer available or may have moved.',
     category: 'NOT_FOUND',
     action: 'GO_BACK',
