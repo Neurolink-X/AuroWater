@@ -209,6 +209,7 @@ export async function authRegister(body: {
   full_name: string;
   phone: string;
   role?: string;
+  invite_code?: string;
   city?: string;
   pincode?: string;
   business_name?: string;
