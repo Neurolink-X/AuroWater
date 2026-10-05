@@ -527,12 +527,19 @@ export function SkeletonWelcomeCard({
 
 /** Service grid skeleton (6 cards) */
 export function SkeletonServiceGrid({
-  cols = 6, items = 6, variant = 'shimmer', className = '',
-}: { cols?: number; items?: number; variant?: SkeletonVariant; className?: string }) {
+  cols = 6,
+  items = 6,
+  variant = 'shimmer',
+  className = '',
+}: {
+  cols?: number;
+  items?: number;
+  variant?: SkeletonVariant;
+  className?: string;
+}) {
   return (
     <div
       aria-hidden="true"
-      className={className}
       className={`aw-sk-feature-grid ${className}`}
       style={{ gap: 10 }}
     >
