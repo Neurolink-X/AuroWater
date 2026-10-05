@@ -417,6 +417,21 @@ export type CustomerServiceability = {
   services: string[] | null;
 };
 
+export type ReverseGeocodeResult = {
+  lat: number;
+  lng: number;
+  formattedAddress: string | null;
+  placeId: string | null;
+  houseNumber: string | null;
+  route: string | null;
+  area: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+  country: string | null;
+  types: string[];
+};
+
 export type ApiNotification = {
   id: string;
   title: string;
@@ -516,7 +531,15 @@ export async function reverseGeocode(
     body: JSON.stringify({ lat, lng }),
   });
 }
-
+export async function reverseGeocode(
+  lat: number,
+  lng: number
+): Promise<ReverseGeocodeResult> {
+  return apiFetchAuth<ReverseGeocodeResult>('/geocode/reverse', {
+    method: 'POST',
+    body: JSON.stringify({ lat, lng }),
+  });
+}
 export type NewAddressPayload = {
   label?: string;
   house_flat: string;
