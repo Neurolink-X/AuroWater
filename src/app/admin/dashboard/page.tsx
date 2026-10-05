@@ -460,12 +460,38 @@ export default function AdminDashboardPage() {
         .stagger-6 { animation-delay:.3s; }
         .stagger-7 { animation-delay:.35s; }
         .stagger-8 { animation-delay:.4s; }
+        /* Mobile admin layout */
+@media (max-width: 639px) {
+  .adm-root {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .adm-root .adm-btn {
+    min-height: 40px;
+  }
+
+  .adm-root .adm-tab {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 8px;
+    font-size: 12px;
+  }
+
+  .adm-root .adm-tab span {
+    display: none;
+  }
+
+  .adm-root table {
+    min-width: 680px;
+  }
+}
       `}</style>
 
       <WaterBg />
 
       <div className="adm-root relative z-10 min-h-screen pb-12" style={{ background: 'linear-gradient(160deg,#050d1a 0%,#0a1628 50%,#061220 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+       <div className="max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
 
           {/* ─── HEADER ──────────────────────────────────────────────── */}
           <div
@@ -477,7 +503,7 @@ export default function AdminDashboardPage() {
               style={{ background: 'radial-gradient(circle,#0ea5e9 0%,transparent 70%)' }} />
             <div className="absolute right-0 bottom-0 text-[10rem] opacity-[0.04] leading-none select-none pointer-events-none">🌊</div>
 
-            <div className="relative flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
+            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xl"
@@ -514,7 +540,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Quick nav links */}
-              <div className="flex flex-wrap gap-2 shrink-0">
+             <div className="grid grid-cols-2 gap-2 w-full lg:w-auto lg:flex lg:flex-wrap lg:gap-2 shrink-0">
                 {[
                   { href: '/admin/orders',     label: 'Orders',    primary: true },
                   { href: '/admin/users',      label: 'Users',     primary: false },
@@ -563,7 +589,7 @@ export default function AdminDashboardPage() {
           {/* ─── LOADING SKELETONS ──────────────────────────────────── */}
           {loading && (
             <div className="space-y-5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 min-[390px]:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {Array.from({ length: 8 }).map((_, i) => (
                   <div key={i} className="rounded-2xl p-5 h-28" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <div className="shimmer h-3 w-20 mb-3" />
@@ -585,7 +611,7 @@ export default function AdminDashboardPage() {
               {tab === 'overview' && (
                 <>
                   {/* 8 KPI cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 min-[390px]:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {[
                       { label: 'Total Customers',    value: <AnimCount to={dashboard.kpis.total_customers} />,    icon: '👥', sub: 'Registered users',    delay: 'stagger-1' },
                       { label: 'Technicians',        value: <AnimCount to={dashboard.kpis.total_technicians} />,  icon: '🔧', sub: 'Active workforce',    delay: 'stagger-2' },
@@ -790,7 +816,7 @@ export default function AdminDashboardPage() {
               {tab === 'ops' && (
                 <>
                   {/* Ops KPI strip */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 min-[390px]:grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {[
                       { label: 'Active Jobs',    value: <AnimCount to={dashboard.kpis.active_jobs} />,         icon: '⚡', pulse: dashboard.kpis.active_jobs > 0 },
                       { label: "Today's Orders", value: <AnimCount to={dashboard.kpis.todays_orders} />,        icon: '📅', accent: true },
