@@ -3,6 +3,7 @@ import type { AuthToken, User } from '@/types';
 import { clearAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/utils/supabase/client';
 import { safeGet, safeRemove, safeSet } from '@/lib/storage';
+import { getUserErrorMessage } from '@/lib/errors/app-error';
 
 /** Same-origin App Router API. Do not use NEXT_PUBLIC_API_URL (breaks production). */
 const API_BASE = '/api';
@@ -23,9 +24,14 @@ export class ApiError extends Error {
 
 /** Safe message for UI when catching unknown rejections from `apiFetch` / auth helpers. */
 export function getApiErrorMessage(e: unknown): string {
-  if (e instanceof ApiError) return e.message;
-  if (e instanceof Error) return e.message;
-  return typeof e === 'string' ? e : 'Something went wrong';
+  if (e instanceof ApiError) {
+    return getUserErrorMessage(e, {
+      status: e.status,
+      code: e.code,
+    });
+  }
+
+  return getUserErrorMessage(e);
 }
 
 export async function getToken(): Promise<string | null> {
