@@ -1,8 +1,9 @@
+import type { Metadata } from 'next';
 import { pageMeta } from '@/lib/seo';
 
-export const metadata = pageMeta(
-  'About AuroWater | Trusted Water Delivery in UP',
-  'AuroWater delivers fresh water cans in Gorakhpur, Kanpur and Lucknow.',
+export const metadata: Metadata = pageMeta(
+  'About AuroWater | Local Water & Home Service Platform',
+  'Learn about AuroWater, a technology platform for coordinating water delivery and selected water-related home services through local operating partners.',
   '/about'
 );
 
