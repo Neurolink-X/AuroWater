@@ -1044,13 +1044,19 @@ export default function SupplierDashboardPage() {
 
             {tab === 'profile' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Profile</h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-extrabold text-slate-900">Supplier profile</h3>
+                    <p className="mt-1 text-xs text-slate-500">Business identity is stored on your AuroWater supplier account.</p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">Backend synced</span>
+                </div>
                 <div className="mt-4 grid sm:grid-cols-2 gap-3">
                   <Input label="Business Name" value={profile.businessName} onChange={(v) => persistProfile({ ...profile, businessName: v })} />
                   <Input label="Owner Name" value={profile.ownerName} onChange={(v) => persistProfile({ ...profile, ownerName: v })} />
                   <Input label="GST" value={profile.gst} onChange={(v) => persistProfile({ ...profile, gst: v })} />
-                  <Input label="Phone" value={profile.phone} onChange={(v) => persistProfile({ ...profile, phone: v })} />
-                  <Input label="Email" value={profile.email} onChange={(v) => persistProfile({ ...profile, email: v })} />
+                  <Input label="Phone" value={profile.phone} onChange={() => undefined} />
+                  <Input label="Email" value={profile.email} onChange={() => undefined} />
                 </div>
 
                 <div className="mt-5">
@@ -1079,30 +1085,50 @@ export default function SupplierDashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Pricing Table</div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    {(['1000L', '3000L', '5000L'] as const).map((size) => {
-                      const supplierPrice = profile.prices[size];
-                      const platformFee = 29;
-                      const customerPays = supplierPrice + platformFee;
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => void saveProfile()}
+                    disabled={profileSaving}
+                    className="rounded-xl bg-[#003049] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {profileSaving ? 'Saving…' : 'Save profile'}
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  <div className="text-sm font-bold text-slate-800">Service coverage</div>
+                  <p className="mt-1 text-xs text-slate-500">These preferences help operations configure your service zones.</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {CITIES.map((c) => {
+                      const active = profile.serviceCities.includes(c);
                       return (
-                        <div key={size} className="grid grid-cols-4 gap-2 items-center">
-                          <div className="font-semibold text-slate-700">{size}</div>
-                          <input
-                            value={supplierPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value || 0);
-                              persistProfile({ ...profile, prices: { ...profile.prices, [size]: val } });
-                            }}
-                            className="rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                          <div className="text-slate-600">₹{platformFee}</div>
-                          <div className="font-bold text-[#2A9D8F]">₹{customerPays}</div>
-                        </div>
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            const next = active
+                              ? profile.serviceCities.filter((x) => x !== c)
+                              : [...profile.serviceCities, c];
+                            persistProfile({ ...profile, serviceCities: next });
+                          }}
+                          className={[
+                            'rounded-full px-3 py-1.5 text-xs font-bold border',
+                            active ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
+                          ].join(' ')}
+                        >
+                          {c}
+                        </button>
                       );
                     })}
                   </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="text-sm font-bold text-slate-900">Current delivery pricing</div>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Customer checkout pricing is calculated centrally by AuroWater. Your supplier payout is shown in completed orders and earnings; it is not edited from this screen.
+                  </p>
                 </div>
 
                 <div className="mt-5">
