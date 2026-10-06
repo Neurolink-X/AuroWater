@@ -176,6 +176,20 @@ function mapApiProfile(
   };
 }
 
+function mapApiDocument(
+  row: Awaited<ReturnType<typeof supplierDocumentsList>>[number],
+  meta: { key: string; label: string; required: boolean },
+): SupplierDoc {
+  return {
+    ...meta,
+    documentId: row.id,
+    fileName: row.file_name,
+    fileSizeKb: Math.max(1, Math.round(Number(row.file_size_bytes) / 1024)),
+    status: row.status,
+    rejectionReason: row.rejection_reason,
+  };
+}
+
 function mapApiFleet(
   rows: Awaited<ReturnType<typeof supplierFleetList>>,
 ): Tanker[] {
@@ -620,8 +634,9 @@ export default function SupplierDashboardPage() {
                             toast.error('Enter a valid whole-can stock count.');
                             return;
                           }
-                          if (next < Number(stock.reserved_cans ?? 0)) {
-                            toast.error(`Keep at least ${stock.reserved_cans ?? 0} cans available for accepted orders.`);
+                          const currentStock = stock;
+                          if (next < Number(currentStock.reserved_cans ?? 0)) {
+                            toast.error(`Keep at least ${currentStock.reserved_cans ?? 0} cans available for accepted orders.`);
                             return;
                           }
                           setStockSaving(true);
