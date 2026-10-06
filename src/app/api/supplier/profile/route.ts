@@ -73,5 +73,22 @@ export async function PUT(req: NextRequest) {
     .single();
 
   if (error) return jsonErr(error.message, 502);
+
+  if (parsed.data.service_area_km !== undefined) {
+    const radius = parsed.data.service_area_km;
+    const { error: settingsError } = await auth.ctx.supabase
+      .from('supplier_settings')
+      .upsert(
+        {
+          user_id: auth.ctx.profile.id,
+          zone_radius_km: radius,
+          service_radius: radius,
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (settingsError) return jsonErr(settingsError.message, 502);
+  }
+
   return jsonOk(data);
 }
