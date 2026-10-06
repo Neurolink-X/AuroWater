@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { startSupplierOrder, completeSupplierOrder } from '@/lib/dispatch';
 import { checkAndUpgradeMilestone } from '@/lib/milestone';
 
 const bodySchema = z.object({
@@ -39,72 +40,39 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   }
 
   const prev = String((before as { status?: string }).status ?? '');
+  const acceptedAt = (before as { accepted_at?: string | null }).accepted_at ?? null;
   const next = parsed.data.status;
 
-  const allowed =
-    (prev === 'ASSIGNED' && next === 'IN_PROGRESS') ||
-    (prev === 'IN_PROGRESS' && next === 'COMPLETED');
-  if (!allowed) return jsonErr('Invalid status transition', 400);
-
-  const patch: Record<string, unknown> = { status: next };
-  if (next === 'IN_PROGRESS') patch.dispatched_at = new Date().toISOString();
-  if (next === 'COMPLETED') patch.completed_at = new Date().toISOString();
-
-  const { data, error } = await sb.from('orders').update(patch).eq('id', id).select('*').single();
-  if (error) return jsonErr(error.message, 502);
-
-  if (next === 'COMPLETED') {
-    try {
-      await sb.rpc('increment_supplier_completed_orders', { p_supplier_id: auth.ctx.profile.id });
-    } catch (e) {
-      console.error('[supplier/orders] increment_supplier_completed_orders failed', e);
+  if (next === 'IN_PROGRESS') {
+    if (prev !== 'ASSIGNED' || !acceptedAt) {
+      return jsonErr('Order must be accepted before delivery can start', 409, 'INVALID_TRANSITION');
     }
-    try {
-      await checkAndUpgradeMilestone(auth.ctx.profile.id, sb);
-    } catch {
-      /* best-effort */
+    const result = await startSupplierOrder(id, auth.ctx.profile.id);
+    if (!result.ok) {
+      return jsonErr('Could not start this delivery', 409, 'INVALID_TRANSITION');
     }
-
-    // Decrement supplier stock (best-effort).
-    try {
-      const qty = Math.max(0, Number((before as { can_quantity?: number | null }).can_quantity ?? 0));
-      if (qty > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', auth.ctx.profile.id)
-          .maybeSingle();
-        const available = Math.max(0, Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0));
-        await sb
-          .from('supplier_stock')
-          .upsert(
-            { supplier_id: auth.ctx.profile.id, cans_available: Math.max(0, available - qty), updated_at: new Date().toISOString() },
-            { onConflict: 'supplier_id' }
-          );
-      }
-    } catch (e) {
-      console.error('[supplier/orders] supplier_stock decrement failed', e);
-    }
-
-    // Notify customer (best-effort).
-    try {
-      const customerId = String((before as { customer_id?: string | null }).customer_id ?? '');
-      if (customerId) {
-        const { createNotification } = await import('@/lib/notifications');
-        await createNotification(
-          customerId,
-          'Order delivered!',
-          'Your order has been delivered. Thank you for choosing AuroWater.',
-          'booking',
-          String(id),
-          'completed'
-        );
-      }
-    } catch (e) {
-      console.error('[supplier/orders] customer notification failed', e);
-    }
+    const { data } = await sb.from('orders').select('*').eq('id', id).single();
+    return jsonOk(data);
   }
 
-  return jsonOk(data);
+  if (next === 'COMPLETED') {
+    if (prev !== 'IN_PROGRESS') {
+      return jsonErr('Order must be in progress before completion', 409, 'INVALID_TRANSITION');
+    }
+    const result = await completeSupplierOrder(id, auth.ctx.profile.id);
+    if (!result.ok) {
+      return jsonErr(
+        result.reason === 'reserved_stock_missing'
+          ? 'Reserved stock is missing; completion was not recorded'
+          : 'Could not complete this delivery',
+        409,
+        'COMPLETION_FAILED'
+      );
+    }
+    const { data } = await sb.from('orders').select('*').eq('id', id).single();
+    return jsonOk(data);
+  }
+
+  return jsonErr('Invalid status transition', 400, 'INVALID_TRANSITION');
 }
 
