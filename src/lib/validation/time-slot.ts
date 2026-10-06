@@ -45,7 +45,7 @@ export function validateTimeSlot(input: {
   const errors: string[] = [];
   let start_time = input.start_time;
   let end_time = input.end_time;
-  let date = input.date;
+  const date = input.date;
 
   // Support legacy time_slot "HH:mm - HH:mm"
   if ((!start_time || !end_time) && input.time_slot) {
