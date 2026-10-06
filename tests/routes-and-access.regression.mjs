@@ -40,4 +40,26 @@ assert.doesNotMatch(proxySource, /['"]\/supplier\/['"]/);
 assert.match(proxySource, /prefix:\s*'\/supplier'/);
 assert.match(proxySource, /pathname === g\.prefix \|\| pathname\.startsWith\(`\$\{g\.prefix\}\/`\)/);
 
+const supplierDashboardSource = readFileSync(
+  join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'),
+  'utf8',
+);
+assert.match(supplierDashboardSource, /supplierOrderAccept/);
+assert.match(supplierDashboardSource, /supplierOrderReject/);
+assert.doesNotMatch(
+  supplierDashboardSource,
+  /supplierOrderUpdateStatus\([^\n]+['"]IN_PROGRESS['"]\)/,
+);
+
+const contactPageSource = readFileSync(
+  join(root, 'src', 'app', '(public)', 'contact', 'page.tsx'),
+  'utf8',
+);
+assert.match(contactPageSource, /postContact/);
+
+const sitemapSource = readFileSync(join(root, 'src', 'app', 'sitemap.ts'), 'utf8');
+for (const route of ['/services', '/pricing', '/how-it-works', '/about', '/contact']) {
+  assert.match(sitemapSource, new RegExp(route.replace('/', '\\/')));
+}
+
 console.log(`Route/access regression checks passed (${byRoute.size} page routes).`);
