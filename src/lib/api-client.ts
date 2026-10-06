@@ -411,7 +411,11 @@ export type ApiOrder = {
   status: string;
   created_at: string;
   updated_at: string;
-  service_type_id: number;
+  accepted_at?: string | null;
+  dispatched_at?: string | null;
+  completed_at?: string | null;
+  scheduled_at?: string | null;
+  service_type_id?: number | null;
   service_type_key?: string | null;
   sub_option_key?: string | null;
   address_snapshot?: Record<string, unknown> | null;
@@ -424,6 +428,7 @@ export type ApiOrder = {
   technician_id?: string | null;
   notes?: string | null;
   can_quantity?: number | null;
+  can_count?: number | null;
   can_order_type?: string | null;
   can_frequency?: string | null;
   can_price_per_unit?: number | string | null;
