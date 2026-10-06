@@ -634,9 +634,12 @@ export default function SupplierDashboardPage() {
                             toast.error('Enter a valid whole-can stock count.');
                             return;
                           }
-                          const currentStock = stock;
-                          if (next < Number(currentStock.reserved_cans ?? 0)) {
-                            toast.error(`Keep at least ${currentStock.reserved_cans ?? 0} cans available for accepted orders.`);
+                          if (!stock) {
+                            toast.error('Stock is still loading. Please retry.');
+                            return;
+                          }
+                          if (next < Number(stock.reserved_cans ?? 0)) {
+                            toast.error(`Keep at least ${stock.reserved_cans ?? 0} cans available for accepted orders.`);
                             return;
                           }
                           setStockSaving(true);
