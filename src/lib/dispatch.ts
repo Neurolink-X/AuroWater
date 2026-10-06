@@ -448,40 +448,160 @@ export async function sweepCustomerOrders(customerId: string): Promise<void> {
   }
 }
 
-/** Supplier confirms an assigned order. Once accepted it is never reassigned. */
-export async function acceptAssignment(orderId: string, supplierId: string): Promise<boolean> {
+/** Supplier confirms an assigned order and atomically reserves required stock. */
+export type SupplierAcceptResult = {
+  accepted: boolean;
+  reason?: 'not_assignable' | 'insufficient_stock' | 'error';
+  customerId?: string;
+  reservedQty?: number;
+};
+
+export async function acceptAssignment(
+  orderId: string,
+  supplierId: string
+): Promise<SupplierAcceptResult> {
+  try {
+    const db: any = createServiceClient();
+    const { data, error } = await db.rpc('supplier_accept_order', {
+      p_order_id: orderId,
+      p_supplier_id: supplierId,
+    });
+
+    if (error) {
+      console.error('[dispatch] supplier_accept_order failed:', error);
+      return { accepted: false, reason: 'error' };
+    }
+
+    const result = (data ?? {}) as {
+      ok?: boolean;
+      reason?: SupplierAcceptResult['reason'];
+      customer_id?: string;
+      reserved_qty?: number;
+    };
+
+    if (!result.ok) {
+      return {
+        accepted: false,
+        reason:
+          result.reason === 'insufficient_stock'
+            ? 'insufficient_stock'
+            : 'not_assignable',
+      };
+    }
+
+    if (result.customer_id) {
+      await notify(
+        String(result.customer_id),
+        'Supplier confirmed',
+        'Your supplier has confirmed your order.',
+        'booking',
+        orderId,
+        'accepted'
+      );
+    }
+
+    return {
+      accepted: true,
+      customerId: result.customer_id ? String(result.customer_id) : undefined,
+      reservedQty: Number(result.reserved_qty ?? 0),
+    };
+  } catch (e) {
+    console.error('[dispatch] acceptAssignment failed:', e);
+    return { accepted: false, reason: 'error' };
+  }
+}
+
+/** Start a supplier delivery. Only an accepted assignment can enter IN_PROGRESS. */
+export async function startSupplierOrder(
+  orderId: string,
+  supplierId: string
+): Promise<{ ok: boolean; reason?: string; customerId?: string }> {
   try {
     const db: any = createServiceClient();
     const now = new Date().toISOString();
-    const { data: ok } = await db
+
+    const { data, error } = await db
       .from('orders')
-      .update({ accepted_at: now })
+      .update({
+        status: 'IN_PROGRESS',
+        dispatched_at: now,
+      })
       .eq('id', orderId)
       .eq('supplier_id', supplierId)
       .eq('status', 'ASSIGNED')
-      .is('accepted_at', null)
+      .not('accepted_at', 'is', null)
       .select('id, customer_id')
       .maybeSingle();
-    if (!ok) return false;
 
-    await db
-      .from('order_dispatch')
-      .update({ status: 'ACCEPTED', responded_at: now })
-      .eq('order_id', orderId)
-      .eq('supplier_id', supplierId)
-      .eq('status', 'ASSIGNED');
+    if (error) {
+      console.error('[dispatch] startSupplierOrder failed:', error);
+      return { ok: false, reason: 'database_error' };
+    }
+
+    if (!data) {
+      return { ok: false, reason: 'invalid_transition' };
+    }
 
     await notify(
-      String(ok.customer_id),
-      'Supplier confirmed',
-      'Your supplier has confirmed your order.',
+      String(data.customer_id),
+      'Delivery started',
+      'Your supplier has started the delivery.',
       'booking',
       orderId,
-      'accepted'
+      'in_progress'
     );
-    return true;
+
+    return { ok: true, customerId: String(data.customer_id) };
   } catch (e) {
-    console.error('[dispatch] acceptAssignment failed:', e);
-    return false;
+    console.error('[dispatch] startSupplierOrder failed:', e);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/** Complete a supplier delivery and atomically consume any reserved stock. */
+export async function completeSupplierOrder(
+  orderId: string,
+  supplierId: string
+): Promise<{ ok: boolean; reason?: string; customerId?: string }> {
+  try {
+    const db: any = createServiceClient();
+    const { data, error } = await db.rpc('supplier_complete_order', {
+      p_order_id: orderId,
+      p_supplier_id: supplierId,
+    });
+
+    if (error) {
+      console.error('[dispatch] supplier_complete_order failed:', error);
+      return { ok: false, reason: 'database_error' };
+    }
+
+    const result = (data ?? {}) as {
+      ok?: boolean;
+      reason?: string;
+      customer_id?: string;
+    };
+
+    if (!result.ok) {
+      return { ok: false, reason: result.reason ?? 'invalid_transition' };
+    }
+
+    if (result.customer_id) {
+      await notify(
+        String(result.customer_id),
+        'Delivery completed',
+        'Your water delivery has been marked complete.',
+        'booking',
+        orderId,
+        'completed'
+      );
+    }
+
+    return {
+      ok: true,
+      customerId: result.customer_id ? String(result.customer_id) : undefined,
+    };
+  } catch (e) {
+    console.error('[dispatch] completeSupplierOrder failed:', e);
+    return { ok: false, reason: 'error' };
   }
 }
