@@ -77,6 +77,10 @@ export type CustomerOrder = {
   hasReview: boolean;
   paymentMethod: string;
   paymentStatus: string;
+  subscriptionId: string | null;
+  canOrderType: string | null;
+  canFrequency: string | null;
+  canPricePerUnit: number | null;
 };
 
 /** Converts the raw API row (new DB columns + compat names) into one clean shape. */
@@ -104,6 +108,13 @@ export function normalizeOrder(raw: Record<string, unknown>): CustomerOrder {
     hasReview: raw.rating != null || Boolean(raw.has_review),
     paymentMethod: String(raw.payment_method ?? 'cash'),
     paymentStatus: String(raw.payment_status ?? 'pending'),
+    subscriptionId: raw.subscription_id ? String(raw.subscription_id) : null,
+    canOrderType: raw.can_order_type ? String(raw.can_order_type) : null,
+    canFrequency: raw.can_frequency ? String(raw.can_frequency) : null,
+    canPricePerUnit:
+      raw.can_price_per_unit == null
+        ? null
+        : Number(raw.can_price_per_unit),
   };
 }
 
