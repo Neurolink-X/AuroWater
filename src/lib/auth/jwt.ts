@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload, TokenExpiredError } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { User } from '@/types';
 
@@ -30,7 +30,18 @@ export function generateToken(user: User): string {
 
 export function verifyToken(token: string): { id: number; phone: string; role: string } | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload & {
+      id?: unknown;
+      phone?: unknown;
+      role?: unknown;
+    };
+    if (
+      typeof decoded.id !== 'number' ||
+      typeof decoded.phone !== 'string' ||
+      typeof decoded.role !== 'string'
+    ) {
+      return null;
+    }
     return {
       id: decoded.id,
       phone: decoded.phone,
@@ -53,7 +64,7 @@ export function isTokenExpired(token: string): boolean {
   try {
     jwt.verify(token, JWT_SECRET);
     return false;
-  } catch (error: any) {
-    return error.name === 'TokenExpiredError';
+  } catch (error: unknown) {
+    return error instanceof TokenExpiredError;
   }
 }
