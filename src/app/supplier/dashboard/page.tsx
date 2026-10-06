@@ -10,6 +10,8 @@ import {
   supplierOrderAccept,
   supplierOrderReject,
   supplierOrderUpdateStatus,
+  supplierProfileGet,
+  supplierProfileUpdate,
   supplierEarningsSummary,
   supplierPayoutRequest,
   supplierSettingsGet,
@@ -102,6 +104,12 @@ type SupplierProfile = {
   gst: string;
   phone: string;
   email: string;
+  city: string;
+  pincode: string;
+  businessType: string;
+  gstNumber: string;
+  vehicleType: string;
+  serviceRadiusKm: number;
   serviceCities: string[];
   aurotapId: string;
   prices: Record<'1000L' | '3000L' | '5000L', number>;
@@ -163,7 +171,13 @@ function seedProfile(): SupplierProfile {
     gst: '09ABCDE1234F1Z5',
     phone: '9889305803',
     email: 'supplier@aurowater.in',
-    serviceCities: ['Kanpur', 'Lucknow'],
+    city: 'Kanpur',
+    pincode: '',
+    businessType: 'Water Service Supplier',
+    gstNumber: '09ABCDE1234F1Z5',
+    vehicleType: 'Bike',
+    serviceRadiusKm: 5,
+    serviceCities: ['Kanpur'],
     aurotapId: '9889305803@aurotap',
     prices: {
       '1000L': 299,
@@ -191,6 +205,7 @@ export default function SupplierDashboardPage() {
   const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
   const [supplierSettings, setSupplierSettings] = React.useState<SupplierSettings | null>(null);
   const [supplierStock, setSupplierStock] = React.useState<SupplierStock | null>(null);
+  const [profileSaving, setProfileSaving] = React.useState(false);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [availabilitySaving, setAvailabilitySaving] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -206,11 +221,12 @@ export default function SupplierDashboardPage() {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn, settingsResult, stockResult] = await Promise.allSettled([
+      const [list, earn, settingsResult, stockResult, profileResult] = await Promise.allSettled([
         supplierOrdersList(),
         supplierEarningsSummary('month'),
         supplierSettingsGet(),
         supplierStockGet(),
+        supplierProfileGet(),
       ]);
 
       let primaryErr: string | null = null;
@@ -237,6 +253,27 @@ export default function SupplierDashboardPage() {
         setSupplierStock(stockResult.value);
       } else if (!primaryErr) {
         toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
+      }
+      if (profileResult.status === 'fulfilled') {
+        const p = profileResult.value;
+        setProfile((prev) => ({
+          ...prev,
+          businessName: p.business_name ?? prev.businessName,
+          ownerName: p.full_name ?? prev.ownerName,
+          gst: p.gst_number ?? prev.gst,
+          phone: p.phone ?? prev.phone,
+          email: p.email ?? prev.email,
+          city: p.city ?? prev.city,
+          pincode: p.pincode ?? prev.pincode,
+          businessType: p.business_type ?? prev.businessType,
+          gstNumber: p.gst_number ?? prev.gstNumber,
+          vehicleType: p.vehicle_type ?? prev.vehicleType,
+          serviceRadiusKm: Number(p.service_area_km ?? prev.serviceRadiusKm),
+          aurotapId: p.aurotap_id ?? prev.aurotapId,
+          serviceCities: p.city ? [p.city] : prev.serviceCities,
+        }));
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier profile: ${getApiErrorMessage(profileResult.reason)}`);
       }
 
       if (primaryErr) setBoardError(primaryErr);
@@ -297,6 +334,35 @@ export default function SupplierDashboardPage() {
       void ch?.unsubscribe();
     };
   }, [session?.userId, fetchSupplierBoard]);
+
+  const saveLiveProfile = async (patch: Record<string, unknown>) => {
+    if (profileSaving) return;
+    setProfileSaving(true);
+    try {
+      const updated = await supplierProfileUpdate(patch);
+      setProfile((prev) => ({
+        ...prev,
+        businessName: updated.business_name ?? prev.businessName,
+        ownerName: updated.full_name ?? prev.ownerName,
+        gst: updated.gst_number ?? prev.gst,
+        phone: updated.phone ?? prev.phone,
+        email: updated.email ?? prev.email,
+        city: updated.city ?? prev.city,
+        pincode: updated.pincode ?? prev.pincode ?? '',
+        businessType: updated.business_type ?? prev.businessType,
+        gstNumber: updated.gst_number ?? prev.gstNumber,
+        vehicleType: updated.vehicle_type ?? prev.vehicleType,
+        serviceRadiusKm: Number(updated.service_area_km ?? prev.serviceRadiusKm),
+        aurotapId: updated.aurotap_id ?? prev.aurotapId,
+        serviceCities: updated.city ? [updated.city] : prev.serviceCities,
+      }));
+      toast.success('Profile saved.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const toggleAvailability = async () => {
     if (!supplierSettings || availabilitySaving) return;
@@ -926,116 +992,90 @@ export default function SupplierDashboardPage() {
 
             {tab === 'profile' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Profile</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Partner profile</p>
+                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">Business & payout identity</h3>
+                    <p className="mt-1 text-sm text-slate-500">These fields are stored in your supplier profile. Operational availability and stock are managed separately above.</p>
+                  </div>
+                  <div className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-700">
+                    {profileSaving ? 'Saving…' : 'Live profile'}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid sm:grid-cols-2 gap-3">
                   <Input label="Business Name" value={profile.businessName} onChange={(v) => persistProfile({ ...profile, businessName: v })} />
                   <Input label="Owner Name" value={profile.ownerName} onChange={(v) => persistProfile({ ...profile, ownerName: v })} />
-                  <Input label="GST" value={profile.gst} onChange={(v) => persistProfile({ ...profile, gst: v })} />
+                  <Input label="GST Number" value={profile.gstNumber} onChange={(v) => persistProfile({ ...profile, gstNumber: v, gst: v })} />
                   <Input label="Phone" value={profile.phone} onChange={(v) => persistProfile({ ...profile, phone: v })} />
                   <Input label="Email" value={profile.email} onChange={(v) => persistProfile({ ...profile, email: v })} />
+                  <Input label="City" value={profile.city} onChange={(v) => persistProfile({ ...profile, city: v, serviceCities: v ? [v] : [] })} />
+                  <Input label="Pincode" value={profile.pincode} onChange={(v) => persistProfile({ ...profile, pincode: v })} />
+                  <Input label="Vehicle Type" value={profile.vehicleType} onChange={(v) => persistProfile({ ...profile, vehicleType: v })} />
                 </div>
 
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Service Cities</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CITIES.map((c) => {
-                      const active = profile.serviceCities.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => {
-                            const next = active
-                              ? profile.serviceCities.filter((x) => x !== c)
-                              : [...profile.serviceCities, c];
-                            persistProfile({ ...profile, serviceCities: next });
-                          }}
-                          className={[
-                            'rounded-full px-3 py-1.5 text-xs font-bold border',
-                            active ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
-                          ].join(' ')}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
+                <div className="mt-5 grid sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-600">Service Radius (km)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={profile.serviceRadiusKm}
+                      onChange={(e) => persistProfile({ ...profile, serviceRadiusKm: Number(e.target.value || 1) })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">AuroTap ID</p>
+                    <p className="mt-1 font-mono font-black text-slate-900">{session?.aurotapId ?? profile.aurotapId}</p>
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Pricing snapshot</div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">Supplier profile pricing is currently informational; customer checkout uses the platform pricing engine.</p><div className="mt-3 space-y-2 text-sm">
-                    {(['1000L', '3000L', '5000L'] as const).map((size) => {
-                      const supplierPrice = profile.prices[size];
-                      const platformFee = 29;
-                      const customerPays = supplierPrice + platformFee;
-                      return (
-                        <div key={size} className="grid grid-cols-4 gap-2 items-center">
-                          <div className="font-semibold text-slate-700">{size}</div>
-                          <input
-                            value={supplierPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value || 0);
-                              persistProfile({ ...profile, prices: { ...profile.prices, [size]: val } });
-                            }}
-                            className="rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                          <div className="text-slate-600">₹{platformFee}</div>
-                          <div className="font-bold text-[#2A9D8F]">₹{customerPays}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-black text-slate-900">Marketplace pricing</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Customer checkout uses the platform pricing engine. The old local-only editable price table is no longer treated as operational pricing.</p>
                 </div>
 
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Profile completion: {completion}%</div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-200">
-                    <div className="h-2 rounded-full bg-[#2A9D8F] transition-all" style={{ width: `${completion}%` }} />
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveLiveProfile({
+                    business_name: profile.businessName,
+                    full_name: profile.ownerName,
+                    gst_number: profile.gstNumber,
+                    phone: profile.phone,
+                    email: profile.email,
+                    city: profile.city,
+                    pincode: profile.pincode,
+                    vehicle_type: profile.vehicleType,
+                    service_area_km: Math.min(100, Math.max(1, Math.round(profile.serviceRadiusKm || 1))),
+                  })}
+                  className="mt-5 rounded-xl bg-[#003049] px-5 py-3 text-sm font-black text-white disabled:opacity-50"
+                  disabled={profileSaving}
+                >
+                  {profileSaving ? 'Saving profile…' : 'Save profile'}
+                </button>
               </section>
             )}
 
             {tab === 'documents' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Documents</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                  {docs.map((d) => (
-                    <div key={d.key} className="rounded-2xl border border-[#2A9D8F]/20 border-dashed bg-white p-4">
-                      <div className="font-bold text-slate-900">{d.label}</div>
-                      <div className="text-xs text-slate-500 mt-1">{d.required ? 'Required' : 'Optional'} · JPG, PNG, PDF (max 5MB)</div>
-                      <div className="mt-3 text-sm text-slate-700">
-                        {d.fileName ? `${d.fileName} (${d.fileSizeKb} KB)` : 'No file selected'}
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <StatusBadge status={d.status} />
-                        <button
-                          className="text-xs font-bold text-[#003049] hover:underline"
-                          onClick={() => {
-                            const next = docs.map((x) =>
-                              x.key === d.key
-                                ? { ...x, fileName: `${d.key}_doc.pdf`, fileSizeKb: 420, status: 'submitted' as const }
-                                : x
-                            );
-                            persistDocs(next);
-                            toast.success(`${d.label} uploaded`);
-                          }}
-                        >
-                          Upload
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Compliance</p>
+                <h3 className="mt-1 text-xl font-extrabold text-slate-900">Supplier verification</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Verification status is controlled by the AuroWater operations team. File storage and document-review workflows are intentionally not simulated in the supplier UI.</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  ,,,
                 </div>
-                <button
-                  className="mt-5 rounded-xl bg-[#003049] text-white px-5 py-3 text-sm font-bold"
-                  disabled={docs.some((d) => d.required && d.status === 'not_uploaded')}
-                  onClick={() => toast.success('Documents submitted for verification.')}
-                >
-                  Submit for Verification
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="font-black text-amber-950">Operational rule</p>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">Do not show a supplier as fully verified until required documents are stored, reviewed and approved by admin.</p>
+                </div>
+                <button type="button" onClick={() => toast.message('Document verification is handled by the operations team.')} className="mt-5 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-900">
+                  Contact operations
                 </button>
               </section>
             )}
+
           </main>
         </div>
       </div>
