@@ -931,6 +931,125 @@ export async function supplierStockUpdate(
   });
 }
 
+export type SupplierProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  pincode: string | null;
+  aurotap_id: string | null;
+  business_name: string | null;
+  gstin: string | null;
+  service_cities: string[];
+  role: string;
+  status: string;
+  is_active: boolean;
+};
+
+export async function supplierProfileGet(): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile');
+}
+
+export async function supplierProfileUpdate(
+  patch: {
+    business_name?: string;
+    gstin?: string;
+    service_cities?: string[];
+  }
+): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export type SupplierFleetItem = {
+  id: string;
+  supplier_id: string;
+  vehicle_number: string;
+  vehicle_name: string | null;
+  vehicle_type: string;
+  capacity_litres: number;
+  driver_name: string | null;
+  price_per_trip: number | string | null;
+  status: 'available' | 'in_use' | 'maintenance' | 'inactive';
+  created_at: string;
+  updated_at: string;
+};
+
+export async function supplierFleetList(): Promise<SupplierFleetItem[]> {
+  return apiFetchAuth<SupplierFleetItem[]>('/supplier/fleet');
+}
+
+export async function supplierFleetCreate(body: {
+  vehicle_number: string;
+  vehicle_name?: string;
+  vehicle_type?: string;
+  capacity_litres: number;
+  driver_name?: string;
+  price_per_trip?: number;
+}): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>('/supplier/fleet', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function supplierFleetUpdate(
+  id: string,
+  patch: Partial<Pick<SupplierFleetItem, 'vehicle_number' | 'vehicle_name' | 'vehicle_type' | 'capacity_litres' | 'driver_name' | 'price_per_trip' | 'status'>>
+): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>(`/supplier/fleet/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierFleetDelete(id: string): Promise<{ deleted: boolean; id: string }> {
+  return apiFetchAuth<{ deleted: boolean; id: string }>(`/supplier/fleet/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export type SupplierDocument = {
+  id: string;
+  supplier_id: string;
+  document_type: string;
+  file_name: string;
+  file_size_bytes: number;
+  mime_type: string;
+  status: 'submitted' | 'verified' | 'rejected';
+  rejection_reason: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function supplierDocumentsList(): Promise<SupplierDocument[]> {
+  return apiFetchAuth<SupplierDocument[]>('/supplier/documents');
+}
+
+export async function supplierDocumentUpload(documentType: string, file: File): Promise<SupplierDocument> {
+  const form = new FormData();
+  form.set('document_type', documentType);
+  form.set('file', file);
+  return apiFetchAuth<SupplierDocument>('/supplier/documents', {
+    method: 'POST',
+    body: form,
+  });
+}
+
+export async function supplierDocumentUrl(id: string): Promise<SupplierDocument & { url: string }> {
+  return apiFetchAuth<SupplierDocument & { url: string }>(`/supplier/documents/${id}`);
+}
+
+export async function supplierDocumentDelete(id: string): Promise<{ deleted: boolean }> {
+  return apiFetchAuth<{ deleted: boolean }>(`/supplier/documents/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 
 export async function supplierEarningsSummary(period = 'month'): Promise<SupplierEarningsSummary> {
   return apiFetchAuth<SupplierEarningsSummary>(`/supplier/earnings?period=${encodeURIComponent(period)}`);
