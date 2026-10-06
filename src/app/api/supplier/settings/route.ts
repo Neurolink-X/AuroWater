@@ -47,10 +47,17 @@ export async function PUT(req: NextRequest) {
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success) return jsonErr(parsed.error.issues[0]?.message ?? 'Invalid payload', 422);
 
+  const settingsPatch = { ...parsed.data };
+  if (parsed.data.is_online !== undefined) {
+    Object.assign(settingsPatch, {
+      last_online_at: new Date().toISOString(),
+    });
+  }
+
   const { data, error } = await auth.ctx.supabase
     .from('supplier_settings')
     .upsert(
-      { user_id: auth.ctx.profile.id, ...parsed.data },
+      { user_id: auth.ctx.profile.id, ...settingsPatch },
       { onConflict: 'user_id' }
     )
     .select('*')
