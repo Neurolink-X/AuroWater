@@ -9,7 +9,7 @@
  * Zero external chart libraries — pure CSS.
  */
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 
 import {
   calculateOrderTotal,
@@ -35,7 +35,7 @@ import {
 
 /* ─── demo seed orders ───────────────────────────────────────────────────────── */
 const msDay = 86_400_000;
-const now = Date.now();
+const now = Date.parse('2026-01-01T00:00:00Z');
 
 const SEED_ORDERS: (OrderForStats & { discountAmount?: number })[] = [
   { status:'COMPLETED',   total:449, technicianEarnings:314, supplierEarnings:45,  platformRevenue:90,  createdAt:now-0*msDay,   serviceKey:'water_tanker',  discountAmount:0   },
@@ -116,9 +116,6 @@ export default function PricingVisualizerPage() {
   const [settings,   setSettings]   = useState({ ...DEFAULT_SETTINGS });
   const [period,     setPeriod]     = useState<Period>('week');
   const [activeTab,  setActiveTab]  = useState<'playground' | 'batch' | 'revenue'>('playground');
-  const [mounted,    setMounted]    = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   /* ── demo coupons ── */
   const DEMO_COUPONS: Coupon[] = [
@@ -186,8 +183,6 @@ export default function PricingVisualizerPage() {
   const techPct  = bd.total > 0 ? (bd.technicianEarnings / bd.total) * 100 : 0;
   const suppPct  = bd.total > 0 ? (bd.supplierEarnings   / bd.total) * 100 : 0;
   const platPct  = bd.total > 0 ? (bd.platformRevenue    / bd.total) * 100 : 0;
-
-  if (!mounted) return null;
 
   /* ─── render ─────────────────────────────────────────────────────────────── */
   return (
