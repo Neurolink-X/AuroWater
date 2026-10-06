@@ -36,12 +36,44 @@ export function getApiErrorMessage(e: unknown): string {
 
 export async function getToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
+
   try {
     const supabase = createClient();
-    const { data: sess } = await supabase.auth.getSession();
-    if (sess.session?.access_token) return sess.session.access_token;
-    const { data: refreshed } = await supabase.auth.refreshSession();
-    return refreshed.session?.access_token ?? null;
+    const { data: sessionData } =
+      await supabase.auth.getSession();
+
+    const session = sessionData.session;
+
+    if (!session) {
+      const { data: refreshed } =
+        await supabase.auth.refreshSession();
+
+      return (
+        refreshed.session?.access_token ??
+        null
+      );
+    }
+
+    const expiresAtMs =
+      Number(session.expires_at ?? 0) * 1000;
+
+    const refreshBeforeMs =
+      60 * 1000;
+
+    if (
+      !expiresAtMs ||
+      expiresAtMs - Date.now() <= refreshBeforeMs
+    ) {
+      const { data: refreshed } =
+        await supabase.auth.refreshSession();
+
+      return (
+        refreshed.session?.access_token ??
+        null
+      );
+    }
+
+    return session.access_token;
   } catch {
     return null;
   }
