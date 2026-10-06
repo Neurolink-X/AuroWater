@@ -116,6 +116,9 @@ BEGIN
 END;
 $$;
 
+-- Disable the legacy completion trigger. New order completion consumes reserved stock atomically.
+DROP TRIGGER IF EXISTS trg_deduct_stock ON public.orders;
+
 -- Consume reserved stock after successful delivery.
 CREATE OR REPLACE FUNCTION public.consume_supplier_reserved_stock(
   p_supplier_id UUID,
