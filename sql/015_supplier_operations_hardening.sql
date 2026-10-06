@@ -340,7 +340,7 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   start_ts TIMESTAMPTZ;
   pl TEXT;
@@ -356,32 +356,29 @@ BEGIN
   RETURN QUERY
   SELECT
     pl::TEXT,
-    COUNT(*) FILTER (WHERE o.created_at >= start_ts)::BIGINT,
-    COALESCE(SUM(o.total_amount) FILTER (WHERE o.status = 'COMPLETED' AND o.created_at >= start_ts), 0)::NUMERIC,
-    COALESCE(SUM(o.supplier_payout) FILTER (
-      WHERE o.status = 'COMPLETED'
+    (
+      SELECT COUNT(*)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.created_at >= start_ts
+    )::BIGINT,
+    COALESCE((
+      SELECT SUM(o.total_amount)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
+        AND o.created_at >= start_ts
+    ), 0)::NUMERIC,
+    COALESCE((
+      SELECT SUM(o.supplier_payout)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
         AND o.payout_status = 'pending'
         AND o.supplier_payout > 0
-    ), 0)::NUMERIC
-  FROM public.orders o
-  WHERE o.supplier_id = p_supplier_id
-    AND o.created_at >= start_ts
-
-  UNION ALL
-
-  SELECT
-    pl::TEXT,
-    0::BIGINT,
-    0::NUMERIC,
-    COALESCE(SUM(o.supplier_payout) FILTER (
-      WHERE o.status = 'COMPLETED'
-        AND o.payout_status = 'pending'
-        AND o.supplier_payout > 0
-    ), 0)::NUMERIC
-  FROM public.orders o
-  WHERE o.supplier_id = p_supplier_id;
+    ), 0)::NUMERIC;
 END;
-$;
+$$;
 
 SELECT pg_notify('pgrst', 'reload schema');
 
