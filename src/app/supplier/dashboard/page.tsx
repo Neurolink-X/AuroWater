@@ -18,6 +18,10 @@ import {
   supplierSettingsUpdate,
   supplierStockGet,
   supplierStockUpdate,
+  supplierFleetList,
+  supplierFleetCreate,
+  supplierFleetUpdate,
+  supplierFleetDelete,
   getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
@@ -89,15 +93,6 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
   };
 }
 
-type Tanker = {
-  id: string;
-  name: string;
-  size: '1000L' | '3000L' | '5000L' | '10000L';
-  status: 'available' | 'in_use' | 'maintenance';
-  price: number;
-  driver: string;
-};
-
 type SupplierProfile = {
   businessName: string;
   ownerName: string;
@@ -131,7 +126,6 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const FLEET_KEY = 'aurowater_supplier_fleet_ui';
 const PROFILE_KEY = 'aurowater_supplier_profile';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -146,13 +140,6 @@ function safeParse<T>(raw: string | null): T | null {
   }
 }
 
-function seedFleet(): Tanker[] {
-  return [
-    { id: 'TK-001', name: 'Tanker Alpha', size: '3000L', status: 'available', price: 399, driver: 'Ramesh Kumar' },
-    { id: 'TK-002', name: 'Tanker Beta', size: '5000L', status: 'in_use', price: 599, driver: 'Suresh Pal' },
-    { id: 'TK-003', name: 'Tanker Gamma', size: '1000L', status: 'available', price: 299, driver: 'Mahesh Singh' },
-  ];
-}
 
 function seedProfile(): SupplierProfile {
   return {
@@ -190,22 +177,23 @@ export default function SupplierDashboardPage() {
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [availabilitySaving, setAvailabilitySaving] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [fleet, setFleet] = React.useState<Tanker[]>([]);
+  const [fleet, setFleet] = React.useState<import('@/lib/api-client').SupplierFleetItem[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
-  const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
+  const [newTanker, setNewTanker] = React.useState({ name: '', vehicleType: 'Bike', capacity: '20', plateNumber: '', driverName: '' });
   const [boardError, setBoardError] = React.useState<string | null>(null);
 
   const fetchSupplierBoard = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn, settingsResult, stockResult, profileResult] = await Promise.allSettled([
+      const [list, earn, settingsResult, stockResult, fleetResult, profileResult] = await Promise.allSettled([
         supplierOrdersList(),
         supplierEarningsSummary('month'),
         supplierSettingsGet(),
         supplierStockGet(),
+        supplierFleetList(),
         supplierProfileGet(),
       ]);
 
@@ -234,6 +222,12 @@ export default function SupplierDashboardPage() {
       } else if (!primaryErr) {
         toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
       }
+      if (fleetResult.status === 'fulfilled') {
+        setFleet(fleetResult.value ?? []);
+      } else if (!primaryErr) {
+        toast.error(`Could not load fleet: ${getApiErrorMessage(fleetResult.reason)}`);
+      }
+
       if (profileResult.status === 'fulfilled') {
         const p = profileResult.value;
         setProfile((prev) => ({
@@ -777,91 +771,106 @@ export default function SupplierDashboardPage() {
 
             {tab === 'fleet' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Fleet</h3>
-                <div className="mt-4 grid md:grid-cols-2 gap-4">
-                  {fleet.map((t) => (
-                    <div key={t.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Live fleet</p>
+                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">Vehicles available for fulfilment</h3>
+                    <p className="mt-1 text-sm text-slate-500">Fleet records are stored in the supplier database and can be used by operations for dispatch capacity.</p>
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">{fleet.length} vehicle{fleet.length === 1 ? '' : 's'}</div>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {fleet.map((vehicle) => (
+                    <div key={vehicle.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="grid gap-3 md:grid-cols-[1.1fr_.8fr_.7fr_.9fr_auto] md:items-center">
                         <div>
-                          <div className="font-bold text-slate-900">{t.name}</div>
-                          <div className="text-sm text-slate-600">{t.id} · {t.size}</div>
+                          <div className="font-black text-slate-900">{vehicle.name}</div>
+                          <div className="mt-1 text-xs text-slate-500">{vehicle.vehicle_type} · {vehicle.capacity_cans} can capacity · {vehicle.plate_number ?? 'Plate not added'}</div>
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-bold">Driver</span><br />
+                          {vehicle.driver_name ?? 'Unassigned'}
                         </div>
                         <select
-                          value={t.status}
-                          onChange={(e) => persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, status: e.target.value as Tanker['status'] } : x)))}
-                          className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                          value={vehicle.status}
+                          onChange={async (e) => {
+                            try {
+                              const updated = await supplierFleetUpdate(vehicle.id, { status: e.target.value as import('@/lib/api-client').SupplierFleetItem['status'] });
+                              setFleet((prev) => prev.map((x) => x.id === vehicle.id ? updated : x));
+                            } catch (err) {
+                              toast.error(getApiErrorMessage(err));
+                            }
+                          }}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
                         >
                           <option value="available">Available</option>
-                          <option value="in_use">In Use</option>
+                          <option value="in_use">In use</option>
                           <option value="maintenance">Maintenance</option>
+                          <option value="offline">Offline</option>
                         </select>
-                      </div>
-                      <div className="mt-3 flex items-center gap-3">
-                        <span className="text-sm text-slate-600">Price</span>
-                        <input
-                          value={t.price}
-                          onChange={(e) => {
-                            const p = Number(e.target.value || 0);
-                            persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, price: p } : x)));
+                        <div className="text-sm text-slate-600">Updated {new Date(vehicle.updated_at).toLocaleString('en-IN')}</div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await supplierFleetDelete(vehicle.id);
+                              setFleet((prev) => prev.filter((x) => x.id !== vehicle.id));
+                              toast.success('Vehicle removed.');
+                            } catch (err) {
+                              toast.error(getApiErrorMessage(err));
+                            }
                           }}
-                          className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                        />
-                        <span className="text-sm text-slate-600">Driver: {t.driver}</span>
+                          className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-700"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
                   ))}
+                  {fleet.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                      <p className="font-black text-slate-900">No vehicle registered yet</p>
+                      <p className="mt-1 text-sm text-slate-500">Add the vehicle you actually use for AuroWater deliveries.</p>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="font-bold text-slate-900">+ Add Tanker</div>
-                  <div className="mt-3 grid sm:grid-cols-4 gap-3">
-                    <input
-                      placeholder="Tanker ID"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.id}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, id: e.target.value }))}
-                    />
-                    <select
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.size}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, size: e.target.value as Tanker['size'] }))}
-                    >
-                      <option>1000L</option>
-                      <option>3000L</option>
-                      <option>5000L</option>
-                      <option>10000L</option>
-                    </select>
-                    <input
-                      placeholder="Price"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.price}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, price: e.target.value }))}
-                    />
-                    <input
-                      placeholder="Driver"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.driver}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, driver: e.target.value }))}
-                    />
+                <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-black text-slate-900">Add delivery vehicle</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <input placeholder="Vehicle name" value={newTanker.name} onChange={(e) => setNewTanker((x) => ({ ...x, name: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Type e.g. Mini-truck" value={newTanker.vehicleType} onChange={(e) => setNewTanker((x) => ({ ...x, vehicleType: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input type="number" min={1} max={5000} placeholder="Can capacity" value={newTanker.capacity} onChange={(e) => setNewTanker((x) => ({ ...x, capacity: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Plate number" value={newTanker.plateNumber} onChange={(e) => setNewTanker((x) => ({ ...x, plateNumber: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Driver name" value={newTanker.driverName} onChange={(e) => setNewTanker((x) => ({ ...x, driverName: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
                   </div>
                   <button
-                    className="mt-3 rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                    onClick={() => {
-                      if (!newTanker.id.trim()) return toast.error('Enter tanker ID');
-                      const add: Tanker = {
-                        id: newTanker.id.trim().toUpperCase(),
-                        name: `Tanker ${newTanker.id.trim().toUpperCase()}`,
-                        size: newTanker.size,
-                        price: Number(newTanker.price || 0),
-                        driver: newTanker.driver || 'Unassigned',
-                        status: 'available',
-                      };
-                      persistFleet([add, ...fleet]);
-                      setNewTanker({ id: '', size: '3000L', price: '399', driver: '' });
-                      toast.success('Tanker added to fleet.');
+                    type="button"
+                    onClick={async () => {
+                      const name = newTanker.name.trim();
+                      const capacity = Math.floor(Number(newTanker.capacity));
+                      if (name.length < 2) return toast.error('Enter vehicle name.');
+                      if (!Number.isInteger(capacity) || capacity < 1 || capacity > 5000) return toast.error('Enter a valid can capacity.');
+                      try {
+                        const created = await supplierFleetCreate({
+                          name,
+                          vehicle_type: newTanker.vehicleType.trim() || 'Vehicle',
+                          capacity_cans: capacity,
+                          plate_number: newTanker.plateNumber.trim() || null,
+                          driver_name: newTanker.driverName.trim() || null,
+                          status: 'available',
+                        });
+                        setFleet((prev) => [...prev, created]);
+                        setNewTanker({ name: '', vehicleType: 'Bike', capacity: '20', plateNumber: '', driverName: '' });
+                        toast.success('Vehicle added.');
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err));
+                      }
                     }}
+                    className="mt-4 rounded-xl bg-[#003049] px-5 py-3 text-sm font-black text-white"
                   >
-                    Add to Fleet
+                    Add vehicle
                   </button>
                 </div>
               </section>
