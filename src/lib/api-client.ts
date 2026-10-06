@@ -396,6 +396,7 @@ export async function postContact(body: {
   email: string;
   message: string;
   phone?: string;
+  subject?: string;
 }): Promise<{ received: boolean }> {
   return apiFetch<{ received: boolean }>('/contact', {
     method: 'POST',
