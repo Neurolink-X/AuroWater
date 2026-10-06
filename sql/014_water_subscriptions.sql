@@ -41,18 +41,29 @@ BEGIN
 END
 $$;
 
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_can_frequency_check
-  CHECK (
-    can_frequency IS NULL
-    OR can_frequency IN (
-      'daily',
-      'alternate',
-      'weekly',
-      'biweekly',
-      'monthly'
-    )
-  );
+DO $
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'orders_can_frequency_check'
+      AND conrelid = 'public.orders'::regclass
+  ) THEN
+    ALTER TABLE public.orders
+      ADD CONSTRAINT orders_can_frequency_check
+      CHECK (
+        can_frequency IS NULL
+        OR can_frequency IN (
+          'daily',
+          'alternate',
+          'weekly',
+          'biweekly',
+          'monthly'
+        )
+      );
+  END IF;
+END
+$;
 
 DO $$
 BEGIN
