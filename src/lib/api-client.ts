@@ -963,6 +963,50 @@ export async function supplierStockGet(): Promise<SupplierStock> {
   return apiFetchAuth<SupplierStock>('/supplier/stock');
 }
 
+export type SupplierFleetItem = {
+  id: string;
+  supplier_id: string;
+  name: string;
+  vehicle_type: string;
+  capacity_cans: number;
+  plate_number: string | null;
+  driver_name: string | null;
+  status: 'available' | 'in_use' | 'maintenance' | 'offline';
+  created_at: string;
+  updated_at: string;
+};
+
+export async function supplierFleetList(): Promise<SupplierFleetItem[]> {
+  return apiFetchAuth<SupplierFleetItem[]>('/supplier/fleet');
+}
+
+export async function supplierFleetCreate(body: {
+  name: string;
+  vehicle_type: string;
+  capacity_cans: number;
+  plate_number?: string | null;
+  driver_name?: string | null;
+  status?: SupplierFleetItem['status'];
+}): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>('/supplier/fleet', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function supplierFleetUpdate(id: string, patch: Partial<Omit<SupplierFleetItem, 'id' | 'supplier_id' | 'created_at' | 'updated_at'>>): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>(`/supplier/fleet?id=${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierFleetDelete(id: string): Promise<{ deleted: true }> {
+  return apiFetchAuth<{ deleted: true }>(`/supplier/fleet?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function supplierStockUpdate(patch: { cans_available?: number; low_stock_alert?: number }): Promise<SupplierStock> {
   return apiFetchAuth<SupplierStock>('/supplier/stock', {
     method: 'PUT',
