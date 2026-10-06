@@ -6,6 +6,7 @@ import {
   SERVICE_LANDINGS,
   buildServiceMetadata,
   getServiceLanding,
+  bookingHref,
 } from '@/lib/seo/service-landings';
 
 const LEGACY_REDIRECTS: Record<string, string> = {
@@ -62,7 +63,7 @@ export default async function ServiceLandingPage({
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href={data.slug.startsWith('water-') ? '/book?service=water_can' : `/book?service=${encodeURIComponent(data.slug)}`}
+                href={bookingHref(data.slug)}
                 className="rounded-2xl bg-[#2A9D8F] px-6 py-3.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#238579]"
               >
                 Book {data.shortName}
