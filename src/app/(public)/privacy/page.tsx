@@ -59,12 +59,12 @@ const sections = [
       {
         title: 'Account information',
         text:
-          'When you create an account, we may collect your name, email address, phone number, city and the account role you choose.',
+          'Depending on how you use AuroTap, we may collect the information you provide for your account, such as your name, email address, phone number and city. During registration, the account type is used to provide the appropriate customer, technician or supplier experience; administrative access is separately restricted.',
       },
       {
         title: 'Addresses and delivery details',
         text:
-          'For bookings, we may collect address details such as house or flat information, area, city, pincode and landmark. Where a location feature is used, latitude and longitude may also be associated with the saved address.',
+          'For bookings, we may collect the address and delivery details you provide, such as house or flat information, area, city, pincode and landmark. Where the service uses location coordinates, latitude and longitude may also be associated with a saved address or operational record.'
       },
       {
         title: 'Orders and service activity',
@@ -84,7 +84,7 @@ const sections = [
       {
         title: 'Operational and technical information',
         text:
-          'The platform may process authentication/session information, security logs, device or browser information and other technical information necessary to operate, secure and troubleshoot the service.',
+          'The platform may process authentication and session information, security logs, and limited technical information needed to operate, secure and troubleshoot the service.'
       },
     ],
   },
@@ -199,12 +199,12 @@ const sections = [
       {
         title: 'Access and information',
         text:
-          'You can ask what personal information we hold and how it is being used, subject to applicable legal limits.',
+          'You can contact us to ask about the personal information associated with your account and how it is used, subject to applicable legal limits and verification requirements.'
       },
       {
         title: 'Correction',
         text:
-          'You can request correction of inaccurate or incomplete personal information.',
+          'You can request correction of personal information that is inaccurate or incomplete.'
       },
       {
         title: 'Deletion',
