@@ -40,6 +40,7 @@ const stepActions: Record<TechnicianJobStatus, StepAction> = {
   ACCEPTED: { action: 'on_the_way', label: "I'm On The Way", next: 'ON_THE_WAY' },
   ON_THE_WAY: { action: 'working', label: 'Start Working', next: 'WORKING' },
   WORKING: { action: 'complete', label: 'Mark Complete', next: 'COMPLETED' },
+  COMPLETED: { action: 'done', label: 'Completed', next: 'COMPLETED' },
 };
 
 function isTechnicianJobDetail(value: unknown): value is TechnicianJobDetail {
