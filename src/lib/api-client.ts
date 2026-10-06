@@ -1026,10 +1026,14 @@ export async function supplierOrderReject(id: string, reason?: string): Promise<
 }
 
 
-export async function supplierOrderUpdateStatus(id: string, status: string): Promise<ApiOrder> {
+export async function supplierOrderUpdateStatus(
+  id: string,
+  status: string,
+  options?: { payment_collected?: boolean },
+): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}/status`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...options }),
   });
 }
 
