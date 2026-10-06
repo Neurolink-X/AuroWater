@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
+import { computeExpectedTotal, pickGstRateFromFlat, totalsMatch } from '@/lib/api/order-pricing-server';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import {
   isPostgrestTableUnavailableError,
@@ -244,7 +244,7 @@ if (!serviceability.serviceable) {
   const flat = settingsResult.map;
 
   // ── Pricing ──
-  const gstRate = 0; // GST is not charged
+  const gstRate = pickGstRateFromFlat(flat);
   const convenience = Number(flat.convenience_fee ?? 29);
   const emergencyFee = Number(flat.emergency_surcharge ?? 30);
   const is_emergency = Boolean(body.is_emergency);
