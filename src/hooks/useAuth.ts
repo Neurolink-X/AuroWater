@@ -154,6 +154,12 @@ export interface UseAuthReturn {
   phone: string | null;
   avatarUrl: string | null;
 
+  user: {
+  email?: string;
+  full_name: string;
+  phone?: string;
+} | null;
+
   /* ── Lifecycle ── */
   accountStatus: AccountStatus | null;
   verificationStatus: VerificationStatus | null;
@@ -859,6 +865,15 @@ export function useAuth(
     isApproved,
     isOperational,
 
+    user:
+  isLoggedIn && session
+    ? {
+        email: session.email,
+        full_name: session.name,
+        phone: session.phone,
+      }
+    : null,
+    
     hydrated,
     loading: !hydrated,
     isLoggedIn,
