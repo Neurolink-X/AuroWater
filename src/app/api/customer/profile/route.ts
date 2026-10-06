@@ -20,6 +20,7 @@ import { z } from 'zod';
 
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,20 +131,31 @@ function rateLimited(userId: string): boolean {
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
+
   if (!auth.ok) return auth.response;
-  if (!requireRole(auth.ctx, 'customer')) return jsonErr('Forbidden', 403);
 
-  const { data, error } = await auth.ctx.supabase
-    .from('profiles')
-    .select(PROFILE_COLUMNS)
-    .eq('id', auth.ctx.profile.id)
-    .maybeSingle();
-
-  if (error) {
-    console.error('[customer/profile] GET failed:', error.message);
-    return jsonErr('Could not load your profile. Please try again.', 502);
+  if (!requireRole(auth.ctx, 'customer')) {
+    return jsonErr('Forbidden', 403);
   }
-  return noStore(jsonOk(withMeta((data as Plain | null) ?? null)));
+
+  const profile = auth.ctx.profile as typeof auth.ctx.profile & {
+    settings?: unknown;
+  };
+
+  const data = {
+    id: profile.id,
+    full_name: profile.full_name,
+    city: profile.city,
+    phone: profile.phone,
+    created_at: profile.created_at,
+    settings: profile.settings ?? null,
+  };
+
+  return noStore(
+    jsonOk(
+      withMeta(data as Plain)
+    )
+  );
 }
 
 async function update(req: NextRequest) {
