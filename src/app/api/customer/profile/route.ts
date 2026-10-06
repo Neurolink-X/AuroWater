@@ -154,10 +154,7 @@ const bodySchema = z
 type Plain =
   Record<string, unknown>;
 
-type ProfileWithSettings =
-  typeof import('@/lib/db/types').ProfileRow & {
-    settings?: unknown;
-  };
+
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
