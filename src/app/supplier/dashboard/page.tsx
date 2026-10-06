@@ -44,6 +44,7 @@ type SupplierOrder = {
   eta: string;
   amount: number;
   status: 'pending' | 'active' | 'delivered' | 'cancelled';
+  phase: 'assigned' | 'in_progress' | 'completed' | 'cancelled' | 'pending';
 };
 
 function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
@@ -74,6 +75,18 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
     eta: String(o.time_slot ?? '—'),
     amount: Number(o.total_amount ?? 0),
     status,
+    phase:
+      st === 'IN_PROGRESS'
+        ? 'in_progress'
+        : st === 'COMPLETED'
+          ? 'completed'
+          : st === 'CANCELLED'
+            ? 'cancelled'
+            : st === 'ASSIGNED'
+              ? o.accepted_at
+                ? 'assigned'
+                : 'pending'
+              : 'pending',
   };
 }
 
@@ -579,24 +592,31 @@ export default function SupplierDashboardPage() {
                                 type="button"
                                 onClick={async () => {
                                   try {
-                                    await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'active' } : x)));
-                                    toast.success('Delivery started.');
+                                    await supplierOrderAccept(o.apiId);
+                                    toast.success('Order accepted and stock reserved.');
                                     void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not start order.');
+                                  } catch (error) {
+                                    toast.error(getApiErrorMessage(error));
                                   }
                                 }}
                                 className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-bold"
                               >
-                                Start delivery ✓
+                                Accept order ✓
                               </button>
                               <button
                                 type="button"
-                                onClick={() => toast.message('Contact support to cancel a booked order.')}
-                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-bold"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderReject(o.apiId, 'Supplier declined');
+                                    toast.success('Order declined. We are finding another supplier.');
+                                    void fetchSupplierBoard(true);
+                                  } catch (error) {
+                                    toast.error(getApiErrorMessage(error));
+                                  }
+                                }}
+                                className="rounded-xl border border-rose-300 bg-rose-50 text-rose-700 px-4 py-2 text-sm font-bold"
                               >
-                                Need help ✗
+                                Decline
                               </button>
                             </div>
                           )}
@@ -606,17 +626,21 @@ export default function SupplierDashboardPage() {
                                 type="button"
                                 onClick={async () => {
                                   try {
-                                    await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
-                                    toast.success('Marked complete.');
+                                    if (o.phase === 'assigned') {
+                                      await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
+                                      toast.success('Delivery started.');
+                                    } else {
+                                      await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
+                                      toast.success('Order completed.');
+                                    }
                                     void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not complete order.');
+                                  } catch (error) {
+                                    toast.error(getApiErrorMessage(error));
                                   }
                                 }}
                                 className="rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
                               >
-                                Mark complete
+                                {o.phase === 'assigned' ? 'Start delivery →' : 'Mark complete ✓'}
                               </button>
                             </div>
                           )}
