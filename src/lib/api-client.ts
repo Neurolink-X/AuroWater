@@ -412,6 +412,10 @@ export type ApiOrder = {
   status: string;
   created_at: string;
   updated_at: string;
+  accepted_at?: string | null;
+  assigned_at?: string | null;
+  dispatched_at?: string | null;
+  completed_at?: string | null;
   service_type_id: number;
   service_type_key?: string | null;
   sub_option_key?: string | null;
@@ -858,11 +862,61 @@ export async function supplierOrdersList(params?: { status?: string }): Promise<
   return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
 }
 
-export async function supplierOrderUpdateStatus(id: string, status: string): Promise<ApiOrder> {
-  return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}/status`, {
+export async function supplierOrderAccept(id: string): Promise<{ accepted: boolean; reserved_qty: number }> {
+  return apiFetchAuth<{ accepted: boolean; reserved_qty: number }>(`/supplier/orders/${id}/accept`, {
+    method: 'PUT',
+  });
+}
+
+export async function supplierOrderReject(id: string, reason?: string): Promise<{ released: boolean; reassigned: boolean }> {
+  return apiFetchAuth<{ released: boolean; reassigned: boolean }>(`/supplier/orders/${id}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ reason: reason ?? '' }),
+  });
+}
+
+export async function supplierOrderUpdateStatus(id: string, status: 'IN_PROGRESS' | 'COMPLETED'): Promise<ApiOrder> {
+  return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ status }),
   });
+}
+
+export type SupplierSettings = {
+  user_id: string;
+  is_online: boolean;
+  price_per_can: number;
+  service_radius: number;
+  zone_radius_km?: number;
+  auto_accept?: boolean;
+  upi_id?: string | null;
+  bank_account?: string | null;
+  ifsc?: string | null;
+  qr_code_url?: string | null;
+};
+
+export async function supplierSettingsGet(): Promise<SupplierSettings | null> {
+  return apiFetchAuth<SupplierSettings | null>('/supplier/settings');
+}
+
+export async function supplierSettingsUpdate(
+  patch: Partial<Pick<SupplierSettings, 'is_online' | 'price_per_can' | 'service_radius' | 'zone_radius_km' | 'auto_accept' | 'upi_id' | 'bank_account' | 'ifsc' | 'qr_code_url'>>
+): Promise<SupplierSettings> {
+  return apiFetchAuth<SupplierSettings>('/supplier/settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export type SupplierStock = {
+  supplier_id: string;
+  cans_available: number;
+  reserved_cans?: number;
+  low_stock_alert: number;
+};
+
+export async function supplierStockGet(): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock');
 }
 
 export async function supplierEarningsSummary(period = 'month'): Promise<SupplierEarningsSummary> {
@@ -879,7 +933,7 @@ export async function supplierPayoutHistory(): Promise<unknown[]> {
 }
 
 export async function supplierPayoutRequest(body: { amount: number; notes?: string }): Promise<unknown> {
-  return apiFetchAuth('/supplier/payout-request', {
+  return apiFetchAuth('/supplier/payouts', {
     method: 'POST',
     body: JSON.stringify(body),
   });
