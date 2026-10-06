@@ -953,6 +953,7 @@ export async function supplierProfileGet(): Promise<SupplierProfile> {
 
 export async function supplierProfileUpdate(
   patch: {
+    full_name?: string;
     business_name?: string;
     gstin?: string;
     service_cities?: string[];
