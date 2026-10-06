@@ -72,6 +72,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const { data, error } = await auth.ctx.supabase
+    .from('supplier_stock')
     .upsert(
       { supplier_id, ...parsed.data, updated_at: new Date().toISOString() },
       { onConflict: 'supplier_id' }
