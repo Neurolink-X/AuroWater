@@ -37,9 +37,10 @@ type SupplierOrder = {
   /** Human-readable order_number */
   label: string;
   customer: string;
+  customerPhone?: string | null;
   area: string;
   address: string;
-  size: '1000L' | '3000L' | '5000L' | '10000L';
+  size: string;
   date: string;
   eta: string;
   amount: number;
@@ -59,15 +60,20 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
   else status = 'pending';
 
   const sk = String(o.service_type_key ?? '').toLowerCase();
-  let size: SupplierOrder['size'] = '3000L';
-  if (sk.includes('1000')) size = '1000L';
-  else if (sk.includes('5000')) size = '5000L';
-  else if (sk.includes('10000')) size = '10000L';
+  let size = 'Service';
+  if (sk === 'water_can') {
+    const qty = Math.max(1, Number(o.can_quantity ?? 1));
+    size = `20L cans × ${qty}`;
+  } else if (sk.includes('1000')) size = '1000L tanker';
+  else if (sk.includes('5000')) size = '5000L tanker';
+  else if (sk.includes('10000')) size = '10000L tanker';
+  else if (sk.includes('3000')) size = '3000L tanker';
 
   return {
     apiId: o.id,
     label: String(o.order_number ?? o.id).slice(0, 32),
-    customer: 'Customer',
+    customer: String(o.customer_name ?? 'Customer'),
+    customerPhone: o.customer_phone ?? null,
     area,
     address: addr,
     size,
@@ -604,7 +610,11 @@ export default function SupplierDashboardPage() {
                       {expandedOrderId === o.apiId && (
                         <div className="mt-3 pt-3 border-t border-slate-100">
                           <div className="text-sm text-slate-700">Address: {o.address}</div>
-                          <div className="text-sm text-slate-700 mt-1">Partner phone: {maskPhone(profile.phone)}</div>
+                          {o.customerPhone && o.status !== 'pending' ? (
+                            <a href={`tel:${o.customerPhone}`} className="text-sm font-bold text-[#003049] mt-1 inline-flex hover:underline">
+                              Customer: {o.customerPhone}
+                            </a>
+                          ) : null}
                           {o.status === 'pending' && (
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
@@ -982,18 +992,6 @@ function StatCard({ title, value, color }: { title: string; value: string; color
       <div className="text-xl font-black mt-1" style={{ color }}>
         {value}
       </div>
-    </div>
-  );
-}
-
-function LegendRow({ c, label, pct }: { c: string; label: string; pct: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="w-3 h-3 rounded-full" style={{ background: c }} />
-        <span className="text-sm text-slate-700">{label}</span>
-      </div>
-      <span className="text-sm font-bold text-slate-900">{pct}</span>
     </div>
   );
 }
