@@ -922,6 +922,16 @@ export async function supplierStockGet(): Promise<SupplierStock> {
   return apiFetchAuth<SupplierStock>('/supplier/stock');
 }
 
+export async function supplierStockUpdate(
+  patch: { cans_available?: number; low_stock_alert?: number }
+): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+
 export async function supplierEarningsSummary(period = 'month'): Promise<SupplierEarningsSummary> {
   return apiFetchAuth<SupplierEarningsSummary>(`/supplier/earnings?period=${encodeURIComponent(period)}`);
 }
