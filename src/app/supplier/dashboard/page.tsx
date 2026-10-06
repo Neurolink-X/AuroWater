@@ -131,9 +131,11 @@ type SupplierDoc = {
   key: string;
   label: string;
   required: boolean;
+  documentId?: string;
   fileName?: string;
   fileSizeKb?: number;
   status: 'not_uploaded' | 'submitted' | 'verified' | 'rejected';
+  rejectionReason?: string | null;
 };
 
 const CITIES = [
@@ -157,6 +159,20 @@ const PROFILE_KEY = 'aurowater_supplier_profile';
 const DOCS_KEY = 'aurowater_supplier_docs';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
+
+function mapApiDocument(
+  row: Awaited<ReturnType<typeof supplierDocumentsList>>[number],
+  meta: { key: string; label: string; required: boolean },
+): SupplierDoc {
+  return {
+    ...meta,
+    documentId: row.id,
+    fileName: row.file_name,
+    fileSizeKb: Math.max(1, Math.round(Number(row.file_size_bytes) / 1024)),
+    status: row.status,
+    rejectionReason: row.rejection_reason,
+  };
+}
 
 function safeParse<T>(raw: string | null): T | null {
   if (!raw) return null;
