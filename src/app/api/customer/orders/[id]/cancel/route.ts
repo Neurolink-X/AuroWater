@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export async function PUT(
   req: NextRequest,
@@ -65,7 +66,8 @@ export async function PUT(
   // This makes cancellation safe for supplier inventory instead of leaving cans blocked.
   if (existing.supplier_id && existing.accepted_at && Number(existing.can_count ?? 0) > 0 && existing.service_type === 'water_can') {
     try {
-      const { error: releaseError } = await auth.ctx.supabase.rpc('release_reserved_supplier_stock', {
+      const service = createServiceClient();
+      const { error: releaseError } = await service.rpc('release_reserved_supplier_stock', {
         p_supplier_id: existing.supplier_id,
         p_quantity: Math.max(1, Number(existing.can_count ?? 0)),
       });
