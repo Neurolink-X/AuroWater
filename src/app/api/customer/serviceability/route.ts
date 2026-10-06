@@ -10,20 +10,36 @@ import {
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
 
+import type { ProfileRole } from '@/lib/db/types';
+
 import {
   resolveServiceability,
 } from '@/lib/zones';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-const SERVICEABILITY_ROLES = [
+/**
+ * Roles allowed to check serviceability.
+ *
+ * Keep this explicitly typed so TypeScript cannot widen the
+ * values to string[] and accidentally bypass the ProfileRole contract.
+ */
+const SERVICEABILITY_ROLES: ProfileRole[] = [
   'customer',
   'supplier',
   'technician',
 ];
 
+/**
+ * Defensive input limits.
+ *
+ * These are intentionally conservative because address_id and service
+ * are identifiers, not free-form content.
+ */
 const MAX_ADDRESS_ID_LENGTH = 100;
 const MAX_SERVICE_KEY_LENGTH = 100;
+const SERVICE_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export async function GET(req: NextRequest) {
   // ============================================================
@@ -38,25 +54,15 @@ export async function GET(req: NextRequest) {
   // ============================================================
   // 2. AUTHORIZATION
   //
-  // CUSTOMER:
-  //   Can check serviceability before booking.
+  // This endpoint only answers:
+  // "Can this authenticated user's address receive this service?"
   //
-  // SUPPLIER:
-  //   Can buy/book water for themselves.
-  //
-  // TECHNICIAN:
-  //   Can check service/location context for assigned work.
-  //
-  // IMPORTANT:
-  // This endpoint ONLY answers:
-  // "Can this address receive this service?"
-  //
-  // It does NOT give anyone permission to:
-  // - accept orders
-  // - fulfill orders
-  // - modify orders
-  // - receive payouts
-  // - access another user's address
+  // It does NOT authorize:
+  // - accepting orders
+  // - fulfilling orders
+  // - modifying orders
+  // - receiving payouts
+  // - reading another user's address
   // ============================================================
   if (!requireRole(auth.ctx, SERVICEABILITY_ROLES)) {
     return jsonErr('Forbidden', 403);
@@ -65,52 +71,41 @@ export async function GET(req: NextRequest) {
   // ============================================================
   // 3. READ & VALIDATE QUERY PARAMETERS
   // ============================================================
-  const searchParams = new URL(req.url).searchParams;
+  const searchParams = req.nextUrl.searchParams;
 
   const addressId =
     searchParams.get('address_id')?.trim() ?? '';
 
-  const service =
-    searchParams.get('service')?.trim() || undefined;
+  const rawService =
+    searchParams.get('service')?.trim() ?? '';
+
+  const service = rawService || undefined;
 
   if (!addressId) {
-    return jsonErr(
-      'address_id is required',
-      400,
-    );
+    return jsonErr('address_id is required', 400);
   }
 
   if (addressId.length > MAX_ADDRESS_ID_LENGTH) {
-    return jsonErr(
-      'Invalid address ID',
-      400,
-    );
+    return jsonErr('Invalid address ID', 400);
   }
 
-  if (
-    service &&
-    service.length > MAX_SERVICE_KEY_LENGTH
-  ) {
-    return jsonErr(
-      'Invalid service',
-      400,
-    );
+  if (service && service.length > MAX_SERVICE_KEY_LENGTH) {
+    return jsonErr('Invalid service', 400);
+  }
+
+  if (service && !SERVICE_KEY_PATTERN.test(service)) {
+    return jsonErr('Invalid service', 400);
   }
 
   // ============================================================
   // 4. LOAD ONLY THE AUTHENTICATED USER'S ADDRESS
   //
-  // AuroWater's current addresses schema uses:
-  //
+  // Current AuroWater schema:
   //     addresses.user_id
   //
-  // NOT:
-  //
-  //     addresses.customer_id
-  //
-  // Never accept user_id/customer_id from the browser.
-  //
-  // The authenticated profile is the ownership boundary.
+  // The ownership check is performed server-side using the
+  // authenticated profile. Never trust user_id/customer_id from
+  // browser input.
   // ============================================================
   const {
     data: address,
@@ -135,27 +130,22 @@ export async function GET(req: NextRequest) {
   }
 
   if (!address) {
-    return jsonErr(
-      'Address not found',
-      404,
-    );
+    return jsonErr('Address not found', 404);
   }
 
   // ============================================================
   // 5. SERVER-SIDE SERVICEABILITY RESOLUTION
   //
-  // resolveServiceability() handles:
+  // resolveServiceability() is the single source of truth for:
+  // - configured service zones
+  // - pincode matching
+  // - coordinate/radius matching
+  // - catch-all zones
+  // - zone status
+  // - service-specific restrictions
+  // - legacy city/geofence fallback
   //
-  // 1. Configured service zones
-  // 2. Pincode matching
-  // 3. Coordinate/radius matching
-  // 4. Catch-all zones
-  // 5. AVAILABLE / LIMITED / COMING_SOON /
-  //    TEMPORARILY_UNAVAILABLE
-  // 6. Service-specific restrictions
-  // 7. Legacy city/geofence fallback
-  //
-  // The browser never decides the final result.
+  // The browser never decides the final serviceability result.
   // ============================================================
   try {
     const result = await resolveServiceability(
@@ -163,10 +153,12 @@ export async function GET(req: NextRequest) {
       service,
     );
 
+    // Serviceability is user/address-specific. Do not allow
+    // intermediary caches to serve one user's result to another.
     return jsonOk(result);
   } catch (error) {
-    // resolveServiceability is designed not to throw,
-    // but keep this boundary for future-proofing.
+    // resolveServiceability is designed not to throw, but this
+    // boundary protects the API if a future implementation does.
     console.error(
       '[serviceability] unexpected resolution error:',
       error,
