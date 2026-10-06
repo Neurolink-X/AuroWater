@@ -1,377 +1,58 @@
-// 'use client';
-
-// import React, { useCallback, useEffect, useMemo, useState } from 'react';
-// import Link from 'next/link';
-// import { usePathname, useRouter } from 'next/navigation';
-// import { toast } from 'sonner';
-// import { z } from 'zod';
-// import { useForm } from 'react-hook-form';
-// import { zodResolver } from '@hookform/resolvers/zod';
-// import type { Resolver } from 'react-hook-form';
-
-// import BottomNav from '@/components/customer/BottomNav';
-// import { useAuth, getInitials } from '@/hooks/useAuth';
-// import LanguageToggle from '@/components/LanguageToggle';
-
-// type ProfilePayload = {
-//   id: string;
-//   full_name: string | null;
-//   city: string | null;
-//   phone: string | null;
-//   created_at: string | null;
-//   settings?: Record<string, unknown> | null;
-// };
-
-// type StatsPayload = {
-//   total_orders?: number;
-//   total_spent?: number;
-//   cans_ordered?: number;
-//   member_since?: string | null;
-// };
-
-// const schema = z.object({
-//   full_name: z.string().min(2),
-//   city: z.string().min(2),
-//   notifications_enabled: z.boolean(),
-// });
-
-// type FormValues = z.infer<typeof schema>;
-
-// function maskPhone(p: string): string {
-//   const digits = p.replace(/\D/g, '');
-//   if (digits.length < 6) return p;
-//   return `${digits.slice(0, 2)}***${digits.slice(-4)}`;
-// }
-
-// function inr(n: number): string {
-//   return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
-// }
-
-// export default function CustomerAccountPage() {
-//   const router = useRouter();
-//   const pathname = usePathname() ?? '/customer/account';
-//   const { hydrated, isLoggedIn, isCustomer, session, logout } = useAuth();
-
-//   const [profile, setProfile] = useState<ProfilePayload | null>(null);
-//   const [stats, setStats] = useState<StatsPayload | null>(null);
-//   const [loading, setLoading] = useState(true);
-
-//   const form = useForm<FormValues>({
-//     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-//     defaultValues: { full_name: '', city: '', notifications_enabled: true },
-//     mode: 'onBlur',
-//   });
-
-//   const dirty = form.formState.isDirty;
-
-//   const load = async () => {
-//     if (!hydrated) return;
-//     if (!isLoggedIn || !isCustomer) {
-//       router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-//       return;
-//     }
-//     setLoading(true);
-//     try {
-//       const [pRes, sRes] = await Promise.all([
-//         fetch('/api/customer/profile', { credentials: 'include' }),
-//         fetch('/api/customer/stats', { credentials: 'include' }),
-//       ]);
-
-//       if (pRes.status === 401 || sRes.status === 401) {
-//         router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-//         return;
-//       }
-
-//       const pJson = (await pRes.json()) as { success?: boolean; data?: unknown; error?: string };
-//       const sJson = (await sRes.json()) as { success?: boolean; data?: unknown; error?: string };
-
-//       if (!pRes.ok || pJson.success === false) throw new Error(pJson.error ?? 'Could not load profile');
-//       if (!sRes.ok || sJson.success === false) throw new Error(sJson.error ?? 'Could not load stats');
-
-//       const p = (pJson.data ?? null) as ProfilePayload | null;
-//       setProfile(p);
-
-//       const st = (sJson.data ?? null) as StatsPayload | null;
-//       setStats(st);
-
-//       const settings = (p?.settings ?? {}) as Record<string, unknown>;
-//       const notifications_enabled =
-//         typeof settings.notifications_enabled === 'boolean' ? settings.notifications_enabled : true;
-
-//       form.reset({
-//         full_name: String(p?.full_name ?? ''),
-//         city: String(p?.city ?? ''),
-//         notifications_enabled,
-//       });
-//     } catch (e: unknown) {
-//       toast.error(e instanceof Error ? e.message : 'Could not load account');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   useEffect(() => {
-//     void load();
-//     // Intentionally run once on mount to avoid dependency loops.
-//     // eslint-disable-next-line react-hooks/exhaustive-deps
-//   }, []);
-
-//   const onSave = async (values: FormValues) => {
-//     try {
-//       const res = await fetch('/api/customer/profile', {
-//         method: 'PUT',
-//         credentials: 'include',
-//         headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify({
-//           full_name: values.full_name,
-//           city: values.city,
-//           settings: { ...(profile?.settings ?? {}), notifications_enabled: values.notifications_enabled },
-//         }),
-//       });
-//       if (res.status === 401) {
-//         router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-//         return;
-//       }
-//       const json = (await res.json()) as { success?: boolean; data?: unknown; error?: string };
-//       if (!res.ok || json.success === false) throw new Error(json.error ?? 'Save failed');
-//       toast.success('Saved changes.');
-//       await load();
-//     } catch (e: unknown) {
-//       toast.error(e instanceof Error ? e.message : 'Save failed');
-//     }
-//   };
-
-//   const initials = useMemo(() => getInitials(profile?.full_name ?? session?.name ?? 'U'), [profile?.full_name, session?.name]);
-
-//   const memberSinceText = useMemo(() => {
-//     const iso = stats?.member_since ?? profile?.created_at ?? null;
-//     if (!iso) return 'Member since —';
-//     try {
-//       return `Member since ${new Date(iso).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`;
-//     } catch {
-//       return 'Member since —';
-//     }
-//   }, [stats?.member_since, profile?.created_at]);
-
-//   return (
-//     <div className="min-h-screen bg-white pb-20">
-//       <div className="mx-auto w-full" style={{ maxWidth: 480, padding: '18px 16px 16px' }}>
-//         <div className="aw-heading" style={{ fontSize: 22, fontWeight: 800, color: '#0A1628' }}>
-//           Account
-//         </div>
-
-//         {/* Profile section */}
-//         <div className="aw-card mt-4">
-//           {loading ? (
-//             <div className="h-16 rounded bg-slate-100 animate-pulse" />
-//           ) : (
-//             <div className="flex items-center gap-12" style={{ gap: 12 }}>
-//               <div
-//                 style={{
-//                   width: 56,
-//                   height: 56,
-//                   borderRadius: 999,
-//                   background: 'linear-gradient(135deg,#2563EB,#0EA5E9)',
-//                   color: '#fff',
-//                   display: 'flex',
-//                   alignItems: 'center',
-//                   justifyContent: 'center',
-//                   fontWeight: 900,
-//                 }}
-//               >
-//                 {initials}
-//               </div>
-//               <div style={{ flex: 1, minWidth: 0 }}>
-//                 <div className="text-sm font-bold" style={{ color: '#6B7280' }}>
-//                   Phone
-//                 </div>
-//                 <div className="font-extrabold" style={{ color: '#0A1628' }}>
-//                   {profile?.phone ? maskPhone(profile.phone) : '—'}
-//                 </div>
-//               </div>
-//               <div className="text-xs font-bold" style={{ color: '#6B7280' }}>
-//                 {memberSinceText}
-//               </div>
-//             </div>
-//           )}
-
-//           <form className="mt-4 grid grid-cols-1 gap-3" onSubmit={form.handleSubmit(onSave)}>
-//             <label>
-//               <div className="text-xs font-bold tracking-[0.18em] uppercase text-slate-500 mb-2">Full name</div>
-//               <input className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" {...form.register('full_name')} />
-//             </label>
-//             <label>
-//               <div className="text-xs font-bold tracking-[0.18em] uppercase text-slate-500 mb-2">City</div>
-//               <input className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm" {...form.register('city')} />
-//             </label>
-
-//             <div className="flex items-center justify-between rounded-xl border border-slate-200 px-3 py-3">
-//               <div>
-//                 <div className="font-extrabold text-slate-900">Notifications</div>
-//                 <div className="text-sm text-slate-500">Get order updates and alerts</div>
-//               </div>
-//               <input
-//                 type="checkbox"
-//                 checked={form.watch('notifications_enabled')}
-//                 onChange={(e) => form.setValue('notifications_enabled', e.target.checked, { shouldDirty: true })}
-//               />
-//             </div>
-
-//             {dirty ? (
-//               <button
-//                 type="submit"
-//                 className="aw-touch w-full rounded-2xl py-3 font-extrabold text-white"
-//                 style={{ background: 'linear-gradient(135deg,#2563EB,#0EA5E9)' }}
-//               >
-//                 Save changes
-//               </button>
-//             ) : null}
-//           </form>
-//         </div>
-
-//         {/* Account stats */}
-//         <div className="grid grid-cols-2 gap-3 mt-4">
-//           <StatCard label="Total orders" value={String(stats?.total_orders ?? 0)} />
-//           <StatCard label="Cans delivered" value={String(stats?.cans_ordered ?? 0)} />
-//           <StatCard label="Total spent" value={inr(stats?.total_spent ?? 0)} />
-//           <StatCard label="Member since" value={memberSinceText.replace('Member since ', '')} />
-//         </div>
-
-//         {/* Links list */}
-//         <div className="aw-card mt-4">
-//           <ListLink href="/customer/addresses" icon="📍" label="My Addresses" />
-//           <ListLink href="/customer/history" icon="📋" label="Order History" />
-//           <ListRow icon="🌐" label="Language" right={<LanguageToggle />} />
-//         </div>
-
-//         {/* Support */}
-//         <div className="aw-card mt-4">
-//           <a href="https://wa.me/919889305803" target="_blank" rel="noreferrer" className="block">
-//             <ListRow icon="💬" label="Chat on WhatsApp" />
-//           </a>
-//           <a href="tel:+919889305803" className="block">
-//             <ListRow icon="📞" label="Call Support" />
-//           </a>
-//           <ListLink href="/terms" icon="📄" label="Terms & Privacy" />
-//         </div>
-
-//         {/* Danger zone */}
-//         <div className="aw-card mt-4">
-//           <button
-//             type="button"
-//             className="aw-touch w-full rounded-xl border border-rose-200 px-4 py-3 font-extrabold text-rose-700 bg-white"
-//             onClick={() => logout({ redirectTo: '/' })}
-//           >
-//             Sign Out
-//           </button>
-//         </div>
-//       </div>
-
-//       <BottomNav />
-//     </div>
-//   );
-// }
-
-// function StatCard({ label, value }: { label: string; value: string }) {
-//   return (
-//     <div className="aw-card" style={{ borderRadius: 12, padding: 12, border: '1px solid #F3F4F6' }}>
-//       <div className="stat-number" style={{ fontSize: 18, fontWeight: 800, color: '#0A1628' }}>
-//         {value}
-//       </div>
-//       <div style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', marginTop: 2 }}>{label}</div>
-//     </div>
-//   );
-// }
-
-// function ListLink({ href, icon, label }: { href: string; icon: string; label: string }) {
-//   return (
-//     <Link href={href} style={{ textDecoration: 'none' }}>
-//       <ListRow icon={icon} label={label} />
-//     </Link>
-//   );
-// }
-
-// function ListRow({ icon, label, right }: { icon: string; label: string; right?: React.ReactNode }) {
-//   return (
-//     <div
-//       className="flex items-center justify-between gap-3"
-//       style={{
-//         padding: '12px 0',
-//         borderBottom: '1px solid #F3F4F6',
-//       }}
-//     >
-//       <div className="flex items-center gap-3">
-//         <div style={{ width: 26, textAlign: 'center' }}>{icon}</div>
-//         <div className="font-extrabold" style={{ color: '#0A1628' }}>
-//           {label}
-//         </div>
-//       </div>
-//       {right ?? <span style={{ color: '#94A3B8', fontWeight: 900 }}>›</span>}
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
 'use client';
-
-/**
- * AuroTap — Customer Account Page (world-class edition)
- *
- * What's new vs original:
- * ─ Full rebrand: AuroWater → AuroTap
- * ─ Premium dark-navy + electric-blue design system
- * ─ Animated avatar with gradient ring + initials
- * ─ Glassmorphism stat cards with icon + colour per stat
- * ─ Pull-to-refresh (swipe down on mobile)
- * ─ Skeleton shimmer loader (entire page)
- * ─ Inline field validation error messages
- * ─ Staggered fade-in animation on mount
- * ─ Custom toggle switch (replaces plain checkbox)
- * ─ Confirmation modal before sign-out
- * ─ "Copy phone" tap gesture
- * ─ Referral code card with copy-to-clipboard
- * ─ Account level / tier badge (Bronze → Silver → Gold → Platinum)
- * ─ WhatsApp support opens with pre-filled message
- * ─ Accessible: aria-labels, role, keyboard nav
- * ─ All original API calls + auth guards preserved exactly
- */
 
 import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import type { Resolver } from 'react-hook-form';
 
 import BottomNav from '@/components/customer/BottomNav';
-import { useAuth, getInitials } from '@/hooks/useAuth';
 import LanguageToggle from '@/components/LanguageToggle';
-import { clearSession } from '@/hooks/useAuth';
+import {
+  clearSession,
+  getInitials,
+  useAuth,
+} from '@/hooks/useAuth';
 import { getToken } from '@/lib/api-client';
 
-/* ─────────────────────────────────────────────────────────────
-   TYPES  (unchanged from original)
-───────────────────────────────────────────────────────────── */
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+type NotificationSettings = {
+  whatsapp?: boolean;
+  sms?: boolean;
+  email?: boolean;
+  push?: boolean;
+};
+
+type AccountSettings = {
+  notifications?: NotificationSettings;
+  language?: 'en' | 'hi';
+  default_payment?: 'cash' | 'upi' | 'online';
+  marketing_opt_in?: boolean;
+  default_address_id?: string | null;
+
+  /*
+   * Legacy compatibility.
+   * The backend does not use this key for new writes, but older records
+   * may still contain it.
+   */
+  notifications_enabled?: boolean;
+
+  [key: string]: unknown;
+};
+
 type ProfilePayload = {
   id: string;
   full_name: string | null;
   city: string | null;
   phone: string | null;
   created_at: string | null;
-  settings?: Record<string, unknown> | null;
+  settings?: AccountSettings | null;
 };
 
 type StatsPayload = {
@@ -379,862 +60,1679 @@ type StatsPayload = {
   total_spent?: number;
   cans_ordered?: number;
   member_since?: string | null;
+  avg_rating?: number | null;
+  total_reviews?: number;
 };
 
-/* ─────────────────────────────────────────────────────────────
-   ZOD SCHEMA  (unchanged)
-───────────────────────────────────────────────────────────── */
-const schema = z.object({
-  full_name: z
-    .string()
-    .min(2, 'Name must be at least 2 characters'),
-  city: z
-    .string()
-    .min(2, 'City must be at least 2 characters'),
-  notifications_enabled: z.boolean(),
-});
-type FormValues = z.infer<typeof schema>;
+type ApiEnvelope<T> = {
+  success?: boolean;
+  data?: T;
+  error?: string;
+};
 
-/* ─────────────────────────────────────────────────────────────
-   HELPERS
-───────────────────────────────────────────────────────────── */
-function maskPhone(p: string): string {
-  const digits = p.replace(/\D/g, '');
-  if (digits.length < 6) return p;
-  return `${digits.slice(0, 2)}***${digits.slice(-4)}`;
+type FormErrors = {
+  full_name?: string;
+  city?: string;
+};
+
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const SUPPORT_PHONE = '+919889305803';
+
+const WHATSAPP_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
+  'Hi AuroTap! I need help with my account.'
+)}`;
+
+const SERVICE_CITIES = [
+  'Kanpur',
+  'Gorakhpur',
+  'Lucknow',
+  'Varanasi',
+  'Prayagraj',
+  'Agra',
+  'Meerut',
+  'Bareilly',
+  'Aligarh',
+  'Mathura',
+  'Delhi',
+  'Noida',
+  'Ghaziabad',
+] as const;
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function formatINR(value: number | string | null | undefined): string {
+  const amount = Math.round(Number(value) || 0);
+
+  return `₹${amount.toLocaleString('en-IN')}`;
 }
 
-function inr(n: number): string {
-  return '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
-}
+function formatMemberSince(
+  iso: string | null | undefined
+): string {
+  if (!iso) return '—';
 
-/** Derive membership tier from total orders */
-function getTier(orders: number): { label: string; color: string; bg: string; emoji: string } {
-  if (orders >= 100) return { label: 'Platinum', color: '#E0E7FF', bg: '#3730A3', emoji: '💎' };
-  if (orders >= 50)  return { label: 'Gold',     color: '#FEF3C7', bg: '#92400E', emoji: '🥇' };
-  if (orders >= 20)  return { label: 'Silver',   color: '#F1F5F9', bg: '#475569', emoji: '🥈' };
-  return              { label: 'Bronze',  color: '#FEF0E7', bg: '#9A3412', emoji: '🥉' };
-}
+  const timestamp = new Date(iso).getTime();
 
-/** Simple deterministic referral code from profile id */
-function getReferralCode(id?: string): string {
-  if (!id) return 'AUROTAP10';
-  return 'AT-' + id.replace(/-/g, '').slice(0, 6).toUpperCase();
-}
+  if (Number.isNaN(timestamp)) return '—';
 
-/* ─────────────────────────────────────────────────────────────
-   MAIN PAGE
-───────────────────────────────────────────────────────────── */
-export default function CustomerAccountPage() {
-  const router   = useRouter();
-  const pathname = usePathname() ?? '/customer/account';
-  const { hydrated, isLoggedIn, isCustomer, session, logout } = useAuth();
-
-  const [profile,       setProfile]       = useState<ProfilePayload | null>(null);
-  const [stats,         setStats]         = useState<StatsPayload | null>(null);
-  const [loading,       setLoading]       = useState(true);
-  const [signOutModal,  setSignOutModal]  = useState(false);
-  const [savingForm,    setSavingForm]    = useState(false);
-  const [mounted,       setMounted]       = useState(false);
-
-  // Pull-to-refresh refs
-  const touchStartY = useRef(0);
-  const pageRef     = useRef<HTMLDivElement>(null);
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
-    defaultValues: { full_name: '', city: '', notifications_enabled: true },
-    mode: 'onBlur',
+  return new Date(timestamp).toLocaleDateString('en-IN', {
+    month: 'short',
+    year: 'numeric',
   });
-  const dirty = form.formState.isDirty;
-  const errors = form.formState.errors;
-
-  /* ── mount animation trigger */
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 60);
-    return () => clearTimeout(t);
-  }, []);
-
-  /* ── data load */
-  const load = useCallback(async () => {
-    if (!hydrated) return;
-    if (!isLoggedIn || !isCustomer) {
-      router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-      return;
-    }
-    setLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        clearSession();
-        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-        return;
-      }
-
-      const [pRes, sRes] = await Promise.all([
-        fetch('/api/customer/profile', {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch('/api/customer/stats', {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-
-      if (pRes.status === 401 || sRes.status === 401) {
-        clearSession();
-        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-        return;
-      }
-
-      const pJson = (await pRes.json()) as { success?: boolean; data?: unknown; error?: string };
-      const sJson = (await sRes.json()) as { success?: boolean; data?: unknown; error?: string };
-
-      if (!pRes.ok || pJson.success === false) throw new Error(pJson.error ?? 'Could not load profile');
-      if (!sRes.ok || sJson.success === false) throw new Error(sJson.error ?? 'Could not load stats');
-
-      const p  = (pJson.data ?? null) as ProfilePayload | null;
-      const st = (sJson.data ?? null) as StatsPayload | null;
-      setProfile(p);
-      setStats(st);
-
-      const settings = (p?.settings ?? {}) as Record<string, unknown>;
-      const notifications_enabled =
-        typeof settings.notifications_enabled === 'boolean'
-          ? settings.notifications_enabled
-          : true;
-
-      form.reset({
-        full_name: String(p?.full_name ?? ''),
-        city:      String(p?.city      ?? ''),
-        notifications_enabled,
-      });
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Could not load account');
-    } finally {
-      setLoading(false);
-    }
-  }, [hydrated, isLoggedIn, isCustomer, pathname, router, form]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  /* ── pull to refresh */
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0]?.clientY ?? 0;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    const delta = (e.changedTouches[0]?.clientY ?? 0) - touchStartY.current;
-    if (delta > 80 && (pageRef.current?.scrollTop ?? 0) < 10) {
-      toast.info('Refreshing…');
-      void load();
-    }
-  };
-
-  /* ── save form */
-  const onSave = async (values: FormValues) => {
-    setSavingForm(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        clearSession();
-        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-        return;
-      }
-      const res = await fetch('/api/customer/profile', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          full_name: values.full_name,
-          city:      values.city,
-          settings:  { ...(profile?.settings ?? {}), notifications_enabled: values.notifications_enabled },
-        }),
-      });
-      if (res.status === 401) {
-        clearSession();
-        router.push(`/auth/login?returnTo=${encodeURIComponent(pathname)}`);
-        return;
-      }
-      const json = (await res.json()) as { success?: boolean; data?: unknown; error?: string };
-      if (!res.ok || json.success === false) throw new Error(json.error ?? 'Save failed');
-      toast.success('✅ Changes saved!');
-      await load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Save failed');
-    } finally {
-      setSavingForm(false);
-    }
-  };
-
-  /* ── derived values */
-  const initials = useMemo(
-    () => getInitials(profile?.full_name ?? session?.name ?? 'U'),
-    [profile?.full_name, session?.name],
-  );
-
-  const memberSinceText = useMemo(() => {
-    const iso = stats?.member_since ?? profile?.created_at ?? null;
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-    } catch {
-      return '—';
-    }
-  }, [stats?.member_since, profile?.created_at]);
-
-  const tier         = getTier(stats?.total_orders ?? 0);
-  const referralCode = getReferralCode(profile?.id);
-  const whatsappHref = `https://wa.me/919889305803?text=${encodeURIComponent('Hi AuroTap! I need help with my account.')}`;
-
-  /* ── copy helpers */
-  const copyPhone = () => {
-    if (!profile?.phone) return;
-    void navigator.clipboard.writeText(profile.phone);
-    toast.success('Phone number copied!');
-  };
-  const copyReferral = () => {
-    void navigator.clipboard.writeText(referralCode);
-    toast.success('Referral code copied! 🎉');
-  };
-
-  /* ─────────────────────────────────────────────────────────
-     RENDER
-  ───────────────────────────────────────────────────────── */
-  return (
-    <>
-      {/* ── Global styles injected once */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
-
-        .at-page {
-          font-family: 'Plus Jakarta Sans', sans-serif;
-          min-height: 100svh;
-          background: #F0F6FF;
-          padding-bottom: 88px;
-          overflow-y: auto;
-        }
-        .at-topbar {
-          background: linear-gradient(135deg, #0A2744 0%, #1155A6 60%, #0EA5E9 100%);
-          padding: 52px 20px 28px;
-          position: relative;
-          overflow: hidden;
-        }
-        .at-topbar::before {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        }
-        .at-topbar::after {
-          content: '';
-          position: absolute;
-          bottom: -30px; left: -60px;
-          width: 220px; height: 220px;
-          border-radius: 50%;
-          background: rgba(14,165,233,0.18);
-          filter: blur(40px);
-          pointer-events: none;
-        }
-
-        .at-avatar-ring {
-          width: 72px; height: 72px;
-          border-radius: 50%;
-          padding: 3px;
-          background: linear-gradient(135deg, #38BDF8, #818CF8, #0EA5E9);
-          flex-shrink: 0;
-          position: relative;
-          z-index: 1;
-        }
-        .at-avatar-inner {
-          width: 100%; height: 100%;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #1155A6, #0EA5E9);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 22px; font-weight: 900; color: #fff;
-          letter-spacing: -0.5px;
-        }
-
-        .at-card {
-          background: #ffffff;
-          border-radius: 20px;
-          border: 1px solid rgba(14,165,233,0.10);
-          overflow: hidden;
-          box-shadow: 0 2px 12px rgba(10,39,68,0.06);
-        }
-        .at-section { padding: 0 16px; }
-        .at-section-title {
-          font-size: 11px; font-weight: 800;
-          letter-spacing: 0.16em; text-transform: uppercase;
-          color: #64748B;
-          padding: 18px 4px 8px;
-        }
-
-        .at-input-wrap { display: flex; flex-direction: column; gap: 6px; }
-        .at-label {
-          font-size: 11px; font-weight: 800;
-          letter-spacing: 0.14em; text-transform: uppercase;
-          color: #64748B;
-        }
-        .at-input {
-          width: 100%;
-          border: 1.5px solid #E2E8F0;
-          border-radius: 14px;
-          padding: 12px 14px;
-          font-size: 15px; font-weight: 600;
-          color: #0A2744;
-          font-family: inherit;
-          background: #F8FAFC;
-          outline: none;
-          transition: border-color 0.18s, box-shadow 0.18s;
-        }
-        .at-input:focus {
-          border-color: #0EA5E9;
-          box-shadow: 0 0 0 3px rgba(14,165,233,0.14);
-          background: #fff;
-        }
-        .at-input.error { border-color: #F87171; box-shadow: 0 0 0 3px rgba(248,113,113,0.12); }
-        .at-error-msg { font-size: 12px; font-weight: 600; color: #EF4444; }
-
-        /* Toggle switch */
-        .at-toggle { position: relative; width: 48px; height: 28px; flex-shrink: 0; }
-        .at-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-        .at-toggle-track {
-          position: absolute; inset: 0;
-          border-radius: 999px;
-          background: #E2E8F0;
-          cursor: pointer;
-          transition: background 0.22s;
-        }
-        .at-toggle input:checked + .at-toggle-track { background: #0EA5E9; }
-        .at-toggle-thumb {
-          position: absolute;
-          top: 3px; left: 3px;
-          width: 22px; height: 22px;
-          border-radius: 50%;
-          background: #fff;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.18);
-          transition: transform 0.22s;
-          pointer-events: none;
-        }
-        .at-toggle input:checked ~ .at-toggle-thumb { transform: translateX(20px); }
-
-        /* Save button */
-        .at-save-btn {
-          width: 100%;
-          border: none; outline: none; cursor: pointer;
-          background: linear-gradient(135deg, #1155A6, #0EA5E9);
-          color: #fff;
-          font-family: inherit;
-          font-size: 16px; font-weight: 800;
-          border-radius: 16px;
-          padding: 14px;
-          letter-spacing: 0.02em;
-          box-shadow: 0 4px 16px rgba(14,165,233,0.35);
-          transition: opacity 0.15s, transform 0.12s;
-        }
-        .at-save-btn:active { opacity: 0.88; transform: scale(0.98); }
-        .at-save-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-
-        /* Stat cards */
-        .at-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .at-stat-card {
-          background: #fff;
-          border-radius: 18px;
-          padding: 16px;
-          border: 1px solid rgba(14,165,233,0.10);
-          box-shadow: 0 2px 10px rgba(10,39,68,0.05);
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .at-stat-icon {
-          width: 36px; height: 36px;
-          border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 18px;
-          margin-bottom: 2px;
-        }
-        .at-stat-value {
-          font-size: 20px; font-weight: 900;
-          color: #0A2744; line-height: 1.1;
-        }
-        .at-stat-label {
-          font-size: 11px; font-weight: 700;
-          color: #94A3B8; letter-spacing: 0.06em;
-        }
-
-        /* List rows */
-        .at-list-row {
-          display: flex; align-items: center; justify-content: space-between;
-          gap: 12px;
-          padding: 15px 20px;
-          border-bottom: 1px solid #F1F5F9;
-          text-decoration: none;
-          transition: background 0.12s;
-        }
-        .at-list-row:last-child { border-bottom: none; }
-        .at-list-row:active { background: #F8FAFC; }
-        .at-list-icon {
-          width: 36px; height: 36px;
-          border-radius: 10px;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 17px; flex-shrink: 0;
-        }
-        .at-list-label {
-          font-size: 15px; font-weight: 700;
-          color: #0A2744; flex: 1;
-        }
-        .at-list-sub {
-          font-size: 12px; font-weight: 500; color: #94A3B8; margin-top: 1px;
-        }
-        .at-chevron { color: #CBD5E1; font-size: 18px; font-weight: 700; }
-
-        /* Tier badge */
-        .at-tier-badge {
-          display: inline-flex; align-items: center; gap: 5px;
-          border-radius: 999px;
-          padding: 4px 12px;
-          font-size: 12px; font-weight: 800;
-          letter-spacing: 0.04em;
-        }
-
-        /* Referral card */
-        .at-referral {
-          background: linear-gradient(135deg, #0A2744 0%, #1155A6 100%);
-          border-radius: 20px;
-          padding: 20px;
-          position: relative; overflow: hidden;
-          color: #fff;
-        }
-        .at-referral::after {
-          content: '💧';
-          position: absolute;
-          right: -10px; top: -14px;
-          font-size: 80px; opacity: 0.09;
-          line-height: 1;
-        }
-        .at-referral-code {
-          font-size: 22px; font-weight: 900; letter-spacing: 0.12em;
-          color: #38BDF8;
-          background: rgba(255,255,255,0.08);
-          border: 1.5px dashed rgba(56,189,248,0.4);
-          border-radius: 12px;
-          padding: 10px 16px;
-          margin-top: 8px;
-          cursor: pointer;
-          display: flex; align-items: center; justify-content: space-between;
-          transition: background 0.15s;
-        }
-        .at-referral-code:active { background: rgba(255,255,255,0.14); }
-
-        /* Sign-out modal */
-        .at-modal-overlay {
-          position: fixed; inset: 0; z-index: 999;
-          background: rgba(10,23,48,0.62);
-          display: flex; align-items: flex-end;
-          padding-bottom: 24px;
-          backdrop-filter: blur(4px);
-        }
-        .at-modal {
-          width: calc(100% - 32px);
-          max-width: 480px;
-          margin: 0 auto;
-          background: #fff;
-          border-radius: 24px;
-          padding: 28px 24px;
-          box-shadow: 0 24px 60px rgba(10,23,48,0.25);
-        }
-
-        /* Skeleton shimmer */
-        .at-skeleton {
-          background: linear-gradient(90deg, #EFF6FF 25%, #DBEAFE 50%, #EFF6FF 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.5s infinite;
-          border-radius: 12px;
-        }
-        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-        /* Stagger fade-in */
-        .at-fade { opacity: 0; transform: translateY(12px); transition: opacity 0.38s ease, transform 0.38s ease; }
-        .at-fade.visible { opacity: 1; transform: translateY(0); }
-        .at-fade:nth-child(1) { transition-delay: 0.00s; }
-        .at-fade:nth-child(2) { transition-delay: 0.06s; }
-        .at-fade:nth-child(3) { transition-delay: 0.12s; }
-        .at-fade:nth-child(4) { transition-delay: 0.18s; }
-        .at-fade:nth-child(5) { transition-delay: 0.24s; }
-        .at-fade:nth-child(6) { transition-delay: 0.30s; }
-        .at-fade:nth-child(7) { transition-delay: 0.36s; }
-      `}</style>
-
-      <div
-        ref={pageRef}
-        className="at-page"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-
-        {/* ── TOP BAR ── */}
-        <div className="at-topbar">
-          <div style={{ position: 'relative', zIndex: 1, maxWidth: 480, margin: '0 auto' }}>
-
-            {/* Header row */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.06em' }}>
-                  MY ACCOUNT
-                </div>
-                <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1.2 }}>
-                  {loading ? 'Loading…' : (profile?.full_name ?? session?.name ?? 'Welcome back')}
-                </div>
-              </div>
-              {/* Tier badge */}
-              {!loading && (
-                <span
-                  className="at-tier-badge"
-                  style={{ background: tier.bg, color: tier.color }}
-                >
-                  {tier.emoji} {tier.label}
-                </span>
-              )}
-            </div>
-
-            {/* Avatar + phone row */}
-            {loading ? (
-              <div className="at-skeleton" style={{ height: 72, borderRadius: 18 }} />
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div className="at-avatar-ring">
-                  <div className="at-avatar-inner">{initials}</div>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.1em' }}>
-                    PHONE
-                  </div>
-                  <button
-                    type="button"
-                    onClick={copyPhone}
-                    style={{
-                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                      fontSize: 17, fontWeight: 800, color: '#fff',
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                    title="Tap to copy"
-                    aria-label="Copy phone number"
-                  >
-                    {profile?.phone ? maskPhone(profile.phone) : '—'}
-                    <span style={{ fontSize: 13, opacity: 0.55 }}>⧉</span>
-                  </button>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginTop: 2 }}>
-                    Member since {memberSinceText}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── MAIN CONTENT ── */}
-        <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px' }}>
-
-          {/* STATS */}
-          <div className={`at-section-title at-fade ${mounted ? 'visible' : ''}`}>Your activity</div>
-          <div className={`at-stat-grid at-fade ${mounted ? 'visible' : ''}`}>
-            <StatCard
-              loading={loading}
-              icon="📦" bg="#EFF6FF"
-              value={String(stats?.total_orders ?? 0)}
-              label="Total Orders"
-            />
-            <StatCard
-              loading={loading}
-              icon="💧" bg="#F0FDFA"
-              value={String(stats?.cans_ordered ?? 0)}
-              label="Cans Delivered"
-            />
-            <StatCard
-              loading={loading}
-              icon="💰" bg="#FFF7ED"
-              value={inr(stats?.total_spent ?? 0)}
-              label="Total Spent"
-            />
-            <StatCard
-              loading={loading}
-              icon="📅" bg="#FDF4FF"
-              value={memberSinceText}
-              label="Member Since"
-            />
-          </div>
-
-          {/* PROFILE FORM */}
-          <div className={`at-section-title at-fade ${mounted ? 'visible' : ''}`}>Profile details</div>
-          <div className={`at-card at-fade ${mounted ? 'visible' : ''}`}>
-            {loading ? (
-              <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div className="at-skeleton" style={{ height: 56 }} />
-                <div className="at-skeleton" style={{ height: 56 }} />
-                <div className="at-skeleton" style={{ height: 56 }} />
-              </div>
-            ) : (
-              <form
-                onSubmit={form.handleSubmit(onSave)}
-                style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}
-              >
-                <div className="at-input-wrap">
-                  <label className="at-label" htmlFor="full_name">Full name</label>
-                  <input
-                    id="full_name"
-                    className={`at-input${errors.full_name ? ' error' : ''}`}
-                    placeholder="Your full name"
-                    {...form.register('full_name')}
-                  />
-                  {errors.full_name && (
-                    <span className="at-error-msg">{errors.full_name.message}</span>
-                  )}
-                </div>
-
-                <div className="at-input-wrap">
-                  <label className="at-label" htmlFor="city">City</label>
-                  <input
-                    id="city"
-                    className={`at-input${errors.city ? ' error' : ''}`}
-                    placeholder="Your city"
-                    {...form.register('city')}
-                  />
-                  {errors.city && (
-                    <span className="at-error-msg">{errors.city.message}</span>
-                  )}
-                </div>
-
-                {/* Notifications toggle */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: '#F8FAFC', borderRadius: 14, padding: '14px 16px',
-                  border: '1.5px solid #E2E8F0',
-                }}>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#0A2744' }}>Notifications</div>
-                    <div style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500, marginTop: 2 }}>
-                      Order updates &amp; alerts
-                    </div>
-                  </div>
-                  <label className="at-toggle" aria-label="Toggle notifications">
-                    <input
-                      type="checkbox"
-                      checked={form.watch('notifications_enabled')}
-                      onChange={(e) =>
-                        form.setValue('notifications_enabled', e.target.checked, { shouldDirty: true })
-                      }
-                    />
-                    <span className="at-toggle-track" />
-                    <span className="at-toggle-thumb" />
-                  </label>
-                </div>
-
-                {dirty && (
-                  <button
-                    type="submit"
-                    className="at-save-btn"
-                    disabled={savingForm}
-                    aria-label="Save profile changes"
-                  >
-                    {savingForm ? 'Saving…' : 'Save changes →'}
-                  </button>
-                )}
-              </form>
-            )}
-          </div>
-
-          {/* REFERRAL */}
-          <div className={`at-section-title at-fade ${mounted ? 'visible' : ''}`}>Refer &amp; earn</div>
-          <div className={`at-referral at-fade ${mounted ? 'visible' : ''}`}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.08em' }}>
-              REFERRAL CODE
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>
-              Share with friends — they get ₹50 off, you earn ₹50 credit!
-            </div>
-            <button
-              type="button"
-              className="at-referral-code"
-              onClick={copyReferral}
-              aria-label="Copy referral code"
-            >
-              <span>{referralCode}</span>
-              <span style={{ fontSize: 16 }}>📋</span>
-            </button>
-          </div>
-
-          {/* QUICK LINKS */}
-          <div className={`at-section-title at-fade ${mounted ? 'visible' : ''}`}>Quick links</div>
-          <div className={`at-card at-fade ${mounted ? 'visible' : ''}`}>
-            <ListLink href="/customer/addresses" iconBg="#EFF6FF" icon="📍" label="My Addresses" sub="Manage delivery locations" />
-            <ListLink href="/customer/history"   iconBg="#F0FDF4" icon="📋" label="Order History"  sub="Track past &amp; current orders" />
-            <ListRow  iconBg="#FFF7ED"            icon="🌐" label="Language" sub="Choose your language" right={<LanguageToggle />} />
-          </div>
-
-          {/* SUPPORT */}
-          <div className={`at-section-title at-fade ${mounted ? 'visible' : ''}`}>Support</div>
-          <div className={`at-card at-fade ${mounted ? 'visible' : ''}`}>
-            <a href={whatsappHref} target="_blank" rel="noreferrer" className="at-list-row" aria-label="Chat on WhatsApp">
-              <div className="at-list-icon" style={{ background: '#F0FDF4', fontSize: 20 }}>💬</div>
-              <div style={{ flex: 1 }}>
-                <div className="at-list-label">Chat on WhatsApp</div>
-                <div className="at-list-sub">Usually replies in minutes</div>
-              </div>
-              <span className="at-chevron">›</span>
-            </a>
-            <a href="tel:+919889305803" className="at-list-row" aria-label="Call support">
-              <div className="at-list-icon" style={{ background: '#EFF6FF', fontSize: 20 }}>📞</div>
-              <div style={{ flex: 1 }}>
-                <div className="at-list-label">Call Support</div>
-                <div className="at-list-sub">+91 98893 05803</div>
-              </div>
-              <span className="at-chevron">›</span>
-            </a>
-            <ListLink href="/terms" iconBg="#F5F3FF" icon="📄" label="Terms &amp; Privacy" sub="Read our policies" />
-          </div>
-
-          {/* SIGN OUT */}
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
-            <button
-              type="button"
-              onClick={() => setSignOutModal(true)}
-              style={{
-                width: '100%',
-                border: '1.5px solid #FECACA',
-                borderRadius: 16,
-                padding: '14px',
-                fontSize: 15,
-                fontWeight: 800,
-                color: '#DC2626',
-                background: '#FFF5F5',
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-                transition: 'background 0.14s',
-              }}
-              aria-label="Sign out"
-            >
-              Sign Out
-            </button>
-          </div>
-
-          {/* App version */}
-          <div style={{ textAlign: 'center', fontSize: 11, color: '#CBD5E1', fontWeight: 600, padding: '8px 0 4px', letterSpacing: '0.08em' }}>
-            AUROTAP.IN &nbsp;·&nbsp; v1.0.0
-          </div>
-
-        </div>{/* end main content */}
-      </div>{/* end page */}
-
-      {/* ── SIGN OUT MODAL ── */}
-      {signOutModal && (
-        <div className="at-modal-overlay" onClick={() => setSignOutModal(false)}>
-          <div className="at-modal" onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 10 }}>👋</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: '#0A2744', textAlign: 'center', marginBottom: 6 }}>
-              Sign out?
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: '#64748B', textAlign: 'center', marginBottom: 24 }}>
-              You can always sign back in with your phone number.
-            </div>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                type="button"
-                onClick={() => setSignOutModal(false)}
-                style={{
-                  flex: 1, padding: 14, borderRadius: 14,
-                  border: '1.5px solid #E2E8F0', background: '#F8FAFC',
-                  fontFamily: 'inherit', fontSize: 15, fontWeight: 700, color: '#475569', cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => logout({ redirectTo: '/' })}
-                style={{
-                  flex: 1, padding: 14, borderRadius: 14,
-                  border: 'none', background: '#DC2626',
-                  fontFamily: 'inherit', fontSize: 15, fontWeight: 800, color: '#fff', cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(220,38,38,0.3)',
-                }}
-              >
-                Yes, sign out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <BottomNav />
-    </>
-  );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   SUB-COMPONENTS
-───────────────────────────────────────────────────────────── */
+function maskPhone(value: string | null | undefined): string {
+  if (!value) return '—';
 
-function StatCard({
-  loading, icon, bg, value, label,
-}: {
-  loading: boolean;
-  icon: string;
-  bg: string;
-  value: string;
-  label: string;
-}) {
-  if (loading) {
-    return <div className="at-skeleton" style={{ height: 96, borderRadius: 18 }} />;
+  const digits = value.replace(/\D/g, '');
+
+  if (digits.length < 6) return value;
+
+  return `${digits.slice(0, 2)}••••${digits.slice(-4)}`;
+}
+
+function getNotificationPreference(
+  settings: AccountSettings | null | undefined
+): boolean {
+  if (!settings) return true;
+
+  if (typeof settings.notifications_enabled === 'boolean') {
+    return settings.notifications_enabled;
   }
+
+  const notifications = settings.notifications;
+
+  if (!notifications) return true;
+
+  const values = [
+    notifications.whatsapp,
+    notifications.sms,
+    notifications.email,
+    notifications.push,
+  ].filter((value) => typeof value === 'boolean') as boolean[];
+
+  if (!values.length) return true;
+
+  return values.some(Boolean);
+}
+
+async function readJson<T>(response: Response): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+async function copyText(
+  value: string,
+  successMessage: string
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+    window.dispatchEvent(
+      new CustomEvent('aurotap-copy-success', {
+        detail: successMessage,
+      })
+    );
+  } catch {
+    window.dispatchEvent(
+      new CustomEvent('aurotap-copy-failed')
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small UI components                                                        */
+/* -------------------------------------------------------------------------- */
+
+function SectionTitle({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
   return (
-    <div className="at-stat-card">
-      <div className="at-stat-icon" style={{ background: bg }}>{icon}</div>
-      <div className="at-stat-value">{value}</div>
-      <div className="at-stat-label">{label}</div>
+    <div className="mb-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-700">
+        {eyebrow}
+      </p>
+
+      <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950">
+        {title}
+      </h2>
+
+      {description ? (
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function ListLink({
-  href, icon, iconBg, label, sub,
+function StatCard({
+  icon,
+  value,
+  label,
+  loading,
+}: {
+  icon: string;
+  value: string;
+  label: string;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div
+        className="h-[104px] animate-pulse rounded-2xl border border-slate-100 bg-white"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div
+        className="grid h-9 w-9 place-items-center rounded-xl bg-sky-50 text-lg"
+        aria-hidden="true"
+      >
+        {icon}
+      </div>
+
+      <p className="mt-2 truncate text-lg font-black text-slate-950 sm:text-xl">
+        {value}
+      </p>
+
+      <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function MenuRow({
+  href,
+  icon,
+  title,
+  description,
 }: {
   href: string;
   icon: string;
-  iconBg: string;
-  label: string;
-  sub?: string;
+  title: string;
+  description: string;
 }) {
   return (
-    <Link href={href} style={{ textDecoration: 'none' }}>
-      <div className="at-list-row">
-        <div className="at-list-icon" style={{ background: iconBg }}>{icon}</div>
-        <div style={{ flex: 1 }}>
-          <div className="at-list-label">{label}</div>
-          {sub && <div className="at-list-sub">{sub}</div>}
-        </div>
-        <span className="at-chevron">›</span>
-      </div>
+    <Link
+      href={href}
+      className="group flex min-h-[70px] items-center gap-3 border-b border-slate-100 px-4 py-3.5 transition hover:bg-slate-50 focus:outline-none focus-visible:bg-slate-50"
+    >
+      <span
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg"
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold text-slate-900">
+          {title}
+        </span>
+
+        <span className="mt-0.5 block text-xs font-medium text-slate-500">
+          {description}
+        </span>
+      </span>
+
+      <span
+        className="text-lg font-bold text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-sky-500"
+        aria-hidden="true"
+      >
+        →
+      </span>
     </Link>
   );
 }
 
-function ListRow({
-  icon, iconBg, label, sub, right,
+function ReadOnlyRow({
+  icon,
+  title,
+  value,
+  action,
 }: {
   icon: string;
-  iconBg: string;
-  label: string;
-  sub?: string;
-  right?: React.ReactNode;
+  title: string;
+  value: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <div className="at-list-row">
-      <div className="at-list-icon" style={{ background: iconBg }}>{icon}</div>
-      <div style={{ flex: 1 }}>
-        <div className="at-list-label">{label}</div>
-        {sub && <div className="at-list-sub">{sub}</div>}
+    <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3.5 last:border-b-0">
+      <span
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-lg"
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+          {title}
+        </p>
+
+        <p className="mt-1 truncate text-sm font-extrabold text-slate-900">
+          {value}
+        </p>
       </div>
-      {right ?? <span className="at-chevron">›</span>}
+
+      {action}
     </div>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={[
+        'relative h-7 w-12 shrink-0 rounded-full transition focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100',
+        checked ? 'bg-emerald-600' : 'bg-slate-300',
+        disabled ? 'cursor-not-allowed opacity-60' : '',
+      ].join(' ')}
+      aria-label="Toggle order notifications"
+    >
+      <span
+        className={[
+          'absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
+          checked ? 'translate-x-6' : 'translate-x-1',
+        ].join(' ')}
+      />
+    </button>
+  );
+}
+
+function LoadingCard() {
+  return (
+    <div
+      className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm"
+      aria-hidden="true"
+    >
+      <div className="h-6 w-32 animate-pulse rounded bg-slate-100" />
+      <div className="mt-3 h-4 w-56 animate-pulse rounded bg-slate-100" />
+      <div className="mt-6 h-12 w-full animate-pulse rounded-2xl bg-slate-100" />
+      <div className="mt-3 h-12 w-full animate-pulse rounded-2xl bg-slate-100" />
+    </div>
+  );
+}
+
+function ErrorCard({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      className="rounded-3xl border border-rose-100 bg-rose-50 p-5"
+      role="alert"
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-rose-100 font-black text-rose-700"
+          aria-hidden="true"
+        >
+          !
+        </span>
+
+        <div className="min-w-0 flex-1">
+          <p className="font-black text-rose-900">
+            We couldn&apos;t load your account
+          </p>
+
+          <p className="mt-1 text-sm leading-6 text-rose-700">
+            {message}
+          </p>
+
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-3 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-black text-white hover:bg-rose-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-100"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SignOutModal({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCancel();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/50 p-4 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sign-out-title"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-2xl">
+          👋
+        </div>
+
+        <h2
+          id="sign-out-title"
+          className="mt-5 text-center text-xl font-black text-slate-950"
+        >
+          Sign out of AuroTap?
+        </h2>
+
+        <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-6 text-slate-500">
+          You can sign in again whenever you need your orders,
+          addresses, and account details.
+        </p>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-100"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="min-h-11 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-black text-white hover:bg-rose-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-100"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
+
+export default function CustomerAccountPage() {
+  const router = useRouter();
+  const pathname =
+    usePathname() ?? '/customer/account';
+
+  const {
+    hydrated,
+    isLoggedIn,
+    isCustomer,
+    session,
+    updateSession,
+    logout,
+  } = useAuth();
+
+  const [profile, setProfile] =
+    useState<ProfilePayload | null>(null);
+
+  const [stats, setStats] =
+    useState<StatsPayload | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [fullName, setFullName] = useState('');
+  const [city, setCity] = useState('');
+
+  const [notificationsEnabled, setNotificationsEnabled] =
+    useState(true);
+
+  const [formErrors, setFormErrors] =
+    useState<FormErrors>({});
+
+  const [signOutOpen, setSignOutOpen] =
+    useState(false);
+
+  const [copied, setCopied] = useState<
+    'phone' | 'email' | null
+  >(null);
+
+  const ready =
+    hydrated && isLoggedIn && isCustomer;
+
+  /* ── SEO / account page should never compete with public SEO pages ── */
+  useEffect(() => {
+    document.title = 'My AuroTap Account';
+
+    let robots = document.querySelector(
+      'meta[name="robots"]'
+    ) as HTMLMetaElement | null;
+
+    if (!robots) {
+      robots = document.createElement('meta');
+      robots.name = 'robots';
+      document.head.appendChild(robots);
+    }
+
+    robots.content = 'noindex,nofollow';
+  }, []);
+
+  /* ── Auth guard ───────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!hydrated) return;
+
+    if (!isLoggedIn) {
+      router.replace(
+        `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+      );
+    }
+  }, [
+    hydrated,
+    isLoggedIn,
+    router,
+    pathname,
+  ]);
+
+  /* ── Load account data in parallel ───────────────────────────────── */
+  const load = useCallback(
+    async (showRefreshState = false) => {
+      if (!hydrated) return;
+
+      if (!isLoggedIn || !isCustomer) {
+        router.replace(
+          `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+        );
+        return;
+      }
+
+      if (showRefreshState) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError(null);
+
+      try {
+        const token = await getToken();
+
+        if (!token) {
+          clearSession();
+
+          router.replace(
+            `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+          );
+
+          return;
+        }
+
+        const headers = {
+          Authorization: `Bearer ${token}`,
+        };
+
+        const [profileResponse, statsResponse] =
+          await Promise.all([
+            fetch('/api/customer/profile', {
+              credentials: 'include',
+              headers,
+              cache: 'no-store',
+            }),
+            fetch('/api/customer/stats', {
+              credentials: 'include',
+              headers,
+              cache: 'no-store',
+            }),
+          ]);
+
+        if (
+          profileResponse.status === 401 ||
+          statsResponse.status === 401
+        ) {
+          clearSession();
+
+          router.replace(
+            `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+          );
+
+          return;
+        }
+
+        const profileJson =
+          await readJson<ApiEnvelope<ProfilePayload>>(
+            profileResponse
+          );
+
+        const statsJson =
+          await readJson<ApiEnvelope<StatsPayload>>(
+            statsResponse
+          );
+
+        if (
+          !profileResponse.ok ||
+          profileJson.success === false
+        ) {
+          throw new Error(
+            profileJson.error ??
+              'Could not load your profile.'
+          );
+        }
+
+        if (
+          !statsResponse.ok ||
+          statsJson.success === false
+        ) {
+          throw new Error(
+            statsJson.error ??
+              'Could not load your account activity.'
+          );
+        }
+
+        const nextProfile =
+          profileJson.data ?? null;
+
+        const nextStats =
+          statsJson.data ?? null;
+
+        setProfile(nextProfile);
+        setStats(nextStats);
+
+        const nextName =
+          nextProfile?.full_name?.trim() ?? '';
+
+        const nextCity =
+          nextProfile?.city?.trim() ?? '';
+
+        setFullName(nextName);
+        setCity(nextCity);
+
+        setNotificationsEnabled(
+          getNotificationPreference(
+            nextProfile?.settings
+          )
+        );
+      } catch (cause) {
+        const message =
+          cause instanceof Error
+            ? cause.message
+            : 'Could not load your account.';
+
+        setError(message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [
+      hydrated,
+      isLoggedIn,
+      isCustomer,
+      pathname,
+      router,
+    ]
+  );
+
+  useEffect(() => {
+    if (ready) {
+      void load();
+    }
+  }, [ready, load]);
+
+  /* ── Form state ──────────────────────────────────────────────────── */
+  const originalName =
+    profile?.full_name?.trim() ?? '';
+
+  const originalCity =
+    profile?.city?.trim() ?? '';
+
+  const originalNotifications =
+    getNotificationPreference(
+      profile?.settings
+    );
+
+  const hasChanges =
+    fullName.trim() !== originalName ||
+    city.trim() !== originalCity ||
+    notificationsEnabled !== originalNotifications;
+
+  const initials = useMemo(
+    () =>
+      getInitials(
+        profile?.full_name ??
+          session?.name ??
+          'AuroTap'
+      ),
+    [
+      profile?.full_name,
+      session?.name,
+    ]
+  );
+
+  const email =
+    session?.email?.trim() ?? '';
+
+  const phone =
+    profile?.phone?.trim() ??
+    session?.phone?.trim() ??
+    '';
+
+  const memberSince =
+    formatMemberSince(
+      stats?.member_since ??
+        profile?.created_at
+    );
+
+  const validateForm = (): boolean => {
+    const nextErrors: FormErrors = {};
+
+    const name = fullName.trim();
+    const selectedCity = city.trim();
+
+    if (name.length < 2) {
+      nextErrors.full_name =
+        'Enter at least 2 characters.';
+    } else if (name.length > 80) {
+      nextErrors.full_name =
+        'Name must be 80 characters or fewer.';
+    }
+
+    if (selectedCity.length < 2) {
+      nextErrors.city =
+        'Select your city.';
+    }
+
+    setFormErrors(nextErrors);
+
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  /* ── Save ────────────────────────────────────────────────────────── */
+  const handleSave = async () => {
+    if (!validateForm() || saving) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const token = await getToken();
+
+      if (!token) {
+        clearSession();
+
+        router.replace(
+          `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+        );
+
+        return;
+      }
+
+      const existingSettings =
+        profile?.settings ?? {};
+
+      const existingNotifications =
+        existingSettings.notifications ?? {};
+
+      /*
+       * IMPORTANT:
+       * The backend profile API accepts the nested
+       * `settings.notifications` structure.
+       *
+       * Do NOT send `notifications_enabled` as a new
+       * backend field because it is not part of the API
+       * whitelist.
+       */
+      const nextSettings: AccountSettings = {
+        ...existingSettings,
+        notifications: {
+          ...existingNotifications,
+          whatsapp: notificationsEnabled,
+          sms: notificationsEnabled,
+          email: notificationsEnabled,
+          push: notificationsEnabled,
+        },
+      };
+
+      const response = await fetch(
+        '/api/customer/profile',
+        {
+          method: 'PUT',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            full_name: fullName.trim(),
+            city: city.trim(),
+            settings: nextSettings,
+          }),
+        }
+      );
+
+      if (response.status === 401) {
+        clearSession();
+
+        router.replace(
+          `/auth/login?returnTo=${encodeURIComponent(pathname)}`
+        );
+
+        return;
+      }
+
+      const json =
+        await readJson<ApiEnvelope<ProfilePayload>>(
+          response
+        );
+
+      if (!response.ok || json.success === false) {
+        throw new Error(
+          json.error ??
+            'Could not save your profile.'
+        );
+      }
+
+      const savedProfile =
+        json.data ??
+        ({
+          ...profile,
+          full_name: fullName.trim(),
+          city: city.trim(),
+          settings: nextSettings,
+        } as ProfilePayload);
+
+      setProfile(savedProfile);
+
+      updateSession({
+        name:
+          savedProfile.full_name ??
+          session?.name ??
+          '',
+      });
+
+      setFormErrors({});
+
+      window.dispatchEvent(
+        new CustomEvent('aurotap-profile-saved')
+      );
+    } catch (cause) {
+      const message =
+        cause instanceof Error
+          ? cause.message
+          : 'Could not save your profile.';
+
+      setError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ── Clipboard feedback ──────────────────────────────────────────── */
+  useEffect(() => {
+    const onSuccess = (
+      event: Event
+    ) => {
+      const customEvent =
+        event as CustomEvent<string>;
+
+      const message =
+        customEvent.detail ?? 'Copied';
+
+      setCopied(
+        message.includes('email')
+          ? 'email'
+          : 'phone'
+      );
+
+      window.setTimeout(() => {
+        setCopied(null);
+      }, 1800);
+    };
+
+    const onFailed = () => {
+      setCopied(null);
+    };
+
+    window.addEventListener(
+      'aurotap-copy-success',
+      onSuccess
+    );
+
+    window.addEventListener(
+      'aurotap-copy-failed',
+      onFailed
+    );
+
+    return () => {
+      window.removeEventListener(
+        'aurotap-copy-success',
+        onSuccess
+      );
+
+      window.removeEventListener(
+        'aurotap-copy-failed',
+        onFailed
+      );
+    };
+  }, []);
+
+  const handleCopyPhone = async () => {
+    if (!phone) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        phone
+      );
+
+      setCopied('phone');
+
+      window.setTimeout(() => {
+        setCopied(null);
+      }, 1800);
+    } catch {
+      setCopied(null);
+    }
+  };
+
+  const handleCopyEmail = async () => {
+    if (!email) return;
+
+    try {
+      await navigator.clipboard.writeText(
+        email
+      );
+
+      setCopied('email');
+
+      window.setTimeout(() => {
+        setCopied(null);
+      }, 1800);
+    } catch {
+      setCopied(null);
+    }
+  };
+
+  /* ── States ──────────────────────────────────────────────────────── */
+  if (
+    !hydrated ||
+    (hydrated && !isLoggedIn)
+  ) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-sky-50 px-4">
+        <div className="text-center">
+          <div
+            className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-sky-200 border-t-sky-600"
+            aria-hidden="true"
+          />
+
+          <p className="mt-4 text-sm font-semibold text-slate-500">
+            Loading your account…
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isCustomer) {
+    return (
+      <main className="flex min-h-[100dvh] items-center justify-center bg-slate-50 px-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <div
+            className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-xl font-black text-rose-600"
+            aria-hidden="true"
+          >
+            !
+          </div>
+
+          <h1 className="mt-5 text-xl font-black text-slate-950">
+            Customer account required
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            This account area is only available to
+            customer accounts.
+          </p>
+
+          <Link
+            href="/"
+            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-black text-white hover:bg-slate-800"
+          >
+            Back to AuroTap
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <>
+      <style>{`
+        .aurotap-account {
+          min-height: 100dvh;
+          background:
+            radial-gradient(circle at top right, rgba(14,165,233,0.10), transparent 28%),
+            linear-gradient(180deg, #eff8ff 0%, #f8fbff 32%, #ffffff 100%);
+        }
+
+        .aurotap-account *,
+        .aurotap-account *::before,
+        .aurotap-account *::after {
+          box-sizing: border-box;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .aurotap-account *,
+          .aurotap-account *::before,
+          .aurotap-account *::after {
+            scroll-behavior: auto !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
+
+      <main className="aurotap-account pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        {/* ---------------------------------------------------------------- */}
+        {/* Header                                                           */}
+        {/* ---------------------------------------------------------------- */}
+        <header className="border-b border-sky-100 bg-white/90 backdrop-blur-xl">
+          <div className="mx-auto max-w-4xl px-4 pb-5 pt-4 sm:px-6 sm:pt-6 lg:px-8">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 rounded-lg text-[10px] font-black uppercase tracking-[0.18em] text-sky-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+                >
+                  <span aria-hidden="true">←</span>
+                  AuroTap Home
+                </Link>
+
+                <p className="mt-4 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  My account
+                </p>
+
+                <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  Account &amp; profile
+                </h1>
+
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Manage your personal details, preferences,
+                  and account activity.
+                </p>
+              </div>
+
+              <Link
+                href="/customer/home"
+                className="shrink-0 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-black text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+              >
+                Dashboard
+              </Link>
+            </div>
+
+            {/* Profile hero */}
+            <div className="mt-6 rounded-3xl bg-gradient-to-br from-[#092844] via-[#1155A6] to-[#0EA5E9] p-5 text-white shadow-lg shadow-sky-200/50 sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-[3px] border-white/40 bg-white/10 text-2xl font-black shadow-inner">
+                  {initials}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/55">
+                    Customer profile
+                  </p>
+
+                  <h2 className="mt-1 truncate text-2xl font-black sm:text-3xl">
+                    {loading
+                      ? 'Loading…'
+                      : profile?.full_name ||
+                        session?.name ||
+                        'Welcome'}
+                  </h2>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-white/70">
+                    <span>
+                      Member since {memberSince}
+                    </span>
+
+                    <span
+                      className="h-1 w-1 rounded-full bg-white/35"
+                      aria-hidden="true"
+                    />
+
+                    <span>
+                      {profile?.city || 'City not set'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/50">
+                    Account
+                  </p>
+
+                  <p className="mt-1 text-sm font-black text-white">
+                    Customer
+                  </p>
+
+                  <p className="mt-0.5 text-[11px] font-medium text-white/60">
+                    AuroTap
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Body                                                             */}
+        {/* ---------------------------------------------------------------- */}
+        <div className="mx-auto max-w-4xl px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
+          {error ? (
+            <div className="mb-5">
+              <ErrorCard
+                message={error}
+                onRetry={() => void load()}
+              />
+            </div>
+          ) : null}
+
+          {/* Activity */}
+          <section>
+            <SectionTitle
+              eyebrow="Overview"
+              title="Your activity"
+              description="A quick view of your AuroTap usage."
+            />
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard
+                icon="📦"
+                value={String(
+                  stats?.total_orders ?? 0
+                )}
+                label="Orders"
+                loading={loading}
+              />
+
+              <StatCard
+                icon="💧"
+                value={String(
+                  stats?.cans_ordered ?? 0
+                )}
+                label="Cans"
+                loading={loading}
+              />
+
+              <StatCard
+                icon="₹"
+                value={formatINR(
+                  stats?.total_spent ?? 0
+                )}
+                label="Total spent"
+                loading={loading}
+              />
+
+              <StatCard
+                icon="⭐"
+                value={
+                  stats?.avg_rating != null
+                    ? String(stats.avg_rating)
+                    : '—'
+                }
+                label="Your rating"
+                loading={loading}
+              />
+            </div>
+          </section>
+
+          {/* Profile */}
+          <section className="mt-6">
+            <SectionTitle
+              eyebrow="Personal information"
+              title="Profile details"
+              description="Keep your delivery information up to date."
+            />
+
+            {loading ? (
+              <LoadingCard />
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                {/* Editable */}
+                <div className="space-y-5 p-5 sm:p-6">
+                  <div>
+                    <label
+                      htmlFor="customer-full-name"
+                      className="text-xs font-black uppercase tracking-[0.14em] text-slate-500"
+                    >
+                      Full name
+                    </label>
+
+                    <input
+                      id="customer-full-name"
+                      value={fullName}
+                      onChange={(event) => {
+                        setFullName(
+                          event.target.value
+                        );
+
+                        if (formErrors.full_name) {
+                          setFormErrors((current) => ({
+                            ...current,
+                            full_name: undefined,
+                          }));
+                        }
+
+                        setError(null);
+                      }}
+                      autoComplete="name"
+                      maxLength={80}
+                      className={[
+                        'mt-2 min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition',
+                        'focus:bg-white focus:ring-4',
+                        formErrors.full_name
+                          ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-50'
+                          : 'border-slate-200 focus:border-sky-400 focus:ring-sky-50',
+                      ].join(' ')}
+                      placeholder="Enter your full name"
+                      aria-invalid={Boolean(
+                        formErrors.full_name
+                      )}
+                    />
+
+                    {formErrors.full_name ? (
+                      <p className="mt-1.5 text-xs font-bold text-rose-600">
+                        {formErrors.full_name}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="customer-city"
+                      className="text-xs font-black uppercase tracking-[0.14em] text-slate-500"
+                    >
+                      City
+                    </label>
+
+                    <select
+                      id="customer-city"
+                      value={city}
+                      onChange={(event) => {
+                        setCity(event.target.value);
+                        setFormErrors((current) => ({
+                          ...current,
+                          city: undefined,
+                        }));
+                        setError(null);
+                      }}
+                      className={[
+                        'mt-2 min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition',
+                        'focus:bg-white focus:ring-4',
+                        formErrors.city
+                          ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-50'
+                          : 'border-slate-200 focus:border-sky-400 focus:ring-sky-50',
+                      ].join(' ')}
+                      aria-invalid={Boolean(
+                        formErrors.city
+                      )}
+                    >
+                      <option value="">
+                        Select your city
+                      </option>
+
+                      {SERVICE_CITIES.map(
+                        (serviceCity) => (
+                          <option
+                            key={serviceCity}
+                            value={serviceCity}
+                          >
+                            {serviceCity}
+                          </option>
+                        )
+                      )}
+
+                      {city &&
+                      !SERVICE_CITIES.includes(
+                        city as (typeof SERVICE_CITIES)[number]
+                      ) ? (
+                        <option value={city}>
+                          {city}
+                        </option>
+                      ) : null}
+                    </select>
+
+                    {formErrors.city ? (
+                      <p className="mt-1.5 text-xs font-bold text-rose-600">
+                        {formErrors.city}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-900">
+                          Order notifications
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          Receive important updates about your
+                          bookings and orders.
+                        </p>
+                      </div>
+
+                      <Toggle
+                        checked={
+                          notificationsEnabled
+                        }
+                        disabled={saving}
+                        onChange={(
+                          value
+                        ) => {
+                          setNotificationsEnabled(
+                            value
+                          );
+                          setError(null);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {hasChanges ? (
+                    <div className="flex flex-col gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-emerald-900">
+                          Unsaved changes
+                        </p>
+
+                        <p className="mt-1 text-xs text-emerald-700">
+                          Save when everything looks right.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFullName(
+                            originalName
+                          );
+
+                          setCity(
+                            originalCity
+                          );
+
+                          setNotificationsEnabled(
+                            originalNotifications
+                          );
+
+                          setFormErrors({});
+                          setError(null);
+                        }}
+                        disabled={saving}
+                        className="rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs font-black text-emerald-800 hover:bg-emerald-50 disabled:opacity-60"
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {hasChanges ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleSave()
+                      }
+                      disabled={saving}
+                      className="flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {saving
+                        ? 'Saving changes…'
+                        : 'Save changes'}
+                    </button>
+                  ) : null}
+                </div>
+
+                {/* Read-only identity */}
+                <div className="border-t border-slate-100">
+                  <ReadOnlyRow
+                    icon="✉️"
+                    title="Login email"
+                    value={
+                      email || 'Not available'
+                    }
+                    action={
+                      email ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyEmail()
+                          }
+                          className="rounded-lg px-2.5 py-2 text-[11px] font-black text-sky-700 hover:bg-sky-50"
+                        >
+                          {copied === 'email'
+                            ? 'Copied'
+                            : 'Copy'}
+                        </button>
+                      ) : null
+                    }
+                  />
+
+                  <ReadOnlyRow
+                    icon="📱"
+                    title="Mobile number"
+                    value={
+                      maskPhone(phone)
+                    }
+                    action={
+                      phone ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyPhone()
+                          }
+                          className="rounded-lg px-2.5 py-2 text-[11px] font-black text-sky-700 hover:bg-sky-50"
+                        >
+                          {copied === 'phone'
+                            ? 'Copied'
+                            : 'Copy'}
+                        </button>
+                      ) : null
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Navigation */}
+          <section className="mt-6">
+            <SectionTitle
+              eyebrow="Manage"
+              title="Account shortcuts"
+              description="Quick access to the things you use most."
+            />
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <MenuRow
+                href="/"
+                icon="🏠"
+                title="AuroTap home"
+                description="Return to the public AuroTap homepage"
+              />
+
+              <MenuRow
+                href="/customer/home"
+                icon="📊"
+                title="Customer dashboard"
+                description="Orders, activity, tracking, and quick actions"
+              />
+
+              <MenuRow
+                href="/customer/addresses"
+                icon="📍"
+                title="My addresses"
+                description="Manage your saved delivery locations"
+              />
+
+              <MenuRow
+                href="/customer/history"
+                icon="📋"
+                title="Order history"
+                description="View your previous and current orders"
+              />
+
+              <MenuRow
+                href="/pricing"
+                icon="🏷️"
+                title="Pricing"
+                description="Review available service pricing"
+              />
+            </div>
+          </section>
+
+          {/* Language */}
+          <section className="mt-6">
+            <SectionTitle
+              eyebrow="Preferences"
+              title="Language"
+              description="Choose how AuroTap is displayed."
+            />
+
+            <div className="flex items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-slate-50 text-lg"
+                  aria-hidden="true"
+                >
+                  🌐
+                </span>
+
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    App language
+                  </p>
+
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    English or Hindi
+                  </p>
+                </div>
+              </div>
+
+              <LanguageToggle />
+            </div>
+          </section>
+
+          {/* Support */}
+          <section className="mt-6">
+            <SectionTitle
+              eyebrow="Need help?"
+              title="AuroTap support"
+              description="Reach us when you need assistance with your account or order."
+            />
+
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex min-h-[72px] items-center gap-3 border-b border-slate-100 px-4 py-3.5 hover:bg-slate-50"
+              >
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-lg"
+                  aria-hidden="true"
+                >
+                  💬
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-slate-900">
+                    WhatsApp support
+                  </span>
+
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                    Send us a message about your account
+                  </span>
+                </span>
+
+                <span
+                  className="text-lg text-slate-300 group-hover:text-emerald-500"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </a>
+
+              <a
+                href={`tel:${SUPPORT_PHONE}`}
+                className="group flex min-h-[72px] items-center gap-3 border-b border-slate-100 px-4 py-3.5 hover:bg-slate-50"
+              >
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-sky-50 text-lg"
+                  aria-hidden="true"
+                >
+                  📞
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-slate-900">
+                    Call support
+                  </span>
+
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                    {SUPPORT_PHONE}
+                  </span>
+                </span>
+
+                <span
+                  className="text-lg text-slate-300 group-hover:text-sky-500"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </a>
+
+              <Link
+                href="/terms"
+                className="group flex min-h-[72px] items-center gap-3 px-4 py-3.5 hover:bg-slate-50"
+              >
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-lg"
+                  aria-hidden="true"
+                >
+                  📄
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-extrabold text-slate-900">
+                    Terms &amp; Privacy
+                  </span>
+
+                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
+                    Review AuroTap policies
+                  </span>
+                </span>
+
+                <span
+                  className="text-lg text-slate-300 group-hover:text-violet-500"
+                  aria-hidden="true"
+                >
+                  →
+                </span>
+              </Link>
+            </div>
+          </section>
+
+          {/* Refresh */}
+          <div className="mt-6 flex justify-center">
+            <button
+              type="button"
+              onClick={() =>
+                void load(true)
+              }
+              disabled={refreshing}
+              className="inline-flex min-h-9 items-center rounded-xl px-3 text-xs font-bold text-slate-400 hover:bg-white hover:text-slate-600 disabled:opacity-60"
+            >
+              <span
+                className={
+                  refreshing
+                    ? 'mr-1.5 animate-spin'
+                    : 'mr-1.5'
+                }
+                aria-hidden="true"
+              >
+                ↻
+              </span>
+
+              {refreshing
+                ? 'Refreshing…'
+                : 'Refresh account'}
+            </button>
+          </div>
+
+          {/* Sign out */}
+          <section className="mt-4">
+            <button
+              type="button"
+              onClick={() =>
+                setSignOutOpen(true)
+              }
+              className="w-full rounded-2xl border border-rose-200 bg-white px-4 py-3.5 text-sm font-black text-rose-700 transition hover:bg-rose-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-100"
+            >
+              Sign out
+            </button>
+          </section>
+
+          <footer className="px-2 pb-4 pt-5 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-300">
+              AUROTAP.IN
+            </p>
+
+            <p className="mt-1 text-[11px] font-medium text-slate-400">
+              Your account, orders, and preferences in one place.
+            </p>
+          </footer>
+        </div>
+      </main>
+
+      {signOutOpen ? (
+        <SignOutModal
+          onCancel={() =>
+            setSignOutOpen(false)
+          }
+          onConfirm={() => {
+            setSignOutOpen(false);
+            logout({ redirectTo: '/' });
+          }}
+        />
+      ) : null}
+
+      <BottomNav />
+    </>
   );
 }
