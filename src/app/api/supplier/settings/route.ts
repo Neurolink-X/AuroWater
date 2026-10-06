@@ -5,7 +5,11 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
 const settingsSchema = z.object({
+  is_online: z.boolean().optional(),
   price_per_can: z.number().min(1).max(1000).optional(),
+  service_radius: z.number().int().min(1).max(100).optional(),
+  zone_radius_km: z.number().int().min(1).max(100).optional(),
+  is_primary_zone: z.boolean().optional(),
   upi_id: z.string().min(3).optional(),
   bank_account: z.string().min(6).optional(),
   ifsc: z.string().min(6).optional(),
