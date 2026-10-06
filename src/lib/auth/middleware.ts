@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTokenFromRequest, verifyToken } from './jwt';
 
+type AuthenticatedUser = NonNullable<ReturnType<typeof verifyToken>>;
+
 export async function withAuth(
   req: NextRequest,
-  handler: (req: NextRequest, user: any) => Promise<NextResponse>,
+  handler: (req: NextRequest, user: AuthenticatedUser) => Promise<NextResponse>,
   requiredRole?: string
 ): Promise<NextResponse> {
   const token = getTokenFromRequest(req);
