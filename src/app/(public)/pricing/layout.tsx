@@ -1,9 +1,9 @@
 import { pageMeta } from '@/lib/seo';
 
 export const metadata = pageMeta(
-  'Water Can Subscription Plans | ₹10–₹12/can | AuroWater',
-  'Simple water can plans from ₹10–₹12 per can with same-day delivery in UP.',
-  '/pricing'
+  'AuroWater Pricing | Water Delivery & Home Services',
+  'View current AuroWater water-can rates, service starting prices, platform fees and checkout pricing rules.',
+  '/pricing',
 );
 
 export default function PricingLayout({ children }: { children: React.ReactNode }) {
