@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 
 import { createServiceClient } from '@/utils/supabase/server';
+
+type SupabaseServiceClient = ReturnType<typeof createServiceClient>;
 import { dispatchOrder } from '@/lib/dispatch';
 import {
   addSubscriptionFrequency,
@@ -89,7 +91,7 @@ function orderTotal(
 }
 
 async function notifyCustomer(
-  db: any,
+  db: SupabaseServiceClient,
   customerId: string,
   title: string,
   body: string,
