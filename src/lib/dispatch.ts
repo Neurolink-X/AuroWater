@@ -497,12 +497,10 @@ export async function acceptAssignment(orderId: string, supplierId: string): Pro
       }
     }
 
-    const { data: supplierRateRow } = await db
-      .from('settings')
-      .select('value')
-      .eq('key', 'supplier_commission')
-      .maybeSingle();
-    const rawSupplierRate = Number(supplierRateRow?.value ?? 30);
+    const { data: supplierRateRow } = await db.rpc('get_supplier_commission_rate', {
+      p_supplier_id: supplierId,
+    });
+    const rawSupplierRate = Number(supplierRateRow ?? 30);
     const supplierShare = Math.max(0, Math.min(1, rawSupplierRate > 1 ? rawSupplierRate / 100 : rawSupplierRate));
     const totalAmount = Math.max(0, Number(current.total_amount ?? 0));
     const supplierPayout = Number(current.supplier_payout ?? 0) > 0
