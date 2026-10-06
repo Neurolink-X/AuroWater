@@ -527,6 +527,7 @@ if (!serviceability.serviceable) {
       .insert({
         customer_id: customerId,
         service_type: service_type_key,
+        service_type_id: st.id,
         status: 'PENDING',
         subscription_id: subscriptionId,
         can_count: qty,
