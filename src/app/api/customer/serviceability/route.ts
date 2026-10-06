@@ -1,48 +1,70 @@
 import { NextRequest } from 'next/server';
-import { jsonErr, jsonOk } from '@/lib/api/json-response';
+
+import {
+  jsonErr,
+  jsonOk,
+} from '@/lib/api/json-response';
+
 import {
   requireRole,
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
-import { resolveServiceability } from '@/lib/zones';
+
+import {
+  resolveServiceability,
+} from '@/lib/zones';
 
 export const runtime = 'nodejs';
 
-const BUYER_LOCATION_ROLES = [
+const SERVICEABILITY_ROLES = [
   'customer',
   'supplier',
   'technician',
-] as const;
+];
+
+const MAX_ADDRESS_ID_LENGTH = 100;
+const MAX_SERVICE_KEY_LENGTH = 100;
 
 export async function GET(req: NextRequest) {
-  // ------------------------------------------------------------
-  // 1. Authenticate
-  // ------------------------------------------------------------
+  // ============================================================
+  // 1. AUTHENTICATION
+  // ============================================================
   const auth = await requireSupabaseAuth(req);
 
   if (!auth.ok) {
     return auth.response;
   }
 
-  // ------------------------------------------------------------
-  // 2. All operational users can check serviceability.
+  // ============================================================
+  // 2. AUTHORIZATION
   //
-  // CUSTOMER   → customer booking
-  // SUPPLIER   → supplier can also buy/book water
-  // TECHNICIAN → technician needs job/service location context
+  // CUSTOMER:
+  //   Can check serviceability before booking.
+  //
+  // SUPPLIER:
+  //   Can buy/book water for themselves.
+  //
+  // TECHNICIAN:
+  //   Can check service/location context for assigned work.
   //
   // IMPORTANT:
-  // This does NOT give suppliers/technicians permission
-  // to fulfill orders. Fulfillment APIs must have their own
-  // authorization and approval checks.
-  // ------------------------------------------------------------
-  if (!requireRole(auth.ctx, BUYER_LOCATION_ROLES)) {
+  // This endpoint ONLY answers:
+  // "Can this address receive this service?"
+  //
+  // It does NOT give anyone permission to:
+  // - accept orders
+  // - fulfill orders
+  // - modify orders
+  // - receive payouts
+  // - access another user's address
+  // ============================================================
+  if (!requireRole(auth.ctx, SERVICEABILITY_ROLES)) {
     return jsonErr('Forbidden', 403);
   }
 
-  // ------------------------------------------------------------
-  // 3. Validate address ID
-  // ------------------------------------------------------------
+  // ============================================================
+  // 3. READ & VALIDATE QUERY PARAMETERS
+  // ============================================================
   const searchParams = new URL(req.url).searchParams;
 
   const addressId =
@@ -52,28 +74,58 @@ export async function GET(req: NextRequest) {
     searchParams.get('service')?.trim() || undefined;
 
   if (!addressId) {
-    return jsonErr('address_id is required', 400);
+    return jsonErr(
+      'address_id is required',
+      400,
+    );
   }
 
-  // ------------------------------------------------------------
-  // 4. Load the authenticated user's address
-  //
-  // NEVER trust customer_id/user_id supplied by the browser.
-  //
-  // Existing schema uses customer_id as the address owner.
-  // ------------------------------------------------------------
-  const { data: address, error } =
-    await auth.ctx.supabase
-      .from('addresses')
-      .select('*')
-      .eq('id', addressId)
-      .eq('customer_id', auth.ctx.profile.id)
-      .maybeSingle();
+  if (addressId.length > MAX_ADDRESS_ID_LENGTH) {
+    return jsonErr(
+      'Invalid address ID',
+      400,
+    );
+  }
 
-  if (error) {
+  if (
+    service &&
+    service.length > MAX_SERVICE_KEY_LENGTH
+  ) {
+    return jsonErr(
+      'Invalid service',
+      400,
+    );
+  }
+
+  // ============================================================
+  // 4. LOAD ONLY THE AUTHENTICATED USER'S ADDRESS
+  //
+  // AuroWater's current addresses schema uses:
+  //
+  //     addresses.user_id
+  //
+  // NOT:
+  //
+  //     addresses.customer_id
+  //
+  // Never accept user_id/customer_id from the browser.
+  //
+  // The authenticated profile is the ownership boundary.
+  // ============================================================
+  const {
+    data: address,
+    error: addressError,
+  } = await auth.ctx.supabase
+    .from('addresses')
+    .select('*')
+    .eq('id', addressId)
+    .eq('user_id', auth.ctx.profile.id)
+    .maybeSingle();
+
+  if (addressError) {
     console.error(
       '[serviceability] address lookup failed:',
-      error,
+      addressError,
     );
 
     return jsonErr(
@@ -83,12 +135,28 @@ export async function GET(req: NextRequest) {
   }
 
   if (!address) {
-    return jsonErr('Address not found', 404);
+    return jsonErr(
+      'Address not found',
+      404,
+    );
   }
 
-  // ------------------------------------------------------------
-  // 5. Resolve serviceability server-side
-  // ------------------------------------------------------------
+  // ============================================================
+  // 5. SERVER-SIDE SERVICEABILITY RESOLUTION
+  //
+  // resolveServiceability() handles:
+  //
+  // 1. Configured service zones
+  // 2. Pincode matching
+  // 3. Coordinate/radius matching
+  // 4. Catch-all zones
+  // 5. AVAILABLE / LIMITED / COMING_SOON /
+  //    TEMPORARILY_UNAVAILABLE
+  // 6. Service-specific restrictions
+  // 7. Legacy city/geofence fallback
+  //
+  // The browser never decides the final result.
+  // ============================================================
   try {
     const result = await resolveServiceability(
       address as Record<string, unknown>,
@@ -97,8 +165,10 @@ export async function GET(req: NextRequest) {
 
     return jsonOk(result);
   } catch (error) {
+    // resolveServiceability is designed not to throw,
+    // but keep this boundary for future-proofing.
     console.error(
-      '[serviceability] resolution failed:',
+      '[serviceability] unexpected resolution error:',
       error,
     );
 
@@ -108,47 +178,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-// import { NextRequest } from 'next/server';
-// import { jsonErr, jsonOk } from '@/lib/api/json-response';
-// import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
-// import { resolveServiceability } from '@/lib/zones';
-
-// /**
-//  * GET /api/customer/serviceability?address_id=...&service=water_can
-//  * The server loads the customer's own address, so the result cannot be spoofed from the browser.
-//  */
-// export async function GET(req: NextRequest) {
-//   const auth = await requireSupabaseAuth(req);
-//   if (!auth.ok) return auth.response;
-//   if (!requireRole(auth.ctx, 'customer')) return jsonErr('Forbidden', 403);
-
-//   const sp = new URL(req.url).searchParams;
-//   const addressId = sp.get('address_id') ?? '';
-//   const service = sp.get('service') ?? undefined;
-//   if (!addressId) return jsonErr('address_id is required', 400);
-
-//   const { data: addr, error } = await auth.ctx.supabase
-//     .from('addresses')
-//     .select('*')
-//     .eq('id', addressId)
-//     .eq('customer_id', auth.ctx.profile.id)
-//     .maybeSingle();
-
-//   if (error) {
-//     console.error('[serviceability] address lookup failed:', error);
-//     return jsonErr('Could not check this address right now', 500);
-//   }
-//   if (!addr) return jsonErr('Address not found', 404);
-
-//   const result = await resolveServiceability(addr as Record<string, unknown>, service);
-//   return jsonOk(result);
-// }
