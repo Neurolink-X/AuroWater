@@ -341,22 +341,28 @@ export default function TermsPage() {
                 contact.
               </p>
 
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <Link
-                  href="/contact"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-cyan-800"
+                  href="/contact?subject=general"
+                  className="group inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl bg-cyan-700 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-800 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-cyan-100"
                 >
-                  <Mail className="h-4 w-4" aria-hidden="true" />
-                  Contact support
+                  <span className="flex items-center gap-2.5">
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    Contact support
+                  </span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </Link>
 
-                <a
-                  href={'mailto:' + SECURITY_EMAIL + '?subject=AuroTap%20Security%20Report'}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-cyan-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                <Link
+                  href="/security#report-vulnerability"
+                  className="group inline-flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-cyan-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-700 transition hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-cyan-50/40 hover:shadow-sm focus:outline-none focus:ring-4 focus:ring-cyan-100"
                 >
-                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-                  Security reporting
-                </a>
+                  <span className="flex items-center gap-2.5">
+                    <ShieldCheck className="h-4 w-4 text-cyan-700" aria-hidden="true" />
+                    Security reporting
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-cyan-700 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                </Link>
               </div>
             </section>
 
