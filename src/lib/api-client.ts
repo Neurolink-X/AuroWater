@@ -547,6 +547,48 @@ export async function customerServiceability(
 }
 
 
+export type CustomerSubscription = {
+  id: string;
+  customer_id: string;
+  address_id: string;
+  first_order_id: string | null;
+  last_order_id: string | null;
+  quantity: number;
+  frequency: string;
+  status: 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+  start_date: string;
+  next_order_date: string;
+  preferred_time_slot: string;
+  preferred_start_time: string;
+  preferred_end_time: string;
+  payment_method: 'cash' | 'upi';
+  price_per_can: number;
+  convenience_fee: number;
+  gst_rate: number;
+  notes: string | null;
+  pause_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function customerSubscriptionsList(): Promise<CustomerSubscription[]> {
+  return apiFetchAuth<CustomerSubscription[]>('/customer/subscriptions');
+}
+
+export async function customerSubscriptionUpdate(
+  id: string,
+  action: 'pause' | 'resume' | 'cancel'
+): Promise<CustomerSubscription> {
+  return apiFetchAuth<CustomerSubscription>(
+    `/customer/subscriptions/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
+    }
+  );
+}
+
+
 export async function reverseGeocode(
   lat: number,
   lng: number
