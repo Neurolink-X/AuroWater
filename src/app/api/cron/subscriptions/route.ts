@@ -303,6 +303,17 @@ export async function GET(
           : null;
 
       if (!orderId) {
+        const { data: serviceType } = await db
+          .from('service_types')
+          .select('id')
+          .eq('key', 'water_can')
+          .maybeSingle();
+
+        if (!serviceType?.id) {
+          skipped += 1;
+          continue;
+        }
+
         const {
           base,
           gst,
@@ -383,6 +394,8 @@ export async function GET(
                 subscription.customer_id,
               service_type:
                 'water_can',
+              service_type_id:
+                serviceType.id,
               status:
                 'PENDING',
               subscription_id:
