@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { data: before, error: bErr } = await sb
     .from('orders')
-    .select('id, supplier_id, status, customer_id, can_quantity')
+    .select('id, supplier_id, status, customer_id, can_quantity, accepted_at')
     .eq('id', id)
     .maybeSingle();
   if (bErr) return jsonErr(bErr.message, 502);
