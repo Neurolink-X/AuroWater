@@ -1,9 +1,14 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import TechnicianDashboard from '@/app/technician/dashboard/page';
-
+/**
+ * Legacy compatibility route.
+ *
+ * Plumbing is a technician service/capability, not a separate
+ * platform role.
+ *
+ * Keep this route temporarily so old bookmarks/links do not
+ * break, but send the user to the canonical technician workspace.
+ */
 export default function PlumberDashboard() {
-  // For now, plumbers share the technician workspace and APIs.
-  return <TechnicianDashboard />;
+  redirect('/technician/dashboard');
 }
-
