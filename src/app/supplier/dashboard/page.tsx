@@ -31,7 +31,6 @@ import {
   type SupplierEarningsSummary,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
-import { safeGet, safeSet } from '@/lib/storage';
 
 type TabKey =
   | 'overview'
@@ -154,37 +153,56 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const FLEET_KEY = 'aurowater_supplier_fleet';
-const PROFILE_KEY = 'aurowater_supplier_profile';
-const DOCS_KEY = 'aurowater_supplier_docs';
-
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-function mapApiDocument(
-  row: Awaited<ReturnType<typeof supplierDocumentsList>>[number],
-  meta: { key: string; label: string; required: boolean },
-): SupplierDoc {
+function mapApiProfile(
+  p: Awaited<ReturnType<typeof supplierProfileGet>>,
+): SupplierProfile {
+  const price = Number(p.business_name ? 0 : 0);
   return {
-    ...meta,
-    documentId: row.id,
-    fileName: row.file_name,
-    fileSizeKb: Math.max(1, Math.round(Number(row.file_size_bytes) / 1024)),
-    status: row.status,
-    rejectionReason: row.rejection_reason,
+    businessName: p.business_name ?? '',
+    ownerName: p.full_name ?? '',
+    gst: p.gstin ?? '',
+    phone: p.phone ?? '',
+    email: p.email ?? '',
+    serviceCities: p.service_cities ?? [],
+    aurotapId: p.aurotap_id ?? '',
+    prices: {
+      '1000L': price,
+      '3000L': price,
+      '5000L': price,
+    },
   };
 }
 
-function safeParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
+function mapApiFleet(
+  rows: Awaited<ReturnType<typeof supplierFleetList>>,
+): Tanker[] {
+  return rows.map((row) => ({
+    id: row.vehicle_number,
+    name: row.vehicle_name ?? `Vehicle ${row.vehicle_number}`,
+    size:
+      row.capacity_litres >= 10000
+        ? '10000L'
+        : row.capacity_litres >= 5000
+          ? '5000L'
+          : row.capacity_litres >= 3000
+            ? '3000L'
+            : '1000L',
+    status: row.status === 'inactive' ? 'maintenance' : row.status,
+    price: Number(row.price_per_trip ?? 0),
+    driver: row.driver_name ?? '',
+  }));
 }
 
-function seedFleet(): Tanker[] {
-  return [];
+function mapDocs(
+  rows: Awaited<ReturnType<typeof supplierDocumentsList>>,
+): SupplierDoc[] {
+  const definitions = seedDocs();
+  return definitions.map((definition) => {
+    const row = rows.find((item) => item.document_type === definition.key);
+    return row ? mapApiDocument(row, definition) : definition;
+  });
 }
 
 function seedProfile(session?: { name?: string; email?: string; phone?: string; aurotapId?: string }): SupplierProfile {
@@ -231,7 +249,9 @@ export default function SupplierDashboardPage() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(() => seedProfile(session ?? undefined));
+  const [profileSaving, setProfileSaving] = React.useState(false);
   const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
+  const [documentsSaving, setDocumentsSaving] = React.useState(false);
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
   const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
@@ -241,13 +261,16 @@ export default function SupplierDashboardPage() {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, monthEarn, todayEarn, weekEarn, settingsResult, stockResult] = await Promise.allSettled([
+      const [list, monthEarn, todayEarn, weekEarn, settingsResult, stockResult, profileResult, fleetResult, documentsResult] = await Promise.allSettled([
         supplierOrdersList(),
         supplierEarningsSummary('month'),
         supplierEarningsSummary('today'),
         supplierEarningsSummary('week'),
         supplierSettingsGet(),
         supplierStockGet(),
+        supplierProfileGet(),
+        supplierFleetList(),
+        supplierDocumentsList(),
       ]);
 
       let primaryErr: string | null = null;
@@ -278,6 +301,24 @@ export default function SupplierDashboardPage() {
         toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
       }
 
+      if (profileResult.status === 'fulfilled') {
+        setProfile(mapApiProfile(profileResult.value));
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier profile: ${getApiErrorMessage(profileResult.reason)}`);
+      }
+
+      if (fleetResult.status === 'fulfilled') {
+        setFleet(mapApiFleet(fleetResult.value));
+      } else if (!primaryErr) {
+        toast.error(`Could not load fleet: ${getApiErrorMessage(fleetResult.reason)}`);
+      }
+
+      if (documentsResult.status === 'fulfilled') {
+        setDocs(mapDocs(documentsResult.value));
+      } else if (!primaryErr) {
+        toast.error(`Could not load documents: ${getApiErrorMessage(documentsResult.reason)}`);
+      }
+
       if (primaryErr) setBoardError(primaryErr);
     } catch (e) {
       setBoardError(getApiErrorMessage(e));
@@ -287,35 +328,6 @@ export default function SupplierDashboardPage() {
       setRefreshing(false);
     }
   }, []);
-
-  React.useEffect(() => {
-    const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
-    const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
-    const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
-
-    const legacyDemoProfile =
-      p?.businessName === 'Auro Water Kanpur' ||
-      p?.gst === '09ABCDE1234F1Z5' ||
-      p?.email === 'supplier@aurowater.in';
-
-    const legacyDemoFleet =
-      Array.isArray(f) && f.some((item) => /^TK-00[1-3]$/.test(item.id));
-
-    const legacyDemoDocs =
-      Array.isArray(d) && d.some((doc) => ['gst_cert.pdf', 'aadhaar_owner.jpg'].includes(doc.fileName ?? ''));
-
-    const nextFleet = legacyDemoFleet ? seedFleet() : (Array.isArray(f) ? f : seedFleet());
-    const nextProfile = legacyDemoProfile ? seedProfile(session ?? undefined) : (p ?? seedProfile(session ?? undefined));
-    const nextDocs = legacyDemoDocs ? seedDocs() : (Array.isArray(d) ? d : seedDocs());
-
-    setFleet(nextFleet);
-    setProfile(nextProfile);
-    setDocs(nextDocs);
-
-    safeSet(FLEET_KEY, JSON.stringify(nextFleet));
-    safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
-    safeSet(DOCS_KEY, JSON.stringify(nextDocs));
-  }, [session]);
 
   React.useEffect(() => {
     if (!authHydrated || !isLoggedIn || !isSupplier) return;
@@ -348,21 +360,7 @@ export default function SupplierDashboardPage() {
     };
   }, [session?.userId, fetchSupplierBoard]);
 
-  const persistOrders = (next: SupplierOrder[]) => {
-    setOrders(next);
-  };
-  const persistFleet = (next: Tanker[]) => {
-    setFleet(next);
-    safeSet(FLEET_KEY, JSON.stringify(next));
-  };
-  const persistProfile = (next: SupplierProfile) => {
-    setProfile(next);
-    safeSet(PROFILE_KEY, JSON.stringify(next));
-  };
-  const persistDocs = (next: SupplierDoc[]) => {
-    setDocs(next);
-    safeSet(DOCS_KEY, JSON.stringify(next));
-  };
+  const persistOrders = (next: SupplierOrder[]) => setOrders(next);
 
   const filteredOrders = React.useMemo(() => {
     if (orderFilter === 'all') return orders;
