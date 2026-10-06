@@ -52,6 +52,19 @@ export async function PUT(req: NextRequest) {
   if (!parsed.success) return jsonErr(parsed.error.issues[0]?.message ?? 'Invalid payload', 422);
 
   const supplier_id = auth.ctx.profile.id;
+
+  if (parsed.data.cans_available !== undefined) {
+    const { data: existing } = await auth.ctx.supabase
+      .from('supplier_stock')
+      .select('reserved_cans')
+      .eq('supplier_id', supplier_id)
+      .maybeSingle();
+    const reserved = Math.max(0, Number(existing?.reserved_cans ?? 0));
+    if (parsed.data.cans_available < reserved) {
+      return jsonErr(`Available stock cannot be lower than ${reserved} cans currently reserved for accepted orders.`, 409);
+    }
+  }
+
   const { data, error } = await auth.ctx.supabase
     .from('supplier_stock')
     .upsert(
