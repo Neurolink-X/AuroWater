@@ -98,7 +98,7 @@ export interface Order {
   service_type_id: number;
   technician_id?: number;
   zone_id?: number;
-  service_details?: any;
+  service_details?: Record<string, unknown>;
   base_price: number;
   distance_factor: number;
   subtotal: number;
