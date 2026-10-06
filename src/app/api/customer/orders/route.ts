@@ -10,6 +10,8 @@ import {
 import { resolveServiceability } from '@/lib/zones';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder } from '@/lib/dispatch';
+import { createServiceClient } from '@/utils/supabase/server';
+import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
 
 /*
  * Real `orders` columns used here:
@@ -249,30 +251,55 @@ if (!serviceability.serviceable) {
   let qty: number | null = null;
   let base_amount: number;
 
+  let waterUnitPrice: number | null = null;
+  let subscriptionFrequency: string | null = null;
+
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
     const defPrice = Number(flat.default_can_price);
-    const unit =
-      isSubscription && Number.isFinite(subPrice) && subPrice > 0
-        ? subPrice
-        : Number.isFinite(defPrice)
-          ? defPrice
-          : Number(st.base_price) || 12;
+    const bulkPrice = Number(flat.bulk_can_price);
+    const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
 
-    // Per-order limits come from settings: one-time orders vs subscriptions
     const maxOneTime = Math.max(1, Math.floor(Number(flat.max_cans_per_order)) || 50);
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
     const cap = isSubscription ? maxSub : maxOneTime;
-
     const requested = Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1;
+
     if (requested > cap) {
       return jsonErr(
         `You can order up to ${cap} cans at a time${isSubscription ? '' : '. For larger quantities choose a subscription'}.`,
         400
       );
     }
+
+    if (isSubscription && !isSubscriptionFrequency(body.can_frequency)) {
+      return jsonErr('Choose a valid subscription frequency', 400);
+    }
+
+    if (
+      isSubscription &&
+      str(body.payment_method) &&
+      !['cash', 'upi'].includes(String(body.payment_method).toLowerCase())
+    ) {
+      return jsonErr(
+        'Recurring water deliveries currently support Cash or UPI payment per delivery.',
+        400
+      );
+    }
+
     qty = Math.max(1, requested);
-    base_amount = round2(qty * unit);
+
+    waterUnitPrice =
+      isSubscription && Number.isFinite(subPrice) && subPrice > 0
+        ? subPrice
+        : !isSubscription && qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
+          ? bulkPrice
+          : Number.isFinite(defPrice)
+            ? defPrice
+            : Number(st.base_price) || 12;
+
+    base_amount = round2(qty * waterUnitPrice);
+    subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
   } else {
     base_amount = Number(body.base_amount ?? 0);
     if (!Number.isFinite(base_amount) || base_amount < 0) base_amount = Number(st.base_price);
@@ -369,6 +396,10 @@ if (!serviceability.serviceable) {
       status: 'PENDING',
       zone_id: serviceability.zone?.id ?? null,
       can_count: qty,
+      can_price_per_unit: isWater ? waterUnitPrice : null,
+      can_order_type: isWater ? (isSubscription ? 'subscription' : 'one_time') : null,
+      can_frequency: isWater ? subscriptionFrequency : null,
+      subscription_id: null,
       total_amount: total,
       platform_fee: convenience,
       final_amount: total,
@@ -394,8 +425,133 @@ if (!serviceability.serviceable) {
   }
 
   const orderId = String(order.id);
-  const label = typeof st.label === 'string' && st.label.trim() ? st.label : service_type_key.replace(/_/g, ' ');
+  const label = typeof st.label === 'string' && st.label.trim()
+    ? st.label
+    : service_type_key.replace(/_/g, ' ');
   const slotText = `${sdRaw ?? 'your slot'}${str(body.time_slot) ? ` · ${str(body.time_slot)}` : ''}`;
+
+  // ── Subscription setup ───────────────────────────────────────────────
+  // AuroTap subscriptions are recurring delivery plans, not silent auto-debits.
+  // Each recurring delivery becomes a separate order and is paid per delivery.
+  let subscriptionId: string | null = null;
+
+  if (
+    isWater &&
+    isSubscription &&
+    qty &&
+    waterUnitPrice &&
+    subscriptionFrequency &&
+    sdRaw &&
+    str(body.time_slot)
+  ) {
+    const slot = parseTimeSlot(String(body.time_slot));
+    const nextDate = addSubscriptionFrequency(
+      sdRaw,
+      subscriptionFrequency as any
+    );
+    const admin = createServiceClient();
+
+    const { data: subscription, error: subscriptionError } = await admin
+      .from('water_subscriptions')
+      .insert({
+        customer_id: customerId,
+        address_id: addr.id,
+        quantity: qty,
+        frequency: subscriptionFrequency,
+        status: 'ACTIVE',
+        start_date: sdRaw,
+        next_order_date: nextDate,
+        preferred_time_slot: String(body.time_slot),
+        preferred_start_time: slot.start,
+        preferred_end_time: slot.end,
+        payment_method: String(body.payment_method ?? 'cash').toLowerCase() === 'upi' ? 'upi' : 'cash',
+        price_per_can: waterUnitPrice,
+        convenience_fee: convenience,
+        gst_rate: gstRate,
+        notes: str(body.notes),
+      })
+      .select('id')
+      .single();
+
+    if (subscriptionError || !subscription) {
+      await admin.from('orders').delete().eq('id', orderId).eq('customer_id', customerId);
+      console.error('[orders] subscription creation failed', subscriptionError);
+      return jsonErr(
+        'We could not activate the recurring delivery plan. Your order was not confirmed. Please try again.',
+        500
+      );
+    }
+
+    subscriptionId = String(subscription.id);
+
+    const { error: linkError } = await auth.ctx.supabase
+      .from('orders')
+      .update({ subscription_id: subscriptionId })
+      .eq('id', orderId)
+      .eq('customer_id', customerId);
+
+    if (linkError) {
+      await admin.from('water_subscriptions').delete().eq('id', subscriptionId);
+      await admin.from('orders').delete().eq('id', orderId).eq('customer_id', customerId);
+      console.error('[orders] subscription link failed', linkError);
+      return jsonErr(
+        'We could not finish setting up your recurring delivery plan. Please try again.',
+        500
+      );
+    }
+
+    await admin
+      .from('water_subscriptions')
+      .update({ first_order_id: orderId, last_order_id: orderId })
+      .eq('id', subscriptionId);
+
+    // Keep the next delivery in the database before the customer leaves checkout.
+    const nextScheduledAt = scheduledAtIST(nextDate, slot.start);
+    const nextBase = round2(qty * waterUnitPrice);
+    const nextSubtotal = nextBase + convenience;
+    const nextGst = Math.round(nextSubtotal * gstRate);
+    const nextTotal = nextSubtotal + nextGst;
+
+    const { error: nextOrderError } = await admin
+      .from('orders')
+      .insert({
+        customer_id: customerId,
+        service_type: service_type_key,
+        status: 'PENDING',
+        subscription_id: subscriptionId,
+        can_count: qty,
+        can_price_per_unit: waterUnitPrice,
+        can_order_type: 'subscription',
+        can_frequency: subscriptionFrequency,
+        total_amount: nextTotal,
+        platform_fee: convenience,
+        final_amount: nextTotal,
+        base_amount: nextBase,
+        convenience_fee: convenience,
+        emergency_charge: 0,
+        gst_amount: nextGst,
+        address_snapshot,
+        payment_status: 'pending',
+        payment_method: String(body.payment_method ?? 'cash').toLowerCase() === 'upi' ? 'upi' : 'cash',
+        address: addressText || null,
+        address_id: addr.id,
+        is_emergency: false,
+        note: [
+          str(body.notes),
+          `Slot: ${String(body.time_slot)}`,
+          'Type: subscription',
+          `Frequency: ${subscriptionFrequency}`,
+        ].filter(Boolean).join(' | ') || null,
+        scheduled_date: nextDate,
+        scheduled_at: nextScheduledAt,
+      });
+
+    if (nextOrderError) {
+      // The active subscription is still valid. The daily scheduler can safely
+      // create the missing next order later, without duplicating a schedule.
+      console.error('[orders] next subscription order creation failed', nextOrderError);
+    }
+  }
 
   // ── Supplier dispatch (water cans): nearest eligible supplier, with automatic fallback ──
   let supplierId: string | null = null;
@@ -417,8 +573,20 @@ if (!serviceability.serviceable) {
     'created'
   );
 
-  const out = withCompat(order);
-  return jsonOk(isWater && !supplierId ? { ...out, supplier_status: 'searching' } : out, 201);
+  const out = withCompat({
+    ...order,
+    subscription_id:
+      subscriptionId ??
+      (order as Record<string, unknown>).subscription_id ??
+      null,
+  });
+
+  return jsonOk(
+    isWater && !supplierId
+      ? { ...out, supplier_status: 'searching' }
+      : out,
+    201
+  );
 }
 
 
