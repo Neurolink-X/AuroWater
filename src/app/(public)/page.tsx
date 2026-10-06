@@ -235,18 +235,20 @@ function SectionHeading({
   eyebrow,
   title,
   text,
+  dark = false,
 }: {
   eyebrow: string;
   title: string;
   text: string;
+  dark?: boolean;
 }) {
   return (
     <div className="max-w-2xl">
-      <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-700">{eyebrow}</p>
-      <h2 className="mt-3 text-3xl font-black tracking-[-0.035em] text-slate-950 sm:text-4xl">
+      <p className={`text-xs font-black uppercase tracking-[0.22em] ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>{eyebrow}</p>
+      <h2 className={`mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl ${dark ? 'text-white' : 'text-slate-950'}`}>
         {title}
       </h2>
-      <p className="mt-4 text-base leading-7 text-slate-600">{text}</p>
+      <p className={`mt-4 text-base leading-7 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{text}</p>
     </div>
   );
 }
@@ -413,10 +415,13 @@ export default function HomePage() {
 
       <section className="bg-slate-950">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 sm:py-24">
+          <div aria-hidden className="hidden">
+          </div>
           <SectionHeading
             eyebrow="Built for the real world"
             title="Less guesswork. More operational clarity."
             text="The product should make service delivery easier to understand for customers and easier to operate for partners."
+            dark
           />
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
