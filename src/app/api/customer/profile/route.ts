@@ -376,7 +376,9 @@ export async function GET(
    */
 
   const profile =
-    auth.ctx.profile as ProfileWithSettings;
+    auth.ctx.profile as typeof auth.ctx.profile & {
+      settings?: unknown;
+    };
 
   const data = {
     id: profile.id,
