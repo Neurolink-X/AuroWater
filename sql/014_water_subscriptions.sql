@@ -65,7 +65,7 @@ BEGIN
 END
 $;
 
-DO $$
+DO $
 BEGIN
   IF NOT EXISTS (
     SELECT 1
