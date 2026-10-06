@@ -118,9 +118,16 @@ function OrderCard({
                   : ''}
               </h3>
 
-              <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                #{order.shortId}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-semibold text-slate-500">
+                  #{order.shortId}
+                </p>
+                {order.canOrderType === 'subscription' ? (
+                  <span className="inline-flex items-center rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-bold text-cyan-700 ring-1 ring-inset ring-cyan-200">
+                    Subscription
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
 
