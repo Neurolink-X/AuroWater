@@ -7,9 +7,14 @@ import { useSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/hooks/useAuth';
 import {
   supplierOrdersList,
+  supplierOrderAccept,
+  supplierOrderReject,
   supplierOrderUpdateStatus,
   supplierEarningsSummary,
   supplierPayoutRequest,
+  supplierSettingsGet,
+  supplierSettingsUpdate,
+  supplierStockGet,
   getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
@@ -174,6 +179,9 @@ export default function SupplierDashboardPage() {
   const [tab, setTab] = React.useState<TabKey>('overview');
   const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
   const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
+  const [supplierSettings, setSupplierSettings] = React.useState<Awaited<ReturnType<typeof supplierSettingsGet>>>(null);
+  const [stock, setStock] = React.useState<Awaited<ReturnType<typeof supplierStockGet>> | null>(null);
+  const [settingsSaving, setSettingsSaving] = React.useState(false);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
@@ -188,7 +196,12 @@ export default function SupplierDashboardPage() {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
+      const [list, earn, settingsResult, stockResult] = await Promise.allSettled([
+        supplierOrdersList(),
+        supplierEarningsSummary('month'),
+        supplierSettingsGet(),
+        supplierStockGet(),
+      ]);
 
       let primaryErr: string | null = null;
 
@@ -202,6 +215,18 @@ export default function SupplierDashboardPage() {
         setEarningsSummary(earn.value);
       } else if (earn.status === 'rejected' && !primaryErr) {
         toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
+      }
+
+      if (settingsResult.status === 'fulfilled') {
+        setSupplierSettings(settingsResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier settings: ${getApiErrorMessage(settingsResult.reason)}`);
+      }
+
+      if (stockResult.status === 'fulfilled') {
+        setStock(stockResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
       }
 
       if (primaryErr) setBoardError(primaryErr);
