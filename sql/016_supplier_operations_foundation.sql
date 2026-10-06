@@ -185,6 +185,7 @@ CREATE POLICY "addresses_insert_customer_or_admin" ON public.addresses
   );
 
 ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS zone_id UUID REFERENCES public.service_zones(id),
   ADD COLUMN IF NOT EXISTS service_type TEXT,
   ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10,2),
   ADD COLUMN IF NOT EXISTS address TEXT,
