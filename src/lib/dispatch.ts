@@ -214,7 +214,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     if (!ids.length) return noCandidates();
 
-    const [profRes, loadRes, lastRes] = await Promise.all([
+    const [profRes, loadRes, lastRes, stockRes] = await Promise.all([
       db.from('profiles').select('id, role, city, is_active, status, milestone_tier, current_lat, current_lng').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
