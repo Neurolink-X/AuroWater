@@ -15,6 +15,7 @@ const files = [
   '005_notifications_dedup.sql',
   '006_schema_compat.sql',
   '006_production_readiness.sql',
+  '007_supplier_base.sql',
   '007_geo_payments_waitlist.sql',
   '008_auth_approval.sql',
   '009_cities_waitlist.sql',
