@@ -665,7 +665,7 @@ export default function HowItWorksPage() {
               Join the network
             </div>
             <h2 className="hiw-section-title">Work with AuroWater</h2>
-            <p className="hiw-section-sub">Whether you're a skilled technician or a water supplier — there's a place for you.</p>
+            <p className="hiw-section-sub">Whether you&apos;re a skilled technician or a water supplier — there&apos;s a place for you.</p>
 
             <div className="hiw-partner-grid">
               {/* Technician */}
@@ -728,7 +728,7 @@ export default function HowItWorksPage() {
               Common questions
             </div>
             <h2 className="hiw-section-title">Everything you need to know</h2>
-            <p className="hiw-section-sub">Can't find an answer? WhatsApp us — we reply in 30 minutes.</p>
+            <p className="hiw-section-sub">Can&apos;t find an answer? WhatsApp us — we reply in 30 minutes.</p>
 
             <div className="hiw-faq-wrap">
               {FAQ.map((item, idx) => (
