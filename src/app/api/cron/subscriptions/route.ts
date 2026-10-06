@@ -464,17 +464,21 @@ export async function GET(
         );
       }
 
+      let deliveryAssigned = Boolean(existing?.supplier_id);
       if (orderId) {
-        const result =
-          await dispatchOrder(
-            orderId
-          );
-
-        if (
-          result.supplierId
-        ) {
+        const result = await dispatchOrder(orderId);
+        deliveryAssigned = deliveryAssigned || Boolean(result.supplierId);
+        if (result.supplierId) {
           dispatched += 1;
         }
+      }
+
+      // Do not move the recurring schedule forward when the current delivery
+      // still has no supplier. The same order can be retried by the global
+      // dispatch worker until it is assigned or an operator intervenes.
+      if (!deliveryAssigned) {
+        skipped += 1;
+        continue;
       }
 
       const futureDate =
