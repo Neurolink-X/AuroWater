@@ -369,6 +369,31 @@ export default function SupplierDashboardPage() {
 
   const persistOrders = (next: SupplierOrder[]) => setOrders(next);
 
+  const persistProfile = (next: SupplierProfile) => setProfile(next);
+
+  const saveProfile = React.useCallback(async () => {
+    setProfileSaving(true);
+    try {
+      const updated = await supplierProfileUpdate({
+        business_name: profile.businessName,
+        gstin: profile.gst,
+        service_cities: profile.serviceCities,
+      });
+      setProfile(mapApiProfile(updated));
+      toast.success('Supplier profile saved.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setProfileSaving(false);
+    }
+  }, [profile]);
+
+  const persistFleet = async (next: Tanker[]) => {
+    setFleet(next);
+  };
+
+  const persistDocs = (next: SupplierDoc[]) => setDocs(next);
+
   const filteredOrders = React.useMemo(() => {
     if (orderFilter === 'all') return orders;
     return orders.filter((o) => o.status === orderFilter);
