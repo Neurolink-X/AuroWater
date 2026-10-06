@@ -1445,6 +1445,14 @@ export default function BookingWizard() {
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href={ROUTES.track(createdOrder.id)} className={`${btnPrimary} text-center`}>Track order</Link>
+              {(createdOrder as unknown as Record<string, unknown>).subscription_id ? (
+                <Link
+                  href="/customer/subscriptions"
+                  className={`${btnGhost} text-center`}
+                >
+                  Manage subscription
+                </Link>
+              ) : null}
               <a href={waTrackHref} target="_blank" rel="noreferrer"
                 className="rounded-xl border border-emerald-600 bg-white text-emerald-700 px-6 py-3 font-semibold text-center hover:bg-emerald-50">
                 Track on WhatsApp
