@@ -1,5 +1,8 @@
 'use client';
 
+/* This component intentionally hydrates browser state after mount. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { safeGet, safeSet } from '@/lib/storage';
