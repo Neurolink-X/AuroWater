@@ -4,6 +4,10 @@
 
 BEGIN;
 
+-- ============================================================
+-- 1. Subscription fields on orders
+-- ============================================================
+
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS can_price_per_unit NUMERIC(10,2);
 
@@ -16,8 +20,8 @@ ALTER TABLE public.orders
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS subscription_id UUID;
 
--- Replace any older frequency CHECK constraint so the UI/API and database
--- accept the same set of supported recurrence options.
+-- Replace any older frequency CHECK constraint so the UI/API and
+-- database accept the same set of supported recurrence options.
 DO $$
 DECLARE
   c RECORD;
@@ -50,26 +54,30 @@ ALTER TABLE public.orders
     )
   );
 
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_can_order_type_check
-  CHECK (
-    can_order_type IS NULL
-    OR can_order_type IN (
-      'one_time',
-      'subscription'
-    )
-  );
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'orders_can_order_type_check'
+      AND conrelid = 'public.orders'::regclass
+  ) THEN
+    ALTER TABLE public.orders
+      ADD CONSTRAINT orders_can_order_type_check
+      CHECK (
+        can_order_type IS NULL
+        OR can_order_type IN (
+          'one_time',
+          'subscription'
+        )
+      );
+  END IF;
+END
+$$;
 
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_subscription_fk
-  FOREIGN KEY (subscription_id)
-  REFERENCES public.water_subscriptions(id)
-  ON DELETE SET NULL;
-
--- PostgreSQL cannot reference a table that does not exist yet. The FK above
--- is intentionally recreated below after the subscription table exists.
-ALTER TABLE public.orders
-  DROP CONSTRAINT IF EXISTS orders_subscription_fk;
+-- ============================================================
+-- 2. Subscription master record
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS public.water_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -151,11 +159,28 @@ CREATE TABLE IF NOT EXISTS public.water_subscriptions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_subscription_fk
-  FOREIGN KEY (subscription_id)
-  REFERENCES public.water_subscriptions(id)
-  ON DELETE SET NULL;
+-- Add the order → subscription foreign key only after the
+-- subscription table exists.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'orders_subscription_fk'
+      AND conrelid = 'public.orders'::regclass
+  ) THEN
+    ALTER TABLE public.orders
+      ADD CONSTRAINT orders_subscription_fk
+      FOREIGN KEY (subscription_id)
+      REFERENCES public.water_subscriptions(id)
+      ON DELETE SET NULL;
+  END IF;
+END
+$$;
+
+-- ============================================================
+-- 3. Indexes
+-- ============================================================
 
 CREATE INDEX IF NOT EXISTS
   water_subscriptions_customer_idx
@@ -179,6 +204,10 @@ ON public.orders(subscription_id, scheduled_at)
 WHERE subscription_id IS NOT NULL
   AND scheduled_at IS NOT NULL;
 
+-- ============================================================
+-- 4. updated_at
+-- ============================================================
+
 DROP TRIGGER IF EXISTS
   water_subscriptions_updated_at
 ON public.water_subscriptions;
@@ -188,6 +217,10 @@ CREATE TRIGGER
 BEFORE UPDATE ON public.water_subscriptions
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at();
+
+-- ============================================================
+-- 5. Row level security
+-- ============================================================
 
 ALTER TABLE public.water_subscriptions
 ENABLE ROW LEVEL SECURITY;
