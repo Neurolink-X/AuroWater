@@ -106,6 +106,13 @@ CREATE TRIGGER order_dispatch_updated_at
   BEFORE UPDATE ON public.order_dispatch
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+-- Supplier can initialize a stock row after account recovery; stock remains scoped to itself.
+DROP POLICY IF EXISTS "supplier_stock_insert_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_insert_own_or_admin" ON public.supplier_stock
+  FOR INSERT WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
 -- Supplier can create its own settings row on first login; admin retains full access.
 DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
 DROP POLICY IF EXISTS "supplier_settings_insert_own_or_admin" ON public.supplier_settings;
