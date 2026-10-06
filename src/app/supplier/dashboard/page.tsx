@@ -7,12 +7,20 @@ import { useSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/hooks/useAuth';
 import {
   supplierOrdersList,
+  supplierOrderAccept,
+  supplierOrderReject,
   supplierOrderUpdateStatus,
   supplierEarningsSummary,
   supplierPayoutRequest,
+  supplierSettingsGet,
+  supplierSettingsUpdate,
+  supplierStockGet,
+  supplierStockUpdate,
   getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
+  type SupplierSettings,
+  type SupplierStock,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 import { safeGet, safeSet } from '@/lib/storage';
@@ -39,6 +47,9 @@ type SupplierOrder = {
   eta: string;
   amount: number;
   status: 'pending' | 'active' | 'delivered' | 'cancelled';
+  workflowStatus: string;
+  canCount: number;
+  acceptedAt: string | null;
 };
 
 function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
@@ -46,6 +57,7 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
   const area = [snap.area, snap.city].filter(Boolean).join(', ') || '—';
   const addr = [snap.house_flat, snap.area, snap.city, snap.pincode].filter(Boolean).join(', ') || '—';
   const st = String(o.status ?? '').toUpperCase();
+  const canCount = Math.max(0, Number(o.can_quantity ?? 0));
   let status: SupplierOrder['status'] = 'pending';
   if (st === 'IN_PROGRESS') status = 'active';
   else if (st === 'COMPLETED') status = 'delivered';
@@ -69,6 +81,9 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
     eta: String(o.time_slot ?? '—'),
     amount: Number(o.total_amount ?? 0),
     status,
+    workflowStatus: st,
+    canCount,
+    acceptedAt: (o as ApiOrder & { accepted_at?: string | null }).accepted_at ?? null,
   };
 }
 
@@ -174,7 +189,10 @@ export default function SupplierDashboardPage() {
   const [tab, setTab] = React.useState<TabKey>('overview');
   const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
   const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
+  const [supplierSettings, setSupplierSettings] = React.useState<SupplierSettings | null>(null);
+  const [supplierStock, setSupplierStock] = React.useState<SupplierStock | null>(null);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
+  const [availabilitySaving, setAvailabilitySaving] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
@@ -188,7 +206,12 @@ export default function SupplierDashboardPage() {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
+      const [list, earn, settingsResult, stockResult] = await Promise.allSettled([
+        supplierOrdersList(),
+        supplierEarningsSummary('month'),
+        supplierSettingsGet(),
+        supplierStockGet(),
+      ]);
 
       let primaryErr: string | null = null;
 
@@ -202,6 +225,18 @@ export default function SupplierDashboardPage() {
         setEarningsSummary(earn.value);
       } else if (earn.status === 'rejected' && !primaryErr) {
         toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
+      }
+
+      if (settingsResult.status === 'fulfilled') {
+        setSupplierSettings(settingsResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier availability: ${getApiErrorMessage(settingsResult.reason)}`);
+      }
+
+      if (stockResult.status === 'fulfilled') {
+        setSupplierStock(stockResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
       }
 
       if (primaryErr) setBoardError(primaryErr);
@@ -262,6 +297,32 @@ export default function SupplierDashboardPage() {
       void ch?.unsubscribe();
     };
   }, [session?.userId, fetchSupplierBoard]);
+
+  const toggleAvailability = async () => {
+    if (!supplierSettings || availabilitySaving) return;
+    setAvailabilitySaving(true);
+    const nextOnline = !supplierSettings.is_online;
+    try {
+      const updated = await supplierSettingsUpdate({ is_online: nextOnline });
+      setSupplierSettings(updated);
+      toast.success(nextOnline ? 'You are now accepting new delivery offers.' : 'You are now offline. New offers are paused.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
+
+  const updateStock = async (value: number) => {
+    if (!Number.isInteger(value) || value < 0 || value > 100000 || !supplierStock) return;
+    try {
+      const updated = await supplierStockUpdate({ cans_available: value });
+      setSupplierStock(updated);
+      toast.success('Stock updated.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    }
+  };
 
   const persistOrders = (next: SupplierOrder[]) => {
     setOrders(next);
@@ -405,7 +466,7 @@ export default function SupplierDashboardPage() {
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
                       <div className="text-xs tracking-wider text-white/80">YOUR AUROTAP ID</div>
-                      <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{profile.aurotapId}</div>
+                      <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{session?.aurotapId ?? profile.aurotapId}</div>
                       <div className="mt-2 text-sm text-white/85">
                         Customers can order directly using your AuroTap ID.
                       </div>
@@ -414,7 +475,7 @@ export default function SupplierDashboardPage() {
                       <button
                         type="button"
                         onClick={async () => {
-                          await navigator.clipboard.writeText(profile.aurotapId);
+                          await navigator.clipboard.writeText(session?.aurotapId ?? profile.aurotapId);
                           toast.success('AuroTap ID copied! Share it with customers.');
                         }}
                         className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
@@ -424,6 +485,65 @@ export default function SupplierDashboardPage() {
                       <div className="w-20 h-20 rounded-xl bg-white/20 flex items-center justify-center text-xs font-bold">
                         QR Soon
                       </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 md:grid-cols-[1.3fr_.7fr]">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[.18em] text-slate-500">Delivery availability</p>
+                        <h2 className="mt-2 text-xl font-black text-slate-900">
+                          {supplierSettings?.is_online ? 'Online and accepting orders' : 'Offline — new offers paused'}
+                        </h2>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          Go online only when you have stock, delivery capacity and a driver/vehicle ready to fulfil an assignment.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void toggleAvailability()}
+                        disabled={!supplierSettings || availabilitySaving}
+                        className={supplierSettings?.is_online
+                          ? 'rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'
+                          : 'rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'}
+                      >
+                        {availabilitySaving ? 'Saving…' : supplierSettings?.is_online ? 'Go offline' : 'Go online'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-slate-500">Water inventory</p>
+                    <div className="mt-2 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="text-3xl font-black text-slate-900">{supplierStock ? Math.max(0, supplierStock.cans_available - supplierStock.reserved_cans) : '—'}</div>
+                        <div className="text-xs font-semibold text-slate-500">available cans</div>
+                      </div>
+                      <div className="text-right text-xs font-bold text-slate-500">Reserved: {supplierStock?.reserved_cans ?? 0}</div>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100000}
+                        aria-label="Available water cans"
+                        defaultValue={supplierStock?.cans_available ?? 0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void updateStock(Number((e.target as HTMLInputElement).value));
+                        }}
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = (e.currentTarget.previousElementSibling as HTMLInputElement | null);
+                          if (input) void updateStock(Number(input.value));
+                        }}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-900"
+                      >
+                        Save stock
+                      </button>
                     </div>
                   </div>
                 </section>
@@ -441,6 +561,33 @@ export default function SupplierDashboardPage() {
                 {refreshing ? (
                   <p className="text-xs text-slate-500 -mt-2">Syncing latest orders…</p>
                 ) : null}
+
+                <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-amber-200 bg-amber-50/70 shadow-sm p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[.18em] text-amber-700">Action required</p>
+                      <h3 className="mt-1 text-lg font-extrabold text-slate-900">Incoming assignments</h3>
+                    </div>
+                    <button type="button" onClick={() => setTab('orders')} className="text-sm font-black text-amber-800 hover:underline">Open orders</button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {orders.filter((o) => o.workflowStatus === 'ASSIGNED').slice(0, 3).map((o) => (
+                      <div key={o.apiId} className="rounded-2xl border border-amber-200 bg-white p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="font-black text-slate-900">{o.label} · {o.canCount || o.size}</div>
+                            <div className="mt-1 text-sm text-slate-600">{o.area} · {o.eta} · {fmtMoney(o.amount)}</div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={async () => { try { await supplierOrderAccept(o.apiId); toast.success('Order accepted. Stock reserved.'); void fetchSupplierBoard(true); } catch (e) { toast.error(getApiErrorMessage(e)); } }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Accept</button>
+                            <button type="button" onClick={async () => { try { await supplierOrderReject(o.apiId, 'Supplier unavailable'); toast.success('Order declined and released.'); void fetchSupplierBoard(true); } catch (e) { toast.error(getApiErrorMessage(e)); } }} className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-black text-rose-700">Reject</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {orders.filter((o) => o.workflowStatus === 'ASSIGNED').length === 0 ? <p className="text-sm text-slate-500">No new assignments right now.</p> : null}
+                  </div>
+                </section>
 
                 <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
                   <div className="flex items-center justify-between">
@@ -512,30 +659,56 @@ export default function SupplierDashboardPage() {
                         <div className="mt-3 pt-3 border-t border-slate-100">
                           <div className="text-sm text-slate-700">Address: {o.address}</div>
                           <div className="text-sm text-slate-700 mt-1">Partner phone: {maskPhone(profile.phone)}</div>
-                          {o.status === 'pending' && (
+                          {o.workflowStatus === 'ASSIGNED' && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderAccept(o.apiId);
+                                    toast.success('Order accepted and stock reserved.');
+                                    void fetchSupplierBoard(true);
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
+                                  }
+                                }}
+                                className="rounded-xl bg-emerald-600 text-white px-4 py-2 text-sm font-black"
+                              >
+                                Accept order ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderReject(o.apiId, 'Supplier unavailable');
+                                    toast.success('Order declined.');
+                                    void fetchSupplierBoard(true);
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
+                                  }
+                                }}
+                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-black"
+                              >
+                                Reject ✗
+                              </button>
+                            </div>
+                          )}
+                          {o.workflowStatus === 'ASSIGNED' && o.acceptedAt && (
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={async () => {
                                   try {
                                     await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'active' } : x)));
                                     toast.success('Delivery started.');
                                     void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not start order.');
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
                                   }
                                 }}
-                                className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-bold"
+                                className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-black"
                               >
-                                Start delivery ✓
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toast.message('Contact support to cancel a booked order.')}
-                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-bold"
-                              >
-                                Need help ✗
+                                Start delivery →
                               </button>
                             </div>
                           )}
@@ -704,10 +877,10 @@ export default function SupplierDashboardPage() {
                     <LegendRow c="#38BDF8" label="Emergency" pct="15%" />
                     <LegendRow c="#F4A261" label="AMC/Subscription" pct="15%" />
                     <div className="pt-3 text-sm text-slate-600">
-                      Payout account: <span className="font-bold text-slate-900">Account ending in XXXX4521</span>
+                      Payout account: <span className="font-bold text-slate-900">{supplierSettings?.upi_id ?? (supplierSettings?.bank_account ? `Bank ••••${String(supplierSettings.bank_account).slice(-4)}` : 'Not configured')}
                     </div>
-                    <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
-                      Update bank details
+                    <button type="button" onClick={() => setTab('profile')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
+                      Manage payout account
                     </button>
                   </div>
                 </div>
@@ -789,8 +962,8 @@ export default function SupplierDashboardPage() {
                 </div>
 
                 <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Pricing Table</div>
-                  <div className="mt-3 space-y-2 text-sm">
+                  <div className="text-sm font-bold text-slate-900">Pricing snapshot</div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Supplier profile pricing is currently informational; customer checkout uses the platform pricing engine.</p><div className="mt-3 space-y-2 text-sm">
                     {(['1000L', '3000L', '5000L'] as const).map((size) => {
                       const supplierPrice = profile.prices[size];
                       const platformFee = 29;
