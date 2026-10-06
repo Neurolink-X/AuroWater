@@ -37,7 +37,7 @@ type StepAction = {
 
 const stepActions: Record<TechnicianJobStatus, StepAction> = {
   PENDING: { action: 'accept', label: 'Accept Job', next: 'ACCEPTED' },
-  ACCEPTED: { action: 'on_the_way', label: 'I'm On The Way', next: 'ON_THE_WAY' },
+  ACCEPTED: { action: 'on_the_way', label: "I'm On The Way", next: 'ON_THE_WAY' },
   ON_THE_WAY: { action: 'working', label: 'Start Working', next: 'WORKING' },
   WORKING: { action: 'complete', label: 'Mark Complete', next: 'COMPLETED' },
 };
