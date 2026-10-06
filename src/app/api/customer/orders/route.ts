@@ -244,7 +244,7 @@ if (!serviceability.serviceable) {
   const flat = settingsResult.map;
 
   // ── Pricing ──
-  const gstRate = 0; // GST is not charged
+  const gstRate = pickGstRateFromFlat(flat);
   const convenience = Number(flat.convenience_fee ?? 29);
   const emergencyFee = Number(flat.emergency_surcharge ?? 30);
   const is_emergency = Boolean(body.is_emergency);
