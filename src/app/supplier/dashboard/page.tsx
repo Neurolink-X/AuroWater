@@ -958,7 +958,11 @@ export default function SupplierDashboardPage() {
                   <Input label="Owner Name" value={profile.ownerName} onChange={(v) => persistProfile({ ...profile, ownerName: v })} />
                   <Input label="GST Number" value={profile.gstNumber} onChange={(v) => persistProfile({ ...profile, gstNumber: v, gst: v })} />
                   <Input label="Phone" value={profile.phone} onChange={(v) => persistProfile({ ...profile, phone: v })} />
-                  <Input label="Email" value={profile.email} onChange={(v) => persistProfile({ ...profile, email: v })} />
+                  <div className="block">
+                    <span className="text-xs font-bold text-slate-600">Account email</span>
+                    <div className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{profile.email || 'Not available'}</div>
+                    <p className="mt-1 text-[11px] text-slate-500">Managed by your authentication account.</p>
+                  </div>
                   <Input label="City" value={profile.city} onChange={(v) => persistProfile({ ...profile, city: v, serviceCities: v ? [v] : [] })} />
                   <Input label="Pincode" value={profile.pincode} onChange={(v) => persistProfile({ ...profile, pincode: v })} />
                   <Input label="Vehicle Type" value={profile.vehicleType} onChange={(v) => persistProfile({ ...profile, vehicleType: v })} />
