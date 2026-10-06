@@ -53,7 +53,7 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
   const addr = [snap.house_flat, snap.area, snap.city, snap.pincode].filter(Boolean).join(', ') || '—';
   const st = String(o.status ?? '').toUpperCase();
   let status: SupplierOrder['status'] = 'pending';
-  if (st === 'IN_PROGRESS') status = 'active';
+  if (st === 'IN_PROGRESS' || (st === 'ASSIGNED' && Boolean(o.accepted_at))) status = 'active';
   else if (st === 'COMPLETED') status = 'delivered';
   else if (st === 'CANCELLED') status = 'cancelled';
   else status = 'pending';
@@ -73,7 +73,7 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
     size,
     date: String(o.scheduled_date ?? (typeof o.created_at === 'string' ? o.created_at.slice(0, 10) : '—')),
     eta: String(o.time_slot ?? '—'),
-    amount: Number(o.total_amount ?? 0),
+    amount: Number(o.supplier_payout ?? o.total_amount ?? 0),
     status,
     phase:
       st === 'IN_PROGRESS'
@@ -188,6 +188,8 @@ export default function SupplierDashboardPage() {
   const [tab, setTab] = React.useState<TabKey>('overview');
   const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
   const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
+  const [todayEarnings, setTodayEarnings] = React.useState<SupplierEarningsSummary | null>(null);
+  const [weekEarnings, setWeekEarnings] = React.useState<SupplierEarningsSummary | null>(null);
   const [supplierSettings, setSupplierSettings] = React.useState<Awaited<ReturnType<typeof supplierSettingsGet>>>(null);
   const [stock, setStock] = React.useState<Awaited<ReturnType<typeof supplierStockGet>> | null>(null);
   const [settingsSaving, setSettingsSaving] = React.useState(false);
@@ -205,9 +207,11 @@ export default function SupplierDashboardPage() {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn, settingsResult, stockResult] = await Promise.allSettled([
+      const [list, monthEarn, todayEarn, weekEarn, settingsResult, stockResult] = await Promise.allSettled([
         supplierOrdersList(),
         supplierEarningsSummary('month'),
+        supplierEarningsSummary('today'),
+        supplierEarningsSummary('week'),
         supplierSettingsGet(),
         supplierStockGet(),
       ]);
@@ -220,11 +224,13 @@ export default function SupplierDashboardPage() {
         primaryErr = getApiErrorMessage(list.reason);
       }
 
-      if (earn.status === 'fulfilled' && earn.value) {
-        setEarningsSummary(earn.value);
-      } else if (earn.status === 'rejected' && !primaryErr) {
-        toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
+      if (monthEarn.status === 'fulfilled' && monthEarn.value) {
+        setEarningsSummary(monthEarn.value);
+      } else if (monthEarn.status === 'rejected' && !primaryErr) {
+        toast.error(`Could not load earnings: ${getApiErrorMessage(monthEarn.reason)}`);
       }
+      if (todayEarn.status === 'fulfilled' && todayEarn.value) setTodayEarnings(todayEarn.value);
+      if (weekEarn.status === 'fulfilled' && weekEarn.value) setWeekEarnings(weekEarn.value);
 
       if (settingsResult.status === 'fulfilled') {
         setSupplierSettings(settingsResult.value);
@@ -330,6 +336,12 @@ export default function SupplierDashboardPage() {
   }, [orders, orderFilter]);
 
   const stats = React.useMemo(() => {
+    const todayKey = new Date().toDateString();
+    const todayOrders = orders.filter((o) => {
+      if (o.date === '—') return false;
+      const parsed = new Date(o.date);
+      return !Number.isNaN(parsed.getTime()) && parsed.toDateString() === todayKey;
+    }).length;
     const active = orders.filter((o) => o.status === 'active').length;
     const pending = orders.filter((o) => o.status === 'pending').length;
     const delivered = orders.filter((o) => o.status === 'delivered').length;
@@ -337,7 +349,7 @@ export default function SupplierDashboardPage() {
       earningsSummary != null
         ? earningsSummary.gross_amount
         : orders.filter((o) => o.status === 'delivered').reduce((sum, o) => sum + o.amount, 0);
-    return { active, pending, delivered, monthRevenue };
+    return { active, pending, delivered, todayOrders, monthRevenue };
   }, [orders, earningsSummary]);
 
   const completion = React.useMemo(() => {
@@ -487,7 +499,7 @@ export default function SupplierDashboardPage() {
                       <div className="text-xs tracking-wider text-white/80">YOUR AUROTAP ID</div>
                       <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{profile.aurotapId}</div>
                       <div className="mt-2 text-sm text-white/85">
-                        Customers can order directly using your AuroTap ID.
+                        Your partner ID is ready. Direct customer routing is enabled by operations for live zones.
                       </div>
                     </div>
                     <div className="flex flex-col items-start gap-3">
@@ -511,7 +523,7 @@ export default function SupplierDashboardPage() {
                 <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <StatCard
                     title="Orders Today"
-                    value={ordersLoading ? '…' : `${stats.pending + stats.active}`}
+                    value={ordersLoading ? '…' : `${stats.todayOrders}`}
                     color="#003049"
                   />
                   <StatCard title="Active Deliveries" value={`${stats.active}`} color="#2A9D8F" />
@@ -756,8 +768,8 @@ export default function SupplierDashboardPage() {
                 <h3 className="text-lg font-extrabold text-slate-900">Revenue</h3>
                 <p className="text-xs text-slate-500 mt-1">Month figures from platform earnings summary; daily breakdown coming soon.</p>
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <StatCard title="Today" value="—" color="#003049" />
-                  <StatCard title="Week" value="—" color="#2A9D8F" />
+                  <StatCard title="Today" value={fmtMoney(todayEarnings?.gross_amount ?? 0)} color="#003049" />
+                  <StatCard title="Week" value={fmtMoney(weekEarnings?.gross_amount ?? 0)} color="#2A9D8F" />
                   <StatCard title="Month" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
                   <StatCard title="Orders (period)" value={`${earningsSummary?.order_count ?? 0}`} color="#1D4ED8" />
                 </div>
@@ -784,23 +796,24 @@ export default function SupplierDashboardPage() {
                     </button>
                   </div>
                 ) : null}
-                <div className="mt-6 flex flex-col md:flex-row gap-6">
-                  <div className="w-44 h-44 rounded-full mx-auto md:mx-0 bg-[conic-gradient(#2A9D8F_0_70%,#38BDF8_70%_85%,#F4A261_85%_100%)] grid place-items-center">
-                    <div className="w-24 h-24 rounded-full bg-white grid place-items-center">
-                      <div className="text-xs text-slate-500">This month</div>
-                      <div className="text-sm font-black text-slate-900">{fmtMoney(stats.monthRevenue)}</div>
-                    </div>
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <div className="text-xs font-bold text-slate-500">Completed orders</div>
+                    <div className="mt-1 text-2xl font-black text-slate-900">{earningsSummary?.order_count ?? 0}</div>
                   </div>
-                  <div className="flex-1 space-y-3">
-                    <LegendRow c="#2A9D8F" label="Tanker Delivery" pct="70%" />
-                    <LegendRow c="#38BDF8" label="Emergency" pct="15%" />
-                    <LegendRow c="#F4A261" label="AMC/Subscription" pct="15%" />
-                    <div className="pt-3 text-sm text-slate-600">
-                      Payout account: <span className="font-bold text-slate-900">Account ending in XXXX4521</span>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <div className="text-xs font-bold text-slate-500">Available to request</div>
+                    <div className="mt-1 text-2xl font-black text-emerald-700">{fmtMoney(earningsSummary?.pending_payout ?? 0)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                    <div className="text-xs font-bold text-slate-500">Payout destination</div>
+                    <div className="mt-1 text-sm font-black text-slate-900">
+                      {supplierSettings?.upi_id
+                        ? supplierSettings.upi_id
+                        : supplierSettings?.bank_account
+                          ? `Bank •••• ${String(supplierSettings.bank_account).slice(-4)}`
+                          : 'Not configured'}
                     </div>
-                    <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
-                      Update bank details
-                    </button>
                   </div>
                 </div>
               </section>
@@ -813,7 +826,7 @@ export default function SupplierDashboardPage() {
                   <div className="text-xs text-white/80">YOUR AUROTAP ID</div>
                   <div className="text-3xl font-black font-mono mt-1">{profile.aurotapId}</div>
                   <div className="mt-2 text-sm text-white/85">
-                    Share this with your regular customers to route orders directly to your fleet.
+                    Keep this partner ID for operations and customer support. Direct routing is enabled only when the zone is activated.
                   </div>
                 </div>
                 <div className="mt-5 space-y-2 text-sm text-slate-700">
