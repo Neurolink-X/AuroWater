@@ -144,7 +144,7 @@ export default function SecurityPage() {
 
                 <div className="mt-7 flex flex-wrap gap-3">
                   <a
-                    href={`mailto:${SECURITY_EMAIL}?subject=AuroTap%20Security%20Report`}
+                    href="#report-vulnerability"
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-extrabold text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-cyan-50"
                   >
                     <Mail className="h-4 w-4" aria-hidden="true" />
@@ -269,7 +269,10 @@ export default function SecurityPage() {
             </p>
           </article>
 
-          <aside className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-6 sm:p-8">
+          <aside
+            id="report-vulnerability"
+            className="scroll-mt-6 rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-6 sm:p-8"
+          >
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
               <AlertTriangle
                 className="h-5 w-5"
@@ -282,9 +285,9 @@ export default function SecurityPage() {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Please report suspected security issues before sharing them publicly.
-              We ask researchers to avoid accessing, changing or deleting customer
-              data while validating a finding.
+              Please report suspected security issues privately before sharing them
+              publicly. We ask researchers to avoid accessing, changing or deleting
+              customer data while validating a finding.
             </p>
 
             <div className="mt-5 rounded-2xl border border-cyan-100 bg-white/80 p-4">
