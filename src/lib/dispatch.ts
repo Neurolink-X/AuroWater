@@ -165,7 +165,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -186,6 +186,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     }
 
     const geo = await orderGeo(db, order);
+    const { data: serviceType } = await db
+      .from('service_types')
+      .select('key')
+      .eq('id', order.service_type_id)
+      .maybeSingle();
+    const requiresCanStock = String(serviceType?.key ?? '').toLowerCase() === 'water_can';
+    const requiredCanQty = Math.max(1, Number(order.can_quantity ?? 1));
 
     const { data: tried } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
     const triedSet = new Set(((tried ?? []) as { supplier_id: string }[]).map((r) => String(r.supplier_id)));
@@ -219,6 +226,12 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      requiresCanStock
+        ? db
+            .from('supplier_stock')
+            .select('supplier_id, cans_available')
+            .in('supplier_id', ids)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
@@ -230,6 +243,12 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     const favourite = (lastRes.data as { supplier_id?: string } | null)?.supplier_id
       ? String((lastRes.data as { supplier_id: string }).supplier_id)
       : null;
+    const stockBySupplier = new Map(
+      ((stockRes.data ?? []) as { supplier_id: string; cans_available: number }[]).map((row) => [
+        String(row.supplier_id),
+        Number(row.cans_available ?? 0),
+      ]),
+    );
 
     type Cand = {
       id: string;
@@ -251,6 +270,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
       const load = activeLoad.get(id) ?? 0;
       if (load >= cfg.maxActive) continue;
+      if (requiresCanStock && (stockBySupplier.get(id) ?? 0) < requiredCanQty) continue;
 
       const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
       const sLat = coord(p.current_lat);
