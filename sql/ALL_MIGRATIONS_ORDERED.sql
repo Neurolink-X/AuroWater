@@ -1314,8 +1314,7 @@ CREATE POLICY profiles_public_read_technicians ON public.profiles
 
 SELECT pg_notify('pgrst', 'reload schema');
 
--- ═══════════════════════════════════════════════════════════════
--- FILE: sql/015_platform_hardening.sql
+-- ═════════════════════════════════════════════-- FILE: sql/015_platform_hardening.sql
 -- ═══════════════════════════════════════════════════════════════
 
 -- 015_platform_hardening.sql
@@ -1435,6 +1434,9 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
+
+-- Disable the legacy completion trigger. New order completion consumes reserved stock atomically.
+DROP TRIGGER IF EXISTS trg_deduct_stock ON public.orders;
 
 -- Consume reserved stock after successful delivery.
 CREATE OR REPLACE FUNCTION public.consume_supplier_reserved_stock(
