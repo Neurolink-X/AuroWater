@@ -13,6 +13,7 @@ import { dispatchOrder } from '@/lib/dispatch';
 import { pickGstRateFromFlat } from '@/lib/api/order-pricing-server';
 import { createServiceClient } from '@/utils/supabase/server';
 import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
+import type { SubscriptionFrequency } from '@/lib/subscription-schedule';
 
 /*
  * Real `orders` columns used here:
@@ -257,7 +258,7 @@ if (!serviceability.serviceable) {
   let base_amount: number;
 
   let waterUnitPrice: number | null = null;
-  let subscriptionFrequency: string | null = null;
+  let subscriptionFrequency: SubscriptionFrequency | null = null;
 
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
@@ -304,7 +305,7 @@ if (!serviceability.serviceable) {
             : Number(st.base_price) || 12;
 
     base_amount = round2(qty * waterUnitPrice);
-    subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
+    subscriptionFrequency = isSubscription && isSubscriptionFrequency(body.can_frequency) ? body.can_frequency : null;
   } else {
     base_amount = Number(body.base_amount ?? 0);
     if (!Number.isFinite(base_amount) || base_amount < 0) base_amount = Number(st.base_price);
