@@ -101,7 +101,7 @@ for (const token of [
   'orders_update_admin_only',
   'supplier_payout_rate_snapshot',
 ]) {
-  assert.ok(hardeningSql.includes(token), \`Missing supplier hardening token: \${token}\`);
+  assert.ok(hardeningSql.includes(token), `Missing supplier hardening token: ${token}`);
 }
 
 assert.match(
