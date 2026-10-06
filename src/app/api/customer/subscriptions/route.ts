@@ -6,58 +6,48 @@ import {
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
 
-export async function GET(
-  req: NextRequest
-) {
-  void req;
+export const runtime = 'nodejs';
 
-  const auth =
-    await requireSupabaseAuth(req);
+const SUBSCRIPTION_ROLES = [
+  'customer',
+  'supplier',
+] as const;
+
+export async function GET(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
 
   if (!auth.ok) {
     return auth.response;
   }
 
-  if (
-    !requireRole(
-      auth.ctx,
-      'customer'
-    )
-  ) {
-    return jsonErr(
-      'Forbidden',
-      403
-    );
+  // Customer → can manage their water subscriptions
+  // Supplier → can also purchase water for themselves
+  //
+  // Technician is NOT a subscription buyer through this endpoint.
+  // Admin should use a separate admin subscription endpoint.
+  if (!requireRole(auth.ctx, SUBSCRIPTION_ROLES)) {
+    return jsonErr('Forbidden', 403);
   }
 
-  const {
-    data,
-    error,
-  } =
-    await auth.ctx.supabase
-      .from(
-        'water_subscriptions'
-      )
-      .select('*')
-      .eq(
-        'customer_id',
-        auth.ctx.profile.id
-      )
-      .order(
-        'created_at',
-        {
-          ascending: false,
-        }
-      );
+  const { data, error } = await auth.ctx.supabase
+    .from('water_subscriptions')
+    .select('*')
+    .eq('customer_id', auth.ctx.profile.id)
+    .order('created_at', {
+      ascending: false,
+    });
 
   if (error) {
+    console.error(
+      '[water-subscriptions] failed to load subscriptions:',
+      error,
+    );
+
     return jsonErr(
       'Unable to load subscriptions right now',
-      500
+      500,
     );
   }
 
-  return jsonOk(
-    data ?? []
-  );
+  return jsonOk(data ?? []);
 }
