@@ -469,7 +469,7 @@ export async function acceptAssignment(orderId: string, supplierId: string): Pro
 
     const { data: current } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, accepted_at, can_count, service_type')
+      .select('id, customer_id, status, supplier_id, accepted_at, can_count, service_type, total_amount, supplier_payout')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -496,9 +496,25 @@ export async function acceptAssignment(orderId: string, supplierId: string): Pro
       }
     }
 
+    const { data: supplierRateRow } = await db
+      .from('settings')
+      .select('value')
+      .eq('key', 'supplier_commission')
+      .maybeSingle();
+    const rawSupplierRate = Number(supplierRateRow?.value ?? 30);
+    const supplierShare = Math.max(0, Math.min(1, rawSupplierRate > 1 ? rawSupplierRate / 100 : rawSupplierRate));
+    const totalAmount = Math.max(0, Number(current.total_amount ?? 0));
+    const supplierPayout = Number(current.supplier_payout ?? 0) > 0
+      ? Number(current.supplier_payout)
+      : Math.round(totalAmount * supplierShare * 100) / 100;
+
     const { data: ok } = await db
       .from('orders')
-      .update({ accepted_at: now })
+      .update({
+        accepted_at: now,
+        supplier_payout: supplierPayout,
+        payout_status: supplierPayout > 0 ? 'pending' : 'pending',
+      })
       .eq('id', orderId)
       .eq('supplier_id', supplierId)
       .eq('status', 'ASSIGNED')
