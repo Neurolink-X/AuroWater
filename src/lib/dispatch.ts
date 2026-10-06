@@ -407,6 +407,88 @@ export async function releaseAssignment(
 }
 
 /** Lazy maintenance for one customer's water orders (no cron needed). Never throws. */
+/**
+ * Global dispatch recovery worker.
+ * This is intended for a scheduled job and must not depend on a customer page being opened.
+ */
+export async function sweepDispatchQueue(maxOrders = 100): Promise<{
+  expired: number;
+  retried: number;
+  reassigned: number;
+  exhausted: number;
+}> {
+  const summary = {
+    expired: 0,
+    retried: 0,
+    reassigned: 0,
+    exhausted: 0,
+  };
+
+  try {
+    const db: any = createServiceClient();
+    const cfg = await loadCfg(db);
+    if (!cfg.enabled) return summary;
+
+    const staleBefore = new Date(Date.now() - cfg.responseSeconds * 1000).toISOString();
+
+    const { data: stale } = await db
+      .from('orders')
+      .select('id, supplier_id')
+      .in('service_type', ['water_can', 'water_tanker'])
+      .eq('status', 'ASSIGNED')
+      .is('accepted_at', null)
+      .not('supplier_id', 'is', null)
+      .lt('assigned_at', staleBefore)
+      .order('assigned_at', { ascending: true })
+      .limit(maxOrders);
+
+    for (const order of (stale ?? []) as { id: string; supplier_id: string | null }[]) {
+      if (!order.supplier_id) continue;
+      summary.expired += 1;
+      const result = await releaseAssignment(
+        String(order.id),
+        String(order.supplier_id),
+        'EXPIRED',
+        'supplier response timeout'
+      );
+      if (result.reassigned) summary.reassigned += 1;
+    }
+
+    const retryBefore = new Date(Date.now() - 30_000).toISOString();
+    const { data: pending } = await db
+      .from('orders')
+      .select('id, dispatch_attempts, last_dispatch_at')
+      .in('service_type', ['water_can', 'water_tanker'])
+      .eq('status', 'PENDING')
+      .is('supplier_id', null)
+      .order('created_at', { ascending: true })
+      .limit(maxOrders);
+
+    for (const order of (pending ?? []) as {
+      id: string;
+      dispatch_attempts: number | null;
+      last_dispatch_at: string | null;
+    }[]) {
+      if (Number(order.dispatch_attempts ?? 0) >= cfg.maxAttempts) {
+        summary.exhausted += 1;
+        continue;
+      }
+
+      if (order.last_dispatch_at && order.last_dispatch_at > retryBefore) {
+        continue;
+      }
+
+      summary.retried += 1;
+      await dispatchOrder(String(order.id));
+    }
+
+    return summary;
+  } catch (e) {
+    console.error('[dispatch] global sweep failed:', e);
+    return summary;
+  }
+}
+
 export async function sweepCustomerOrders(customerId: string): Promise<void> {
   try {
     const db: any = createServiceClient();
