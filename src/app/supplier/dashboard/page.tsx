@@ -15,6 +15,7 @@ import {
   supplierSettingsGet,
   supplierSettingsUpdate,
   supplierStockGet,
+  supplierStockUpdate,
   getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
@@ -146,7 +147,6 @@ const PROFILE_KEY = 'aurowater_supplier_profile';
 const DOCS_KEY = 'aurowater_supplier_docs';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const maskPhone = (p: string) => (p.length < 6 ? p : `${p.slice(0, 2)}XXXXXX${p.slice(-2)}`);
 
 function safeParse<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -198,6 +198,8 @@ export default function SupplierDashboardPage() {
   const [weekEarnings, setWeekEarnings] = React.useState<SupplierEarningsSummary | null>(null);
   const [supplierSettings, setSupplierSettings] = React.useState<Awaited<ReturnType<typeof supplierSettingsGet>>>(null);
   const [stock, setStock] = React.useState<Awaited<ReturnType<typeof supplierStockGet>> | null>(null);
+  const [stockInput, setStockInput] = React.useState('');
+  const [stockSaving, setStockSaving] = React.useState(false);
   const [settingsSaving, setSettingsSaving] = React.useState(false);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -540,6 +542,73 @@ export default function SupplierDashboardPage() {
                 {refreshing ? (
                   <p className="text-xs text-slate-500 -mt-2">Syncing latest orders…</p>
                 ) : null}
+
+                <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900">Inventory control</h3>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Available cans can be updated here. Reserved cans stay protected while an accepted delivery is active.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={stockInput}
+                        onChange={(e) => setStockInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder={stock ? String(stock.cans_available) : '0'}
+                        className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        aria-label="Available water cans"
+                      />
+                      <button
+                        type="button"
+                        disabled={stockSaving || stock == null || stockInput === ''}
+                        onClick={async () => {
+                          const next = Number(stockInput);
+                          if (!Number.isInteger(next) || next < 0) {
+                            toast.error('Enter a valid whole-can stock count.');
+                            return;
+                          }
+                          if (next < Number(stock.reserved_cans ?? 0)) {
+                            toast.error(`Keep at least ${stock.reserved_cans ?? 0} cans available for accepted orders.`);
+                            return;
+                          }
+                          setStockSaving(true);
+                          try {
+                            const updated = await supplierStockUpdate({ cans_available: next });
+                            setStock(updated);
+                            setStockInput('');
+                            toast.success('Inventory updated.');
+                          } catch (error) {
+                            toast.error(getApiErrorMessage(error));
+                          } finally {
+                            setStockSaving(false);
+                          }
+                        }}
+                        className="rounded-xl bg-[#003049] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+                      >
+                        {stockSaving ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Available</div>
+                      <div className="mt-1 text-lg font-black text-slate-900">{stock?.cans_available ?? '—'}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Reserved</div>
+                      <div className="mt-1 text-lg font-black text-amber-700">{stock?.reserved_cans ?? 0}</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Low stock at</div>
+                      <div className="mt-1 text-lg font-black text-rose-700">{stock?.low_stock_alert ?? 10}</div>
+                    </div>
+                  </div>
+                </section>
 
                 <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
                   <div className="flex items-center justify-between">
