@@ -1659,6 +1659,8 @@ $$;
 SELECT pg_notify('pgrst', 'reload schema');
 
 -- ═══════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/016_supplier_operations_foundation.sql
 -- ═══════════════════════════════════════════════════════════════
 
@@ -2094,5 +2096,67 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.create_supplier_payout_request(UUID, NUMERIC, TEXT, TEXT, TEXT)
   TO service_role;
+
+
+-- Supplier dashboard earnings contract:
+--   gross_amount = supplier earnings for the requested reporting period.
+--   pending_payout = globally available completed supplier earnings after
+--   subtracting payout requests already pending/processing.
+CREATE OR REPLACE FUNCTION public.get_supplier_earnings(p_supplier_id UUID, p_period TEXT)
+RETURNS TABLE (
+  period_label TEXT,
+  order_count BIGINT,
+  gross_amount NUMERIC,
+  pending_payout NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  start_ts TIMESTAMPTZ;
+  pl TEXT;
+BEGIN
+  pl := lower(coalesce(p_period, 'month'));
+  start_ts := CASE pl
+    WHEN 'today' THEN date_trunc('day', NOW())
+    WHEN 'week' THEN date_trunc('week', NOW())
+    WHEN 'month' THEN date_trunc('month', NOW())
+    ELSE date_trunc('month', NOW())
+  END;
+
+  RETURN QUERY
+  SELECT
+    pl::TEXT,
+    COUNT(*) FILTER (WHERE o.status = 'COMPLETED')::BIGINT,
+    COALESCE(SUM(o.supplier_payout) FILTER (WHERE o.status = 'COMPLETED'), 0)::NUMERIC,
+    GREATEST(
+      0,
+      ROUND((
+        COALESCE((
+          SELECT SUM(o2.supplier_payout)
+          FROM public.orders o2
+          WHERE o2.supplier_id = p_supplier_id
+            AND o2.status = 'COMPLETED'
+            AND o2.payout_status = 'pending'
+        ), 0)
+        -
+        COALESCE((
+          SELECT SUM(pr.amount)
+          FROM public.payout_requests pr
+          WHERE pr.supplier_id = p_supplier_id
+            AND pr.status IN ('pending','processing')
+        ), 0)
+      )::NUMERIC, 2)
+    )::NUMERIC
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id
+    AND o.created_at >= start_ts;
+END;
+$;
+
+GRANT EXECUTE ON FUNCTION public.get_supplier_earnings(UUID, TEXT)
+  TO authenticated, service_role;
 
 SELECT pg_notify('pgrst', 'reload schema');
