@@ -924,6 +924,34 @@ export async function supplierSettingsGet(): Promise<SupplierSettings | null> {
   return apiFetchAuth<SupplierSettings | null>('/supplier/settings');
 }
 
+export type SupplierProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  pincode?: string | null;
+  business_name?: string | null;
+  business_type?: string | null;
+  gst_number?: string | null;
+  vehicle_type?: string | null;
+  service_area_km?: number | null;
+  aurotap_id?: string | null;
+  status?: string | null;
+  is_active?: boolean | null;
+};
+
+export async function supplierProfileGet(): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile');
+}
+
+export async function supplierProfileUpdate(patch: Partial<SupplierProfile>): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function supplierSettingsUpdate(patch: Partial<SupplierSettings>): Promise<SupplierSettings> {
   return apiFetchAuth<SupplierSettings>('/supplier/settings', {
     method: 'PUT',
