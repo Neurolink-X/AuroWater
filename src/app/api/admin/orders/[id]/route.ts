@@ -273,7 +273,7 @@ export async function PUT(
   const { data: before, error: beforeErr } = await sb
     .from('orders')
     .select(
-      'id, status, supplier_id, customer_id, can_quantity',
+      'id, status, supplier_id, customer_id, can_quantity, stock_reserved_qty',
     )
     .eq('id', id)
     .maybeSingle();
@@ -402,65 +402,67 @@ export async function PUT(
     }
 
     /*
-     * Decrease supplier stock.
-     *
-     * Best-effort because the current implementation
-     * does not use an atomic stock-decrement RPC.
+     * Consume a stock reservation created by the supplier acceptance flow.
+     * Legacy orders without a reservation retain a defensive fallback so
+     * older data can still be completed.
      */
     try {
-      const quantity = Math.max(
+      const reservedQty = Math.max(
         0,
-        Number(
-          (
-            beforeRow as {
-              can_quantity?: number | null;
-            }
-          ).can_quantity ?? 0,
-        ),
+        Number((beforeRow as { stock_reserved_qty?: number | null }).stock_reserved_qty ?? 0),
       );
 
-      if (quantity > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', supplierId)
-          .maybeSingle();
-
-        const available = Math.max(
-          0,
-          Number(
-            (
-              stockRow as {
-                cans_available?: number;
-              } | null
-            )?.cans_available ?? 0,
-          ),
+      if (reservedQty > 0) {
+        const { data: consumed, error: consumeError } = await sb.rpc(
+          'consume_supplier_reserved_stock',
+          {
+            p_supplier_id: supplierId,
+            p_quantity: reservedQty,
+          },
         );
 
+        if (consumeError || consumed !== true) {
+          return jsonErr('Completion blocked because reserved stock could not be reconciled', 409, 'STOCK_RECONCILIATION_FAILED');
+        }
+
         await sb
-          .from('supplier_stock')
-          .upsert(
-            {
-              supplier_id: supplierId,
-              cans_available: Math.max(
-                0,
-                available - quantity,
-              ),
-              updated_at:
-                new Date().toISOString(),
-            },
-            {
-              onConflict: 'supplier_id',
-            },
+          .from('orders')
+          .update({ stock_reserved_qty: 0 })
+          .eq('id', id);
+      } else {
+        const quantity = Math.max(
+          0,
+          Number((beforeRow as { can_quantity?: number | null }).can_quantity ?? 0),
+        );
+
+        if (quantity > 0) {
+          const { data: stockRow } = await sb
+            .from('supplier_stock')
+            .select('cans_available')
+            .eq('supplier_id', supplierId)
+            .maybeSingle();
+
+          const available = Math.max(
+            0,
+            Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0),
           );
+
+          await sb
+            .from('supplier_stock')
+            .upsert(
+              {
+                supplier_id: supplierId,
+                cans_available: Math.max(0, available - quantity),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'supplier_id' },
+            );
+        }
       }
     } catch (error) {
-      console.error(
-        '[admin/orders] supplier_stock decrement failed',
-        error,
-      );
-    }
-  }
+      console.error('[admin/orders] supplier stock reconciliation failed', error);
+      return jsonErr('Completion could not reconcile supplier stock', 409, 'STOCK_RECONCILIATION_FAILED');
+    }  }
 
   /*
    * Customer completion notification.
