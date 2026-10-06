@@ -1507,6 +1507,146 @@ $$;
 -- 4) Realtime
 -- ============================================================
 
+
+-- ============================================================
+-- 5) Payout ledger claims and settlement finalization
+-- ============================================================
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payout_id UUID REFERENCES public.payouts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS orders_supplier_payout_idx
+ON public.orders (supplier_id, payout_status, payout_id)
+WHERE supplier_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.create_supplier_payout_request(
+  p_supplier_id UUID,
+  p_amount NUMERIC,
+  p_method TEXT,
+  p_reference TEXT,
+  p_notes TEXT
+)
+RETURNS public.payouts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  pending_amount NUMERIC;
+  created public.payouts;
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'INVALID_AMOUNT';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.payouts
+    WHERE supplier_id = p_supplier_id
+      AND status IN ('pending', 'processing')
+  ) THEN
+    RAISE EXCEPTION 'ACTIVE_PAYOUT';
+  END IF;
+
+  SELECT COALESCE(SUM(supplier_payout), 0)
+  INTO pending_amount
+  FROM public.orders
+  WHERE supplier_id = p_supplier_id
+    AND status = 'COMPLETED'
+    AND payout_status = 'pending'
+    AND supplier_payout > 0;
+
+  IF ABS(p_amount - pending_amount) > 0.01 THEN
+    RAISE EXCEPTION 'AMOUNT_EXCEEDS_PENDING';
+  END IF;
+
+  INSERT INTO public.payouts (
+    supplier_id,
+    amount,
+    method,
+    reference,
+    notes,
+    status,
+    requested_at,
+    paid_at,
+    processed_at
+  )
+  VALUES (
+    p_supplier_id,
+    p_amount,
+    p_method,
+    p_reference,
+    p_notes,
+    'pending',
+    NOW(),
+    NULL,
+    NULL
+  )
+  RETURNING * INTO created;
+
+  UPDATE public.orders
+  SET payout_status = 'processing',
+      payout_id = created.id
+  WHERE supplier_id = p_supplier_id
+    AND status = 'COMPLETED'
+    AND payout_status = 'pending'
+    AND supplier_payout > 0;
+
+  RETURN created;
+END;
+$;
+
+CREATE OR REPLACE FUNCTION public.finalize_supplier_payout(
+  p_payout_id UUID,
+  p_status TEXT,
+  p_reference TEXT DEFAULT NULL
+)
+RETURNS public.payouts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  current_row public.payouts;
+  updated_row public.payouts;
+BEGIN
+  IF p_status NOT IN ('paid', 'rejected') THEN
+    RAISE EXCEPTION 'INVALID_PAYOUT_STATUS';
+  END IF;
+
+  SELECT *
+  INTO current_row
+  FROM public.payouts
+  WHERE id = p_payout_id
+  FOR UPDATE;
+
+  IF current_row.id IS NULL THEN
+    RAISE EXCEPTION 'PAYOUT_NOT_FOUND';
+  END IF;
+
+  UPDATE public.payouts
+  SET status = p_status,
+      reference = COALESCE(p_reference, reference),
+      processed_at = NOW(),
+      paid_at = CASE WHEN p_status = 'paid' THEN NOW() ELSE NULL END
+  WHERE id = p_payout_id
+  RETURNING * INTO updated_row;
+
+  IF p_status = 'paid' THEN
+    UPDATE public.orders
+    SET payout_status = 'paid'
+    WHERE payout_id = p_payout_id;
+  ELSE
+    UPDATE public.orders
+    SET payout_status = 'pending',
+        payout_id = NULL
+    WHERE payout_id = p_payout_id;
+  END IF;
+
+  RETURN updated_row;
+END;
+$;
+
 SELECT pg_notify('pgrst', 'reload schema');
 
 COMMIT;
