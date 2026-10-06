@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'AuroTap – Fresh Water Delivery in UP',
     short_name: 'AuroTap',
     description:
-      'Book fresh drinking water delivery in Gorakhpur, Kanpur and Lucknow. Track orders, earn loyalty points and pay easily.',
+      'Book fresh drinking water delivery in Delhi & UP. Gorakhpur, Kanpur and Lucknow. Track orders, earn loyalty points and pay easily.',
     lang: 'en-IN',
     dir: 'ltr',
 
