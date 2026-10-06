@@ -1,15 +1,26 @@
 import { NextRequest } from 'next/server';
+
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import {
+  completeSupplierOrder,
+  startSupplierOrder,
+} from '@/lib/dispatch';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
-const ALLOWED = new Set(['IN_PROGRESS', 'COMPLETED']);
-
+/**
+ * Compatibility endpoint.
+ *
+ * New supplier clients should use /api/supplier/orders/[id].
+ * We keep this route temporarily so older clients cannot bypass
+ * the canonical state machine.
+ */
 export async function PUT(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
   const auth = await requireSupabaseAuth(req);
   if (!auth.ok) return auth.response;
+
   if (!requireRole(auth.ctx, 'supplier')) {
     return jsonErr('Forbidden', 403);
   }
@@ -24,68 +35,44 @@ export async function PUT(
   }
 
   const status = typeof body.status === 'string' ? body.status.toUpperCase() : '';
-  if (!ALLOWED.has(status)) {
-    return jsonErr('Invalid status', 400);
-  }
 
-  const { data: order, error: e0 } = await auth.ctx.supabase
-    .from('orders')
-    .select('id, supplier_id, status, customer_id, service_type_id, technician_id, scheduled_date, time_slot')
-    .eq('id', id)
-    .maybeSingle();
-
-  if (e0 || !order) {
-    return jsonErr('Order not found', 404);
-  }
-  if (order.supplier_id !== auth.ctx.profile.id) {
-    return jsonErr('Forbidden', 403);
-  }
-
-  const { data, error } = await auth.ctx.supabase
-    .from('orders')
-    .update({ status })
-    .eq('id', id)
-    .select('*')
-    .single();
-
-  if (error || !data) {
-    return jsonErr(error?.message ?? 'Update failed', 500);
-  }
-
-  const { createNotification } = await import('@/lib/notifications');
-  const customerId = data.customer_id != null ? String(data.customer_id) : '';
-  let serviceName = 'service';
-  if (data.service_type_id != null) {
-    const { data: st } = await auth.ctx.supabase
-      .from('service_types')
-      .select('name')
-      .eq('id', data.service_type_id)
-      .maybeSingle();
-    if (st?.name) serviceName = String(st.name);
-  }
-
-  if (customerId) {
-    if (status === 'IN_PROGRESS') {
-      await createNotification(
-        customerId,
-        'Service Started ⚡',
-        `Your ${serviceName} service has started.`,
-        'booking',
-        id,
-        'status_changed'
-      );
+  if (status === 'IN_PROGRESS') {
+    const result = await startSupplierOrder(id, auth.ctx.profile.id);
+    if (!result.ok) {
+      return jsonErr('Order must be accepted before delivery can start', 409, 'INVALID_TRANSITION');
     }
-    if (status === 'COMPLETED') {
-      await createNotification(
-        customerId,
-        'Service Complete ✅',
-        `Your ${serviceName} is done. Tap to rate your experience.`,
-        'booking',
-        id,
-        'completed'
-      );
+
+    const { data, error } = await auth.ctx.supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      return jsonErr('Order updated but could not be reloaded', 502);
     }
+
+    return jsonOk(data);
   }
 
-  return jsonOk(data);
+  if (status === 'COMPLETED') {
+    const result = await completeSupplierOrder(id, auth.ctx.profile.id);
+    if (!result.ok) {
+      return jsonErr('Could not complete this delivery', 409, 'COMPLETION_FAILED');
+    }
+
+    const { data, error } = await auth.ctx.supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
+      return jsonErr('Order updated but could not be reloaded', 502);
+    }
+
+    return jsonOk(data);
+  }
+
+  return jsonErr('Invalid status transition', 400, 'INVALID_TRANSITION');
 }
