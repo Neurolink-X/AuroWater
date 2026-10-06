@@ -409,7 +409,8 @@ export default function ContactPage() {
         name: values.name.trim(),
         email: values.email.trim().toLowerCase(),
         phone: values.phone.trim(),
-        message: `Subject: ${values.subject}\\n\\n${values.message.trim()}`,
+        subject: values.subject,
+        message: values.message.trim(),
       });
       setSubmitted(true);
       toast.success('Message received. We will reply within 24 hours.');
