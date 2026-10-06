@@ -342,13 +342,13 @@ export default function TermsPage() {
               </p>
 
               <div className="mt-5 flex flex-wrap gap-3">
-                <a
-                  href={'mailto:' + SUPPORT_EMAIL + '?subject=AuroTap%20Terms%20Question'}
+                <Link
+                  href="/contact"
                   className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-cyan-700 px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-cyan-800"
                 >
                   <Mail className="h-4 w-4" aria-hidden="true" />
                   Contact support
-                </a>
+                </Link>
 
                 <a
                   href={'mailto:' + SECURITY_EMAIL + '?subject=AuroTap%20Security%20Report'}
