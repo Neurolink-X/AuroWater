@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export async function PUT(
   req: NextRequest,
@@ -38,28 +39,26 @@ export async function PUT(
     return jsonErr('Only pending or assigned orders can be cancelled', 400);
   }
 
-  // Status is re-checked in the update so a supplier accepting at the same
-  // moment cannot be overwritten.
-  const { data, error } = await auth.ctx.supabase
-    .from('orders')
-    .update({
-      status: 'CANCELLED',
-      cancel_reason: reason || null,
-      cancelled_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .eq('customer_id', auth.ctx.profile.id)
-    .in('status', ['PENDING', 'ASSIGNED'])
-    .select('*')
-    .maybeSingle();
+  const admin = createServiceClient();
+  const { data: cancelled, error } = await admin.rpc('customer_cancel_order', {
+    p_order_id: id,
+    p_customer_id: auth.ctx.profile.id,
+    p_reason: reason || null,
+  });
 
-  if (error) {
-    console.error('[orders/cancel] update failed:', error);
-    return jsonErr(error.message ?? 'Cancel failed', 500);
+  if (error || !cancelled) {
+    const message = error?.message ?? '';
+    if (/ORDER_NOT_CANCELLABLE/.test(message)) {
+      return jsonErr('Order can no longer be cancelled', 409);
+    }
+    if (/ORDER_NOT_FOUND/.test(message)) {
+      return jsonErr('Order not found', 404);
+    }
+    if (error) console.error('[orders/cancel] update failed:', error);
+    return jsonErr('Cancel failed', 502);
   }
-  if (!data) {
-    return jsonErr('Order can no longer be cancelled', 409);
-  }
+
+  const data = cancelled as Record<string, unknown>;
 
   const serviceName =
     typeof existing.service_type === 'string' && existing.service_type
@@ -92,11 +91,10 @@ export async function PUT(
     console.error('[notifications] order cancelled', e);
   }
 
-  const row = data as Record<string, unknown>;
   return jsonOk({
-    ...row,
-    service_type_key: row.service_type ?? null,
-    cancellation_reason: row.cancel_reason ?? null,
+    ...data,
+    service_type_key: data.service_type ?? null,
+    cancellation_reason: data.cancel_reason ?? null,
   });
 }
 
