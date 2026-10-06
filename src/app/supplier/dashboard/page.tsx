@@ -477,16 +477,30 @@ export default function SupplierDashboardPage() {
                       </div>
                     </div>
                     <div className="flex flex-col items-start gap-3">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(session?.aurotapId ?? profile.aurotapId);
-                          toast.success('AuroTap ID copied! Share it with customers.');
-                        }}
-                        className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
-                      >
-                        Copy
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(session?.aurotapId ?? profile.aurotapId);
+                            toast.success('AuroTap ID copied.');
+                          }}
+                          className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
+                        >
+                          Copy ID
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const id = session?.aurotapId ?? profile.aurotapId;
+                            const url = `${window.location.origin}/book?service=water_can&supplier=${encodeURIComponent(id)}`;
+                            await navigator.clipboard.writeText(url);
+                            toast.success('Direct booking link copied.');
+                          }}
+                          className="rounded-xl bg-white px-4 py-2 font-black text-[#003049] hover:opacity-95"
+                        >
+                          Copy booking link
+                        </button>
+                      </div>
                       <div className="w-20 h-20 rounded-xl bg-white/20 flex items-center justify-center text-xs font-bold">
                         QR Soon
                       </div>
