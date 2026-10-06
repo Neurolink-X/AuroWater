@@ -174,7 +174,7 @@ export default async function ServiceLandingPage({
             <h2 className="mt-2 text-3xl font-black">Check your address and see what is available.</h2>
           </div>
           <Link
-            href={data.slug.startsWith('water-') ? '/book?service=water_can' : `/book?service=${encodeURIComponent(data.slug)}`}
+            href={bookingHref(data.slug)}
             className="mt-6 inline-flex rounded-2xl bg-[#2A9D8F] px-6 py-3.5 text-sm font-black lg:mt-0"
           >
             Start booking
