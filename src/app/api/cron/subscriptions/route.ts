@@ -136,14 +136,9 @@ export async function GET(
   const today =
     todayIST();
 
-  // Generate and/or dispatch deliveries that are due today or tomorrow.
-  // The scheduler intentionally prepares the next delivery one day ahead
-  // so the supplier-dispatch workflow can run before the delivery window.
-  const tomorrow =
-    addDays(
-      today,
-      1
-    );
+  // Process deliveries that are due today. The subscription record already
+  // stores the next occurrence, while the separate order is only dispatched
+  // on its delivery day so suppliers are not locked onto future jobs too early.
 
   const {
     data: subscriptions,
@@ -160,7 +155,7 @@ export async function GET(
       )
       .lte(
         'next_order_date',
-        tomorrow
+        today
       )
       .order(
         'next_order_date',
@@ -470,10 +465,7 @@ export async function GET(
         );
       }
 
-      if (
-        orderId &&
-        nextDate <= tomorrow
-      ) {
+      if (orderId) {
         const result =
           await dispatchOrder(
             orderId
