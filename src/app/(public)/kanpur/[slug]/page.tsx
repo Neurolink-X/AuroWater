@@ -6,6 +6,7 @@ import {
   SERVICE_LANDINGS,
   buildServiceMetadata,
   getServiceLanding,
+  bookingHref,
 } from '@/lib/seo/service-landings';
 
 export const revalidate = 3600;
@@ -51,7 +52,7 @@ export default async function KanpurServicePage({
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href={data.slug.startsWith('water-') ? '/book?service=water_can' : `/book?service=${encodeURIComponent(data.slug)}`}
+                href={bookingHref(data.slug)}
                 className="rounded-2xl bg-[#2A9D8F] px-6 py-3.5 text-sm font-black"
               >
                 Book now
