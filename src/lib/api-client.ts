@@ -424,6 +424,7 @@ export type ApiOrder = {
   time_slot?: string | null;
   is_emergency?: boolean;
   total_amount: number | string;
+  supplier_payout?: number | string | null;
   payment_method?: string | null;
   payment_status?: string;
   technician_id?: string | null;
