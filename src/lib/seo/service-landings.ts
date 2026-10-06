@@ -174,6 +174,16 @@ export function getServiceLanding(slug: string): ServiceLanding | null {
   return SERVICE_LANDINGS[slug] ?? null;
 }
 
+export function bookingHref(slug: string): string {
+  const service =
+    slug === 'water-tanker-delivery'
+      ? 'water_tanker'
+      : slug === 'water-delivery' || slug === 'water-can-delivery'
+        ? 'water_can'
+        : slug;
+  return `/book?service=${encodeURIComponent(service)}`;
+}
+
 export function buildServiceMetadata(slug: string, city?: string) {
   const data = getServiceLanding(slug);
   if (!data) return null;
