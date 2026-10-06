@@ -7,6 +7,9 @@ ALTER TABLE public.contact_submissions
   ADD COLUMN IF NOT EXISTS subject TEXT;
 
 ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+
+ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS stock_reserved_qty INTEGER NOT NULL DEFAULT 0
     CHECK (stock_reserved_qty >= 0);
 
@@ -61,6 +64,12 @@ DROP TRIGGER IF EXISTS payout_requests_updated_at ON public.payout_requests;
 CREATE TRIGGER payout_requests_updated_at
   BEFORE UPDATE ON public.payout_requests
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+GRANT EXECUTE ON FUNCTION public.reserve_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.release_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.consume_supplier_reserved_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.supplier_accept_order(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.supplier_complete_order(UUID, UUID) TO authenticated, service_role;
 
 -- Atomic stock reserve: available stock is reduced immediately and moved into reserved stock.
 CREATE OR REPLACE FUNCTION public.reserve_supplier_stock(
