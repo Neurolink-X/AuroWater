@@ -706,7 +706,7 @@ export function useAuth(
         return false;
       }
 
-      if (!roleHasPermission(session.role, action)) {
+      if (!roleHasPermission(session?.role, action)) {
         return false;
       }
 
