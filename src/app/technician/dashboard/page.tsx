@@ -2168,7 +2168,7 @@ export default function TechnicianDashboardPage() {
                     <div>
                       <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{greeting}</p>
                       <h1 className="text-2xl font-black text-zinc-900 mt-0.5">{techName}</h1>
-                      <p className="text-sm text-zinc-500 mt-1">Here's your performance at a glance</p>
+                      <p className="text-sm text-zinc-500 mt-1">Here&apos;s your performance at a glance</p>
                     </div>
                     <StatusToggle online={online} onChange={setOnline} />
                   </div>
@@ -2388,7 +2388,7 @@ export default function TechnicianDashboardPage() {
                   <div className="space-y-3">
                     {visibleMyJobs.map((j) => {
                       const expanded = expandedJobId === j.id;
-                      const statusColors: Record<MyJobStatus, string> = {
+                      const statusColors: Record<MyJobStatus, 'info' | 'purple' | 'success' | 'danger'> = {
                         upcoming: 'info',
                         in_progress: 'purple',
                         completed: 'success',
@@ -2403,7 +2403,7 @@ export default function TechnicianDashboardPage() {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <p className="font-bold text-zinc-900">{j.service}</p>
-                                <Badge variant={statusColors[j.status] as any}>{j.status.replace('_', ' ')}</Badge>
+                                <Badge variant={statusColors[j.status]}>{j.status.replace('_', ' ')}</Badge>
                                 {j.status === 'completed' && typeof j.rating === 'number' && <Badge variant="warning">{'★'.repeat(j.rating)}</Badge>}
                               </div>
                               <p className="text-xs text-zinc-500 mt-0.5 truncate">{j.sub} · {j.area}</p>
@@ -2559,7 +2559,7 @@ export default function TechnicianDashboardPage() {
                   <div>
                     <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Availability</p>
                     <h1 className="text-xl font-black text-zinc-900 mt-0.5">Set your schedule</h1>
-                    <p className="text-sm text-zinc-500 mt-1">Choose when you're available — affects which bookings you'll receive.</p>
+                    <p className="text-sm text-zinc-500 mt-1">Choose when you&apos;re available — affects which bookings you&apos;ll receive.</p>
                   </div>
                   <button onClick={() => toast.success('Availability saved!')} className="bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition-colors text-sm shrink-0">
                     Save Schedule
