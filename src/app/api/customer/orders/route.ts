@@ -489,7 +489,7 @@ if (!serviceability.serviceable) {
 
     subscriptionId = String(subscription.id);
 
-    const { error: linkError } = await auth.ctx.supabase
+    const { error: linkError } = await admin
       .from('orders')
       .update({ subscription_id: subscriptionId })
       .eq('id', orderId)
