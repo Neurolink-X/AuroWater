@@ -108,7 +108,7 @@ async function notifyCustomer(
       body,
       'booking',
       orderId,
-      'subscription'
+      'created'
     );
   } catch {
     // Notification failure must never break subscription processing.
