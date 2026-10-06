@@ -1528,6 +1528,13 @@ export default function CustomerAccountPage() {
               />
 
               <MenuRow
+                href="/customer/subscriptions"
+                icon="🔄"
+                title="My subscriptions"
+                description="Pause, resume, or cancel recurring water deliveries"
+              />
+
+              <MenuRow
                 href="/pricing"
                 icon="🏷️"
                 title="Pricing"
