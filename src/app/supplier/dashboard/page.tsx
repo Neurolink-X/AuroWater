@@ -389,12 +389,6 @@ export default function SupplierDashboardPage() {
     }
   }, [profile]);
 
-  const persistFleet = async (next: Tanker[]) => {
-    setFleet(next);
-  };
-
-  const persistDocs = (next: SupplierDoc[]) => setDocs(next);
-
   const filteredOrders = React.useMemo(() => {
     if (orderFilter === 'all') return orders;
     return orders.filter((o) => o.status === orderFilter);
