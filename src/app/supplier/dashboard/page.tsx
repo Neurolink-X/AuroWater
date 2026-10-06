@@ -375,6 +375,7 @@ export default function SupplierDashboardPage() {
     setProfileSaving(true);
     try {
       const updated = await supplierProfileUpdate({
+        full_name: profile.ownerName,
         business_name: profile.businessName,
         gstin: profile.gst,
         service_cities: profile.serviceCities,
@@ -424,9 +425,6 @@ export default function SupplierDashboardPage() {
       profile.email,
       profile.gst,
       profile.serviceCities.length ? 'ok' : '',
-      profile.prices['1000L'] > 0 ? 'ok' : '',
-      profile.prices['3000L'] > 0 ? 'ok' : '',
-      profile.prices['5000L'] > 0 ? 'ok' : '',
       profile.aurotapId,
     ];
     const done = fields.filter((x) => String(x).trim().length > 0).length;
@@ -1057,32 +1055,6 @@ export default function SupplierDashboardPage() {
                   <Input label="GST" value={profile.gst} onChange={(v) => persistProfile({ ...profile, gst: v })} />
                   <Input label="Phone" value={profile.phone} onChange={() => undefined} />
                   <Input label="Email" value={profile.email} onChange={() => undefined} />
-                </div>
-
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Service Cities</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CITIES.map((c) => {
-                      const active = profile.serviceCities.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => {
-                            const next = active
-                              ? profile.serviceCities.filter((x) => x !== c)
-                              : [...profile.serviceCities, c];
-                            persistProfile({ ...profile, serviceCities: next });
-                          }}
-                          className={[
-                            'rounded-full px-3 py-1.5 text-xs font-bold border',
-                            active ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
-                          ].join(' ')}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 <div className="mt-4">
