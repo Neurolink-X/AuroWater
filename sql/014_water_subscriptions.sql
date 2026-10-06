@@ -1,11 +1,15 @@
 -- AuroTap — real recurring water-can subscriptions
 -- Migration: 014_water_subscriptions.sql
 -- Safe to run more than once.
+--
+-- IMPORTANT:
+-- This migration intentionally contains NO DO $$ blocks.
+-- It is safe to paste directly into Supabase SQL Editor.
 
 BEGIN;
 
 -- ============================================================
--- 1. Subscription fields on orders
+-- 1. Extend orders for recurring water deliveries
 -- ============================================================
 
 ALTER TABLE public.orders
@@ -20,71 +24,40 @@ ALTER TABLE public.orders
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS subscription_id UUID;
 
--- Replace any older frequency CHECK constraint so the UI/API and
--- database accept the same set of supported recurrence options.
-DO $$
-DECLARE
-  c RECORD;
-BEGIN
-  FOR c IN
-    SELECT conname
-    FROM pg_constraint
-    WHERE conrelid = 'public.orders'::regclass
-      AND contype = 'c'
-      AND pg_get_constraintdef(oid) ILIKE '%can_frequency%'
-  LOOP
-    EXECUTE format(
-      'ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS %I',
-      c.conname
-    );
-  END LOOP;
-END
-$$;
+-- Remove old frequency/type checks before recreating them.
+-- The current AuroTap schema uses these constraint names.
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_can_frequency_check;
 
-DO $
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'orders_can_frequency_check'
-      AND conrelid = 'public.orders'::regclass
-  ) THEN
-    ALTER TABLE public.orders
-      ADD CONSTRAINT orders_can_frequency_check
-      CHECK (
-        can_frequency IS NULL
-        OR can_frequency IN (
-          'daily',
-          'alternate',
-          'weekly',
-          'biweekly',
-          'monthly'
-        )
-      );
-  END IF;
-END
-$;
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_can_frequency_check
+  CHECK (
+    can_frequency IS NULL
+    OR can_frequency IN (
+      'daily',
+      'alternate',
+      'weekly',
+      'biweekly',
+      'monthly'
+    )
+  );
 
-DO $
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'orders_can_order_type_check'
-      AND conrelid = 'public.orders'::regclass
-  ) THEN
-    ALTER TABLE public.orders
-      ADD CONSTRAINT orders_can_order_type_check
-      CHECK (
-        can_order_type IS NULL
-        OR can_order_type IN (
-          'one_time',
-          'subscription'
-        )
-      );
-  END IF;
-END
-$$;
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_can_order_type_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_can_order_type_check
+  CHECK (
+    can_order_type IS NULL
+    OR can_order_type IN (
+      'one_time',
+      'subscription'
+    )
+  );
+
+-- In case an earlier failed attempt created this FK name.
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_subscription_fk;
 
 -- ============================================================
 -- 2. Subscription master record
@@ -157,7 +130,10 @@ CREATE TABLE IF NOT EXISTS public.water_subscriptions (
     CHECK (convenience_fee >= 0),
 
   gst_rate NUMERIC(6,5) NOT NULL DEFAULT 0
-    CHECK (gst_rate >= 0 AND gst_rate <= 1),
+    CHECK (
+      gst_rate >= 0
+      AND gst_rate <= 1
+    ),
 
   notes TEXT,
 
@@ -165,29 +141,19 @@ CREATE TABLE IF NOT EXISTS public.water_subscriptions (
 
   cancelled_at TIMESTAMPTZ,
 
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW(),
 
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW()
 );
 
--- Add the order → subscription foreign key only after the
--- subscription table exists.
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'orders_subscription_fk'
-      AND conrelid = 'public.orders'::regclass
-  ) THEN
-    ALTER TABLE public.orders
-      ADD CONSTRAINT orders_subscription_fk
-      FOREIGN KEY (subscription_id)
-      REFERENCES public.water_subscriptions(id)
-      ON DELETE SET NULL;
-  END IF;
-END
-$$;
+-- Link orders to their subscription after the target table exists.
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_subscription_fk
+  FOREIGN KEY (subscription_id)
+  REFERENCES public.water_subscriptions(id)
+  ON DELETE SET NULL;
 
 -- ============================================================
 -- 3. Indexes
@@ -199,7 +165,10 @@ ON public.water_subscriptions(customer_id);
 
 CREATE INDEX IF NOT EXISTS
   water_subscriptions_status_next_order_idx
-ON public.water_subscriptions(status, next_order_date);
+ON public.water_subscriptions(
+  status,
+  next_order_date
+);
 
 CREATE INDEX IF NOT EXISTS
   water_subscriptions_address_idx
@@ -211,7 +180,10 @@ ON public.orders(subscription_id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS
   orders_subscription_schedule_unique_idx
-ON public.orders(subscription_id, scheduled_at)
+ON public.orders(
+  subscription_id,
+  scheduled_at
+)
 WHERE subscription_id IS NOT NULL
   AND scheduled_at IS NOT NULL;
 
@@ -230,7 +202,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at();
 
 -- ============================================================
--- 5. Row level security
+-- 5. Row Level Security
 -- ============================================================
 
 ALTER TABLE public.water_subscriptions
@@ -246,7 +218,10 @@ ON public.water_subscriptions
 FOR SELECT
 USING (
   customer_id = auth.uid()
-  OR COALESCE(public.current_profile_role(), '') = 'admin'
+  OR COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
 );
 
 DROP POLICY IF EXISTS
@@ -258,12 +233,25 @@ CREATE POLICY
 ON public.water_subscriptions
 FOR ALL
 USING (
-  COALESCE(public.current_profile_role(), '') = 'admin'
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
 )
 WITH CHECK (
-  COALESCE(public.current_profile_role(), '') = 'admin'
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
 );
 
-SELECT pg_notify('pgrst', 'reload schema');
+-- ============================================================
+-- 6. PostgREST refresh
+-- ============================================================
+
+SELECT pg_notify(
+  'pgrst',
+  'reload schema'
+);
 
 COMMIT;
