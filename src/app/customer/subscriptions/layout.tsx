@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
   title: 'My Subscriptions | AuroTap',
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function CustomerSubscriptionsLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return children;
 }
