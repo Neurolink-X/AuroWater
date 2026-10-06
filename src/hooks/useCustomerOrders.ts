@@ -124,7 +124,14 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
   useEffect(() => {
     if (!ready) return;
     const tick = () => {
-      if (document.visibilityState === 'visible') void load('silent');
+      // Realtime already keeps the list current. Only refresh on tab
+      // return while an order is actively moving through the workflow.
+      if (
+        hasActive &&
+        document.visibilityState === 'visible'
+      ) {
+        void load('silent');
+      }
     };
     const t = window.setInterval(tick, hasActive ? 15_000 : 60_000);
     document.addEventListener('visibilitychange', tick);
