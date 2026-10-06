@@ -286,25 +286,28 @@ export default function RegisterPage() {
     setShowConfirmPassword(false);
   };
 
-  const applyZodErrors = (
-    result:
-      | z.SafeParseSuccess<unknown>
-      | z.SafeParseError<unknown>
-  ) => {
-    if (result.success) return;
-
-    const nextErrors: FieldErrors = {};
-
-    for (const issue of result.error.issues) {
-      const key = String(issue.path[0] ?? 'form');
-
-      if (!nextErrors[key]) {
-        nextErrors[key] = issue.message;
-      }
-    }
-
-    setFieldErrors(nextErrors);
+ const applyZodErrors = (result: {
+  success: boolean;
+  error?: {
+    issues: Array<{
+      path: PropertyKey[];
+      message: string;
+    }>;
   };
+}) => {
+  if (result.success || !result.error) return;
+
+  const nextErrors: Record<string, string> = {};
+
+  for (const issue of result.error.issues) {
+    const field = String(issue.path[0] ?? '');
+    if (field && !nextErrors[field]) {
+      nextErrors[field] = issue.message;
+    }
+  }
+
+  setFieldErrors(nextErrors);
+};
 
   const finishRegistration = async (
     reg:
