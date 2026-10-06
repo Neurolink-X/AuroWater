@@ -1156,6 +1156,8 @@ SELECT pg_notify('pgrst', 'reload schema');
 -- ═══════════════════════════════════════════════════════════════
 
 -- ═══════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/016_supplier_operations_foundation.sql
 -- ═══════════════════════════════════════════════════════════════
 
@@ -1346,6 +1348,7 @@ CREATE POLICY "addresses_insert_customer_or_admin" ON public.addresses
   );
 
 ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS zone_id UUID REFERENCES public.service_zones(id),
   ADD COLUMN IF NOT EXISTS service_type TEXT,
   ADD COLUMN IF NOT EXISTS final_amount NUMERIC(10,2),
   ADD COLUMN IF NOT EXISTS address TEXT,
@@ -1527,6 +1530,12 @@ DECLARE
   available NUMERIC(12,2);
   inserted_request public.payout_requests%ROWTYPE;
 BEGIN
+  IF auth.uid() IS NOT NULL
+     AND auth.uid() IS DISTINCT FROM p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
   IF p_amount IS NULL OR p_amount <= 0 THEN
     RAISE EXCEPTION 'INVALID_AMOUNT';
   END IF;
@@ -1613,6 +1622,12 @@ DECLARE
   start_ts TIMESTAMPTZ;
   pl TEXT;
 BEGIN
+  IF auth.uid() IS NOT NULL
+     AND auth.uid() IS DISTINCT FROM p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
   pl := lower(coalesce(p_period, 'month'));
   start_ts := CASE pl
     WHEN 'today' THEN date_trunc('day', NOW())
@@ -1650,6 +1665,14 @@ BEGIN
     AND o.created_at >= start_ts;
 END;
 $;
+
+-- Internal stock/order transition functions are server-only. Supplier APIs authenticate first,
+-- then use the service-role client; clients cannot call these SECURITY DEFINER functions directly.
+REVOKE EXECUTE ON FUNCTION public.reserve_supplier_stock(UUID, INTEGER) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.release_supplier_stock(UUID, INTEGER) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.consume_supplier_reserved_stock(UUID, INTEGER) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.supplier_accept_order(UUID, UUID) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION public.supplier_complete_order(UUID, UUID) FROM authenticated;
 
 GRANT EXECUTE ON FUNCTION public.get_supplier_earnings(UUID, TEXT)
   TO authenticated, service_role;
