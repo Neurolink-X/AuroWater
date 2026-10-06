@@ -916,7 +916,7 @@ export default function CustomerFeedbackPage() {
             className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-4"
           >
             <p className="text-sm font-bold text-red-800">
-              We couldn't submit your feedback.
+              We couldn&apos;t submit your feedback.
             </p>
 
             <p className="mt-1 text-xs leading-5 text-red-700">
