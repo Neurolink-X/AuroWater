@@ -915,11 +915,11 @@ export default function ContactPage() {
 
             <h1 className="ct-hero-title">
               Talk to <span>AuroWater</span><br />
-              We're here for you.
+              We&apos;re here for you.
             </h1>
 
             <p className="ct-hero-sub">
-              Whether it's a booking issue, partnership query, or you want to join our technician network — we've got you covered.
+              Whether it&apos;s a booking issue, partnership query, or you want to join our technician network — we&apos;ve got you covered.
             </p>
 
             <div className="ct-hero-stats">
@@ -957,7 +957,7 @@ export default function ContactPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <h2 className="ct-form-title">Send us a message</h2>
-                    <p className="ct-form-sub">Fill in the form and we'll get back to you within 24 hours.</p>
+                    <p className="ct-form-sub">Fill in the form and we&apos;ll get back to you within 24 hours.</p>
                   </div>
                   {/* accent droplet decoration */}
                   <div style={{ width: 48, height: 48, borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)', background: 'linear-gradient(135deg, #0D9B6C, #34D399)', opacity: 0.15, flexShrink: 0 }} />
@@ -969,7 +969,7 @@ export default function ContactPage() {
                   <div className="ct-success">
                     <div className="ct-success-icon"><IconCheck /></div>
                     <div className="ct-success-title">Message sent!</div>
-                    <p className="ct-success-sub">We've received your message and will reply to you within 24 hours. Check your inbox.</p>
+                    <p className="ct-success-sub">We&apos;ve received your message and will reply to you within 24 hours. Check your inbox.</p>
                     <button
                       type="button"
                       onClick={() => setSubmitted(false)}
@@ -1137,7 +1137,7 @@ export default function ContactPage() {
               {/* Support note */}
               <div className="ct-note-card">
                 <p>
-                  <strong>For bookings</strong>, use the Book flow directly. For technician onboarding or supplier partnerships, drop us a message or WhatsApp — we'll set up a call.
+                  <strong>For bookings</strong>, use the Book flow directly. For technician onboarding or supplier partnerships, drop us a message or WhatsApp — we&apos;ll set up a call.
                 </p>
               </div>
 
