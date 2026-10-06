@@ -12,6 +12,7 @@ import {
 } from '@/lib/api/supabase-request';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 const profileSchema = z.object({
   full_name: z
@@ -61,7 +62,7 @@ function normalizeCity(city: string): string {
 /**
  * Public-safe technician profile fields.
  *
- * Do not return sensitive/internal fields such as:
+ * Deliberately excludes sensitive/internal fields such as:
  * - license_number
  * - verification documents
  * - internal audit fields
@@ -91,8 +92,6 @@ function sanitizeProfile(profile: Record<string, unknown>) {
 /**
  * GET
  *
- * Legacy technician profile endpoint.
- *
  * Returns only the authenticated technician's own profile.
  */
 export async function GET(req: NextRequest) {
@@ -108,10 +107,7 @@ export async function GET(req: NextRequest) {
 
   return jsonOk(
     sanitizeProfile(
-      auth.ctx.profile as unknown as Record<
-        string,
-        unknown
-      >,
+      auth.ctx.profile as unknown as Record<string, unknown>,
     ),
   );
 }
@@ -119,11 +115,10 @@ export async function GET(req: NextRequest) {
 /**
  * PUT
  *
- * Updates the authenticated technician's editable profile.
+ * Updates only editable profile fields for the authenticated technician.
  *
- * IMPORTANT:
- * The browser can never choose which profile is updated.
- * The authenticated Supabase profile ID is always used.
+ * The browser cannot choose which profile is updated.
+ * The authenticated profile ID is always used server-side.
  */
 export async function PUT(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
@@ -136,9 +131,6 @@ export async function PUT(req: NextRequest) {
     return jsonErr('Forbidden', 403);
   }
 
-  // ------------------------------------------------------------
-  // Parse request
-  // ------------------------------------------------------------
   let raw: unknown;
 
   try {
@@ -147,52 +139,52 @@ export async function PUT(req: NextRequest) {
     return jsonErr('Invalid JSON body', 400);
   }
 
-  // ------------------------------------------------------------
-  // Validate request
-  // ------------------------------------------------------------
   const parsed = profileSchema.safeParse(raw);
 
   if (!parsed.success) {
     return jsonErr(
-      parsed.error.issues[0]?.message ??
-        'Invalid profile data',
+      parsed.error.issues[0]?.message ?? 'Invalid profile data',
       422,
     );
   }
 
   const input: ProfileUpdate = parsed.data;
-
-  // ------------------------------------------------------------
-  // Normalize editable fields
-  // ------------------------------------------------------------
   const updates: Record<string, unknown> = {};
 
   if (input.full_name !== undefined) {
-    updates.full_name = normalizeName(
-      input.full_name,
-    );
+    const fullName = normalizeName(input.full_name);
+
+    if (fullName.length < 2) {
+      return jsonErr(
+        'Name must contain at least 2 characters',
+        422,
+      );
+    }
+
+    updates.full_name = fullName;
   }
 
   if (input.phone !== undefined) {
-    const normalizedPhone = normalizePhone(
-      input.phone,
-    );
+    const normalizedPhone = normalizePhone(input.phone);
 
     if (
       normalizedPhone.length < 10 ||
       normalizedPhone.length > 15
     ) {
-      return jsonErr(
-        'Enter a valid phone number',
-        422,
-      );
+      return jsonErr('Enter a valid phone number', 422);
     }
 
     updates.phone = normalizedPhone;
   }
 
   if (input.city !== undefined) {
-    updates.city = normalizeCity(input.city);
+    const city = normalizeCity(input.city);
+
+    if (city.length < 2) {
+      return jsonErr('Enter a valid city', 422);
+    }
+
+    updates.city = city;
   }
 
   if (input.avatar_url !== undefined) {
@@ -200,9 +192,6 @@ export async function PUT(req: NextRequest) {
       input.avatar_url?.trim() || null;
   }
 
-  // ------------------------------------------------------------
-  // Prevent empty update
-  // ------------------------------------------------------------
   if (Object.keys(updates).length === 0) {
     return jsonErr(
       'No profile changes were provided',
@@ -210,20 +199,6 @@ export async function PUT(req: NextRequest) {
     );
   }
 
-  // ------------------------------------------------------------
-  // Update ONLY the authenticated technician's profile.
-  //
-  // Never accept:
-  // id
-  // role
-  // status
-  // is_active
-  // verification_status
-  // license_number
-  // payout fields
-  // permissions
-  // from the browser.
-  // ------------------------------------------------------------
   const { data, error } = await auth.ctx.supabase
     .from('profiles')
     .update({
@@ -249,19 +224,12 @@ export async function PUT(req: NextRequest) {
     )
     .single();
 
-  // ------------------------------------------------------------
-  // Database error handling
-  // ------------------------------------------------------------
   if (error) {
     console.error(
       '[technician-profile] update failed:',
       error,
     );
 
-    /*
-     * Never send Supabase/Postgres error.message directly
-     * to the browser.
-     */
     return jsonErr(
       'Unable to update your profile right now',
       500,
@@ -277,7 +245,7 @@ export async function PUT(req: NextRequest) {
 
   return jsonOk(
     sanitizeProfile(
-      data as Record<string, unknown>,
+      data as unknown as Record<string, unknown>,
     ),
   );
 }
