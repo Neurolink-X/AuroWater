@@ -1,911 +1,1171 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import { useSettings } from '@/hooks/useSettings';
-import { useAuth } from '@/hooks/useAuth';
-import {
-  supplierOrdersList,
-  supplierOrderUpdateStatus,
-  supplierEarningsSummary,
-  supplierPayoutRequest,
-  getApiErrorMessage,
-  type ApiOrder,
-  type SupplierEarningsSummary,
-} from '@/lib/api-client';
-import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
-import { safeGet, safeSet } from '@/lib/storage';
 
-type TabKey =
-  | 'overview'
-  | 'orders'
-  | 'fleet'
-  | 'revenue'
-  | 'aurotap'
-  | 'profile'
-  | 'documents';
-
-type SupplierOrder = {
-  /** Supabase order UUID — use for API calls */
-  apiId: string;
-  /** Human-readable order_number */
-  label: string;
-  customer: string;
-  area: string;
-  address: string;
-  size: '1000L' | '3000L' | '5000L' | '10000L';
-  date: string;
-  eta: string;
-  amount: number;
-  status: 'pending' | 'active' | 'delivered' | 'cancelled';
-};
-
-function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
-  const snap = (o.address_snapshot ?? {}) as Record<string, unknown>;
-  const area = [snap.area, snap.city].filter(Boolean).join(', ') || '—';
-  const addr = [snap.house_flat, snap.area, snap.city, snap.pincode].filter(Boolean).join(', ') || '—';
-  const st = String(o.status ?? '').toUpperCase();
-  let status: SupplierOrder['status'] = 'pending';
-  if (st === 'IN_PROGRESS') status = 'active';
-  else if (st === 'COMPLETED') status = 'delivered';
-  else if (st === 'CANCELLED') status = 'cancelled';
-  else status = 'pending';
-
-  const sk = String(o.service_type_key ?? '').toLowerCase();
-  let size: SupplierOrder['size'] = '3000L';
-  if (sk.includes('1000')) size = '1000L';
-  else if (sk.includes('5000')) size = '5000L';
-  else if (sk.includes('10000')) size = '10000L';
-
-  return {
-    apiId: o.id,
-    label: String(o.order_number ?? o.id).slice(0, 32),
-    customer: 'Customer',
-    area,
-    address: addr,
-    size,
-    date: String(o.scheduled_date ?? (typeof o.created_at === 'string' ? o.created_at.slice(0, 10) : '—')),
-    eta: String(o.time_slot ?? '—'),
-    amount: Number(o.total_amount ?? 0),
-    status,
-  };
-}
-
-type Tanker = {
-  id: string;
-  name: string;
-  size: '1000L' | '3000L' | '5000L' | '10000L';
-  status: 'available' | 'in_use' | 'maintenance';
-  price: number;
-  driver: string;
-};
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type SupplierProfile = {
-  businessName: string;
-  ownerName: string;
-  gst: string;
+  id: string;
+  user_id: string;
+  full_name: string;
   phone: string;
-  email: string;
-  serviceCities: string[];
-  aurotapId: string;
-  prices: Record<'1000L' | '3000L' | '5000L', number>;
+  city: string;
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  is_active: boolean;
+  is_verified: boolean;
+  total_deliveries: number;
+  total_earnings: number;
+  rating: number;
+  rating_count: number;
+  created_at: string;
 };
 
-type SupplierDoc = {
-  key: string;
+type OrderStatus =
+  | 'pending'
+  | 'assigned'
+  | 'in_progress'
+  | 'delivered'
+  | 'cancelled';
+
+type Order = {
+  id: string;
+  booking_id: string;
+  service_type: string;
+  customer_name: string;
+  customer_phone: string;
+  address_line: string;
+  city: string;
+  scheduled_date: string;
+  scheduled_slot: string;
+  status: OrderStatus;
+  amount: number;
+  cans_count: number | null;
+  notes: string | null;
+  created_at: string;
+};
+
+type EarningRow = {
+  id: string;
+  order_id: string;
+  amount: number;
+  status: 'pending' | 'paid';
+  paid_at: string | null;
+  created_at: string;
+};
+
+type Notification = {
+  id: string;
+  title: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+type DashboardStats = {
+  todayOrders: number;
+  pendingOrders: number;
+  weekEarnings: number;
+  monthEarnings: number;
+  completionRate: number;
+  avgRating: number;
+};
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TIER_META: Record<
+  SupplierProfile['tier'],
+  { label: string; color: string; bg: string; next: string; target: number }
+> = {
+  bronze: {
+    label: 'Bronze',
+    color: '#CD7F32',
+    bg: 'rgba(205,127,50,0.12)',
+    next: 'Silver',
+    target: 50,
+  },
+  silver: {
+    label: 'Silver',
+    color: '#C0C0C0',
+    bg: 'rgba(192,192,192,0.12)',
+    next: 'Gold',
+    target: 150,
+  },
+  gold: {
+    label: 'Gold',
+    color: '#FFD700',
+    bg: 'rgba(255,215,0,0.12)',
+    next: 'Platinum',
+    target: 400,
+  },
+  platinum: {
+    label: 'Platinum',
+    color: '#E5E4E2',
+    bg: 'rgba(229,228,226,0.12)',
+    next: '—',
+    target: 400,
+  },
+};
+
+const STATUS_META: Record<
+  OrderStatus,
+  { label: string; color: string; bg: string }
+> = {
+  pending: {
+    label: 'Pending',
+    color: '#F59E0B',
+    bg: 'rgba(245,158,11,0.12)',
+  },
+  assigned: {
+    label: 'Assigned',
+    color: '#38BDF8',
+    bg: 'rgba(56,189,248,0.12)',
+  },
+  in_progress: {
+    label: 'In Progress',
+    color: '#A78BFA',
+    bg: 'rgba(167,139,250,0.12)',
+  },
+  delivered: {
+    label: 'Delivered',
+    color: '#10B981',
+    bg: 'rgba(16,185,129,0.12)',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    color: '#F87171',
+    bg: 'rgba(248,113,113,0.12)',
+  },
+};
+
+const INR = (n: number) =>
+  `₹${Math.round(n).toLocaleString('en-IN')}`;
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+// ─── SVG Icons ────────────────────────────────────────────────────────────────
+
+const Icon = {
+  drop: (s = 18, c = '#0D9B6C') => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 2C12 2 5 9.5 5 14.5C5 18.09 8.13 21 12 21C15.87 21 19 18.09 19 14.5C19 9.5 12 2 12 2Z"
+        fill={c}
+        opacity="0.2"
+        stroke={c}
+        strokeWidth="1.5"
+      />
+      <path d="M9 15.5C9.5 17.5 11 18.5 13 18" stroke={c} strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  wallet: (s = 18) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M2 10h20" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="17" cy="15" r="1.5" fill="currentColor" />
+    </svg>
+  ),
+  truck: (s = 18) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M1 3h13v13H1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M14 8h4l3 3v5h-7V8z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <circle cx="5.5" cy="18.5" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="18.5" cy="18.5" r="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  ),
+  star: (s = 14, filled = true) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none">
+      <polygon
+        points="7,1 8.8,5.2 13,5.6 10,8.4 10.9,12.5 7,10.3 3.1,12.5 4,8.4 1,5.6 5.2,5.2"
+        fill={filled ? '#F59E0B' : 'rgba(255,255,255,0.12)'}
+      />
+    </svg>
+  ),
+  bell: (s = 18) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
+  chart: (s = 18) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7 16l4-4 4 4 4-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  check: (s = 14) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none">
+      <path d="M2.5 7L5.5 10L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  logout: (s = 16) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <polyline points="16 17 21 12 16 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="21" y1="12" x2="9" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
+  map: (s = 14) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none">
+      <path d="M7 1C4.8 1 3 2.8 3 5c0 3 4 8 4 8s4-5 4-8c0-2.2-1.8-4-4-4z" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="7" cy="5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  ),
+  phone: (s = 14) => (
+    <svg width={s} height={s} viewBox="0 0 14 14" fill="none">
+      <rect x="3.5" y="1" width="7" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+      <circle cx="7" cy="10.5" r="0.7" fill="currentColor" />
+    </svg>
+  ),
+  refresh: (s = 16) => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+      <path d="M23 4v6h-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1 20v-6h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+};
+
+// ─── Skeleton loader ───────────────────────────────────────────────────────────
+
+function Skeleton({ w = '100%', h = 16, r = 8 }: { w?: string | number; h?: number; r?: number }) {
+  return (
+    <div
+      style={{
+        width: w,
+        height: h,
+        borderRadius: r,
+        background: 'linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.10) 50%,rgba(255,255,255,0.06) 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'auro-shimmer 1.4s ease-in-out infinite',
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+// ─── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sub,
+  accent,
+  loading,
+}: {
+  icon: React.ReactNode;
   label: string;
-  required: boolean;
-  fileName?: string;
-  fileSizeKb?: number;
-  status: 'not_uploaded' | 'submitted' | 'verified' | 'rejected';
-};
-
-const CITIES = [
-  'Kanpur',
-  'Gorakhpur',
-  'Lucknow',
-  'Varanasi',
-  'Prayagraj',
-  'Agra',
-  'Meerut',
-  'Bareilly',
-  'Aligarh',
-  'Mathura',
-  'Delhi',
-  'Noida',
-  'Ghaziabad',
-] as const;
-
-const FLEET_KEY = 'aurowater_supplier_fleet';
-const PROFILE_KEY = 'aurowater_supplier_profile';
-const DOCS_KEY = 'aurowater_supplier_docs';
-
-const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const maskPhone = (p: string) => (p.length < 6 ? p : `${p.slice(0, 2)}XXXXXX${p.slice(-2)}`);
-
-function safeParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function seedFleet(): Tanker[] {
-  return [
-    { id: 'TK-001', name: 'Tanker Alpha', size: '3000L', status: 'available', price: 399, driver: 'Ramesh Kumar' },
-    { id: 'TK-002', name: 'Tanker Beta', size: '5000L', status: 'in_use', price: 599, driver: 'Suresh Pal' },
-    { id: 'TK-003', name: 'Tanker Gamma', size: '1000L', status: 'available', price: 299, driver: 'Mahesh Singh' },
-  ];
-}
-
-function seedProfile(): SupplierProfile {
-  return {
-    businessName: 'Auro Water Kanpur',
-    ownerName: 'Arjun Chaurasiya',
-    gst: '09ABCDE1234F1Z5',
-    phone: '9889305803',
-    email: 'supplier@aurowater.in',
-    serviceCities: ['Kanpur', 'Lucknow'],
-    aurotapId: '9889305803@aurotap',
-    prices: {
-      '1000L': 299,
-      '3000L': 399,
-      '5000L': 599,
-    },
-  };
-}
-
-function seedDocs(): SupplierDoc[] {
-  return [
-    { key: 'gst', label: 'GST Certificate', required: true, status: 'submitted', fileName: 'gst_cert.pdf', fileSizeKb: 381 },
-    { key: 'reg', label: 'Business Registration', required: true, status: 'not_uploaded' },
-    { key: 'aadhaar', label: 'Owner Aadhaar', required: true, status: 'verified', fileName: 'aadhaar_owner.jpg', fileSizeKb: 812 },
-    { key: 'insurance', label: 'Fleet Insurance', required: true, status: 'not_uploaded' },
-    { key: 'bank', label: 'Bank Statement', required: true, status: 'not_uploaded' },
-  ];
-}
-
-export default function SupplierDashboardPage() {
-  const { settings } = useSettings();
-  const { session, hydrated: authHydrated, isLoggedIn, isSupplier } = useAuth();
-  const [tab, setTab] = React.useState<TabKey>('overview');
-  const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
-  const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
-  const [ordersLoading, setOrdersLoading] = React.useState(true);
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [fleet, setFleet] = React.useState<Tanker[]>([]);
-  const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
-  const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
-  const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
-  const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
-  const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
-  const [boardError, setBoardError] = React.useState<string | null>(null);
-
-  const fetchSupplierBoard = React.useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    setBoardError(null);
-    try {
-      const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
-
-      let primaryErr: string | null = null;
-
-      if (list.status === 'fulfilled') {
-        setOrders((list.value ?? []).map(mapApiOrderToSupplierOrder));
-      } else {
-        primaryErr = getApiErrorMessage(list.reason);
-      }
-
-      if (earn.status === 'fulfilled' && earn.value) {
-        setEarningsSummary(earn.value);
-      } else if (earn.status === 'rejected' && !primaryErr) {
-        toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
-      }
-
-      if (primaryErr) setBoardError(primaryErr);
-    } catch (e) {
-      setBoardError(getApiErrorMessage(e));
-      console.error('[SupplierDashboard] fetch failed:', e);
-    } finally {
-      setOrdersLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
-    const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
-    const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
-
-    const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
-    const nextProfile = p ?? seedProfile();
-    const nextDocs = Array.isArray(d) && d.length ? d : seedDocs();
-
-    setFleet(nextFleet);
-    setProfile(nextProfile);
-    setDocs(nextDocs);
-
-    safeSet(FLEET_KEY, JSON.stringify(nextFleet));
-    safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
-    safeSet(DOCS_KEY, JSON.stringify(nextDocs));
-  }, []);
-
-  React.useEffect(() => {
-    if (!authHydrated || !isLoggedIn || !isSupplier) return;
-    void fetchSupplierBoard();
-  }, [authHydrated, isLoggedIn, isSupplier, fetchSupplierBoard]);
-
-  /* Live refresh when ops assigns or updates supplier orders */
-  React.useEffect(() => {
-    if (!session?.userId || typeof window === 'undefined') return;
-    let ch: ReturnType<ReturnType<typeof import('@/lib/db/supabase').supabaseBrowser>['channel']> | null = null;
-    void import('@/lib/db/supabase').then(({ supabaseBrowser }) => {
-      ch = supabaseBrowser()
-        .channel(`supplier-orders-${session.userId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'orders',
-            filter: `supplier_id=eq.${session.userId}`,
-          },
-          () => {
-            void fetchSupplierBoard(true);
-          }
-        )
-        .subscribe();
-    });
-    return () => {
-      void ch?.unsubscribe();
-    };
-  }, [session?.userId, fetchSupplierBoard]);
-
-  const persistOrders = (next: SupplierOrder[]) => {
-    setOrders(next);
-  };
-  const persistFleet = (next: Tanker[]) => {
-    setFleet(next);
-    safeSet(FLEET_KEY, JSON.stringify(next));
-  };
-  const persistProfile = (next: SupplierProfile) => {
-    setProfile(next);
-    safeSet(PROFILE_KEY, JSON.stringify(next));
-  };
-  const persistDocs = (next: SupplierDoc[]) => {
-    setDocs(next);
-    safeSet(DOCS_KEY, JSON.stringify(next));
-  };
-
-  const filteredOrders = React.useMemo(() => {
-    if (orderFilter === 'all') return orders;
-    return orders.filter((o) => o.status === orderFilter);
-  }, [orders, orderFilter]);
-
-  const stats = React.useMemo(() => {
-    const active = orders.filter((o) => o.status === 'active').length;
-    const pending = orders.filter((o) => o.status === 'pending').length;
-    const delivered = orders.filter((o) => o.status === 'delivered').length;
-    const monthRevenue =
-      earningsSummary != null
-        ? earningsSummary.gross_amount
-        : orders.filter((o) => o.status === 'delivered').reduce((sum, o) => sum + o.amount, 0);
-    return { active, pending, delivered, monthRevenue };
-  }, [orders, earningsSummary]);
-
-  const completion = React.useMemo(() => {
-    const fields = [
-      profile.businessName,
-      profile.ownerName,
-      profile.phone,
-      profile.email,
-      profile.gst,
-      profile.serviceCities.length ? 'ok' : '',
-      profile.prices['1000L'] > 0 ? 'ok' : '',
-      profile.prices['3000L'] > 0 ? 'ok' : '',
-      profile.prices['5000L'] > 0 ? 'ok' : '',
-      profile.aurotapId,
-    ];
-    const done = fields.filter((x) => String(x).trim().length > 0).length;
-    return Math.round((done / fields.length) * 100);
-  }, [profile]);
-
-  const barItems = [
-    { key: 'overview', label: 'Overview', icon: '📊' },
-    { key: 'orders', label: 'Orders', icon: '📦' },
-    { key: 'fleet', label: 'Fleet', icon: '🚚' },
-    { key: 'revenue', label: 'Revenue', icon: '₹' },
-    { key: 'aurotap', label: 'My AuroTap ID', icon: '🏷️' },
-    { key: 'profile', label: 'Profile', icon: '👤' },
-    { key: 'documents', label: 'Documents', icon: '📄' },
-  ] as const;
-
-  if (!authHydrated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-600 text-sm font-medium">Loading workspace…</p>
-      </div>
-    );
-  }
-
-  if (!isLoggedIn || !isSupplier) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <div className="max-w-md w-full rounded-3xl border border-slate-200 bg-white shadow-card p-8 text-center">
-          <p className="font-bold text-slate-900">Supplier sign-in required</p>
-          <p className="text-sm text-slate-600 mt-2">Log in with a supplier account to manage deliveries.</p>
-          <Link
-            href="/auth/login"
-            className="mt-6 inline-flex items-center justify-center rounded-xl bg-[#003049] text-white font-bold px-6 py-3 text-sm"
-          >
-            Go to login
-          </Link>
+  value: string;
+  sub?: string;
+  accent: string;
+  loading: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1.5px solid rgba(255,255,255,0.07)',
+        borderRadius: 16,
+        padding: '18px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        transition: 'border-color 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = `${accent}44`;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.07)';
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.03em' }}>{label}</span>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent }}>
+          {icon}
         </div>
       </div>
-    );
-  }
+      {loading ? (
+        <>
+          <Skeleton h={28} w="60%" />
+          <Skeleton h={12} w="80%" />
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#F0F4FF', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
+          {sub && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', fontWeight: 500 }}>{sub}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Order card ────────────────────────────────────────────────────────────────
+
+function OrderCard({
+  order,
+  onUpdateStatus,
+  updating,
+}: {
+  order: Order;
+  onUpdateStatus: (id: string, status: OrderStatus) => Promise<void>;
+  updating: string | null;
+}) {
+  const sm = STATUS_META[order.status];
+  const isUpdating = updating === order.id;
+
+  const nextStatus: Record<OrderStatus, OrderStatus | null> = {
+    pending: 'assigned',
+    assigned: 'in_progress',
+    in_progress: 'delivered',
+    delivered: null,
+    cancelled: null,
+  };
+
+  const next = nextStatus[order.status];
+
+  const nextLabel: Record<OrderStatus, string> = {
+    pending: 'Accept',
+    assigned: 'Start Delivery',
+    in_progress: 'Mark Delivered',
+    delivered: '',
+    cancelled: '',
+  };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_20%_10%,#dbeafe_0%,#eff6ff_35%,#f8fafc_100%)]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
-        {boardError && (
-          <div className="mb-6 space-y-2">
-            <DatabaseErrorBanner message={boardError} />
-            <div className="flex justify-end">
+    <div
+      style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1.5px solid rgba(255,255,255,0.07)',
+        borderRadius: 16,
+        overflow: 'hidden',
+        transition: 'border-color 0.2s, transform 0.2s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(13,155,108,0.3)';
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.07)';
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+      }}
+    >
+      {/* Top accent stripe by status */}
+      <div style={{ height: 3, background: sm.color, opacity: 0.7 }} />
+
+      <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Header row */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#F0F4FF', letterSpacing: '-0.2px' }}>
+              {order.service_type}
+            </div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+              #{order.booking_id.slice(0, 8).toUpperCase()}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+            <span style={{
+              fontSize: 10,
+              fontWeight: 800,
+              color: sm.color,
+              background: sm.bg,
+              padding: '3px 9px',
+              borderRadius: 999,
+              letterSpacing: '0.04em',
+              whiteSpace: 'nowrap',
+            }}>
+              {sm.label}
+            </span>
+            <span style={{ fontSize: 14, fontWeight: 900, color: '#0D9B6C' }}>{INR(order.amount)}</span>
+          </div>
+        </div>
+
+        {/* Customer info */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+            <span style={{ color: 'rgba(255,255,255,0.35)' }}>{Icon.phone(12)}</span>
+            {order.customer_name} · {order.customer_phone}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+            <span style={{ marginTop: 1, flexShrink: 0, color: 'rgba(255,255,255,0.3)' }}>{Icon.map(11)}</span>
+            {order.address_line}, {order.city}
+          </div>
+        </div>
+
+        {/* Schedule + cans */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+            📅 {fmtDate(order.scheduled_date)}
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+            ⏰ {order.scheduled_slot}
+          </span>
+          {order.cans_count && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(13,155,108,0.9)', background: 'rgba(13,155,108,0.1)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+              💧 {order.cans_count} can{order.cans_count > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+
+        {order.notes && (
+          <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic', lineHeight: 1.5, borderLeft: '2px solid rgba(255,255,255,0.08)', paddingLeft: 8 }}>
+            {order.notes}
+          </p>
+        )}
+
+        {/* Action button */}
+        {next && (
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={() => onUpdateStatus(order.id, next)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: 10,
+              border: 'none',
+              background: isUpdating ? 'rgba(13,155,108,0.2)' : 'linear-gradient(135deg,#0D9B6C,#059652)',
+              color: isUpdating ? 'rgba(255,255,255,0.4)' : '#fff',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: isUpdating ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              transition: 'all 0.18s',
+              boxShadow: isUpdating ? 'none' : '0 4px 14px rgba(13,155,108,0.35)',
+            }}
+            onMouseEnter={(e) => {
+              if (!isUpdating) (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.01)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)';
+            }}
+          >
+            {isUpdating ? (
+              <svg style={{ animation: 'auro-spin 0.9s linear infinite' }} width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1.5A5.5 5.5 0 0 1 12.5 7" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M7 1.5A5.5 5.5 0 0 0 1.5 7" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            ) : (
+              Icon.check(14)
+            )}
+            {isUpdating ? 'Updating…' : nextLabel[order.status]}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
+export default function SupplierDashboardPage() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [profile, setProfile] = useState<SupplierProfile | null>(null);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [earnings, setEarnings] = useState<EarningRow[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  const [tab, setTab] = useState<'active' | 'history'>('active');
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const realtimeRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // ── Auth guard ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    setMounted(true);
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        router.replace('/auth/login?redirect=/supplier/dashboard');
+        return;
+      }
+      await loadAll(session.user.id);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Load all data ───────────────────────────────────────────────────────────
+  const loadAll = useCallback(async (userId: string) => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchProfile(userId),
+        fetchNotifications(userId),
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchProfile = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('supplier_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error || !data) {
+      toast.error('Could not load supplier profile.');
+      return;
+    }
+
+    setProfile(data as SupplierProfile);
+    await fetchOrders(data.id);
+    await fetchEarnings(data.id);
+    buildStats(data as SupplierProfile);
+    setupRealtime(data.id);
+  };
+
+  const fetchOrders = async (supplierId: string) => {
+    setLoadingOrders(true);
+    const { data, error } = await supabase
+      .from('orders')
+      .select(
+        `id, booking_id, service_type, status, amount, cans_count,
+         scheduled_date, scheduled_slot, notes, created_at,
+         address_line:delivery_address, city,
+         customer_name:customers!orders_customer_id_fkey(full_name),
+         customer_phone:customers!orders_customer_id_fkey(phone)`
+      )
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      toast.error('Failed to load orders.');
+      setLoadingOrders(false);
+      return;
+    }
+
+    // Flatten nested joins
+    const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
+      id: row.id as string,
+      booking_id: row.booking_id as string,
+      service_type: row.service_type as string,
+      status: row.status as OrderStatus,
+      amount: row.amount as number,
+      cans_count: row.cans_count as number | null,
+      scheduled_date: row.scheduled_date as string,
+      scheduled_slot: row.scheduled_slot as string,
+      notes: row.notes as string | null,
+      created_at: row.created_at as string,
+      address_line: row.address_line as string,
+      city: row.city as string,
+      customer_name: (row.customer_name as { full_name: string })?.full_name ?? '—',
+      customer_phone: (row.customer_phone as { phone: string })?.phone ?? '—',
+    }));
+
+    setOrders(flat);
+    setLoadingOrders(false);
+  };
+
+  const fetchEarnings = async (supplierId: string) => {
+    const { data } = await supabase
+      .from('supplier_earnings')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    setEarnings((data as EarningRow[]) ?? []);
+  };
+
+  const fetchNotifications = async (userId: string) => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('role', 'supplier')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    setNotifications((data as Notification[]) ?? []);
+  };
+
+  const buildStats = (p: SupplierProfile) => {
+    // Will be recalculated from real orders after fetchOrders resolves
+    // Starting with profile-stored aggregates
+    setStats({
+      todayOrders: 0,
+      pendingOrders: 0,
+      weekEarnings: 0,
+      monthEarnings: 0,
+      completionRate: 0,
+      avgRating: p.rating,
+    });
+  };
+
+  // Recalculate stats from live order data
+  useEffect(() => {
+    if (!orders.length || !profile) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+    const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
+
+    const todayOrders = orders.filter((o) => o.scheduled_date === today).length;
+    const pendingOrders = orders.filter((o) =>
+      ['pending', 'assigned', 'in_progress'].includes(o.status)
+    ).length;
+
+    const weekEarnings = earnings
+      .filter((e) => e.created_at >= weekAgo)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const monthEarnings = earnings
+      .filter((e) => e.created_at >= monthAgo)
+      .reduce((sum, e) => sum + e.amount, 0);
+
+    const delivered = orders.filter((o) => o.status === 'delivered').length;
+    const completionRate =
+      orders.length > 0 ? Math.round((delivered / orders.length) * 100) : 0;
+
+    setStats({
+      todayOrders,
+      pendingOrders,
+      weekEarnings,
+      monthEarnings,
+      completionRate,
+      avgRating: profile.rating,
+    });
+  }, [orders, earnings, profile]);
+
+  // ── Realtime subscription ───────────────────────────────────────────────────
+  const setupRealtime = useCallback((supplierId: string) => {
+    if (realtimeRef.current) supabase.removeChannel(realtimeRef.current);
+
+    const ch = supabase
+      .channel(`supplier-${supplierId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `supplier_id=eq.${supplierId}`,
+        },
+        async () => {
+          await fetchOrders(supplierId);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+        },
+        async (payload) => {
+          const notif = payload.new as Notification;
+          setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
+          toast.info(notif.title, { description: notif.body });
+        }
+      )
+      .subscribe();
+
+    realtimeRef.current = ch;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  // Cleanup realtime on unmount
+  useEffect(() => {
+    return () => {
+      if (realtimeRef.current) supabase.removeChannel(realtimeRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Order status update ─────────────────────────────────────────────────────
+  const handleUpdateStatus = useCallback(
+    async (orderId: string, newStatus: OrderStatus) => {
+      setUpdatingOrder(orderId);
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: newStatus,
+          ...(newStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
+        })
+        .eq('id', orderId);
+
+      if (error) {
+        toast.error('Failed to update order status.');
+      } else {
+        toast.success(
+          newStatus === 'delivered'
+            ? '✅ Order marked as delivered!'
+            : `Order moved to ${STATUS_META[newStatus].label}`
+        );
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+        );
+      }
+      setUpdatingOrder(null);
+    },
+    [supabase]
+  );
+
+  // ── Sign out ────────────────────────────────────────────────────────────────
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    toast.success('Signed out successfully.');
+    router.push('/auth/login');
+  };
+
+  // ── Mark notifications read ─────────────────────────────────────────────────
+  const markNotifsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    if (!unreadIds.length) return;
+    await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  };
+
+  // ── Derived ─────────────────────────────────────────────────────────────────
+  const activeOrders = useMemo(
+    () => orders.filter((o) => ['pending', 'assigned', 'in_progress'].includes(o.status)),
+    [orders]
+  );
+  const historyOrders = useMemo(
+    () => orders.filter((o) => ['delivered', 'cancelled'].includes(o.status)),
+    [orders]
+  );
+  const displayOrders = tab === 'active' ? activeOrders : historyOrders;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const tier = profile ? TIER_META[profile.tier] : null;
+  const tierProgress =
+    profile && tier
+      ? Math.min(100, Math.round((profile.total_deliveries / tier.target) * 100))
+      : 0;
+
+  if (!mounted) return null;
+
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&display=swap');
+        .sdash * { box-sizing: border-box; font-family: 'Lexend', sans-serif; }
+        @keyframes auro-shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes auro-spin { to { transform: rotate(360deg); } }
+        @keyframes auro-fadeup {
+          from { opacity:0; transform:translateY(12px); }
+          to { opacity:1; transform:translateY(0); }
+        }
+        .sdash .order-col > * {
+          animation: auro-fadeup 0.35s ease both;
+        }
+        .sdash .order-col > *:nth-child(1) { animation-delay:0ms; }
+        .sdash .order-col > *:nth-child(2) { animation-delay:50ms; }
+        .sdash .order-col > *:nth-child(3) { animation-delay:100ms; }
+        .sdash .order-col > *:nth-child(4) { animation-delay:150ms; }
+        .sdash .order-col > *:nth-child(5) { animation-delay:200ms; }
+        .sdash .order-col > *:nth-child(n+6) { animation-delay:250ms; }
+        @media(max-width:640px){
+          .sdash .stats-grid { grid-template-columns: 1fr 1fr !important; }
+          .sdash .orders-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+
+      <div
+        className="sdash"
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(160deg,#060C17 0%,#070A12 50%,#060E18 100%)',
+          color: '#F0F4FF',
+          position: 'relative',
+        }}
+      >
+        {/* Ambient glow */}
+        <div style={{ position: 'fixed', top: '5%', left: '50%', transform: 'translateX(-50%)', width: '60vw', height: '40vh', background: 'radial-gradient(ellipse,rgba(13,155,108,0.07) 0%,transparent 70%)', pointerEvents: 'none', zIndex: 0 }} />
+
+        {/* ── HEADER ─────────────────────────────────────────────────────── */}
+        <header
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 50,
+            background: 'rgba(6,12,23,0.88)',
+            backdropFilter: 'blur(16px)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            padding: '0 clamp(16px,4vw,32px)',
+          }}
+        >
+          <div style={{ maxWidth: 1200, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            {/* Logo + role */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#0D9B6C,#059652)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(13,155,108,0.45)' }}>
+                {Icon.drop(18, '#fff')}
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.3px', lineHeight: 1 }}>AuroTap</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#0D9B6C', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Supplier Portal</div>
+              </div>
+            </div>
+
+            {/* Right actions */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {/* Refresh */}
               <button
                 type="button"
-                onClick={() => void fetchSupplierBoard(true)}
-                className="rounded-xl bg-[#003049] px-4 py-2 text-xs font-bold text-white shadow-sm hover:opacity-95"
+                title="Refresh data"
+                onClick={async () => {
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session?.user) await loadAll(session.user.id);
+                  toast.success('Dashboard refreshed.');
+                }}
+                style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', transition: 'all 0.18s' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#F0F4FF'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.55)'; }}
               >
-                Retry
+                {Icon.refresh(15)}
+              </button>
+
+              {/* Notification bell */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => { setShowNotifs((v) => !v); if (!showNotifs) markNotifsRead(); }}
+                  style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.55)', position: 'relative', transition: 'all 0.18s' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = '#F0F4FF'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.55)'; }}
+                >
+                  {Icon.bell(16)}
+                  {unreadCount > 0 && (
+                    <span style={{ position: 'absolute', top: -4, right: -4, width: 17, height: 17, borderRadius: '50%', background: '#F87171', fontSize: 9, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #060C17' }}>
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notification dropdown */}
+                {showNotifs && (
+                  <div style={{ position: 'absolute', top: 44, right: 0, width: 300, background: '#0A1220', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.5)', zIndex: 100, overflow: 'hidden' }}>
+                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 12, fontWeight: 800, color: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      Notifications
+                      <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{notifications.length} total</span>
+                    </div>
+                    <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+                      {notifications.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>No notifications yet</div>
+                      ) : notifications.map((n) => (
+                        <div key={n.id} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', background: n.is_read ? 'transparent' : 'rgba(13,155,108,0.05)' }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F4FF', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {!n.is_read && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0D9B6C', display: 'inline-block', flexShrink: 0 }} />}
+                            {n.title}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{n.body}</div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>{fmtTime(n.created_at)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Profile pill */}
+              {loading ? (
+                <Skeleton w={110} h={34} r={10} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '6px 12px' }}>
+                  <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg,${tier?.color ?? '#0D9B6C'},${tier?.color ?? '#059652'}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0A1220', flexShrink: 0 }}>
+                    {profile?.full_name?.[0]?.toUpperCase() ?? 'S'}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F4FF', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>
+                      {profile?.full_name?.split(' ')[0] ?? 'Supplier'}
+                    </div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: tier?.color ?? '#0D9B6C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                      {tier?.label ?? '—'} Tier
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sign out */}
+              <button
+                type="button"
+                disabled={signingOut}
+                onClick={handleSignOut}
+                title="Sign out"
+                style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(248,113,113,0.25)', background: 'rgba(248,113,113,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#F87171', transition: 'all 0.18s' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(248,113,113,0.14)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(248,113,113,0.06)'; }}
+              >
+                {Icon.logout(15)}
               </button>
             </div>
           </div>
-        )}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <aside className="lg:col-span-3">
-            <div className="rounded-3xl bg-[#003049] text-white p-5 shadow-card sticky top-24">
-              <div className="text-sm text-white/70">Supplier Workspace</div>
-              <div className="text-lg font-extrabold mt-1">{profile.businessName}</div>
-              <div className="mt-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold tracking-wide">
-                AUROTAP PARTNER
-              </div>
+        </header>
 
-              <div className="mt-6 space-y-2">
-                {barItems.map((i) => {
-                  const active = tab === i.key;
-                  return (
-                    <button
-                      key={i.key}
-                      type="button"
-                      onClick={() => setTab(i.key)}
-                      className={[
-                        'w-full text-left rounded-2xl px-4 py-3 text-sm font-bold transition-all',
-                        active ? 'bg-white text-[#003049]' : 'text-white/85 hover:bg-white/10',
-                      ].join(' ')}
-                    >
-                      <span className="mr-2">{i.icon}</span>
-                      {i.label}
-                    </button>
-                  );
-                })}
+        {/* ── MAIN ───────────────────────────────────────────────────────── */}
+        <main style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(20px,4vw,32px) clamp(16px,4vw,24px) 80px', position: 'relative', zIndex: 1 }}>
+
+          {/* Welcome strip */}
+          <div style={{ marginBottom: 28, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0D9B6C', letterSpacing: '0.1em', marginBottom: 6 }}>
+                {loading ? <Skeleton w={120} h={12} /> : `Welcome back, ${profile?.full_name?.split(' ')[0]}`}
               </div>
-              <Link href="/" className="mt-6 inline-flex text-sm font-bold text-[#F4A261] hover:underline">
-                ⬅ Back to Site
-              </Link>
+              <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem,4vw,2rem)', fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.6px', lineHeight: 1.1 }}>
+                {loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}
+              </h1>
+              {!loading && profile && (
+                <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: profile.is_active ? '#10B981' : '#F87171', background: profile.is_active ? 'rgba(16,185,129,0.12)' : 'rgba(248,113,113,0.12)', padding: '3px 10px', borderRadius: 999 }}>
+                    {profile.is_active ? '● Active' : '● Inactive'}
+                  </span>
+                  {profile.is_verified && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#38BDF8', background: 'rgba(56,189,248,0.1)', padding: '3px 10px', borderRadius: 999 }}>
+                      ✓ Verified
+                    </span>
+                  )}
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+                    {profile.city}
+                  </span>
+                </div>
+              )}
             </div>
-          </aside>
 
-          <main className="lg:col-span-9 space-y-5">
-            {tab === 'overview' && (
-              <>
-                <section className="rounded-3xl bg-gradient-to-br from-[#2A9D8F] to-[#003049] text-white p-6 shadow-card">
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div>
-                      <div className="text-xs tracking-wider text-white/80">YOUR AUROTAP ID</div>
-                      <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{profile.aurotapId}</div>
-                      <div className="mt-2 text-sm text-white/85">
-                        Customers can order directly using your AuroTap ID.
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-start gap-3">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(profile.aurotapId);
-                          toast.success('AuroTap ID copied! Share it with customers.');
-                        }}
-                        className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
-                      >
-                        Copy
-                      </button>
-                      <div className="w-20 h-20 rounded-xl bg-white/20 flex items-center justify-center text-xs font-bold">
-                        QR Soon
-                      </div>
-                    </div>
+            {/* Tier progress card */}
+            {!loading && profile && tier && (
+              <div style={{ background: 'rgba(255,255,255,0.03)', border: `1.5px solid ${tier.color}33`, borderRadius: 14, padding: '14px 18px', minWidth: 220, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: tier.color }}>🏆 {tier.label} Tier</span>
+                  {profile.tier !== 'platinum' && (
+                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Next: {tier.next}</span>
+                  )}
+                </div>
+                <div style={{ height: 5, background: 'rgba(255,255,255,0.07)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
+                  <div style={{ height: '100%', width: `${tierProgress}%`, background: tier.color, borderRadius: 99, transition: 'width 0.8s ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{profile.total_deliveries} deliveries</span>
+                  {profile.tier !== 'platinum' && (
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{tier.target} needed</span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── STATS GRID ─────────────────────────────────────────────── */}
+          <div
+            className="stats-grid"
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 28 }}
+          >
+            <StatCard
+              icon={Icon.truck(17)}
+              label="Today's Orders"
+              value={stats?.todayOrders.toString() ?? '—'}
+              sub="Scheduled for today"
+              accent="#0D9B6C"
+              loading={loading}
+            />
+            <StatCard
+              icon={Icon.drop(17)}
+              label="Active Orders"
+              value={stats?.pendingOrders.toString() ?? '—'}
+              sub="Pending + In-progress"
+              accent="#38BDF8"
+              loading={loading}
+            />
+            <StatCard
+              icon={Icon.wallet(17)}
+              label="This Week"
+              value={stats ? INR(stats.weekEarnings) : '—'}
+              sub="Earnings (7 days)"
+              accent="#A78BFA"
+              loading={loading}
+            />
+            <StatCard
+              icon={Icon.chart(17)}
+              label="This Month"
+              value={stats ? INR(stats.monthEarnings) : '—'}
+              sub={`${stats?.completionRate ?? 0}% completion rate`}
+              accent="#F59E0B"
+              loading={loading}
+            />
+            <StatCard
+              icon={<>{Icon.star(16)}</>}
+              label="Your Rating"
+              value={profile ? `${profile.rating.toFixed(1)} ★` : '—'}
+              sub={`Based on ${profile?.rating_count ?? 0} reviews`}
+              accent="#F59E0B"
+              loading={loading}
+            />
+            <StatCard
+              icon={Icon.truck(17)}
+              label="Total Deliveries"
+              value={profile ? profile.total_deliveries.toLocaleString('en-IN') : '—'}
+              sub={`${INR(profile?.total_earnings ?? 0)} total earned`}
+              accent="#0D9B6C"
+              loading={loading}
+            />
+          </div>
+
+          {/* ── ORDERS SECTION ─────────────────────────────────────────── */}
+          <div style={{ marginBottom: 28 }}>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+              <div style={{ display: 'flex', gap: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: 4 }}>
+                {(['active', 'history'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setTab(t)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 9,
+                      border: 'none',
+                      background: tab === t ? 'rgba(13,155,108,0.9)' : 'transparent',
+                      color: tab === t ? '#fff' : 'rgba(255,255,255,0.5)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      transition: 'all 0.18s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    {t === 'active' ? 'Active Orders' : 'History'}
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      background: tab === t ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                      color: tab === t ? '#fff' : 'rgba(255,255,255,0.45)',
+                      padding: '1px 7px',
+                      borderRadius: 999,
+                      minWidth: 22,
+                      textAlign: 'center',
+                    }}>
+                      {t === 'active' ? activeOrders.length : historyOrders.length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>
+                {tab === 'active' ? 'Live updates via Supabase Realtime' : `${historyOrders.length} completed orders`}
+              </div>
+            </div>
+
+            {/* Orders grid */}
+            {loadingOrders ? (
+              <div className="orders-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <Skeleton h={16} w="60%" />
+                    <Skeleton h={60} />
+                    <Skeleton h={12} w="80%" />
+                    <Skeleton h={38} r={10} />
                   </div>
-                </section>
-
-                <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <StatCard
-                    title="Orders Today"
-                    value={ordersLoading ? '…' : `${stats.pending + stats.active}`}
-                    color="#003049"
+                ))}
+              </div>
+            ) : displayOrders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 24px', background: 'rgba(255,255,255,0.02)', border: '1.5px dashed rgba(255,255,255,0.08)', borderRadius: 20 }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>{tab === 'active' ? '💧' : '📦'}</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#F0F4FF', marginBottom: 6 }}>
+                  {tab === 'active' ? 'No active orders right now' : 'No order history yet'}
+                </div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
+                  {tab === 'active'
+                    ? 'New orders will appear here automatically when assigned.'
+                    : 'Completed and cancelled orders will show up here.'}
+                </div>
+              </div>
+            ) : (
+              <div
+                className="order-col orders-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}
+              >
+                {displayOrders.map((o) => (
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    onUpdateStatus={handleUpdateStatus}
+                    updating={updatingOrder}
                   />
-                  <StatCard title="Active Deliveries" value={`${stats.active}`} color="#2A9D8F" />
-                  <StatCard title="Month Revenue" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
-                  <StatCard title="Fleet Available" value={`${fleet.filter((f) => f.status === 'available').length}`} color="#1D4ED8" />
-                </section>
-                {refreshing ? (
-                  <p className="text-xs text-slate-500 -mt-2">Syncing latest orders…</p>
-                ) : null}
-
-                <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-extrabold text-slate-900">Active Orders</h3>
-                    <button type="button" onClick={() => setTab('orders')} className="text-sm font-bold text-[#003049] hover:underline">
-                      View all
-                    </button>
-                  </div>
-                  <div className="mt-4 space-y-3">
-                    {orders.filter((o) => o.status === 'active').slice(0, 3).map((o) => (
-                      <div key={o.apiId} className="rounded-2xl border border-slate-100 p-4 bg-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div>
-                          <div className="font-bold text-slate-900">{o.label} · {o.size}</div>
-                          <div className="text-sm text-slate-600">{o.area} · ETA {o.eta}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
-                              persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
-                              toast.success(`Order ${o.label} marked delivered.`);
-                              void fetchSupplierBoard(true);
-                            } catch {
-                              toast.error('Could not update order.');
-                            }
-                          }}
-                          className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 font-bold hover:opacity-90"
-                        >
-                          Mark Delivered
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </>
+                ))}
+              </div>
             )}
+          </div>
 
-            {tab === 'orders' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-lg font-extrabold text-slate-900">Orders</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {(['all', 'pending', 'active', 'delivered', 'cancelled'] as const).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setOrderFilter(s)}
-                        className={[
-                          'rounded-full px-3 py-1.5 text-xs font-bold border',
-                          orderFilter === s ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
-                        ].join(' ')}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {filteredOrders.map((o) => (
-                    <div key={o.apiId} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <button type="button" className="w-full text-left" onClick={() => setExpandedOrderId(expandedOrderId === o.apiId ? null : o.apiId)}>
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                          <div className="font-bold text-slate-900">{o.label} · {o.customer} · {o.size}</div>
-                          <div className="text-sm font-bold text-[#2A9D8F]">{fmtMoney(o.amount)}</div>
-                        </div>
-                        <div className="text-sm text-slate-600 mt-1">{o.area} · {o.date}</div>
-                      </button>
-                      {expandedOrderId === o.apiId && (
-                        <div className="mt-3 pt-3 border-t border-slate-100">
-                          <div className="text-sm text-slate-700">Address: {o.address}</div>
-                          <div className="text-sm text-slate-700 mt-1">Partner phone: {maskPhone(profile.phone)}</div>
-                          {o.status === 'pending' && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'active' } : x)));
-                                    toast.success('Delivery started.');
-                                    void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not start order.');
-                                  }
-                                }}
-                                className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-bold"
-                              >
-                                Start delivery ✓
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toast.message('Contact support to cancel a booked order.')}
-                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-bold"
-                              >
-                                Need help ✗
-                              </button>
-                            </div>
-                          )}
-                          {o.status === 'active' && (
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
-                                    toast.success('Marked complete.');
-                                    void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not complete order.');
-                                  }
-                                }}
-                                className="rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                              >
-                                Mark complete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+          {/* ── EARNINGS TABLE ─────────────────────────────────────────── */}
+          {earnings.length > 0 && (
+            <div>
+              <h2 style={{ margin: '0 0 14px', fontSize: 16, fontWeight: 800, color: '#F0F4FF', letterSpacing: '-0.3px' }}>
+                Recent Earnings
+              </h2>
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
+                {/* Table head */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '12px 18px', background: '#0A1220', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  {['Order', 'Amount', 'Status', 'Date'].map((h) => (
+                    <div key={h} style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</div>
                   ))}
                 </div>
-              </section>
-            )}
-
-            {tab === 'fleet' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Fleet</h3>
-                <div className="mt-4 grid md:grid-cols-2 gap-4">
-                  {fleet.map((t) => (
-                    <div key={t.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="font-bold text-slate-900">{t.name}</div>
-                          <div className="text-sm text-slate-600">{t.id} · {t.size}</div>
-                        </div>
-                        <select
-                          value={t.status}
-                          onChange={(e) => persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, status: e.target.value as Tanker['status'] } : x)))}
-                          className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                        >
-                          <option value="available">Available</option>
-                          <option value="in_use">In Use</option>
-                          <option value="maintenance">Maintenance</option>
-                        </select>
-                      </div>
-                      <div className="mt-3 flex items-center gap-3">
-                        <span className="text-sm text-slate-600">Price</span>
-                        <input
-                          value={t.price}
-                          onChange={(e) => {
-                            const p = Number(e.target.value || 0);
-                            persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, price: p } : x)));
-                          }}
-                          className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                        />
-                        <span className="text-sm text-slate-600">Driver: {t.driver}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="font-bold text-slate-900">+ Add Tanker</div>
-                  <div className="mt-3 grid sm:grid-cols-4 gap-3">
-                    <input
-                      placeholder="Tanker ID"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.id}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, id: e.target.value }))}
-                    />
-                    <select
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.size}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, size: e.target.value as Tanker['size'] }))}
-                    >
-                      <option>1000L</option>
-                      <option>3000L</option>
-                      <option>5000L</option>
-                      <option>10000L</option>
-                    </select>
-                    <input
-                      placeholder="Price"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.price}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, price: e.target.value }))}
-                    />
-                    <input
-                      placeholder="Driver"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.driver}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, driver: e.target.value }))}
-                    />
-                  </div>
-                  <button
-                    className="mt-3 rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                    onClick={() => {
-                      if (!newTanker.id.trim()) return toast.error('Enter tanker ID');
-                      const add: Tanker = {
-                        id: newTanker.id.trim().toUpperCase(),
-                        name: `Tanker ${newTanker.id.trim().toUpperCase()}`,
-                        size: newTanker.size,
-                        price: Number(newTanker.price || 0),
-                        driver: newTanker.driver || 'Unassigned',
-                        status: 'available',
-                      };
-                      persistFleet([add, ...fleet]);
-                      setNewTanker({ id: '', size: '3000L', price: '399', driver: '' });
-                      toast.success('Tanker added to fleet.');
-                    }}
+                {earnings.slice(0, 10).map((e, i) => (
+                  <div
+                    key={e.id}
+                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '13px 18px', borderBottom: i < 9 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.025)'; }}
+                    onMouseLeave={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                   >
-                    Add to Fleet
-                  </button>
-                </div>
-              </section>
-            )}
-
-            {tab === 'revenue' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Revenue</h3>
-                <p className="text-xs text-slate-500 mt-1">Month figures from platform earnings summary; daily breakdown coming soon.</p>
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <StatCard title="Today" value="—" color="#003049" />
-                  <StatCard title="Week" value="—" color="#2A9D8F" />
-                  <StatCard title="Month" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
-                  <StatCard title="Orders (period)" value={`${earningsSummary?.order_count ?? 0}`} color="#1D4ED8" />
-                </div>
-                {earningsSummary != null && earningsSummary.pending_payout > 0 ? (
-                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>#{e.order_id.slice(0, 8).toUpperCase()}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0D9B6C' }}>{INR(e.amount)}</div>
                     <div>
-                      <p className="text-sm font-bold text-amber-950">Pending payout</p>
-                      <p className="text-lg font-black text-amber-900">{fmtMoney(earningsSummary.pending_payout)}</p>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: e.status === 'paid' ? '#10B981' : '#F59E0B', background: e.status === 'paid' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 999, letterSpacing: '0.04em' }}>
+                        {e.status === 'paid' ? 'Paid' : 'Pending'}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await supplierPayoutRequest({ amount: earningsSummary.pending_payout, notes: 'bank_transfer' });
-                          toast.success('Payout request submitted. Processing in 2–3 business days.');
-                          void fetchSupplierBoard(true);
-                        } catch {
-                          toast.error('Could not submit payout request.');
-                        }
-                      }}
-                      className="rounded-xl bg-[#003049] text-white font-bold px-5 py-2.5 text-sm shrink-0"
-                    >
-                      Request payout
-                    </button>
-                  </div>
-                ) : null}
-                <div className="mt-6 flex flex-col md:flex-row gap-6">
-                  <div className="w-44 h-44 rounded-full mx-auto md:mx-0 bg-[conic-gradient(#2A9D8F_0_70%,#38BDF8_70%_85%,#F4A261_85%_100%)] grid place-items-center">
-                    <div className="w-24 h-24 rounded-full bg-white grid place-items-center">
-                      <div className="text-xs text-slate-500">This month</div>
-                      <div className="text-sm font-black text-slate-900">{fmtMoney(stats.monthRevenue)}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                      {e.paid_at ? fmtDate(e.paid_at) : fmtDate(e.created_at)}
                     </div>
                   </div>
-                  <div className="flex-1 space-y-3">
-                    <LegendRow c="#2A9D8F" label="Tanker Delivery" pct="70%" />
-                    <LegendRow c="#38BDF8" label="Emergency" pct="15%" />
-                    <LegendRow c="#F4A261" label="AMC/Subscription" pct="15%" />
-                    <div className="pt-3 text-sm text-slate-600">
-                      Payout account: <span className="font-bold text-slate-900">Account ending in XXXX4521</span>
-                    </div>
-                    <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
-                      Update bank details
-                    </button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {tab === 'aurotap' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">My AuroTap ID</h3>
-                <div className="mt-4 rounded-2xl bg-gradient-to-br from-[#2A9D8F] to-[#003049] text-white p-5">
-                  <div className="text-xs text-white/80">YOUR AUROTAP ID</div>
-                  <div className="text-3xl font-black font-mono mt-1">{profile.aurotapId}</div>
-                  <div className="mt-2 text-sm text-white/85">
-                    Share this with your regular customers to route orders directly to your fleet.
-                  </div>
-                </div>
-                <div className="mt-5 space-y-2 text-sm text-slate-700">
-                  <div>1. Share your ID with customers.</div>
-                  <div>2. They mention this ID while booking on AuroWater.</div>
-                  <div>3. Orders route directly to your supply network.</div>
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    className="rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(profile.aurotapId);
-                      toast.success('ID copied.');
-                    }}
-                  >
-                    Copy ID
-                  </button>
-                  <a
-                    className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold"
-                    href={`https://wa.me/${settings.phone_primary.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Share on WhatsApp
-                  </a>
-                </div>
-              </section>
-            )}
-
-            {tab === 'profile' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Profile</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-3">
-                  <Input label="Business Name" value={profile.businessName} onChange={(v) => persistProfile({ ...profile, businessName: v })} />
-                  <Input label="Owner Name" value={profile.ownerName} onChange={(v) => persistProfile({ ...profile, ownerName: v })} />
-                  <Input label="GST" value={profile.gst} onChange={(v) => persistProfile({ ...profile, gst: v })} />
-                  <Input label="Phone" value={profile.phone} onChange={(v) => persistProfile({ ...profile, phone: v })} />
-                  <Input label="Email" value={profile.email} onChange={(v) => persistProfile({ ...profile, email: v })} />
-                </div>
-
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Service Cities</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CITIES.map((c) => {
-                      const active = profile.serviceCities.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => {
-                            const next = active
-                              ? profile.serviceCities.filter((x) => x !== c)
-                              : [...profile.serviceCities, c];
-                            persistProfile({ ...profile, serviceCities: next });
-                          }}
-                          className={[
-                            'rounded-full px-3 py-1.5 text-xs font-bold border',
-                            active ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
-                          ].join(' ')}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Pricing Table</div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    {(['1000L', '3000L', '5000L'] as const).map((size) => {
-                      const supplierPrice = profile.prices[size];
-                      const platformFee = 29;
-                      const customerPays = supplierPrice + platformFee;
-                      return (
-                        <div key={size} className="grid grid-cols-4 gap-2 items-center">
-                          <div className="font-semibold text-slate-700">{size}</div>
-                          <input
-                            value={supplierPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value || 0);
-                              persistProfile({ ...profile, prices: { ...profile.prices, [size]: val } });
-                            }}
-                            className="rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                          <div className="text-slate-600">₹{platformFee}</div>
-                          <div className="font-bold text-[#2A9D8F]">₹{customerPays}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Profile completion: {completion}%</div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-200">
-                    <div className="h-2 rounded-full bg-[#2A9D8F] transition-all" style={{ width: `${completion}%` }} />
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {tab === 'documents' && (
-              <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Documents</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                  {docs.map((d) => (
-                    <div key={d.key} className="rounded-2xl border border-[#2A9D8F]/20 border-dashed bg-white p-4">
-                      <div className="font-bold text-slate-900">{d.label}</div>
-                      <div className="text-xs text-slate-500 mt-1">{d.required ? 'Required' : 'Optional'} · JPG, PNG, PDF (max 5MB)</div>
-                      <div className="mt-3 text-sm text-slate-700">
-                        {d.fileName ? `${d.fileName} (${d.fileSizeKb} KB)` : 'No file selected'}
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <StatusBadge status={d.status} />
-                        <button
-                          className="text-xs font-bold text-[#003049] hover:underline"
-                          onClick={() => {
-                            const next = docs.map((x) =>
-                              x.key === d.key
-                                ? { ...x, fileName: `${d.key}_doc.pdf`, fileSizeKb: 420, status: 'submitted' as const }
-                                : x
-                            );
-                            persistDocs(next);
-                            toast.success(`${d.label} uploaded`);
-                          }}
-                        >
-                          Upload
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button
-                  className="mt-5 rounded-xl bg-[#003049] text-white px-5 py-3 text-sm font-bold"
-                  disabled={docs.some((d) => d.required && d.status === 'not_uploaded')}
-                  onClick={() => toast.success('Documents submitted for verification.')}
-                >
-                  Submit for Verification
-                </button>
-              </section>
-            )}
-          </main>
-        </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
-    </div>
+    </>
   );
 }
-
-function StatCard({ title, value, color }: { title: string; value: string; color: string }) {
-  return (
-    <div className="rounded-2xl border border-white bg-white/80 backdrop-blur-xl p-4 shadow-soft">
-      <div className="text-xs font-bold text-slate-500">{title}</div>
-      <div className="text-xl font-black mt-1" style={{ color }}>
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function LegendRow({ c, label, pct }: { c: string; label: string; pct: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="w-3 h-3 rounded-full" style={{ background: c }} />
-        <span className="text-sm text-slate-700">{label}</span>
-      </div>
-      <span className="text-sm font-bold text-slate-900">{pct}</span>
-    </div>
-  );
-}
-
-function Input({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="block">
-      <span className="text-xs font-bold text-slate-600">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-    </label>
-  );
-}
-
-function StatusBadge({ status }: { status: SupplierDoc['status'] }) {
-  if (status === 'verified') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-emerald-100 text-emerald-700">✓ Verified</span>;
-  if (status === 'submitted') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-blue-100 text-blue-700">↑ Submitted</span>;
-  if (status === 'rejected') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-rose-100 text-rose-700">✗ Rejected</span>;
-  return <span className="text-xs font-bold rounded-full px-3 py-1 bg-slate-100 text-slate-600">○ Not uploaded</span>;
-}
-
