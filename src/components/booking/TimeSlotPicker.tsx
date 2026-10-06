@@ -1,4 +1,7 @@
 'use client';
+
+/* This component intentionally hydrates browser state after mount. */
+/* eslint-disable react-hooks/set-state-in-effect */
 /**
  * src/components/booking/TimeSlotPicker.tsx
  * 3-hour delivery window cards (+ ASAP card for emergency bookings today).
