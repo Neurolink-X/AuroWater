@@ -5,7 +5,7 @@
 BEGIN;
 
 -- ============================================================
--- 1) Inventory reservation
+-- 1) Atomic supplier inventory reservation
 -- ============================================================
 
 ALTER TABLE public.supplier_stock
@@ -41,6 +41,11 @@ BEGIN
     RETURN FALSE;
   END IF;
 
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
   UPDATE public.supplier_stock
   SET reserved_cans = reserved_cans + p_quantity,
       updated_at = NOW()
@@ -66,6 +71,11 @@ DECLARE
 BEGIN
   IF p_quantity IS NULL OR p_quantity <= 0 THEN
     RETURN TRUE;
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
   END IF;
 
   UPDATE public.supplier_stock
@@ -96,6 +106,11 @@ BEGIN
     RETURN TRUE;
   END IF;
 
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
   UPDATE public.supplier_stock
   SET reserved_cans = GREATEST(0, reserved_cans - p_quantity),
       updated_at = NOW()
@@ -107,12 +122,10 @@ BEGIN
 END;
 $$;
 
--- The API now performs atomic inventory reservation/consumption.
--- Remove the older completion trigger if it exists so stock is never deducted twice.
 DROP TRIGGER IF EXISTS trg_deduct_stock ON public.orders;
 
 -- ============================================================
--- 2) Payout ledger hardening
+-- 2) Supplier payout ledger
 -- ============================================================
 
 ALTER TABLE public.payouts
@@ -121,8 +134,7 @@ ALTER TABLE public.payouts
 UPDATE public.payouts
 SET status = CASE
   WHEN status IS NULL AND paid_at IS NOT NULL THEN 'paid'
-  WHEN status IS NULL THEN 'pending'
-  ELSE status
+  ELSE COALESCE(status, 'pending')
 END;
 
 ALTER TABLE public.payouts
@@ -151,9 +163,12 @@ WHERE status IN ('pending', 'processing');
 CREATE INDEX IF NOT EXISTS payouts_supplier_status_requested_idx
 ON public.payouts (supplier_id, status, requested_at DESC);
 
--- ============================================================
--- 3) Supplier payout amount is immutable at dispatch
--- ============================================================
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payout_id UUID REFERENCES public.payouts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS orders_supplier_payout_idx
+ON public.orders (supplier_id, payout_status, payout_id)
+WHERE supplier_id IS NOT NULL;
 
 CREATE OR REPLACE FUNCTION public.get_supplier_commission_rate(
   p_supplier_id UUID
@@ -181,21 +196,64 @@ AS $$
   );
 $$;
 
--- ============================================================
--- 4) Realtime
--- ============================================================
+CREATE OR REPLACE FUNCTION public.get_supplier_earnings(
+  p_supplier_id UUID,
+  p_period TEXT
+)
+RETURNS TABLE (
+  period_label TEXT,
+  order_count BIGINT,
+  gross_amount NUMERIC,
+  pending_payout NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  start_ts TIMESTAMPTZ;
+  pl TEXT;
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
 
+  pl := lower(coalesce(p_period, 'month'));
+  start_ts := CASE pl
+    WHEN 'today' THEN date_trunc('day', NOW())
+    WHEN 'week' THEN date_trunc('week', NOW())
+    WHEN 'month' THEN date_trunc('month', NOW())
+    ELSE date_trunc('month', NOW())
+  END;
 
--- ============================================================
--- 5) Payout ledger claims and settlement finalization
--- ============================================================
-
-ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS payout_id UUID REFERENCES public.payouts(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS orders_supplier_payout_idx
-ON public.orders (supplier_id, payout_status, payout_id)
-WHERE supplier_id IS NOT NULL;
+  RETURN QUERY
+  SELECT
+    pl::TEXT,
+    (
+      SELECT COUNT(*)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.created_at >= start_ts
+    )::BIGINT,
+    COALESCE((
+      SELECT SUM(o.total_amount)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
+        AND o.created_at >= start_ts
+    ), 0)::NUMERIC,
+    COALESCE((
+      SELECT SUM(o.supplier_payout)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
+        AND o.payout_status = 'pending'
+        AND o.supplier_payout > 0
+    ), 0)::NUMERIC;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_supplier_payout_request(
   p_supplier_id UUID,
@@ -208,13 +266,25 @@ RETURNS public.payouts
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   pending_amount NUMERIC;
   created public.payouts;
 BEGIN
   IF p_amount IS NULL OR p_amount <= 0 THEN
     RAISE EXCEPTION 'INVALID_AMOUNT';
+  END IF;
+
+  SELECT COALESCE(SUM(o.supplier_payout), 0)
+  INTO pending_amount
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id
+    AND o.status = 'COMPLETED'
+    AND o.payout_status = 'pending'
+    AND o.supplier_payout > 0;
+
+  IF ABS(p_amount - pending_amount) > 0.01 THEN
+    RAISE EXCEPTION 'AMOUNT_EXCEEDS_PENDING';
   END IF;
 
   IF EXISTS (
@@ -224,18 +294,6 @@ BEGIN
       AND status IN ('pending', 'processing')
   ) THEN
     RAISE EXCEPTION 'ACTIVE_PAYOUT';
-  END IF;
-
-  SELECT COALESCE(SUM(supplier_payout), 0)
-  INTO pending_amount
-  FROM public.orders
-  WHERE supplier_id = p_supplier_id
-    AND status = 'COMPLETED'
-    AND payout_status = 'pending'
-    AND supplier_payout > 0;
-
-  IF ABS(p_amount - pending_amount) > 0.01 THEN
-    RAISE EXCEPTION 'AMOUNT_EXCEEDS_PENDING';
   END IF;
 
   INSERT INTO public.payouts (
@@ -272,7 +330,7 @@ BEGIN
 
   RETURN created;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.finalize_supplier_payout(
   p_payout_id UUID,
@@ -283,7 +341,7 @@ RETURNS public.payouts
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   current_row public.payouts;
   updated_row public.payouts;
@@ -323,62 +381,34 @@ BEGIN
 
   RETURN updated_row;
 END;
-$;
-
--- Pending payout is outstanding balance, not merely the current reporting period.
-CREATE OR REPLACE FUNCTION public.get_supplier_earnings(
-  p_supplier_id UUID,
-  p_period TEXT
-)
-RETURNS TABLE (
-  period_label TEXT,
-  order_count BIGINT,
-  gross_amount NUMERIC,
-  pending_payout NUMERIC
-)
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  start_ts TIMESTAMPTZ;
-  pl TEXT;
-BEGIN
-  pl := lower(coalesce(p_period, 'month'));
-  start_ts := CASE pl
-    WHEN 'today' THEN date_trunc('day', NOW())
-    WHEN 'week' THEN date_trunc('week', NOW())
-    WHEN 'month' THEN date_trunc('month', NOW())
-    ELSE date_trunc('month', NOW())
-  END;
-
-  RETURN QUERY
-  SELECT
-    pl::TEXT,
-    (
-      SELECT COUNT(*)
-      FROM public.orders o
-      WHERE o.supplier_id = p_supplier_id
-        AND o.created_at >= start_ts
-    )::BIGINT,
-    COALESCE((
-      SELECT SUM(o.total_amount)
-      FROM public.orders o
-      WHERE o.supplier_id = p_supplier_id
-        AND o.status = 'COMPLETED'
-        AND o.created_at >= start_ts
-    ), 0)::NUMERIC,
-    COALESCE((
-      SELECT SUM(o.supplier_payout)
-      FROM public.orders o
-      WHERE o.supplier_id = p_supplier_id
-        AND o.status = 'COMPLETED'
-        AND o.payout_status = 'pending'
-        AND o.supplier_payout > 0
-    ), 0)::NUMERIC;
-END;
 $$;
+
+-- ============================================================
+-- 3) Supplier settings/stock resiliency
+-- ============================================================
+
+DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_insert_own_or_admin" ON public.supplier_settings
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_insert_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_insert_own_or_admin" ON public.supplier_stock
+  FOR INSERT WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+REVOKE ALL ON FUNCTION public.get_supplier_commission_rate(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_supplier_payout_request(UUID, NUMERIC, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.finalize_supplier_payout(UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_supplier_commission_rate(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_supplier_payout_request(UUID, NUMERIC, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.finalize_supplier_payout(UUID, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.reserve_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.consume_reserved_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.release_reserved_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_supplier_earnings(UUID, TEXT) TO authenticated, service_role;
 
 SELECT pg_notify('pgrst', 'reload schema');
 
