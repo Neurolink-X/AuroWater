@@ -115,15 +115,6 @@ type SupplierProfile = {
   prices: Record<'1000L' | '3000L' | '5000L', number>;
 };
 
-type SupplierDoc = {
-  key: string;
-  label: string;
-  required: boolean;
-  fileName?: string;
-  fileSizeKb?: number;
-  status: 'not_uploaded' | 'submitted' | 'verified' | 'rejected';
-};
-
 const CITIES = [
   'Kanpur',
   'Gorakhpur',
@@ -140,9 +131,8 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const FLEET_KEY = 'aurowater_supplier_fleet';
+const FLEET_KEY = 'aurowater_supplier_fleet_ui';
 const PROFILE_KEY = 'aurowater_supplier_profile';
-const DOCS_KEY = 'aurowater_supplier_docs';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const maskPhone = (p: string) => (p.length < 6 ? p : `${p.slice(0, 2)}XXXXXX${p.slice(-2)}`);
@@ -187,15 +177,6 @@ function seedProfile(): SupplierProfile {
   };
 }
 
-function seedDocs(): SupplierDoc[] {
-  return [
-    { key: 'gst', label: 'GST Certificate', required: true, status: 'submitted', fileName: 'gst_cert.pdf', fileSizeKb: 381 },
-    { key: 'reg', label: 'Business Registration', required: true, status: 'not_uploaded' },
-    { key: 'aadhaar', label: 'Owner Aadhaar', required: true, status: 'verified', fileName: 'aadhaar_owner.jpg', fileSizeKb: 812 },
-    { key: 'insurance', label: 'Fleet Insurance', required: true, status: 'not_uploaded' },
-    { key: 'bank', label: 'Bank Statement', required: true, status: 'not_uploaded' },
-  ];
-}
 
 export default function SupplierDashboardPage() {
   const { settings } = useSettings();
@@ -211,7 +192,6 @@ export default function SupplierDashboardPage() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
-  const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
   const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
@@ -289,19 +269,12 @@ export default function SupplierDashboardPage() {
   React.useEffect(() => {
     const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
     const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
-    const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
-
     const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
     const nextProfile = p ?? seedProfile();
-    const nextDocs = Array.isArray(d) && d.length ? d : seedDocs();
-
     setFleet(nextFleet);
     setProfile(nextProfile);
-    setDocs(nextDocs);
-
     safeSet(FLEET_KEY, JSON.stringify(nextFleet));
     safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
-    safeSet(DOCS_KEY, JSON.stringify(nextDocs));
   }, []);
 
   React.useEffect(() => {
@@ -400,10 +373,6 @@ export default function SupplierDashboardPage() {
   const persistProfile = (next: SupplierProfile) => {
     setProfile(next);
     safeSet(PROFILE_KEY, JSON.stringify(next));
-  };
-  const persistDocs = (next: SupplierDoc[]) => {
-    setDocs(next);
-    safeSet(DOCS_KEY, JSON.stringify(next));
   };
 
   const filteredOrders = React.useMemo(() => {
@@ -1113,12 +1082,5 @@ function Input({ label, value, onChange }: { label: string; value: string; onCha
       <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
     </label>
   );
-}
-
-function StatusBadge({ status }: { status: SupplierDoc['status'] }) {
-  if (status === 'verified') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-emerald-100 text-emerald-700">✓ Verified</span>;
-  if (status === 'submitted') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-blue-100 text-blue-700">↑ Submitted</span>;
-  if (status === 'rejected') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-rose-100 text-rose-700">✗ Rejected</span>;
-  return <span className="text-xs font-bold rounded-full px-3 py-1 bg-slate-100 text-slate-600">○ Not uploaded</span>;
 }
 
