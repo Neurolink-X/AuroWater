@@ -1315,6 +1315,8 @@ CREATE POLICY profiles_public_read_technicians ON public.profiles
 SELECT pg_notify('pgrst', 'reload schema');
 
 -- ═════════════════════════════════════════════-- FILE: sql/015_platform_hardening.sql
+-- ═══════════════════════════════════════════════════════════════
+
 -- AuroWater production hardening:
 -- contact subjects, inventory reservation, payout requests, and atomic supplier transitions.
 -- Idempotent.
@@ -1485,6 +1487,8 @@ DECLARE
   v_order public.orders%ROWTYPE;
   v_qty INTEGER;
   v_reserved INTEGER;
+  v_is_can_order BOOLEAN;
+  v_service_key TEXT;
   v_now TIMESTAMPTZ := NOW();
 BEGIN
   SELECT *
@@ -1504,6 +1508,36 @@ BEGIN
   END IF;
 
   v_qty := GREATEST(1, COALESCE(v_order.can_quantity, 1));
+
+  SELECT lower(key)
+  INTO v_service_key
+  FROM public.service_types
+  WHERE id = v_order.service_type_id;
+
+  v_is_can_order := COALESCE(v_service_key, '') = 'water_can';
+
+  IF NOT v_is_can_order THEN
+    UPDATE public.orders
+    SET
+      accepted_at = v_now,
+      stock_reserved_qty = 0,
+      updated_at = v_now
+    WHERE id = p_order_id;
+
+    UPDATE public.order_dispatch
+    SET
+      status = 'ACCEPTED',
+      responded_at = v_now
+    WHERE order_id = p_order_id
+      AND supplier_id = p_supplier_id
+      AND status = 'ASSIGNED';
+
+    RETURN jsonb_build_object(
+      'ok', true,
+      'customer_id', v_order.customer_id,
+      'reserved_qty', 0
+    );
+  END IF;
 
   INSERT INTO public.supplier_stock (supplier_id, cans_available, reserved_cans, low_stock_alert)
   VALUES (p_supplier_id, 0, 0, 10)
