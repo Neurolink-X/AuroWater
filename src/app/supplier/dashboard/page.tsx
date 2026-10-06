@@ -29,7 +29,6 @@ import {
   type SupplierStock,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
-import { safeGet, safeSet } from '@/lib/storage';
 
 type TabKey =
   | 'overview'
@@ -126,20 +125,9 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const PROFILE_KEY = 'aurowater_supplier_profile';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const maskPhone = (p: string) => (p.length < 6 ? p : `${p.slice(0, 2)}XXXXXX${p.slice(-2)}`);
-
-function safeParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
 
 function seedProfile(): SupplierProfile {
   return {
@@ -261,17 +249,6 @@ export default function SupplierDashboardPage() {
   }, []);
 
   React.useEffect(() => {
-    const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
-    const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
-    const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
-    const nextProfile = p ?? seedProfile();
-    setFleet(nextFleet);
-    setProfile(nextProfile);
-    safeSet(FLEET_KEY, JSON.stringify(nextFleet));
-    safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
-  }, []);
-
-  React.useEffect(() => {
     if (!authHydrated || !isLoggedIn || !isSupplier) return;
     void fetchSupplierBoard();
   }, [authHydrated, isLoggedIn, isSupplier, fetchSupplierBoard]);
@@ -360,13 +337,8 @@ export default function SupplierDashboardPage() {
   const persistOrders = (next: SupplierOrder[]) => {
     setOrders(next);
   };
-  const persistFleet = (next: Tanker[]) => {
-    setFleet(next);
-    safeSet(FLEET_KEY, JSON.stringify(next));
-  };
   const persistProfile = (next: SupplierProfile) => {
     setProfile(next);
-    safeSet(PROFILE_KEY, JSON.stringify(next));
   };
 
   const filteredOrders = React.useMemo(() => {
