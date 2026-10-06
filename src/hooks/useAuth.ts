@@ -341,7 +341,7 @@ export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
   const redirectToDashboard = React.useCallback((): void => {
     const path = session?.role ? DASHBOARD_PATHS[session.role] : '/';
     router.push(path);
-  }, [session?.role, router]);
+  }, [session, router]);
 
   const requireAuth = React.useCallback(
     (options: { redirectTo?: string } = {}): boolean => {
@@ -377,7 +377,7 @@ export function useAuth(ttlMs: number = DEFAULT_TTL_MS): UseAuthReturn {
       if (!session?.role) return false;
       return ROLE_PERMISSIONS[session.role].includes(action);
     },
-    [session?.role]
+    [session]
   );
 
   /* ── Derived ── */
