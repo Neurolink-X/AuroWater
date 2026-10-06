@@ -127,7 +127,7 @@ export const metadata: Metadata = {
   /* ── Description ─────────────────────────────────────────────────────── */
 
   description:
-    'Book water delivery, water cans, plumbers, borewell services, pump repair, RO service and other home services with AuroWater in Kanpur.',
+    'Book water delivery, water cans, plumbers, borewell services, pump repair, RO service and other home services with AuroWater in Kanpur & NCR.',
 
   /* ── Keywords ────────────────────────────────────────────────────────── */
 
@@ -173,7 +173,7 @@ export const metadata: Metadata = {
       'AuroWater | Water Delivery & Home Services in Kanpur',
 
     description:
-      'Book reliable water delivery and home services with AuroWater in Kanpur.',
+      'Book reliable water delivery and home services with AuroWater in Kanpur & NCR.',
 
     images: [OG_IMAGE],
   },
