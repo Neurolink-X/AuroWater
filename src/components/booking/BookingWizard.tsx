@@ -166,7 +166,7 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   const q = Number(r.canQuantity);
   if (Number.isFinite(q) && q >= 1) out.canQuantity = Math.min(MAX_CANS_SUBSCRIPTION, Math.floor(q));
   if (r.canOrderType === 'one_time' || r.canOrderType === 'subscription') out.canOrderType = r.canOrderType;
-  if (typeof r.canFrequency === 'string' && ['weekly', 'biweekly', 'monthly'].includes(r.canFrequency)) out.canFrequency = r.canFrequency;
+  if (typeof r.canFrequency === 'string' && ['daily', 'alternate', 'weekly', 'biweekly', 'monthly'].includes(r.canFrequency)) out.canFrequency = r.canFrequency;
   if (typeof r.addressId === 'string') out.addressId = r.addressId;
   if (r.newAddress && typeof r.newAddress === 'object') out.newAddress = r.newAddress as BookingDraft['newAddress'];
   if (typeof r.scheduledDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.scheduledDate)) out.scheduledDate = r.scheduledDate;
@@ -186,8 +186,16 @@ function subOptionDelta(serviceKey: string, subOptionKey: string): number {
 
 function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): number {
   if (draft.serviceKey === 'water_can') {
-    const qty = Math.min(maxCansFor(draft), Math.max(1, draft.canQuantity ?? 1));
-    const per = draft.canOrderType === 'subscription' ? settings.subscription_can_price : settings.default_can_price;
+    const qty = Math.min(
+      maxCansFor(draft),
+      Math.max(1, draft.canQuantity ?? 1)
+    );
+    const per =
+      draft.canOrderType === 'subscription'
+        ? settings.subscription_can_price
+        : qty >= settings.bulk_threshold
+          ? settings.bulk_can_price
+          : settings.default_can_price;
     return Math.round(qty * per);
   }
   const base = settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
@@ -524,7 +532,16 @@ export default function BookingWizard() {
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
-  const perCan = draft.canOrderType === 'subscription' ? settings.subscription_can_price : settings.default_can_price;
+  const perCan =
+    draft.canOrderType === 'subscription'
+      ? settings.subscription_can_price
+      : (draft.canQuantity ?? 1) >= settings.bulk_threshold
+        ? settings.bulk_can_price
+        : settings.default_can_price;
+
+  const isSubscription =
+    draft.serviceKey === 'water_can' &&
+    draft.canOrderType === 'subscription';
 
   const goLoginForCheckout = () => {
     try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 3 })); } catch { /* */ }
@@ -685,7 +702,19 @@ export default function BookingWizard() {
     if (s === 2) {
       if (draft.serviceKey === 'water_can') {
         const q = draft.canQuantity ?? 1;
-        if (q < 1 || q > maxCansFor(draft)) { toast.error(`Quantity: 1 – ${maxCansFor(draft)}.`); return false; }
+        if (q < 1 || q > maxCansFor(draft)) {
+          toast.error(`Quantity: 1 – ${maxCansFor(draft)}.`);
+          return false;
+        }
+        if (
+          draft.canOrderType === 'subscription' &&
+          !['daily', 'alternate', 'weekly', 'biweekly', 'monthly'].includes(
+            String(draft.canFrequency)
+          )
+        ) {
+          toast.error('Choose a delivery frequency.');
+          return false;
+        }
       }
       if (!draft.subOptionKey) { toast.error('Choose an option.'); return false; }
       return true;
@@ -920,28 +949,100 @@ export default function BookingWizard() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {(['one_time', 'subscription'] as const).map((t) => (
-                    <button key={t} type="button" aria-pressed={draft.canOrderType === t}
-                      className={`${optionBtn(draft.canOrderType === t)} text-center`}
-                      onClick={() => setDraft((d) => ({ ...d, canOrderType: t, canQuantity: t === 'one_time' ? Math.min(d.canQuantity ?? 1, MAX_CANS_ONE_TIME) : d.canQuantity }))}>
-                      {t === 'one_time' ? 'One-time' : 'Subscription'}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    aria-pressed={draft.canOrderType !== 'subscription'}
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        canOrderType: 'one_time',
+                        canQuantity: Math.min(
+                          d.canQuantity ?? 1,
+                          MAX_CANS_ONE_TIME
+                        ),
+                      }))
+                    }
+                    className={optionBtn(draft.canOrderType !== 'subscription')}
+                  >
+                    <span className="block text-sm font-extrabold">One-time</span>
+                    <span className="mt-1 block text-xs font-semibold text-slate-500">
+                      {inr(settings.default_can_price)} per can
+                    </span>
+                    <span className="mt-1 block text-[11px] text-slate-400">
+                      {inr(settings.bulk_can_price)} per can from {settings.bulk_threshold} cans
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    aria-pressed={draft.canOrderType === 'subscription'}
+                    onClick={() =>
+                      setDraft((d) => ({
+                        ...d,
+                        canOrderType: 'subscription',
+                        canFrequency: d.canFrequency ?? 'weekly',
+                        paymentMethod:
+                          d.paymentMethod === 'online'
+                            ? 'cash'
+                            : d.paymentMethod,
+                      }))
+                    }
+                    className={optionBtn(draft.canOrderType === 'subscription')}
+                  >
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-extrabold">Subscription</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
+                        Save {inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can
+                      </span>
+                    </span>
+                    <span className="mt-1 block text-xs font-semibold text-slate-500">
+                      {inr(settings.subscription_can_price)} per can · recurring
+                    </span>
+                    <span className="mt-1 block text-[11px] text-slate-400">
+                      Pay per delivery · no automatic debit
+                    </span>
+                  </button>
                 </div>
+
                 {draft.canOrderType === 'subscription' && (
-                  <div>
-                    <label htmlFor="can-freq" className="text-sm font-medium text-slate-700">Frequency</label>
-                    <select id="can-freq" className={`mt-1 ${selectCls}`}
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                    <p className="text-sm font-extrabold text-slate-900">Recurring water delivery</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      AuroTap creates a separate order for each delivery using your saved address and preferred time window.
+                    </p>
+                    <label htmlFor="can-freq" className="mt-4 block text-sm font-bold text-slate-700">
+                      Delivery frequency
+                    </label>
+                    <select
+                      id="can-freq"
+                      className={`mt-1 ${selectCls}`}
                       value={draft.canFrequency ?? 'weekly'}
-                      onChange={(e) => setDraft((d) => ({ ...d, canFrequency: e.target.value }))}>
-                      <option value="weekly">Weekly</option>
+                      onChange={(e) =>
+                        setDraft((d) => ({
+                          ...d,
+                          canFrequency: e.target.value,
+                        }))
+                      }
+                    >
+                      <option value="daily">Every day</option>
+                      <option value="alternate">Every 2 days</option>
+                      <option value="weekly">Every week</option>
                       <option value="biweekly">Every 2 weeks</option>
-                      <option value="monthly">Monthly</option>
+                      <option value="monthly">Every month</option>
                     </select>
+                    <p className="mt-2 text-[11px] leading-5 text-slate-500">
+                      You can pause or cancel future deliveries later. Each delivery is billed separately.
+                    </p>
                   </div>
                 )}
-                <p className="text-xs text-slate-500">{inr(perCan)} per can</p>
+
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
+                  <span className="text-xs font-semibold text-slate-500">Price for this delivery</span>
+                  <span className="text-sm font-extrabold text-slate-900">
+                    {inr(perCan)} × {draft.canQuantity ?? 1}
+                  </span>
+                </div>
               </div>
             )}
 
@@ -1243,6 +1344,9 @@ export default function BookingWizard() {
                 ['Service', `${serviceLabel(draft.serviceKey)}${draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''}`],
                 ['Address', selectedAddress ? formatAddressCard(selectedAddress) : '—'],
                 ['Window',  windowText],
+                ...(isSubscription
+                  ? [['Plan', `Subscription · ${String(draft.canFrequency ?? 'weekly')}`]]
+                  : []),
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-4">
                   <span className="text-slate-500">{k}</span>
@@ -1273,19 +1377,36 @@ export default function BookingWizard() {
             <div className="space-y-2">
               <p className="text-sm font-semibold text-slate-800">Payment method</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {(['cash','upi','online'] as const).map((k) => (
-                  <button key={k} type="button" aria-pressed={draft.paymentMethod === k}
-                    onClick={() => setDraft((d) => ({ ...d, paymentMethod: k }))}
-                    className={`${optionBtn(draft.paymentMethod === k)} text-left`}>
-                    {k === 'cash' ? '💵 Cash on delivery' : k === 'upi' ? '📱 UPI' : '💳 Card / netbanking'}
+                {(isSubscription
+                  ? (['cash', 'upi'] as const)
+                  : (['cash', 'upi', 'online'] as const)
+                ).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={draft.paymentMethod === k}
+                    onClick={() =>
+                      setDraft((d) => ({ ...d, paymentMethod: k }))
+                    }
+                    className={`${optionBtn(draft.paymentMethod === k)} text-left`}
+                  >
+                    {k === 'cash'
+                      ? '💵 Cash on delivery'
+                      : k === 'upi'
+                        ? '📱 UPI per delivery'
+                        : '💳 Card / netbanking'}
                   </button>
                 ))}
               </div>
-              {draft.paymentMethod !== 'cash' && (
-                <p className="text-xs text-slate-500 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                  Online payment is coming soon — this choice is recorded for fulfilment only. You pay on delivery for now.
+              {isSubscription ? (
+                <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
+                  Subscription billing is per delivery. Automatic debit is not enabled.
                 </p>
-              )}
+              ) : draft.paymentMethod !== 'cash' ? (
+                <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  Online payment is coming soon. For now, payment is completed during fulfilment.
+                </p>
+              ) : null}
             </div>
 
             {submitError && (
