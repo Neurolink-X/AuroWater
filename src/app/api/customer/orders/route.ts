@@ -197,6 +197,10 @@ export async function POST(req: NextRequest) {
 
   const customerId = auth.ctx.profile.id;
 
+  const supplierAurotapId = typeof body.supplier_aurotap_id === 'string'
+    ? body.supplier_aurotap_id.trim()
+    : '';
+
   // service_types has: id, key, label, description, base_price, is_active
   const { data: st, error: stErr } = await auth.ctx.supabase
     .from('service_types')
@@ -368,6 +372,7 @@ if (!serviceability.serviceable) {
 
   const noteParts = [
     str(body.notes),
+    supplierAurotapId ? `Preferred supplier: ${supplierAurotapId}` : null,
     str(body.time_slot) ? `Slot: ${str(body.time_slot)}` : null,
     str(body.sub_option_key) ? `Option: ${str(body.sub_option_key)}` : null,
     str(body.can_order_type) ? `Type: ${str(body.can_order_type)}` : null,
@@ -560,11 +565,29 @@ if (!serviceability.serviceable) {
   // ── Supplier dispatch (water cans): nearest eligible supplier, with automatic fallback ──
   let supplierId: string | null = null;
   if (isWater) {
-    const d = await dispatchOrder(orderId);
+    let preferredSupplierId: string | null = null;
+
+    if (supplierAurotapId) {
+      const admin = createServiceClient();
+      const { data: preferred } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('aurotap_id', supplierAurotapId)
+        .eq('role', 'supplier')
+        .maybeSingle();
+      preferredSupplierId = preferred?.id ? String(preferred.id) : null;
+    }
+
+    const d = await dispatchOrder(orderId, preferredSupplierId);
     supplierId = d.supplierId;
     if (supplierId) {
       (order as Record<string, unknown>).supplier_id = supplierId;
       (order as Record<string, unknown>).status = 'ASSIGNED';
+      if (preferredSupplierId && supplierId !== preferredSupplierId) {
+        (order as Record<string, unknown>).supplier_route = 'fallback_network';
+      } else if (preferredSupplierId) {
+        (order as Record<string, unknown>).supplier_route = 'preferred_supplier';
+      }
     }
   }
 
