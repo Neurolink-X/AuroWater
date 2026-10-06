@@ -108,6 +108,7 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
 
 type Tanker = {
   id: string;
+  vehicleNumber: string;
   name: string;
   size: '1000L' | '3000L' | '5000L' | '10000L';
   status: 'available' | 'in_use' | 'maintenance';
@@ -158,7 +159,7 @@ const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 function mapApiProfile(
   p: Awaited<ReturnType<typeof supplierProfileGet>>,
 ): SupplierProfile {
-  const price = Number(p.business_name ? 0 : 0);
+  const price = 0;
   return {
     businessName: p.business_name ?? '',
     ownerName: p.full_name ?? '',
@@ -179,7 +180,8 @@ function mapApiFleet(
   rows: Awaited<ReturnType<typeof supplierFleetList>>,
 ): Tanker[] {
   return rows.map((row) => ({
-    id: row.vehicle_number,
+    id: row.id,
+    vehicleNumber: row.vehicle_number,
     name: row.vehicle_name ?? `Vehicle ${row.vehicle_number}`,
     size:
       row.capacity_litres >= 10000
@@ -189,7 +191,12 @@ function mapApiFleet(
           : row.capacity_litres >= 3000
             ? '3000L'
             : '1000L',
-    status: row.status === 'inactive' ? 'maintenance' : row.status,
+    status:
+      row.status === 'inactive'
+        ? 'maintenance'
+        : row.status === 'in_use' || row.status === 'maintenance' || row.status === 'available'
+          ? row.status
+          : 'available',
     price: Number(row.price_per_trip ?? 0),
     driver: row.driver_name ?? '',
   }));
