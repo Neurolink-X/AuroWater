@@ -665,13 +665,13 @@ export default function PricingVisualizerPage() {
                 <p className="viz-display text-white font-bold text-sm mb-4">The Formula</p>
                 <div className="rounded-xl p-4 text-sm font-mono"
                   style={{background:'rgba(0,0,0,.3)',border:'1px solid rgba(14,165,233,.2)'}}>
-                  <p className="text-sky-300">// Total = Base + Convenience + GST − Discount + Emergency</p>
+                  <p className="text-sky-300">Total = Base + Convenience + GST − Discount + Emergency</p>
                   <p className="text-white mt-2">total = base + convFee + (base+convFee−discount)×gstRate + emg</p>
-                  <p className="text-sky-300 mt-4">// Revenue split (guaranteed integrity)</p>
+                  <p className="text-sky-300 mt-4">Revenue split (platform integrity)</p>
                   <p className="text-yellow-300 mt-1">techEarnings  = total × techRate</p>
                   <p className="text-amber-300">suppEarnings  = total × supplierRate</p>
                   <p className="text-emerald-300">platformRev   = total − techEarnings − suppEarnings</p>
-                  <p className="text-sky-300 mt-4">// Always true ✓</p>
+                  <p className="text-sky-300 mt-4">Always true ✓</p>
                   <p className="text-white">assert: techEarnings + suppEarnings + platformRev === total</p>
                 </div>
               </div>
