@@ -658,7 +658,9 @@ export default function PricingVisualizerPage() {
                 <p className="text-sky-400 text-xs">Every rupee in every order is accounted for — zero leakage.</p>
               </div>
 
-              {/* Formula */}
+              {/*
+                Formula
+              */}
               <div className="glass-strong rounded-2xl p-6">
                 <p className="viz-display text-white font-bold text-sm mb-4">The Formula</p>
                 <div className="rounded-xl p-4 text-sm font-mono"
