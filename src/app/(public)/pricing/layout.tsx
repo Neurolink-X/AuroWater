@@ -1,8 +1,9 @@
+import type { Metadata } from 'next';
 import { pageMeta } from '@/lib/seo';
 
-export const metadata = pageMeta(
-  'Water Can Subscription Plans | ₹10–₹12/can | AuroWater',
-  'Simple water can plans from ₹10–₹12 per can with same-day delivery in UP.',
+export const metadata: Metadata = pageMeta(
+  'AuroWater Pricing | Water Delivery & Home Services',
+  'See AuroWater pricing for water cans, tanker delivery and selected home water services. Final availability and booking charges are validated during checkout.',
   '/pricing'
 );
 
