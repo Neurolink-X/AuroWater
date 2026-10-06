@@ -6,6 +6,7 @@
 // import { useForm } from 'react-hook-form';
 // import { z } from 'zod';
 // import { zodResolver } from '@hookform/resolvers/zod';
+import { postContact } from '@/lib/api-client';
 
 // const FALLBACK = {
 //   support_email: 'support.aurotap@gmail.com',
@@ -402,13 +403,19 @@ export default function ContactPage() {
   const onSubmit = async (values: FormValues) => {
     if (loading) return;
     setLoading(true);
+    setSubmitted(false);
     try {
-      await new Promise((r) => setTimeout(r, 1500));
+      await postContact({
+        name: values.name.trim(),
+        email: values.email.trim().toLowerCase(),
+        phone: values.phone.trim(),
+        message: `Subject: ${values.subject}\\n\\n${values.message.trim()}`,
+      });
       setSubmitted(true);
-      toast.success("Message sent! We\u2019ll reply within 24 hours.");
+      toast.success('Message received. We will reply within 24 hours.');
       reset();
-    } catch {
-      toast.error('Something went wrong. Please try again.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not send your message. Please try again.');
     } finally {
       setLoading(false);
     }
