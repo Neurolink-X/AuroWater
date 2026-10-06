@@ -1,4 +1,4 @@
-import { jsonOk, jsonErr } from '@/lib/api/json-response';
+src/components/layout/Header.tsximport { jsonOk, jsonErr } from '@/lib/api/json-response';
 import {
   createSupabaseAnonClient,
   isSupabaseConfigured,
