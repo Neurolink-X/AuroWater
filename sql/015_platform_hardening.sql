@@ -170,6 +170,7 @@ DECLARE
   v_qty INTEGER;
   v_reserved INTEGER;
   v_is_can_order BOOLEAN;
+  v_service_key TEXT;
   v_now TIMESTAMPTZ := NOW();
 BEGIN
   SELECT *
@@ -189,7 +190,13 @@ BEGIN
   END IF;
 
   v_qty := GREATEST(1, COALESCE(v_order.can_quantity, 1));
-  v_is_can_order := lower(COALESCE(v_order.service_type::text, '')) = 'water_can';
+
+  SELECT lower(key)
+  INTO v_service_key
+  FROM public.service_types
+  WHERE id = v_order.service_type_id;
+
+  v_is_can_order := COALESCE(v_service_key, '') = 'water_can';
 
   IF NOT v_is_can_order THEN
     UPDATE public.orders
