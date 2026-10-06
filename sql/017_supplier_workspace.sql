@@ -82,6 +82,7 @@ CREATE TRIGGER supplier_documents_updated_at
 
 CREATE OR REPLACE FUNCTION public.update_supplier_profile(
   p_supplier_id UUID,
+  p_full_name TEXT DEFAULT NULL,
   p_business_name TEXT DEFAULT NULL,
   p_gstin TEXT DEFAULT NULL,
   p_service_cities TEXT[] DEFAULT NULL
@@ -102,6 +103,7 @@ BEGIN
 
   UPDATE public.profiles
   SET
+    full_name = CASE WHEN p_full_name IS NULL THEN full_name ELSE NULLIF(TRIM(p_full_name), '') END,
     business_name = CASE WHEN p_business_name IS NULL THEN business_name ELSE NULLIF(TRIM(p_business_name), '') END,
     gstin = CASE WHEN p_gstin IS NULL THEN gstin ELSE NULLIF(UPPER(TRIM(p_gstin)), '') END,
     service_cities = COALESCE(p_service_cities, service_cities)
@@ -117,7 +119,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.update_supplier_profile(UUID, TEXT, TEXT, TEXT[])
+GRANT EXECUTE ON FUNCTION public.update_supplier_profile(UUID, TEXT, TEXT, TEXT, TEXT[])
   TO service_role;
 
 SELECT pg_notify('pgrst', 'reload schema');
