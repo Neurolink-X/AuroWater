@@ -337,6 +337,20 @@ export default function SupplierDashboardPage() {
     return Math.round((done / fields.length) * 100);
   }, [profile]);
 
+  const toggleOnline = React.useCallback(async () => {
+    const next = !(supplierSettings?.is_online ?? false);
+    setSettingsSaving(true);
+    try {
+      const updated = await supplierSettingsUpdate({ is_online: next });
+      setSupplierSettings(updated);
+      toast.success(next ? 'You are now online and eligible for new orders.' : 'You are offline. New orders will not be assigned to you.');
+    } catch (error) {
+      toast.error(getApiErrorMessage(error));
+    } finally {
+      setSettingsSaving(false);
+    }
+  }, [supplierSettings?.is_online]);
+
   const barItems = [
     { key: 'overview', label: 'Overview', icon: '📊' },
     { key: 'orders', label: 'Orders', icon: '📦' },
@@ -397,6 +411,27 @@ export default function SupplierDashboardPage() {
               <div className="mt-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold tracking-wide">
                 AUROTAP PARTNER
               </div>
+
+              <button
+                type="button"
+                onClick={() => void toggleOnline()}
+                disabled={settingsSaving || supplierSettings == null}
+                aria-pressed={supplierSettings?.is_online ?? false}
+                className="mt-4 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-left transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-extrabold tracking-wide text-white/80">AVAILABILITY</span>
+                  <span className={[
+                    'rounded-full px-2.5 py-1 text-[11px] font-extrabold',
+                    supplierSettings?.is_online ? 'bg-emerald-300 text-emerald-950' : 'bg-slate-200 text-slate-700',
+                  ].join(' ')}>
+                    {settingsSaving ? 'Updating…' : supplierSettings?.is_online ? 'ONLINE' : 'OFFLINE'}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-white/65">
+                  {supplierSettings?.is_online ? 'New eligible deliveries may be offered to you.' : 'Go online when you are ready to accept work.'}
+                </div>
+              </button>
 
               <div className="mt-6 space-y-2">
                 {barItems.map((i) => {
@@ -461,6 +496,7 @@ export default function SupplierDashboardPage() {
                   />
                   <StatCard title="Active Deliveries" value={`${stats.active}`} color="#2A9D8F" />
                   <StatCard title="Month Revenue" value={fmtMoney(stats.monthRevenue)} color="#F4A261" />
+                  <StatCard title="Available Stock" value={stock ? String(stock.cans_available) : '—'} color="#7C3AED" />
                   <StatCard title="Fleet Available" value={`${fleet.filter((f) => f.status === 'available').length}`} color="#1D4ED8" />
                 </section>
                 {refreshing ? (
