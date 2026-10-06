@@ -7,6 +7,7 @@ import { createServiceClient } from '@/utils/supabase/server';
 
 const updateSchema = z.object({
   business_name: z.string().trim().min(2).max(120).optional(),
+  full_name: z.string().trim().min(2).max(80).optional(),
   gstin: z.string().trim().max(20).optional(),
   service_cities: z.array(z.string().trim().min(2).max(80)).max(30).optional(),
 });
@@ -53,6 +54,7 @@ export async function PUT(req: NextRequest) {
   try {
     const { data, error } = await db.rpc('update_supplier_profile', {
       p_supplier_id: auth.ctx.profile.id,
+      p_full_name: parsed.data.full_name ?? null,
       p_business_name: parsed.data.business_name ?? null,
       p_gstin: parsed.data.gstin ?? null,
       p_service_cities: parsed.data.service_cities ?? null,
