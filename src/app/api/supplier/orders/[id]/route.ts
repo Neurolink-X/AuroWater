@@ -7,6 +7,7 @@ import { checkAndUpgradeMilestone } from '@/lib/milestone';
 
 const bodySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']),
+  payment_collected: z.boolean().optional(),
 });
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -29,7 +30,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { data: before, error: bErr } = await sb
     .from('orders')
-    .select('id, supplier_id, status, accepted_at, customer_id, can_quantity, can_count')
+    .select('id, supplier_id, status, accepted_at, customer_id, can_quantity, can_count, payment_method, payment_status')
     .eq('id', id)
     .maybeSingle();
   if (bErr) return jsonErr(bErr.message, 502);
@@ -46,12 +47,27 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     return jsonErr('Order must be accepted before it can be completed', 409);
   }
 
+  const paymentMethod = String((before as { payment_method?: string | null }).payment_method ?? 'cash').toLowerCase();
+  const paymentStatus = String((before as { payment_status?: string | null }).payment_status ?? 'pending').toLowerCase();
+  if (next === 'COMPLETED' && paymentStatus !== 'paid') {
+    if (paymentMethod === 'cash') {
+      if (parsed.data.payment_collected !== true) {
+        return jsonErr('Confirm that cash was collected before marking the delivery complete', 409);
+      }
+    } else {
+      return jsonErr('Online/UPI payment must be marked paid before completing the order', 409);
+    }
+  }
+
   const allowed =
     (prev === 'ASSIGNED' && next === 'IN_PROGRESS') ||
     (prev === 'IN_PROGRESS' && next === 'COMPLETED');
   if (!allowed) return jsonErr('Invalid status transition', 400);
 
   const patch: Record<string, unknown> = { status: next };
+  if (next === 'COMPLETED' && paymentStatus !== 'paid' && paymentMethod === 'cash') {
+    patch.payment_status = 'paid';
+  }
   if (next === 'IN_PROGRESS') patch.dispatched_at = new Date().toISOString();
   if (next === 'COMPLETED') patch.completed_at = new Date().toISOString();
 
