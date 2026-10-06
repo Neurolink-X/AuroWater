@@ -1,3 +1,5 @@
+import RetryButton from './RetryButton';
+
 export default function OfflinePage() {
   return (
     <main
@@ -22,15 +24,7 @@ export default function OfflinePage() {
       </p>
 
       <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={() => {
-            window.location.reload();
-          }}
-          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-500 px-6 py-3 text-sm font-extrabold text-slate-950 transition hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-[#0A1628]"
-        >
-          Try again
-        </button>
+        <RetryButton />
 
         <a
           href="/"
