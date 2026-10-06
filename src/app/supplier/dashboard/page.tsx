@@ -152,35 +152,31 @@ function safeParse<T>(raw: string | null): T | null {
 }
 
 function seedFleet(): Tanker[] {
-  return [
-    { id: 'TK-001', name: 'Tanker Alpha', size: '3000L', status: 'available', price: 399, driver: 'Ramesh Kumar' },
-    { id: 'TK-002', name: 'Tanker Beta', size: '5000L', status: 'in_use', price: 599, driver: 'Suresh Pal' },
-    { id: 'TK-003', name: 'Tanker Gamma', size: '1000L', status: 'available', price: 299, driver: 'Mahesh Singh' },
-  ];
+  return [];
 }
 
-function seedProfile(): SupplierProfile {
+function seedProfile(session?: { name?: string; email?: string; phone?: string; aurotapId?: string }): SupplierProfile {
   return {
-    businessName: 'Auro Water Kanpur',
-    ownerName: 'Arjun Chaurasiya',
-    gst: '09ABCDE1234F1Z5',
-    phone: '9889305803',
-    email: 'supplier@aurowater.in',
-    serviceCities: ['Kanpur', 'Lucknow'],
-    aurotapId: '9889305803@aurotap',
+    businessName: '',
+    ownerName: session?.name ?? '',
+    gst: '',
+    phone: session?.phone ?? '',
+    email: session?.email ?? '',
+    serviceCities: [],
+    aurotapId: session?.aurotapId ?? '',
     prices: {
-      '1000L': 299,
-      '3000L': 399,
-      '5000L': 599,
+      '1000L': 0,
+      '3000L': 0,
+      '5000L': 0,
     },
   };
 }
 
 function seedDocs(): SupplierDoc[] {
   return [
-    { key: 'gst', label: 'GST Certificate', required: true, status: 'submitted', fileName: 'gst_cert.pdf', fileSizeKb: 381 },
+    { key: 'gst', label: 'GST Certificate', required: true, status: 'not_uploaded' },
     { key: 'reg', label: 'Business Registration', required: true, status: 'not_uploaded' },
-    { key: 'aadhaar', label: 'Owner Aadhaar', required: true, status: 'verified', fileName: 'aadhaar_owner.jpg', fileSizeKb: 812 },
+    { key: 'aadhaar', label: 'Owner Aadhaar', required: true, status: 'not_uploaded' },
     { key: 'insurance', label: 'Fleet Insurance', required: true, status: 'not_uploaded' },
     { key: 'bank', label: 'Bank Statement', required: true, status: 'not_uploaded' },
   ];
@@ -198,7 +194,7 @@ export default function SupplierDashboardPage() {
   const [ordersLoading, setOrdersLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [fleet, setFleet] = React.useState<Tanker[]>([]);
-  const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
+  const [profile, setProfile] = React.useState<SupplierProfile>(() => seedProfile(session ?? undefined));
   const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
@@ -250,16 +246,16 @@ export default function SupplierDashboardPage() {
       setOrdersLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [session]);
 
   React.useEffect(() => {
     const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
     const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
     const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
 
-    const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
-    const nextProfile = p ?? seedProfile();
-    const nextDocs = Array.isArray(d) && d.length ? d : seedDocs();
+    const nextFleet = Array.isArray(f) ? f : seedFleet();
+    const nextProfile = p ?? seedProfile(session ?? undefined);
+    const nextDocs = Array.isArray(d) ? d : seedDocs();
 
     setFleet(nextFleet);
     setProfile(nextProfile);
