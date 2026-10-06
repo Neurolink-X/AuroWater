@@ -815,11 +815,24 @@ export default function SupplierDashboardPage() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-bold text-slate-900">{t.name}</div>
-                          <div className="text-sm text-slate-600">{t.id} · {t.size}</div>
+                          <div className="text-sm text-slate-600">{t.vehicleNumber} · {t.size}</div>
                         </div>
                         <select
                           value={t.status}
-                          onChange={(e) => persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, status: e.target.value as Tanker['status'] } : x)))}
+                          onChange={async (e) => {
+                            const status = e.target.value as Tanker['status'];
+                            try {
+                              const updated = await supplierFleetUpdate(t.id, { status });
+                              setFleet((prev) => prev.map((x) => (
+                                x.id === t.id
+                                  ? { ...x, status: updated.status === 'inactive' ? 'maintenance' : updated.status }
+                                  : x
+                              )));
+                              toast.success('Fleet status updated.');
+                            } catch (error) {
+                              toast.error(getApiErrorMessage(error));
+                            }
+                          }}
                           className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
                         >
                           <option value="available">Available</option>
@@ -831,13 +844,38 @@ export default function SupplierDashboardPage() {
                         <span className="text-sm text-slate-600">Price</span>
                         <input
                           value={t.price}
+                          type="number"
+                          min="0"
                           onChange={(e) => {
                             const p = Number(e.target.value || 0);
-                            persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, price: p } : x)));
+                            setFleet((prev) => prev.map((x) => (x.id === t.id ? { ...x, price: p } : x)));
+                          }}
+                          onBlur={async () => {
+                            try {
+                              const updated = await supplierFleetUpdate(t.id, { price_per_trip: Math.max(0, t.price) });
+                              setFleet((prev) => prev.map((x) => (x.id === t.id ? { ...x, price: Number(updated.price_per_trip ?? 0) } : x)));
+                            } catch (error) {
+                              toast.error(getApiErrorMessage(error));
+                            }
                           }}
                           className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
                         />
-                        <span className="text-sm text-slate-600">Driver: {t.driver}</span>
+                        <span className="text-sm text-slate-600">Driver: {t.driver || 'Unassigned'}</span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await supplierFleetDelete(t.id);
+                              setFleet((prev) => prev.filter((x) => x.id !== t.id));
+                              toast.success('Vehicle removed.');
+                            } catch (error) {
+                              toast.error(getApiErrorMessage(error));
+                            }
+                          }}
+                          className="ml-auto rounded-lg border border-rose-200 px-2 py-1 text-xs font-bold text-rose-700"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -876,20 +914,33 @@ export default function SupplierDashboardPage() {
                     />
                   </div>
                   <button
+                    type="button"
                     className="mt-3 rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                    onClick={() => {
-                      if (!newTanker.id.trim()) return toast.error('Enter tanker ID');
-                      const add: Tanker = {
-                        id: newTanker.id.trim().toUpperCase(),
-                        name: `Tanker ${newTanker.id.trim().toUpperCase()}`,
-                        size: newTanker.size,
-                        price: Number(newTanker.price || 0),
-                        driver: newTanker.driver || 'Unassigned',
-                        status: 'available',
-                      };
-                      persistFleet([add, ...fleet]);
-                      setNewTanker({ id: '', size: '3000L', price: '399', driver: '' });
-                      toast.success('Tanker added to fleet.');
+                    onClick={async () => {
+                      if (!newTanker.id.trim()) {
+                        toast.error('Enter vehicle number');
+                        return;
+                      }
+                      const price = Number(newTanker.price || 0);
+                      if (!Number.isFinite(price) || price < 0) {
+                        toast.error('Enter a valid trip price');
+                        return;
+                      }
+                      const capacity = Number(newTanker.size.replace('L', ''));
+                      try {
+                        const created = await supplierFleetCreate({
+                          vehicle_number: newTanker.id.trim().toUpperCase(),
+                          vehicle_name: `Tanker ${newTanker.id.trim().toUpperCase()}`,
+                          capacity_litres: capacity,
+                          driver_name: newTanker.driver || undefined,
+                          price_per_trip: price,
+                        });
+                        setFleet((prev) => [mapApiFleet([created])[0], ...prev]);
+                        setNewTanker({ id: '', size: '3000L', price: '399', driver: '' });
+                        toast.success('Tanker added to fleet.');
+                      } catch (error) {
+                        toast.error(getApiErrorMessage(error));
+                      }
                     }}
                   >
                     Add to Fleet
