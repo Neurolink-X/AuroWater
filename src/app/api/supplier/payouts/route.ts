@@ -35,43 +35,6 @@ export async function POST(req: NextRequest) {
   const supplierId = auth.ctx.profile.id;
   const db = createServiceClient();
 
-  const [{ data: earnings, error: earningsError }, { data: pendingRequests, error: requestError }] =
-    await Promise.all([
-      db
-        .from('orders')
-        .select('supplier_payout')
-        .eq('supplier_id', supplierId)
-        .eq('status', 'COMPLETED')
-        .eq('payout_status', 'pending'),
-      db
-        .from('payout_requests')
-        .select('amount')
-        .eq('supplier_id', supplierId)
-        .in('status', ['pending', 'processing']),
-    ]);
-
-  if (earningsError || requestError) {
-    return jsonErr('Could not verify payout balance', 502);
-  }
-
-  const eligible = (earnings ?? []).reduce(
-    (sum, row) => sum + Number(row.supplier_payout ?? 0),
-    0
-  );
-  const alreadyRequested = (pendingRequests ?? []).reduce(
-    (sum, row) => sum + Number(row.amount ?? 0),
-    0
-  );
-  const available = Math.max(0, Math.round((eligible - alreadyRequested) * 100) / 100);
-
-  if (parsed.data.amount > available) {
-    return jsonErr(
-      `Requested amount exceeds your available payout balance (₹${available.toLocaleString('en-IN')}).`,
-      409,
-      'PAYOUT_BALANCE_EXCEEDED'
-    );
-  }
-
   const { data: supplierSettings } = await db
     .from('supplier_settings')
     .select('upi_id, bank_account, ifsc')
@@ -91,21 +54,29 @@ export async function POST(req: NextRequest) {
     ? String(upi)
     : `${String(bank).slice(-4)} / ${String(ifsc).toUpperCase()}`;
 
-  const { data, error } = await db
-    .from('payout_requests')
-    .insert({
-      supplier_id: supplierId,
-      amount: parsed.data.amount,
-      method,
-      destination_reference: destinationReference,
-      status: 'pending',
-      notes: parsed.data.notes ?? null,
-    })
-    .select('id, supplier_id, amount, method, status, destination_reference, notes, created_at')
-    .single();
+  const { data, error } = await db.rpc('create_supplier_payout_request', {
+    p_supplier_id: supplierId,
+    p_amount: parsed.data.amount,
+    p_method: method,
+    p_destination_reference: destinationReference,
+    p_notes: parsed.data.notes ?? null,
+  });
 
   if (error || !data) {
-    console.error('[supplier/payouts] insert failed', error);
+    const message = error?.message ?? '';
+    const balanceMatch = message.match(/PAYOUT_BALANCE_EXCEEDED:([0-9.]+)/);
+    if (balanceMatch) {
+      const available = Number(balanceMatch[1]);
+      return jsonErr(
+        `Requested amount exceeds your available payout balance (₹${available.toLocaleString('en-IN')}).`,
+        409,
+        'PAYOUT_BALANCE_EXCEEDED',
+      );
+    }
+
+    if (error) {
+      console.error('[supplier/payouts] request creation failed', error);
+    }
     return jsonErr('Could not create payout request', 502);
   }
 
