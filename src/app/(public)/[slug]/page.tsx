@@ -141,7 +141,7 @@ export default async function ServiceLandingPage({
               Serviceability, available suppliers and booking inputs can affect the final order. The platform validates key pricing inputs on the server before creating the booking.
             </p>
             <Link
-              href={data.slug.startsWith('water-') ? '/book?service=water_can' : `/book?service=${encodeURIComponent(data.slug)}`}
+              href={bookingHref(data.slug)}
               className="mt-6 inline-flex rounded-xl bg-white px-5 py-3 text-sm font-black text-[#06253D]"
             >
               Check availability
