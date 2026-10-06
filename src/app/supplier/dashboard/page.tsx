@@ -246,16 +246,27 @@ export default function SupplierDashboardPage() {
       setOrdersLoading(false);
       setRefreshing(false);
     }
-  }, [session]);
+  }, []);
 
   React.useEffect(() => {
     const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
     const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
     const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
 
-    const nextFleet = Array.isArray(f) ? f : seedFleet();
-    const nextProfile = p ?? seedProfile(session ?? undefined);
-    const nextDocs = Array.isArray(d) ? d : seedDocs();
+    const legacyDemoProfile =
+      p?.businessName === 'Auro Water Kanpur' ||
+      p?.gst === '09ABCDE1234F1Z5' ||
+      p?.email === 'supplier@aurowater.in';
+
+    const legacyDemoFleet =
+      Array.isArray(f) && f.some((item) => /^TK-00[1-3]$/.test(item.id));
+
+    const legacyDemoDocs =
+      Array.isArray(d) && d.some((doc) => ['gst_cert.pdf', 'aadhaar_owner.jpg'].includes(doc.fileName ?? ''));
+
+    const nextFleet = legacyDemoFleet ? seedFleet() : (Array.isArray(f) ? f : seedFleet());
+    const nextProfile = legacyDemoProfile ? seedProfile(session ?? undefined) : (p ?? seedProfile(session ?? undefined));
+    const nextDocs = legacyDemoDocs ? seedDocs() : (Array.isArray(d) ? d : seedDocs());
 
     setFleet(nextFleet);
     setProfile(nextProfile);
@@ -264,7 +275,7 @@ export default function SupplierDashboardPage() {
     safeSet(FLEET_KEY, JSON.stringify(nextFleet));
     safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
     safeSet(DOCS_KEY, JSON.stringify(nextDocs));
-  }, []);
+  }, [session]);
 
   React.useEffect(() => {
     if (!authHydrated || !isLoggedIn || !isSupplier) return;
