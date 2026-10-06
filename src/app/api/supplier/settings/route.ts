@@ -5,7 +5,10 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
 const settingsSchema = z.object({
+  is_online: z.boolean().optional(),
   price_per_can: z.number().min(1).max(1000).optional(),
+  service_radius: z.number().int().min(1).max(100).optional(),
+  zone_radius_km: z.number().int().min(1).max(100).optional(),
   upi_id: z.string().min(3).optional(),
   bank_account: z.string().min(6).optional(),
   ifsc: z.string().min(6).optional(),
@@ -43,10 +46,18 @@ export async function PUT(req: NextRequest) {
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success) return jsonErr(parsed.error.issues[0]?.message ?? 'Invalid payload', 422);
 
+  const patch = parsed.data;
+  if (patch.is_online === true) {
+    const profileStatus = String((auth.ctx.profile as { status?: string | null }).status ?? 'active').toLowerCase();
+    if (auth.ctx.profile.is_active === false || profileStatus !== 'active') {
+      return jsonErr('Your supplier account must be active and approved before going online.', 403, 'SUPPLIER_NOT_APPROVED');
+    }
+  }
+
   const { data, error } = await auth.ctx.supabase
     .from('supplier_settings')
     .upsert(
-      { user_id: auth.ctx.profile.id, ...parsed.data },
+      { user_id: auth.ctx.profile.id, ...patch },
       { onConflict: 'user_id' }
     )
     .select('*')
