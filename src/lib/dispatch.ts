@@ -165,7 +165,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type_id')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type_id, zone_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -214,7 +214,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     if (!ids.length) return noCandidates();
 
-    const [profRes, loadRes, lastRes, stockRes] = await Promise.all([
+    const [profRes, loadRes, lastRes, stockRes, zoneRes] = await Promise.all([
       db.from('profiles').select('id, role, city, is_active, status, milestone_tier, current_lat, current_lng').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
@@ -231,6 +231,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
             .from('supplier_stock')
             .select('supplier_id, cans_available')
             .in('supplier_id', ids)
+        : Promise.resolve({ data: [] }),
+      order.zone_id
+        ? db
+            .from('supplier_zones')
+            .select('supplier_id, zone_id')
+            .in('supplier_id', ids)
+            .eq('zone_id', order.zone_id)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -249,6 +256,20 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         Number(row.cans_available ?? 0),
       ]),
     );
+
+    const mappedZoneSuppliers = new Set(
+      ((zoneRes.data ?? []) as { supplier_id: string }[]).map((row) => String(row.supplier_id)),
+    );
+    const zoneMappings = new Map<string, boolean>();
+    if (order.zone_id) {
+      const { data: anyZoneMappings } = await db
+        .from('supplier_zones')
+        .select('supplier_id')
+        .in('supplier_id', ids);
+      for (const row of (anyZoneMappings ?? []) as { supplier_id: string }[]) {
+        zoneMappings.set(String(row.supplier_id), true);
+      }
+    }
 
     type Cand = {
       id: string;
@@ -271,6 +292,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       const load = activeLoad.get(id) ?? 0;
       if (load >= cfg.maxActive) continue;
       if (requiresCanStock && (stockBySupplier.get(id) ?? 0) < requiredCanQty) continue;
+      if (order.zone_id && zoneMappings.get(id) && !mappedZoneSuppliers.has(id)) continue;
 
       const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
       const sLat = coord(p.current_lat);
@@ -317,6 +339,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         order_id: orderId,
         supplier_id: c.id,
         status: 'ASSIGNED',
+        attempt_no: attempts + 1,
         distance_km: c.distance === null ? null : Math.round(c.distance * 100) / 100,
       });
       if (insErr) continue;
