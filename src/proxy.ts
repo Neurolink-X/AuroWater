@@ -60,6 +60,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   /* Public SEO landing pages */
   '/water-delivery',
   '/water-can-delivery',
+  '/water-tanker-delivery',
   '/tanker-water-delivery',
   '/plumber',
   '/borewell',
