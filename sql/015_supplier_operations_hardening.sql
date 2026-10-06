@@ -325,6 +325,64 @@ BEGIN
 END;
 $;
 
+-- Pending payout is outstanding balance, not merely the current reporting period.
+CREATE OR REPLACE FUNCTION public.get_supplier_earnings(
+  p_supplier_id UUID,
+  p_period TEXT
+)
+RETURNS TABLE (
+  period_label TEXT,
+  order_count BIGINT,
+  gross_amount NUMERIC,
+  pending_payout NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  start_ts TIMESTAMPTZ;
+  pl TEXT;
+BEGIN
+  pl := lower(coalesce(p_period, 'month'));
+  start_ts := CASE pl
+    WHEN 'today' THEN date_trunc('day', NOW())
+    WHEN 'week' THEN date_trunc('week', NOW())
+    WHEN 'month' THEN date_trunc('month', NOW())
+    ELSE date_trunc('month', NOW())
+  END;
+
+  RETURN QUERY
+  SELECT
+    pl::TEXT,
+    COUNT(*) FILTER (WHERE o.created_at >= start_ts)::BIGINT,
+    COALESCE(SUM(o.total_amount) FILTER (WHERE o.status = 'COMPLETED' AND o.created_at >= start_ts), 0)::NUMERIC,
+    COALESCE(SUM(o.supplier_payout) FILTER (
+      WHERE o.status = 'COMPLETED'
+        AND o.payout_status = 'pending'
+        AND o.supplier_payout > 0
+    ), 0)::NUMERIC
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id
+    AND o.created_at >= start_ts
+
+  UNION ALL
+
+  SELECT
+    pl::TEXT,
+    0::BIGINT,
+    0::NUMERIC,
+    COALESCE(SUM(o.supplier_payout) FILTER (
+      WHERE o.status = 'COMPLETED'
+        AND o.payout_status = 'pending'
+        AND o.supplier_payout > 0
+    ), 0)::NUMERIC
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id;
+END;
+$;
+
 SELECT pg_notify('pgrst', 'reload schema');
 
 COMMIT;
