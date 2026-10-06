@@ -6,12 +6,15 @@ import {
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
 
-export const runtime = 'nodejs';
+import type { ProfileRole } from '@/lib/db/types';
 
-const SUBSCRIPTION_ROLES = [
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const SUBSCRIPTION_ROLES: ProfileRole[] = [
   'customer',
   'supplier',
-] as const;
+];
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
