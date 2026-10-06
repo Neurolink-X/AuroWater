@@ -1577,36 +1577,34 @@ export default function CustomerAccountPage() {
             />
 
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <a
-                href={WHATSAPP_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex min-h-[72px] items-center gap-3 border-b border-slate-100 px-4 py-3.5 hover:bg-slate-50"
-              >
-                <span
-                  className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-lg"
-                  aria-hidden="true"
-                >
-                  💬
-                </span>
+            <Link
+  href="/customer/support"
+  className="group flex min-h-[72px] items-center gap-3 border-b border-slate-100 px-4 py-3.5 hover:bg-slate-50"
+>
+  <span
+    className="grid h-10 w-10 place-items-center rounded-xl bg-sky-50 text-lg"
+    aria-hidden="true"
+  >
+    🎧
+  </span>
 
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-extrabold text-slate-900">
-                    WhatsApp support
-                  </span>
+  <span className="min-w-0 flex-1">
+    <span className="block text-sm font-extrabold text-slate-900">
+      Get support
+    </span>
 
-                  <span className="mt-0.5 block text-xs font-medium text-slate-500">
-                    Send us a message about your account
-                  </span>
-                </span>
+    <span className="mt-0.5 block text-xs font-medium text-slate-500">
+      WhatsApp, phone, or email support
+    </span>
+  </span>
 
-                <span
-                  className="text-lg text-slate-300 group-hover:text-emerald-500"
-                  aria-hidden="true"
-                >
-                  →
-                </span>
-              </a>
+  <span
+    className="text-lg text-slate-300 group-hover:text-sky-500"
+    aria-hidden="true"
+  >
+    →
+  </span>
+</Link>
 
               <a
                 href={`tel:${SUPPORT_PHONE}`}
