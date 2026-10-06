@@ -158,7 +158,7 @@ async function markAttempt(db: any, orderId: string) {
 }
 
 /** Try to assign the best available supplier to a PENDING order. Safe to call repeatedly. */
-export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
+export async function dispatchOrder(orderId: string, preferredSupplierId?: string | null): Promise<DispatchResult> {
   try {
     const db: any = createServiceClient();
     const cfg = await loadCfg(db);
@@ -298,6 +298,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     cands.sort(
       (a, b) =>
+        Number((preferredSupplierId && a.id === preferredSupplierId) ? 1 : 0) - Number((preferredSupplierId && b.id === preferredSupplierId) ? 1 : 0) ||
         Number(b.favourite) - Number(a.favourite) ||
         a.group - b.group ||
         (a.distance ?? 0) - (b.distance ?? 0) ||
