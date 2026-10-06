@@ -212,11 +212,6 @@ export default function HomePage() {
             '@type': 'WebSite',
             name: 'AuroWater',
             url: 'https://aurotap.in/',
-            potentialAction: {
-              '@type': 'SearchAction',
-              target: 'https://aurotap.in/services',
-              'query-input': 'required name=service',
-            },
           }),
         }}
       />
