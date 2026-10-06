@@ -459,10 +459,13 @@ export async function POST(
   /* Mirror rating onto order                                              */
   /* ---------------------------------------------------------------------- */
 
+  const admin =
+    createServiceClient();
+
   const {
     error: orderUpdateError,
   } =
-    await auth.ctx.supabase
+    await admin
       .from('orders')
       .update({
         has_review: true,
@@ -491,9 +494,6 @@ export async function POST(
 
   if (hasIssue) {
     try {
-      const admin =
-        createServiceClient();
-
       const {
         data: qualityCase,
         error: caseError,

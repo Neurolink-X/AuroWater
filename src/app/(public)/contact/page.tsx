@@ -1,11 +1,13 @@
-// 'use client';
+'use client';
 
-// import Link from 'next/link';
+// import { postContact } from '@/lib/api-client';
+import Link from 'next/link';
 // import React, { useEffect, useMemo, useState } from 'react';
 // import { toast } from 'sonner';
 // import { useForm } from 'react-hook-form';
 // import { z } from 'zod';
 // import { zodResolver } from '@hookform/resolvers/zod';
+import { postContact } from '@/lib/api-client';
 
 // const FALLBACK = {
 //   support_email: 'support.aurotap@gmail.com',
@@ -402,13 +404,20 @@ export default function ContactPage() {
   const onSubmit = async (values: FormValues) => {
     if (loading) return;
     setLoading(true);
+    setSubmitted(false);
     try {
-      await new Promise((r) => setTimeout(r, 1500));
+      await postContact({
+        name: values.name.trim(),
+        email: values.email.trim().toLowerCase(),
+        phone: values.phone.trim(),
+        subject: values.subject,
+        message: values.message.trim(),
+      });
       setSubmitted(true);
-      toast.success("Message sent! We\u2019ll reply within 24 hours.");
+      toast.success('Message received. We will reply within 24 hours.');
       reset();
-    } catch {
-      toast.error('Something went wrong. Please try again.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not send your message. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -907,11 +916,11 @@ export default function ContactPage() {
 
             <h1 className="ct-hero-title">
               Talk to <span>AuroWater</span><br />
-              We're here for you.
+              We&apos;re here for you.
             </h1>
 
             <p className="ct-hero-sub">
-              Whether it's a booking issue, partnership query, or you want to join our technician network — we've got you covered.
+              Whether it&apos;s a booking issue, partnership query, or you want to join our technician network — we&apos;ve got you covered.
             </p>
 
             <div className="ct-hero-stats">
@@ -949,7 +958,7 @@ export default function ContactPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
                   <div>
                     <h2 className="ct-form-title">Send us a message</h2>
-                    <p className="ct-form-sub">Fill in the form and we'll get back to you within 24 hours.</p>
+                    <p className="ct-form-sub">Fill in the form and we&apos;ll get back to you within 24 hours.</p>
                   </div>
                   {/* accent droplet decoration */}
                   <div style={{ width: 48, height: 48, borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)', background: 'linear-gradient(135deg, #0D9B6C, #34D399)', opacity: 0.15, flexShrink: 0 }} />
@@ -961,7 +970,7 @@ export default function ContactPage() {
                   <div className="ct-success">
                     <div className="ct-success-icon"><IconCheck /></div>
                     <div className="ct-success-title">Message sent!</div>
-                    <p className="ct-success-sub">We've received your message and will reply to you within 24 hours. Check your inbox.</p>
+                    <p className="ct-success-sub">We&apos;ve received your message and will reply to you within 24 hours. Check your inbox.</p>
                     <button
                       type="button"
                       onClick={() => setSubmitted(false)}
@@ -1129,7 +1138,7 @@ export default function ContactPage() {
               {/* Support note */}
               <div className="ct-note-card">
                 <p>
-                  <strong>For bookings</strong>, use the Book flow directly. For technician onboarding or supplier partnerships, drop us a message or WhatsApp — we'll set up a call.
+                  <strong>For bookings</strong>, use the Book flow directly. For technician onboarding or supplier partnerships, drop us a message or WhatsApp — we&apos;ll set up a call.
                 </p>
               </div>
 

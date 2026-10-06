@@ -274,7 +274,7 @@ export default function AboutPage() {
             </h1>
 
             <p style={{ margin: '22px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.55)', maxWidth: 520, lineHeight: 1.75 }}>
-              We built AuroWater because booking essential water services shouldn't require endless calls, waiting, or guessing the price. Clean water is a right, not a privilege.
+              We built AuroWater because booking essential water services shouldn&apos;t require endless calls, waiting, or guessing the price. Clean water is a right, not a privilege.
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 32 }}>
@@ -478,7 +478,7 @@ export default function AboutPage() {
 
                   {/* Review text */}
                   <p style={{ margin: 0, fontSize: 13, color: '#4B5563', lineHeight: 1.75, fontStyle: 'italic', borderLeft: '3px solid #A7F3D0', paddingLeft: 12 }}>
-                    "{r.text}"
+                    &quot;{r.text}&quot;
                   </p>
                 </div>
               ))}

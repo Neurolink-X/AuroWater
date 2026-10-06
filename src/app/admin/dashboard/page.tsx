@@ -1,5 +1,8 @@
 'use client';
 
+/* This component intentionally hydrates browser state after mount. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 /**
  * AuroWater — Admin Control Center
  * File: src/app/admin/dashboard/page.tsx

@@ -1,15 +1,27 @@
 import type { Metadata } from 'next';
+import { getSiteUrl } from '@/lib/env';
 
-export const APP_ORIGIN = 'https://aurotap.in';
+export const APP_ORIGIN = getSiteUrl();
 
-export const BASE_META = {
+export const BASE_META: Pick<Metadata, 'metadataBase' | 'openGraph' | 'twitter'> = {
   metadataBase: new URL(APP_ORIGIN),
-  openGraph: { siteName: 'AuroWater', locale: 'en_IN', type: 'website' as const },
-  twitter: { card: 'summary_large_image' as const, site: '@AuroWater' },
+  openGraph: {
+    siteName: 'AuroWater',
+    locale: 'en_IN',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
 };
 
-export function pageMeta(title: string, description: string, path = '/'): Metadata {
-  const url = `${APP_ORIGIN}${path}`;
+export function pageMeta(
+  title: string,
+  description: string,
+  path = '/',
+): Metadata {
+  const url = new URL(path, APP_ORIGIN).toString();
+
   return {
     ...BASE_META,
     title,
@@ -20,13 +32,20 @@ export function pageMeta(title: string, description: string, path = '/'): Metada
       title,
       description,
       url,
-      images: [{ url: '/og-image.png', width: 1200, height: 630, alt: title }],
+      images: [
+        {
+          url: new URL('/og-image.png', APP_ORIGIN).toString(),
+          width: 1200,
+          height: 630,
+          alt: title,
+        },
+      ],
     },
     twitter: {
       ...BASE_META.twitter,
       title,
       description,
-      images: ['/og-image.png'],
+      images: [new URL('/og-image.png', APP_ORIGIN).toString()],
     },
   };
 }

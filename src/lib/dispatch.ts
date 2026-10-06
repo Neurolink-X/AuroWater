@@ -165,7 +165,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type_id, zone_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -186,13 +186,20 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     }
 
     const geo = await orderGeo(db, order);
+    const { data: serviceType } = await db
+      .from('service_types')
+      .select('key')
+      .eq('id', order.service_type_id)
+      .maybeSingle();
+    const requiresCanStock = String(serviceType?.key ?? '').toLowerCase() === 'water_can';
+    const requiredCanQty = Math.max(1, Number(order.can_quantity ?? 1));
 
     const { data: tried } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
     const triedSet = new Set(((tried ?? []) as { supplier_id: string }[]).map((r) => String(r.supplier_id)));
 
     const { data: online } = await db
       .from('supplier_settings')
-      .select('user_id, zone_radius_km, base_lat, base_lng')
+      .select('user_id, zone_radius_km')
       .eq('is_online', true)
       .limit(500);
 
@@ -207,8 +214,8 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     if (!ids.length) return noCandidates();
 
-    const [profRes, loadRes, lastRes] = await Promise.all([
-      db.from('profiles').select('id, role, city, is_active, status, milestone_tier').in('id', ids),
+    const [profRes, loadRes, lastRes, stockRes, zoneRes] = await Promise.all([
+      db.from('profiles').select('id, role, city, is_active, status, milestone_tier, current_lat, current_lng').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
         .from('orders')
@@ -219,6 +226,18 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      requiresCanStock
+        ? db
+            .from('supplier_stock')
+            .select('supplier_id, cans_available')
+            .in('supplier_id', ids)
+        : Promise.resolve({ data: [] }),
+      order.zone_id
+        ? db
+            .from('supplier_zones')
+            .select('supplier_id, zone_id')
+            .in('supplier_id', ids)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
@@ -230,6 +249,20 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     const favourite = (lastRes.data as { supplier_id?: string } | null)?.supplier_id
       ? String((lastRes.data as { supplier_id: string }).supplier_id)
       : null;
+    const stockBySupplier = new Map(
+      ((stockRes.data ?? []) as { supplier_id: string; cans_available: number }[]).map((row) => [
+        String(row.supplier_id),
+        Number(row.cans_available ?? 0),
+      ]),
+    );
+
+    const supplierZoneMap = new Map<string, Set<string>>();
+    for (const row of ((zoneRes.data ?? []) as { supplier_id: string; zone_id: string }[])) {
+      const supplierId = String(row.supplier_id);
+      const zones = supplierZoneMap.get(supplierId) ?? new Set<string>();
+      zones.add(String(row.zone_id));
+      supplierZoneMap.set(supplierId, zones);
+    }
 
     type Cand = {
       id: string;
@@ -251,10 +284,15 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
       const load = activeLoad.get(id) ?? 0;
       if (load >= cfg.maxActive) continue;
+      if (requiresCanStock && (stockBySupplier.get(id) ?? 0) < requiredCanQty) continue;
+      if (order.zone_id) {
+        const supplierZones = supplierZoneMap.get(id);
+        if (supplierZones && supplierZones.size > 0 && !supplierZones.has(String(order.zone_id))) continue;
+      }
 
       const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
-      const sLat = coord(r.base_lat);
-      const sLng = coord(r.base_lng);
+      const sLat = coord(p.current_lat);
+      const sLng = coord(p.current_lng);
 
       let group = 2;
       let distance: number | null = null;
@@ -297,6 +335,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         order_id: orderId,
         supplier_id: c.id,
         status: 'ASSIGNED',
+        attempt_no: attempts + 1,
         distance_km: c.distance === null ? null : Math.round(c.distance * 100) / 100,
       });
       if (insErr) continue;
@@ -407,6 +446,99 @@ export async function releaseAssignment(
 }
 
 /** Lazy maintenance for one customer's water orders (no cron needed). Never throws. */
+/**
+ * Global dispatch recovery worker.
+ * This is intended for a scheduled job and must not depend on a customer page being opened.
+ */
+export async function sweepDispatchQueue(maxOrders = 100): Promise<{
+  expired: number;
+  retried: number;
+  reassigned: number;
+  exhausted: number;
+}> {
+  const summary = {
+    expired: 0,
+    retried: 0,
+    reassigned: 0,
+    exhausted: 0,
+  };
+
+  try {
+    const db: any = createServiceClient();
+    const cfg = await loadCfg(db);
+    if (!cfg.enabled) return summary;
+
+    const { data: dispatchServices } = await db
+      .from('service_types')
+      .select('id, key')
+      .in('key', ['water_can', 'water_tanker']);
+
+    const waterServiceIds = (dispatchServices ?? [])
+      .map((row: { id?: number }) => Number(row.id))
+      .filter((id: number) => Number.isInteger(id) && id > 0);
+
+    if (!waterServiceIds.length) return summary;
+
+    const staleBefore = new Date(Date.now() - cfg.responseSeconds * 1000).toISOString();
+
+    const { data: stale } = await db
+      .from('orders')
+      .select('id, supplier_id')
+      .in('service_type_id', waterServiceIds)
+      .eq('status', 'ASSIGNED')
+      .is('accepted_at', null)
+      .not('supplier_id', 'is', null)
+      .lt('assigned_at', staleBefore)
+      .order('assigned_at', { ascending: true })
+      .limit(maxOrders);
+
+    for (const order of (stale ?? []) as { id: string; supplier_id: string | null }[]) {
+      if (!order.supplier_id) continue;
+      summary.expired += 1;
+      const result = await releaseAssignment(
+        String(order.id),
+        String(order.supplier_id),
+        'EXPIRED',
+        'supplier response timeout'
+      );
+      if (result.reassigned) summary.reassigned += 1;
+    }
+
+    const retryBefore = new Date(Date.now() - 30_000).toISOString();
+    const { data: pending } = await db
+      .from('orders')
+      .select('id, dispatch_attempts, last_dispatch_at')
+      .in('service_type', ['water_can', 'water_tanker'])
+      .eq('status', 'PENDING')
+      .is('supplier_id', null)
+      .order('created_at', { ascending: true })
+      .limit(maxOrders);
+
+    for (const order of (pending ?? []) as {
+      id: string;
+      dispatch_attempts: number | null;
+      last_dispatch_at: string | null;
+    }[]) {
+      if (Number(order.dispatch_attempts ?? 0) >= cfg.maxAttempts) {
+        summary.exhausted += 1;
+        continue;
+      }
+
+      if (order.last_dispatch_at && order.last_dispatch_at > retryBefore) {
+        continue;
+      }
+
+      summary.retried += 1;
+      await dispatchOrder(String(order.id));
+    }
+
+    return summary;
+  } catch (e) {
+    console.error('[dispatch] global sweep failed:', e);
+    return summary;
+  }
+}
+
 export async function sweepCustomerOrders(customerId: string): Promise<void> {
   try {
     const db: any = createServiceClient();
@@ -448,40 +580,160 @@ export async function sweepCustomerOrders(customerId: string): Promise<void> {
   }
 }
 
-/** Supplier confirms an assigned order. Once accepted it is never reassigned. */
-export async function acceptAssignment(orderId: string, supplierId: string): Promise<boolean> {
+/** Supplier confirms an assigned order and atomically reserves required stock. */
+export type SupplierAcceptResult = {
+  accepted: boolean;
+  reason?: 'not_assignable' | 'insufficient_stock' | 'error';
+  customerId?: string;
+  reservedQty?: number;
+};
+
+export async function acceptAssignment(
+  orderId: string,
+  supplierId: string
+): Promise<SupplierAcceptResult> {
+  try {
+    const db: any = createServiceClient();
+    const { data, error } = await db.rpc('supplier_accept_order', {
+      p_order_id: orderId,
+      p_supplier_id: supplierId,
+    });
+
+    if (error) {
+      console.error('[dispatch] supplier_accept_order failed:', error);
+      return { accepted: false, reason: 'error' };
+    }
+
+    const result = (data ?? {}) as {
+      ok?: boolean;
+      reason?: SupplierAcceptResult['reason'];
+      customer_id?: string;
+      reserved_qty?: number;
+    };
+
+    if (!result.ok) {
+      return {
+        accepted: false,
+        reason:
+          result.reason === 'insufficient_stock'
+            ? 'insufficient_stock'
+            : 'not_assignable',
+      };
+    }
+
+    if (result.customer_id) {
+      await notify(
+        String(result.customer_id),
+        'Supplier confirmed',
+        'Your supplier has confirmed your order.',
+        'booking',
+        orderId,
+        'accepted'
+      );
+    }
+
+    return {
+      accepted: true,
+      customerId: result.customer_id ? String(result.customer_id) : undefined,
+      reservedQty: Number(result.reserved_qty ?? 0),
+    };
+  } catch (e) {
+    console.error('[dispatch] acceptAssignment failed:', e);
+    return { accepted: false, reason: 'error' };
+  }
+}
+
+/** Start a supplier delivery. Only an accepted assignment can enter IN_PROGRESS. */
+export async function startSupplierOrder(
+  orderId: string,
+  supplierId: string
+): Promise<{ ok: boolean; reason?: string; customerId?: string }> {
   try {
     const db: any = createServiceClient();
     const now = new Date().toISOString();
-    const { data: ok } = await db
+
+    const { data, error } = await db
       .from('orders')
-      .update({ accepted_at: now })
+      .update({
+        status: 'IN_PROGRESS',
+        dispatched_at: now,
+      })
       .eq('id', orderId)
       .eq('supplier_id', supplierId)
       .eq('status', 'ASSIGNED')
-      .is('accepted_at', null)
+      .not('accepted_at', 'is', null)
       .select('id, customer_id')
       .maybeSingle();
-    if (!ok) return false;
 
-    await db
-      .from('order_dispatch')
-      .update({ status: 'ACCEPTED', responded_at: now })
-      .eq('order_id', orderId)
-      .eq('supplier_id', supplierId)
-      .eq('status', 'ASSIGNED');
+    if (error) {
+      console.error('[dispatch] startSupplierOrder failed:', error);
+      return { ok: false, reason: 'database_error' };
+    }
+
+    if (!data) {
+      return { ok: false, reason: 'invalid_transition' };
+    }
 
     await notify(
-      String(ok.customer_id),
-      'Supplier confirmed',
-      'Your supplier has confirmed your order.',
+      String(data.customer_id),
+      'Delivery started',
+      'Your supplier has started the delivery.',
       'booking',
       orderId,
-      'accepted'
+      'in_progress'
     );
-    return true;
+
+    return { ok: true, customerId: String(data.customer_id) };
   } catch (e) {
-    console.error('[dispatch] acceptAssignment failed:', e);
-    return false;
+    console.error('[dispatch] startSupplierOrder failed:', e);
+    return { ok: false, reason: 'error' };
+  }
+}
+
+/** Complete a supplier delivery and atomically consume any reserved stock. */
+export async function completeSupplierOrder(
+  orderId: string,
+  supplierId: string
+): Promise<{ ok: boolean; reason?: string; customerId?: string }> {
+  try {
+    const db: any = createServiceClient();
+    const { data, error } = await db.rpc('supplier_complete_order', {
+      p_order_id: orderId,
+      p_supplier_id: supplierId,
+    });
+
+    if (error) {
+      console.error('[dispatch] supplier_complete_order failed:', error);
+      return { ok: false, reason: 'database_error' };
+    }
+
+    const result = (data ?? {}) as {
+      ok?: boolean;
+      reason?: string;
+      customer_id?: string;
+    };
+
+    if (!result.ok) {
+      return { ok: false, reason: result.reason ?? 'invalid_transition' };
+    }
+
+    if (result.customer_id) {
+      await notify(
+        String(result.customer_id),
+        'Delivery completed',
+        'Your water delivery has been marked complete.',
+        'booking',
+        orderId,
+        'completed'
+      );
+    }
+
+    return {
+      ok: true,
+      customerId: result.customer_id ? String(result.customer_id) : undefined,
+    };
+  } catch (e) {
+    console.error('[dispatch] completeSupplierOrder failed:', e);
+    return { ok: false, reason: 'error' };
   }
 }

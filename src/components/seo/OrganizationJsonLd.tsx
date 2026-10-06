@@ -1,14 +1,18 @@
 import JsonLd from './JsonLd';
+import { getSiteUrl } from '@/lib/env';
+
+const APP_URL = getSiteUrl();
 
 const organizationJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  '@id': 'https://aurotap.in/#organization',
+  '@id': `${APP_URL}/#organization`,
   name: 'AuroWater',
-  url: 'https://aurotap.in/',
+  alternateName: 'AuroTap',
+  url: `${APP_URL}/`,
   logo: {
     '@type': 'ImageObject',
-    url: 'https://aurotap.in/icons/icon-512x512.png',
+    url: `${APP_URL}/splash-logo.svg`,
   },
 };
 

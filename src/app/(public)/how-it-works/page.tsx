@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 /* ─────────────────────────────────────────────
@@ -157,8 +157,6 @@ function StepCard({ step, index, active, onClick }: { step: typeof STEPS[number]
    FAQ ITEM
 ───────────────────────────────────────────── */
 function FaqItem({ item, open, onToggle }: { item: typeof FAQ[number]; open: boolean; onToggle: () => void }) {
-  const bodyRef = useRef<HTMLDivElement>(null);
-
   return (
     <div className={`hiw-faq-item${open ? ' hiw-faq-open' : ''}`}>
       <button type="button" className="hiw-faq-btn" onClick={onToggle}>
@@ -169,8 +167,7 @@ function FaqItem({ item, open, onToggle }: { item: typeof FAQ[number]; open: boo
       </button>
       <div
         className="hiw-faq-body"
-        ref={bodyRef}
-        style={{ maxHeight: open ? (bodyRef.current?.scrollHeight ?? 200) + 'px' : '0px' }}
+        style={{ maxHeight: open ? '500px' : '0px' }}
       >
         <p className="hiw-faq-answer">{item.a}</p>
       </div>
@@ -668,7 +665,7 @@ export default function HowItWorksPage() {
               Join the network
             </div>
             <h2 className="hiw-section-title">Work with AuroWater</h2>
-            <p className="hiw-section-sub">Whether you're a skilled technician or a water supplier — there's a place for you.</p>
+            <p className="hiw-section-sub">Whether you&apos;re a skilled technician or a water supplier — there&apos;s a place for you.</p>
 
             <div className="hiw-partner-grid">
               {/* Technician */}
@@ -731,7 +728,7 @@ export default function HowItWorksPage() {
               Common questions
             </div>
             <h2 className="hiw-section-title">Everything you need to know</h2>
-            <p className="hiw-section-sub">Can't find an answer? WhatsApp us — we reply in 30 minutes.</p>
+            <p className="hiw-section-sub">Can&apos;t find an answer? WhatsApp us — we reply in 30 minutes.</p>
 
             <div className="hiw-faq-wrap">
               {FAQ.map((item, idx) => (

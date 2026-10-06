@@ -2,6 +2,8 @@ import { query, queryOne } from '@/lib/db/connection';
 import { PricingRule, PricingResponse } from '@/types';
 import { calculateDistance } from '@/lib/utils/helpers';
 
+interface ServiceBasePriceRow { base_price: number; }
+
 interface PricingParams {
   service_type_id: number;
   zone_id?: number;
@@ -34,7 +36,7 @@ export async function calculatePrice(params: PricingParams): Promise<PricingResp
 
   // Fallback to service base price if no rule found
   if (!pricingRule) {
-    const serviceType = await queryOne<any>(
+    const serviceType = await queryOne<ServiceBasePriceRow>(
       'SELECT base_price FROM service_types WHERE id = $1 AND is_active = true',
       [service_type_id]
     );

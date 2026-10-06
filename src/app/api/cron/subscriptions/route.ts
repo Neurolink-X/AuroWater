@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 
 import { createServiceClient } from '@/utils/supabase/server';
+
+type SupabaseServiceClient = ReturnType<typeof createServiceClient>;
 import { dispatchOrder } from '@/lib/dispatch';
 import {
   addSubscriptionFrequency,
@@ -89,7 +91,7 @@ function orderTotal(
 }
 
 async function notifyCustomer(
-  db: any,
+  db: SupabaseServiceClient,
   customerId: string,
   title: string,
   body: string,
@@ -464,17 +466,37 @@ export async function GET(
         );
       }
 
-      if (orderId) {
-        const result =
-          await dispatchOrder(
-            orderId
-          );
+      let fulfillmentReady = false;
 
-        if (
-          result.supplierId
-        ) {
+      if (orderId) {
+        const result = await dispatchOrder(orderId);
+        if (result.supplierId) {
           dispatched += 1;
         }
+
+        // Never consume a subscription occurrence while its delivery is still
+        // sitting unassigned. The same date must remain recoverable.
+        const { data: latestOrder } = await db
+          .from('orders')
+          .select('status, supplier_id')
+          .eq('id', orderId)
+          .maybeSingle();
+
+        const latestStatus = String(latestOrder?.status ?? '').toUpperCase();
+        const stillSearching =
+          latestStatus === 'PENDING' && !latestOrder?.supplier_id;
+
+        if (!stillSearching && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(latestStatus)) {
+          fulfillmentReady = true;
+        } else if (stillSearching) {
+          skipped += 1;
+          continue;
+        }
+      }
+
+      if (!fulfillmentReady) {
+        skipped += 1;
+        continue;
       }
 
       const futureDate =

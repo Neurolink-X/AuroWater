@@ -253,6 +253,7 @@ export interface OrderRow {
   scheduled_at:   string | null;
   accepted_at:    string | null;
   completed_at:   string | null;
+  stock_reserved_qty?: number | null;
   cancelled_at?:  string | null;
   tracking_url:   string | null;
   supplier_note:  string | null;

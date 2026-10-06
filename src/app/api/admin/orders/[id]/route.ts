@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { checkAndUpgradeMilestone } from '@/lib/milestone';
+import { completeSupplierOrder } from '@/lib/dispatch';
 
 const VALID_STATUSES = new Set([
   'PENDING',
@@ -273,7 +274,7 @@ export async function PUT(
   const { data: before, error: beforeErr } = await sb
     .from('orders')
     .select(
-      'id, status, supplier_id, customer_id, can_quantity',
+      'id, status, supplier_id, customer_id, can_quantity, stock_reserved_qty',
     )
     .eq('id', id)
     .maybeSingle();
@@ -296,6 +297,65 @@ export async function PUT(
     typeof patch.status === 'string'
       ? patch.status
       : '';
+
+  /*
+   * Supplier completion has one authoritative transaction: it consumes the
+   * reserved inventory and advances the order. Do not let the generic admin
+   * update path bypass that accounting boundary.
+   */
+  if (
+    previousStatus === 'IN_PROGRESS' &&
+    requestedStatus === 'COMPLETED' &&
+    typeof beforeRow.supplier_id === 'string' &&
+    beforeRow.supplier_id
+  ) {
+    const result = await completeSupplierOrder(
+      id,
+      String(beforeRow.supplier_id),
+    );
+
+    if (!result.ok) {
+      return jsonErr(
+        result.reason === 'reserved_stock_missing'
+          ? 'Completion blocked because reserved stock could not be reconciled'
+          : 'Could not complete this supplier delivery',
+        409,
+        'COMPLETION_FAILED',
+      );
+    }
+
+    delete patch.status;
+    delete patch.completed_at;
+
+    if (Object.keys(patch).length > 0) {
+      const { error: extraUpdateError } = await sb
+        .from('orders')
+        .update(patch)
+        .eq('id', id);
+
+      if (extraUpdateError) {
+        return jsonErr('Order completed, but additional admin fields could not be saved', 502);
+      }
+    }
+
+    const { data: completedOrder, error: completedReadError } = await sb
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (completedReadError || !completedOrder) {
+      return jsonErr('Order completed but could not be reloaded', 502);
+    }
+
+    try {
+      await checkAndUpgradeMilestone(String(beforeRow.supplier_id), sb);
+    } catch (error) {
+      console.error('[milestone upgrade]', error instanceof Error ? error.message : String(error));
+    }
+
+    return jsonOk(completedOrder);
+  }
 
   /*
    * Set completion timestamp only on the actual
@@ -402,65 +462,67 @@ export async function PUT(
     }
 
     /*
-     * Decrease supplier stock.
-     *
-     * Best-effort because the current implementation
-     * does not use an atomic stock-decrement RPC.
+     * Consume a stock reservation created by the supplier acceptance flow.
+     * Legacy orders without a reservation retain a defensive fallback so
+     * older data can still be completed.
      */
     try {
-      const quantity = Math.max(
+      const reservedQty = Math.max(
         0,
-        Number(
-          (
-            beforeRow as {
-              can_quantity?: number | null;
-            }
-          ).can_quantity ?? 0,
-        ),
+        Number((beforeRow as { stock_reserved_qty?: number | null }).stock_reserved_qty ?? 0),
       );
 
-      if (quantity > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', supplierId)
-          .maybeSingle();
-
-        const available = Math.max(
-          0,
-          Number(
-            (
-              stockRow as {
-                cans_available?: number;
-              } | null
-            )?.cans_available ?? 0,
-          ),
+      if (reservedQty > 0) {
+        const { data: consumed, error: consumeError } = await sb.rpc(
+          'consume_supplier_reserved_stock',
+          {
+            p_supplier_id: supplierId,
+            p_quantity: reservedQty,
+          },
         );
 
+        if (consumeError || consumed !== true) {
+          return jsonErr('Completion blocked because reserved stock could not be reconciled', 409, 'STOCK_RECONCILIATION_FAILED');
+        }
+
         await sb
-          .from('supplier_stock')
-          .upsert(
-            {
-              supplier_id: supplierId,
-              cans_available: Math.max(
-                0,
-                available - quantity,
-              ),
-              updated_at:
-                new Date().toISOString(),
-            },
-            {
-              onConflict: 'supplier_id',
-            },
+          .from('orders')
+          .update({ stock_reserved_qty: 0 })
+          .eq('id', id);
+      } else {
+        const quantity = Math.max(
+          0,
+          Number((beforeRow as { can_quantity?: number | null }).can_quantity ?? 0),
+        );
+
+        if (quantity > 0) {
+          const { data: stockRow } = await sb
+            .from('supplier_stock')
+            .select('cans_available')
+            .eq('supplier_id', supplierId)
+            .maybeSingle();
+
+          const available = Math.max(
+            0,
+            Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0),
           );
+
+          await sb
+            .from('supplier_stock')
+            .upsert(
+              {
+                supplier_id: supplierId,
+                cans_available: Math.max(0, available - quantity),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'supplier_id' },
+            );
+        }
       }
     } catch (error) {
-      console.error(
-        '[admin/orders] supplier_stock decrement failed',
-        error,
-      );
-    }
-  }
+      console.error('[admin/orders] supplier stock reconciliation failed', error);
+      return jsonErr('Completion could not reconcile supplier stock', 409, 'STOCK_RECONCILIATION_FAILED');
+    }  }
 
   /*
    * Customer completion notification.

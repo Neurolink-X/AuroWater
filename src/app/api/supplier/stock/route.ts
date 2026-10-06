@@ -52,6 +52,25 @@ export async function PUT(req: NextRequest) {
   if (!parsed.success) return jsonErr(parsed.error.issues[0]?.message ?? 'Invalid payload', 422);
 
   const supplier_id = auth.ctx.profile.id;
+
+  const { data: current, error: currentError } = await auth.ctx.supabase
+    .from('supplier_stock')
+    .select('reserved_cans, cans_available, low_stock_alert')
+    .eq('supplier_id', supplier_id)
+    .maybeSingle();
+
+  if (currentError) return jsonErr('Could not verify current stock', 502);
+
+  const reserved = Math.max(0, Number(current?.reserved_cans ?? 0));
+  const requestedAvailable = parsed.data.cans_available;
+  if (requestedAvailable !== undefined && requestedAvailable < reserved) {
+    return jsonErr(
+      `Available stock cannot be lower than ${reserved} reserved cans.`,
+      409,
+      'STOCK_BELOW_RESERVED',
+    );
+  }
+
   const { data, error } = await auth.ctx.supabase
     .from('supplier_stock')
     .upsert(

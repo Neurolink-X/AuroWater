@@ -1,5 +1,8 @@
 // 'use client';
 
+/* This component intentionally hydrates browser state after mount. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 // import React, { useMemo, useState } from 'react';
 // import { useRouter } from 'next/navigation';
 
@@ -573,7 +576,7 @@ function TechnicianCard({ t, onBook }: { t: Technician; onBook: (key: ServiceKey
 
         {/* Speciality line */}
         <p style={{ margin: 0, fontSize: 12, color: '#6B7280', lineHeight: 1.5, fontStyle: 'italic' }}>
-          "{t.speciality}"
+          &quot;{t.speciality}&quot;
         </p>
 
         {/* CTA */}
@@ -1107,7 +1110,7 @@ export default function TechniciansPage() {
                 {skill !== 'All' && <Badge variant="green">{skill}</Badge>}
                 {city !== 'All' && <Badge variant="green">{city}</Badge>}
                 {onlyAvailable && <Badge variant="green">Available now</Badge>}
-                {searchQuery && <Badge variant="green">"{searchQuery}"</Badge>}
+                {searchQuery && <Badge variant="green">&quot;{searchQuery}&quot;</Badge>}
                 {skill === 'All' && city === 'All' && !onlyAvailable && !searchQuery && (
                   <span style={{ fontSize: 12, color: '#D1D5DB' }}>None</span>
                 )}

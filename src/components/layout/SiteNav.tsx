@@ -1,5 +1,8 @@
 'use client';
 
+/* This component intentionally hydrates browser state after mount. */
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';

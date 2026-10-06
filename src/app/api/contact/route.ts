@@ -127,6 +127,8 @@ export async function POST(
       5000,
     );
 
+  const subject = text(body.subject, 120);
+
   const phone =
     text(
       body.phone,
@@ -215,6 +217,7 @@ export async function POST(
       name,
       email,
       message,
+      subject: subject || null,
       phone:
         phone || null,
     });

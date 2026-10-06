@@ -10,14 +10,48 @@ import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { User } from '@/types';
 
-const jobStatusSteps = ['PENDING', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED'];
+const jobStatusSteps = ['PENDING', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED'] as const;
+type TechnicianJobStatus = (typeof jobStatusSteps)[number];
 
-const stepActions: any = {
+type TechnicianJobDetail = {
+  id: string | number;
+  status: TechnicianJobStatus;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  house_no?: string | null;
+  area?: string | null;
+  landmark?: string | null;
+  city?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  service_name?: string | null;
+  total_amount?: number | string | null;
+  time_slot?: string | null;
+};
+
+type StepAction = {
+  action: string;
+  label: string;
+  next: TechnicianJobStatus;
+};
+
+const stepActions: Record<TechnicianJobStatus, StepAction> = {
   PENDING: { action: 'accept', label: 'Accept Job', next: 'ACCEPTED' },
-  ACCEPTED: { action: 'on_the_way', label: 'Im On The Way', next: 'ON_THE_WAY' },
+  ACCEPTED: { action: 'on_the_way', label: "I'm On The Way", next: 'ON_THE_WAY' },
   ON_THE_WAY: { action: 'working', label: 'Start Working', next: 'WORKING' },
   WORKING: { action: 'complete', label: 'Mark Complete', next: 'COMPLETED' },
+  COMPLETED: { action: 'done', label: 'Completed', next: 'COMPLETED' },
 };
+
+function isTechnicianJobDetail(value: unknown): value is TechnicianJobDetail {
+  if (!value || typeof value !== 'object') return false;
+  const row = value as Record<string, unknown>;
+  return (
+    (typeof row.id === 'string' || typeof row.id === 'number') &&
+    typeof row.status === 'string' &&
+    jobStatusSteps.includes(row.status as TechnicianJobStatus)
+  );
+}
 
 export default function JobDetail() {
   const router = useRouter();
@@ -25,7 +59,7 @@ export default function JobDetail() {
   const jobId = params?.id as string;
 
   const [user, setUser] = useState<User | null>(null);
-  const [job, setJob] = useState<any>(null);
+  const [job, setJob] = useState<TechnicianJobDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
@@ -50,6 +84,7 @@ export default function JobDetail() {
       setLoading(true);
       setError('');
       const data = await getTechnicianJobDetail(parseInt(jobId, 10));
+      if (!isTechnicianJobDetail(data)) throw new Error('Invalid job response');
       setJob(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load job');
@@ -86,8 +121,9 @@ export default function JobDetail() {
       setTimeout(() => {
         router.push('/technician/jobs');
       }, 1500);
-    } catch (err: any) {
-      setError(err.message || 'Failed to update job');
+    } catch (err: unknown) {
+
+      setError(err instanceof Error ? err.message : 'Failed to update job');
     } finally {
       setUpdating(false);
     }
