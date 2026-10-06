@@ -452,7 +452,7 @@ if (!serviceability.serviceable) {
     const slot = parseTimeSlot(String(body.time_slot));
     const nextDate = addSubscriptionFrequency(
       sdRaw,
-      subscriptionFrequency as any
+      subscriptionFrequency
     );
     const admin = createServiceClient();
 
