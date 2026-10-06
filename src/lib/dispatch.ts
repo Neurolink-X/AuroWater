@@ -165,7 +165,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -192,7 +192,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: online } = await db
       .from('supplier_settings')
-      .select('user_id, zone_radius_km, base_lat, base_lng')
+      .select('user_id, zone_radius_km')
       .eq('is_online', true)
       .limit(500);
 
@@ -208,7 +208,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     if (!ids.length) return noCandidates();
 
     const [profRes, loadRes, lastRes] = await Promise.all([
-      db.from('profiles').select('id, role, city, is_active, status, milestone_tier').in('id', ids),
+      db.from('profiles').select('id, role, city, is_active, status, milestone_tier, current_lat, current_lng').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
         .from('orders')
@@ -253,8 +253,8 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       if (load >= cfg.maxActive) continue;
 
       const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
-      const sLat = coord(r.base_lat);
-      const sLng = coord(r.base_lng);
+      const sLat = coord(p.current_lat);
+      const sLng = coord(p.current_lng);
 
       let group = 2;
       let distance: number | null = null;
