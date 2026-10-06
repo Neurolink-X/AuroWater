@@ -73,30 +73,33 @@ export async function POST(req: NextRequest) {
     return jsonErr('A payout request is already pending or processing', 409);
   }
 
-  const { data, error } = await db
-    .from('payouts')
-    .insert({
-      supplier_id: supplierId,
-      amount: requested,
-      method: settings.upi_id ? 'upi' : 'bank',
-      reference: settings.upi_id ?? null,
-      notes: JSON.stringify({
-        request_note: parsed.data.notes ?? null,
-        payout_account: settings.upi_id ?? settings.bank_account ?? null,
-        ifsc: settings.ifsc ?? null,
-      }),
-      status: 'pending',
-      requested_at: new Date().toISOString(),
-    })
-    .select('*')
-    .single();
+  const method = settings.upi_id ? 'upi' : 'bank';
+  const reference = settings.upi_id ?? null;
+  const notes = JSON.stringify({
+    request_note: parsed.data.notes ?? null,
+    payout_account: settings.upi_id ?? settings.bank_account ?? null,
+    ifsc: settings.ifsc ?? null,
+  });
+
+  const { data, error } = await db.rpc('create_supplier_payout_request', {
+    p_supplier_id: supplierId,
+    p_amount: requested,
+    p_method: method,
+    p_reference: reference,
+    p_notes: notes,
+  });
 
   if (error) {
-    if (String(error.code ?? '') === '23505') {
+    const message = String(error.message ?? '');
+    if (message.includes('ACTIVE_PAYOUT')) {
       return jsonErr('A payout request is already pending or processing', 409);
     }
-    return jsonErr(error.message, 502);
-  }
-
-  return jsonOk(data, 201);
+    if (message.includes('AMOUNT_EXCEEDS_PENDING')) {
+      return jsonErr('This payout amount is no longer available. Refresh your earnings and try again.', 409);
+    }
+    if (message.includes('INVALID_AMOUNT')) {
+      return jsonErr('Valid payout amount is required', 400);
+    }
+    return jsonErr(message || 'Could not create payout request', 502);
+  }  return jsonOk(data, 201);
 }
