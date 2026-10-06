@@ -55,6 +55,8 @@ type SupplierOrder = {
   workflowStatus: string;
   canCount: number;
   acceptedAt: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
 };
 
 function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
@@ -89,6 +91,8 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
     workflowStatus: st,
     canCount,
     acceptedAt: (o as ApiOrder & { accepted_at?: string | null }).accepted_at ?? null,
+    paymentMethod: String(o.payment_method ?? 'cash').toLowerCase(),
+    paymentStatus: String(o.payment_status ?? 'pending').toLowerCase(),
   };
 }
 
@@ -309,9 +313,9 @@ export default function SupplierDashboardPage() {
   };
 
   const toggleAvailability = async () => {
-    if (!supplierSettings || availabilitySaving) return;
+    if (availabilitySaving) return;
     setAvailabilitySaving(true);
-    const nextOnline = !supplierSettings.is_online;
+    const nextOnline = !(supplierSettings?.is_online ?? false);
     try {
       const updated = await supplierSettingsUpdate({ is_online: nextOnline });
       setSupplierSettings(updated);
@@ -469,7 +473,7 @@ export default function SupplierDashboardPage() {
                       <div className="text-xs tracking-wider text-white/80">YOUR AUROTAP ID</div>
                       <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{session?.aurotapId ?? profile.aurotapId}</div>
                       <div className="mt-2 text-sm text-white/85">
-                        Customers can order directly using your AuroTap ID.
+                        Share your AuroTap ID with repeat customers; direct-order routing is being connected to the marketplace dispatch flow.
                       </div>
                     </div>
                     <div className="flex flex-col items-start gap-3">
@@ -505,7 +509,7 @@ export default function SupplierDashboardPage() {
                       <button
                         type="button"
                         onClick={() => void toggleAvailability()}
-                        disabled={!supplierSettings || availabilitySaving}
+                        disabled={availabilitySaving}
                         className={supplierSettings?.is_online
                           ? 'rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'
                           : 'rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'}
@@ -608,7 +612,7 @@ export default function SupplierDashboardPage() {
                           type="button"
                           onClick={async () => {
                             try {
-                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
+                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED', o.paymentStatus === 'cash' ? { payment_collected: true } : undefined);
                               persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
                               toast.success(`Order ${o.label} marked delivered.`);
                               void fetchSupplierBoard(true);
@@ -910,7 +914,7 @@ export default function SupplierDashboardPage() {
                   <div className="text-xs text-white/80">YOUR AUROTAP ID</div>
                   <div className="text-3xl font-black font-mono mt-1">{profile.aurotapId}</div>
                   <div className="mt-2 text-sm text-white/85">
-                    Share this with your regular customers to route orders directly to your fleet.
+                    Share this with repeat customers as your supplier identity. Orders are assigned through the AuroWater dispatch network.
                   </div>
                 </div>
                 <div className="mt-5 space-y-2 text-sm text-slate-700">
