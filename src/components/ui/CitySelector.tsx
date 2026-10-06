@@ -395,11 +395,11 @@ export default function CitySelector({
             <div className="border-b border-white/5 p-3">
               <div className="mb-2">
                 <p className="text-sm font-semibold text-white">
-                  Your city isn't listed
+                  Your city isn&apos;t listed
                 </p>
 
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Tell us your city and we'll check availability.
+                  Tell us your city and we&apos;ll check availability.
                 </p>
               </div>
 
@@ -562,7 +562,7 @@ export default function CitySelector({
                   "
                 >
                   <span>
-                    My city isn't listed
+                    My city isn&apos;t listed
                   </span>
 
                   <span className="text-cyan-400">
