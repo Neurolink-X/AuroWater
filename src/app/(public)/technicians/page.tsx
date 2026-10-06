@@ -1107,7 +1107,7 @@ export default function TechniciansPage() {
                 {skill !== 'All' && <Badge variant="green">{skill}</Badge>}
                 {city !== 'All' && <Badge variant="green">{city}</Badge>}
                 {onlyAvailable && <Badge variant="green">Available now</Badge>}
-                {searchQuery && <Badge variant=&quot;green&quot;>&quot;{searchQuery}&quot;</Badge>}
+                {searchQuery && <Badge variant="green">"{searchQuery}"</Badge>}
                 {skill === 'All' && city === 'All' && !onlyAvailable && !searchQuery && (
                   <span style={{ fontSize: 12, color: '#D1D5DB' }}>None</span>
                 )}
