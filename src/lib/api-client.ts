@@ -857,6 +857,65 @@ export async function supplierOrdersList(params?: { status?: string }): Promise<
   return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
 }
 
+export type SupplierSettings = {
+  user_id: string;
+  is_online: boolean;
+  price_per_can: number | string;
+  service_radius: number;
+  zone_radius_km?: number | null;
+  commission_rate?: number | string | null;
+  is_primary_zone?: boolean | null;
+  auto_accept?: boolean | null;
+  upi_id?: string | null;
+  bank_account?: string | null;
+  ifsc?: string | null;
+  qr_code_url?: string | null;
+  last_online_at?: string | null;
+};
+
+export type SupplierStock = {
+  id?: string;
+  supplier_id: string;
+  cans_available: number;
+  reserved_cans: number;
+  low_stock_alert: number;
+  updated_at: string;
+};
+
+export async function supplierSettingsGet(): Promise<SupplierSettings | null> {
+  return apiFetchAuth<SupplierSettings | null>('/supplier/settings');
+}
+
+export async function supplierSettingsUpdate(patch: Partial<SupplierSettings>): Promise<SupplierSettings> {
+  return apiFetchAuth<SupplierSettings>('/supplier/settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierStockGet(): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock');
+}
+
+export async function supplierStockUpdate(patch: { cans_available?: number; low_stock_alert?: number }): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierOrderAccept(id: string): Promise<{ accepted: true }> {
+  return apiFetchAuth<{ accepted: true }>(`/supplier/orders/${id}/accept`, { method: 'PUT' });
+}
+
+export async function supplierOrderReject(id: string, reason?: string): Promise<{ released: true; reassigned: boolean }> {
+  return apiFetchAuth<{ released: true; reassigned: boolean }>(`/supplier/orders/${id}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ reason: reason ?? '' }),
+  });
+}
+
+
 export async function supplierOrderUpdateStatus(id: string, status: string): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}/status`, {
     method: 'PUT',
