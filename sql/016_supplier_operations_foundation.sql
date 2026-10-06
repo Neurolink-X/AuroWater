@@ -106,6 +106,14 @@ CREATE TRIGGER order_dispatch_updated_at
   BEFORE UPDATE ON public.order_dispatch
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+-- Supplier can create its own settings row on first login; admin retains full access.
+DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
+DROP POLICY IF EXISTS "supplier_settings_insert_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_insert_own_or_admin" ON public.supplier_settings
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
 ALTER TABLE public.addresses
   ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
   ADD COLUMN IF NOT EXISTS line1 TEXT,
