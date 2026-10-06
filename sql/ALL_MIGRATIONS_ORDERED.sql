@@ -882,6 +882,189 @@ ORDER BY table_name;
 
 
 -- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/007_supplier_base.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater — supplier marketplace base tables
+-- Migration: 007_supplier_base.sql
+-- Creates supplier settings, stock, milestones and audit primitives used by later application code.
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.supplier_settings (
+  user_id          UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  is_online        BOOLEAN NOT NULL DEFAULT false,
+  price_per_can    NUMERIC(10,2) NOT NULL DEFAULT 12,
+  service_radius   INTEGER NOT NULL DEFAULT 5,
+  zone_radius_km   INTEGER NOT NULL DEFAULT 5,
+  commission_rate  NUMERIC(4,2) NOT NULL DEFAULT 8.00,
+  is_primary_zone  BOOLEAN NOT NULL DEFAULT false,
+  auto_accept      BOOLEAN NOT NULL DEFAULT false,
+  upi_id           TEXT,
+  bank_account     TEXT,
+  ifsc             TEXT,
+  qr_code_url      TEXT,
+  last_online_at   TIMESTAMPTZ,
+  total_earned     NUMERIC(12,2) NOT NULL DEFAULT 0,
+  pending_payout   NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_stock (
+  supplier_id     UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  cans_available  INTEGER NOT NULL DEFAULT 0,
+  low_stock_alert INTEGER NOT NULL DEFAULT 10,
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.supplier_milestones (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id  UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tier         TEXT NOT NULL,
+  unlocked_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  bonus_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+  notified     BOOLEAN NOT NULL DEFAULT false
+);
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS completed_orders INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS milestone_tier TEXT NOT NULL DEFAULT 'starter',
+  ADD COLUMN IF NOT EXISTS business_name TEXT,
+  ADD COLUMN IF NOT EXISTS gst_number TEXT,
+  ADD COLUMN IF NOT EXISTS business_type TEXT,
+  ADD COLUMN IF NOT EXISTS vehicle_type TEXT,
+  ADD COLUMN IF NOT EXISTS service_area_km INTEGER,
+  ADD COLUMN IF NOT EXISTS pincode TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_supplier_settings_online
+  ON public.supplier_settings(is_online);
+
+CREATE INDEX IF NOT EXISTS idx_supplier_stock_supplier
+  ON public.supplier_stock(supplier_id);
+
+CREATE INDEX IF NOT EXISTS idx_supplier_milestones_supplier
+  ON public.supplier_milestones(supplier_id, unlocked_at DESC);
+
+ALTER TABLE public.supplier_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_stock ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.supplier_milestones ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_settings_select_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_select_own_or_admin" ON public.supplier_settings
+  FOR SELECT USING (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_settings_update_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_update_own_or_admin" ON public.supplier_settings
+  FOR UPDATE USING (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  )
+  WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_settings_insert_own_or_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_insert_own_or_admin" ON public.supplier_settings
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_select_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_select_own_or_admin" ON public.supplier_stock
+  FOR SELECT USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_update_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_update_own_or_admin" ON public.supplier_stock
+  FOR UPDATE USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  )
+  WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_insert_own_or_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_insert_own_or_admin" ON public.supplier_stock
+  FOR INSERT WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_milestones_select_own_or_admin" ON public.supplier_milestones;
+CREATE POLICY "supplier_milestones_select_own_or_admin" ON public.supplier_milestones
+  FOR SELECT USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_milestones_insert_admin" ON public.supplier_milestones;
+CREATE POLICY "supplier_milestones_insert_admin" ON public.supplier_milestones
+  FOR INSERT WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+CREATE OR REPLACE FUNCTION public.sync_supplier_radius()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.zone_radius_km IS NOT NULL THEN
+    NEW.service_radius := NEW.zone_radius_km;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS supplier_settings_sync_radius ON public.supplier_settings;
+CREATE TRIGGER supplier_settings_sync_radius
+  BEFORE INSERT OR UPDATE ON public.supplier_settings
+  FOR EACH ROW EXECUTE FUNCTION public.sync_supplier_radius();
+
+DROP TRIGGER IF EXISTS supplier_settings_updated_at ON public.supplier_settings;
+CREATE TRIGGER supplier_settings_updated_at
+  BEFORE UPDATE ON public.supplier_settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+CREATE OR REPLACE FUNCTION public.init_supplier_marketplace_defaults()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NEW.role = 'supplier' THEN
+    INSERT INTO public.supplier_settings(user_id)
+    VALUES (NEW.id)
+    ON CONFLICT (user_id) DO NOTHING;
+
+    INSERT INTO public.supplier_stock(supplier_id)
+    VALUES (NEW.id)
+    ON CONFLICT (supplier_id) DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_init_supplier_marketplace_defaults ON public.profiles;
+CREATE TRIGGER trg_init_supplier_marketplace_defaults
+  AFTER INSERT OR UPDATE OF role ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.init_supplier_marketplace_defaults();
+
+CREATE OR REPLACE FUNCTION public.increment_supplier_completed_orders(p_supplier_id UUID)
+RETURNS VOID
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE public.profiles
+  SET completed_orders = completed_orders + 1
+  WHERE id = p_supplier_id;
+$$;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;
+
+-- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/007_geo_payments_waitlist.sql
 -- ═══════════════════════════════════════════════════════════════
 
@@ -1314,3 +1497,693 @@ CREATE POLICY profiles_public_read_technicians ON public.profiles
 
 SELECT pg_notify('pgrst', 'reload schema');
 
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/015_supplier_operations_hardening.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater — supplier operations hardening
+-- Migration: 015_supplier_operations_hardening.sql
+-- Safe to run more than once.
+
+BEGIN;
+
+-- ============================================================
+-- 1) Atomic supplier inventory reservation
+-- ============================================================
+
+ALTER TABLE public.supplier_stock
+  ADD COLUMN IF NOT EXISTS reserved_cans INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE public.supplier_stock
+  DROP CONSTRAINT IF EXISTS supplier_stock_reserved_nonnegative;
+
+ALTER TABLE public.supplier_stock
+  ADD CONSTRAINT supplier_stock_reserved_nonnegative
+  CHECK (reserved_cans >= 0);
+
+ALTER TABLE public.supplier_stock
+  DROP CONSTRAINT IF EXISTS supplier_stock_available_nonnegative;
+
+ALTER TABLE public.supplier_stock
+  ADD CONSTRAINT supplier_stock_available_nonnegative
+  CHECK (cans_available >= 0);
+
+CREATE OR REPLACE FUNCTION public.reserve_supplier_stock(
+  p_supplier_id UUID,
+  p_quantity INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  changed INTEGER;
+BEGIN
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RETURN FALSE;
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  UPDATE public.supplier_stock
+  SET reserved_cans = reserved_cans + p_quantity,
+      updated_at = NOW()
+  WHERE supplier_id = p_supplier_id
+    AND (cans_available - reserved_cans) >= p_quantity;
+
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.consume_reserved_supplier_stock(
+  p_supplier_id UUID,
+  p_quantity INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  changed INTEGER;
+BEGIN
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  UPDATE public.supplier_stock
+  SET cans_available = GREATEST(0, cans_available - p_quantity),
+      reserved_cans = GREATEST(0, reserved_cans - p_quantity),
+      updated_at = NOW()
+  WHERE supplier_id = p_supplier_id
+    AND reserved_cans >= p_quantity;
+
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.release_reserved_supplier_stock(
+  p_supplier_id UUID,
+  p_quantity INTEGER
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  changed INTEGER;
+BEGIN
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RETURN TRUE;
+  END IF;
+
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  UPDATE public.supplier_stock
+  SET reserved_cans = GREATEST(0, reserved_cans - p_quantity),
+      updated_at = NOW()
+  WHERE supplier_id = p_supplier_id
+    AND reserved_cans >= p_quantity;
+
+  GET DIAGNOSTICS changed = ROW_COUNT;
+  RETURN changed = 1;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_deduct_stock ON public.orders;
+
+-- ============================================================
+-- 2) Supplier payout ledger
+-- ============================================================
+
+ALTER TABLE public.payouts
+  ADD COLUMN IF NOT EXISTS status TEXT;
+
+UPDATE public.payouts
+SET status = CASE
+  WHEN status IS NULL AND paid_at IS NOT NULL THEN 'paid'
+  ELSE COALESCE(status, 'pending')
+END;
+
+ALTER TABLE public.payouts
+  ALTER COLUMN status SET DEFAULT 'pending',
+  ALTER COLUMN status SET NOT NULL;
+
+ALTER TABLE public.payouts
+  DROP CONSTRAINT IF EXISTS payouts_status_check;
+
+ALTER TABLE public.payouts
+  ADD CONSTRAINT payouts_status_check
+  CHECK (status IN ('pending', 'processing', 'paid', 'rejected'));
+
+ALTER TABLE public.payouts
+  ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+ALTER TABLE public.payouts
+  ALTER COLUMN paid_at DROP NOT NULL,
+  ALTER COLUMN paid_at DROP DEFAULT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS payouts_supplier_active_idx
+ON public.payouts (supplier_id)
+WHERE status IN ('pending', 'processing');
+
+CREATE INDEX IF NOT EXISTS payouts_supplier_status_requested_idx
+ON public.payouts (supplier_id, status, requested_at DESC);
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payout_id UUID REFERENCES public.payouts(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS orders_supplier_payout_idx
+ON public.orders (supplier_id, payout_status, payout_id)
+WHERE supplier_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.get_supplier_commission_rate(
+  p_supplier_id UUID
+)
+RETURNS NUMERIC
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(
+    (
+      SELECT commission_rate
+      FROM public.supplier_settings
+      WHERE user_id = p_supplier_id
+      LIMIT 1
+    ),
+    (
+      SELECT NULLIF(value, '')::NUMERIC
+      FROM public.settings
+      WHERE key = 'supplier_commission'
+      LIMIT 1
+    ),
+    0
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_supplier_earnings(
+  p_supplier_id UUID,
+  p_period TEXT
+)
+RETURNS TABLE (
+  period_label TEXT,
+  order_count BIGINT,
+  gross_amount NUMERIC,
+  pending_payout NUMERIC
+)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  start_ts TIMESTAMPTZ;
+  pl TEXT;
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_supplier_id
+     AND COALESCE(public.current_profile_role(), '') <> 'admin' THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  pl := lower(coalesce(p_period, 'month'));
+  start_ts := CASE pl
+    WHEN 'today' THEN date_trunc('day', NOW())
+    WHEN 'week' THEN date_trunc('week', NOW())
+    WHEN 'month' THEN date_trunc('month', NOW())
+    ELSE date_trunc('month', NOW())
+  END;
+
+  RETURN QUERY
+  SELECT
+    pl::TEXT,
+    (
+      SELECT COUNT(*)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.created_at >= start_ts
+    )::BIGINT,
+    COALESCE((
+      SELECT SUM(o.total_amount)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
+        AND o.created_at >= start_ts
+    ), 0)::NUMERIC,
+    COALESCE((
+      SELECT SUM(o.supplier_payout)
+      FROM public.orders o
+      WHERE o.supplier_id = p_supplier_id
+        AND o.status = 'COMPLETED'
+        AND o.payout_status = 'pending'
+        AND o.supplier_payout > 0
+    ), 0)::NUMERIC;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.create_supplier_payout_request(
+  p_supplier_id UUID,
+  p_amount NUMERIC,
+  p_method TEXT,
+  p_reference TEXT,
+  p_notes TEXT
+)
+RETURNS public.payouts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  pending_amount NUMERIC;
+  created public.payouts;
+BEGIN
+  IF p_amount IS NULL OR p_amount <= 0 THEN
+    RAISE EXCEPTION 'INVALID_AMOUNT';
+  END IF;
+
+  SELECT COALESCE(SUM(o.supplier_payout), 0)
+  INTO pending_amount
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id
+    AND o.status = 'COMPLETED'
+    AND o.payout_status = 'pending'
+    AND o.supplier_payout > 0;
+
+  IF ABS(p_amount - pending_amount) > 0.01 THEN
+    RAISE EXCEPTION 'AMOUNT_EXCEEDS_PENDING';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.payouts
+    WHERE supplier_id = p_supplier_id
+      AND status IN ('pending', 'processing')
+  ) THEN
+    RAISE EXCEPTION 'ACTIVE_PAYOUT';
+  END IF;
+
+  INSERT INTO public.payouts (
+    supplier_id,
+    amount,
+    method,
+    reference,
+    notes,
+    status,
+    requested_at,
+    paid_at,
+    processed_at
+  )
+  VALUES (
+    p_supplier_id,
+    p_amount,
+    p_method,
+    p_reference,
+    p_notes,
+    'pending',
+    NOW(),
+    NULL,
+    NULL
+  )
+  RETURNING * INTO created;
+
+  UPDATE public.orders
+  SET payout_status = 'processing',
+      payout_id = created.id
+  WHERE supplier_id = p_supplier_id
+    AND status = 'COMPLETED'
+    AND payout_status = 'pending'
+    AND supplier_payout > 0;
+
+  RETURN created;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.finalize_supplier_payout(
+  p_payout_id UUID,
+  p_status TEXT,
+  p_reference TEXT DEFAULT NULL
+)
+RETURNS public.payouts
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  current_row public.payouts;
+  updated_row public.payouts;
+BEGIN
+  IF p_status NOT IN ('paid', 'rejected') THEN
+    RAISE EXCEPTION 'INVALID_PAYOUT_STATUS';
+  END IF;
+
+  SELECT *
+  INTO current_row
+  FROM public.payouts
+  WHERE id = p_payout_id
+  FOR UPDATE;
+
+  IF current_row.id IS NULL THEN
+    RAISE EXCEPTION 'PAYOUT_NOT_FOUND';
+  END IF;
+
+  UPDATE public.payouts
+  SET status = p_status,
+      reference = COALESCE(p_reference, reference),
+      processed_at = NOW(),
+      paid_at = CASE WHEN p_status = 'paid' THEN NOW() ELSE NULL END
+  WHERE id = p_payout_id
+  RETURNING * INTO updated_row;
+
+  IF p_status = 'paid' THEN
+    UPDATE public.orders
+    SET payout_status = 'paid'
+    WHERE payout_id = p_payout_id;
+  ELSE
+    UPDATE public.orders
+    SET payout_status = 'pending',
+        payout_id = NULL
+    WHERE payout_id = p_payout_id;
+  END IF;
+
+  RETURN updated_row;
+END;
+$$;
+
+-- ============================================================
+-- 3) Supplier settings/stock resiliency
+-- ============================================================
+
+DROP POLICY IF EXISTS "supplier_settings_insert_admin" ON public.supplier_settings;
+CREATE POLICY "supplier_settings_insert_own_or_admin" ON public.supplier_settings
+  FOR INSERT WITH CHECK (
+    user_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_stock_insert_admin" ON public.supplier_stock;
+CREATE POLICY "supplier_stock_insert_own_or_admin" ON public.supplier_stock
+  FOR INSERT WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+REVOKE ALL ON FUNCTION public.get_supplier_commission_rate(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.create_supplier_payout_request(UUID, NUMERIC, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.finalize_supplier_payout(UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_supplier_commission_rate(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.create_supplier_payout_request(UUID, NUMERIC, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.finalize_supplier_payout(UUID, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.reserve_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.consume_reserved_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.release_reserved_supplier_stock(UUID, INTEGER) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_supplier_earnings(UUID, TEXT) TO authenticated, service_role;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/016_supplier_fleet.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater — supplier fleet operations
+-- Migration: 016_supplier_fleet.sql
+-- Safe to run more than once.
+
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.supplier_fleet (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  vehicle_type TEXT NOT NULL DEFAULT 'Bike',
+  capacity_cans INTEGER NOT NULL DEFAULT 20 CHECK (capacity_cans > 0 AND capacity_cans <= 5000),
+  plate_number TEXT,
+  driver_name TEXT,
+  status TEXT NOT NULL DEFAULT 'available'
+    CHECK (status IN ('available','in_use','maintenance','offline')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS supplier_fleet_supplier_status_idx
+  ON public.supplier_fleet (supplier_id, status);
+
+ALTER TABLE public.supplier_fleet ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_fleet_select_own_or_admin" ON public.supplier_fleet;
+CREATE POLICY "supplier_fleet_select_own_or_admin" ON public.supplier_fleet
+  FOR SELECT USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_fleet_insert_own_or_admin" ON public.supplier_fleet;
+CREATE POLICY "supplier_fleet_insert_own_or_admin" ON public.supplier_fleet
+  FOR INSERT WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_fleet_update_own_or_admin" ON public.supplier_fleet;
+CREATE POLICY "supplier_fleet_update_own_or_admin" ON public.supplier_fleet
+  FOR UPDATE USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  )
+  WITH CHECK (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP POLICY IF EXISTS "supplier_fleet_delete_own_or_admin" ON public.supplier_fleet;
+CREATE POLICY "supplier_fleet_delete_own_or_admin" ON public.supplier_fleet
+  FOR DELETE USING (
+    supplier_id = auth.uid() OR COALESCE(public.current_profile_role(), '') = 'admin'
+  );
+
+DROP TRIGGER IF EXISTS supplier_fleet_updated_at ON public.supplier_fleet;
+CREATE TRIGGER supplier_fleet_updated_at
+  BEFORE UPDATE ON public.supplier_fleet
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/017_payment_state_alignment.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater — payment state alignment
+-- Migration: 017_payment_state_alignment.sql
+-- The application uses pending/paid/failed/refunded/cancelled.
+
+BEGIN;
+
+UPDATE public.orders
+SET payment_status = 'pending'
+WHERE payment_status = 'unpaid';
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_payment_status_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_payment_status_check
+  CHECK (payment_status IN ('pending','paid','failed','refunded','cancelled'));
+
+ALTER TABLE public.orders
+  ALTER COLUMN payment_status SET DEFAULT 'pending';
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/018_runtime_schema_contract.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater — runtime schema contract
+-- Migration: 018_runtime_schema_contract.sql
+-- Aligns the deployable database with the current application field contract.
+
+BEGIN;
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS business_name TEXT,
+  ADD COLUMN IF NOT EXISTS gst_number TEXT,
+  ADD COLUMN IF NOT EXISTS business_type TEXT,
+  ADD COLUMN IF NOT EXISTS vehicle_type TEXT,
+  ADD COLUMN IF NOT EXISTS service_area_km INTEGER,
+  ADD COLUMN IF NOT EXISTS pincode TEXT;
+
+ALTER TABLE public.addresses
+  ADD COLUMN IF NOT EXISTS customer_id UUID,
+  ADD COLUMN IF NOT EXISTS line1 TEXT,
+  ADD COLUMN IF NOT EXISTS line2 TEXT;
+
+UPDATE public.addresses
+SET customer_id = user_id
+WHERE customer_id IS NULL;
+
+UPDATE public.addresses
+SET line1 = house_flat
+WHERE line1 IS NULL;
+
+UPDATE public.addresses
+SET line2 = area
+WHERE line2 IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_addresses_customer_id
+  ON public.addresses(customer_id);
+
+CREATE OR REPLACE FUNCTION public.sync_address_owner()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF NEW.customer_id IS NULL THEN
+    NEW.customer_id := NEW.user_id;
+  END IF;
+  IF NEW.user_id IS NULL THEN
+    NEW.user_id := NEW.customer_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS addresses_sync_owner ON public.addresses;
+CREATE TRIGGER addresses_sync_owner
+  BEFORE INSERT OR UPDATE ON public.addresses
+  FOR EACH ROW EXECUTE FUNCTION public.sync_address_owner();
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS service_type TEXT,
+  ADD COLUMN IF NOT EXISTS can_count INTEGER,
+  ADD COLUMN IF NOT EXISTS note TEXT,
+  ADD COLUMN IF NOT EXISTS address TEXT,
+  ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dispatch_attempts INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS last_dispatch_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS tracking_url TEXT,
+  ADD COLUMN IF NOT EXISTS supplier_note TEXT,
+  ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;
+
+UPDATE public.orders o
+SET service_type = st.key
+FROM public.service_types st
+WHERE o.service_type IS NULL
+  AND o.service_type_id = st.id;
+
+UPDATE public.orders
+SET can_count = can_quantity
+WHERE can_count IS NULL
+  AND can_quantity IS NOT NULL;
+
+UPDATE public.orders
+SET note = notes
+WHERE note IS NULL
+  AND notes IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_orders_supplier_status
+  ON public.orders(supplier_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_orders_dispatch_state
+  ON public.orders(status, assigned_at, last_dispatch_at);
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_status_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_status_check
+  CHECK (status IN ('PENDING','ASSIGNED','IN_PROGRESS','COMPLETED','CANCELLED','FAILED'));
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_can_frequency_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_can_frequency_check
+  CHECK (
+    can_frequency IS NULL
+    OR can_frequency IN ('daily','alternate','weekly','biweekly','monthly')
+  );
+
+CREATE TABLE IF NOT EXISTS public.service_zones (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  city         TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  slug         TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'AVAILABLE'
+                 CHECK (status IN ('AVAILABLE','LIMITED','TEMPORARILY_UNAVAILABLE','COMING_SOON')),
+  pincodes     TEXT[] DEFAULT '{}',
+  center_lat   DOUBLE PRECISION,
+  center_lng   DOUBLE PRECISION,
+  radius_km    DOUBLE PRECISION,
+  services     TEXT[],
+  is_catch_all BOOLEAN NOT NULL DEFAULT false,
+  notes        TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(city, slug)
+);
+
+CREATE INDEX IF NOT EXISTS service_zones_city_status_idx
+  ON public.service_zones(city, status);
+
+ALTER TABLE public.service_zones ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "service_zones_public_select" ON public.service_zones;
+CREATE POLICY "service_zones_public_select" ON public.service_zones
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "service_zones_admin_write" ON public.service_zones;
+CREATE POLICY "service_zones_admin_write" ON public.service_zones
+  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin')
+  WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+DROP TRIGGER IF EXISTS service_zones_updated_at ON public.service_zones;
+CREATE TRIGGER service_zones_updated_at
+  BEFORE UPDATE ON public.service_zones
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+CREATE TABLE IF NOT EXISTS public.supplier_zones (
+  supplier_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  zone_id     UUID NOT NULL REFERENCES public.service_zones(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (supplier_id, zone_id)
+);
+
+CREATE INDEX IF NOT EXISTS supplier_zones_zone_idx
+  ON public.supplier_zones(zone_id);
+
+ALTER TABLE public.supplier_zones ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "supplier_zones_public_select" ON public.supplier_zones;
+CREATE POLICY "supplier_zones_public_select" ON public.supplier_zones
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "supplier_zones_admin_write" ON public.supplier_zones;
+CREATE POLICY "supplier_zones_admin_write" ON public.supplier_zones
+  FOR ALL USING (COALESCE(public.current_profile_role(), '') = 'admin')
+  WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;

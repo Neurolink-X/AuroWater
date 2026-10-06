@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export async function PUT(
   req: NextRequest,
@@ -24,7 +25,7 @@ export async function PUT(
 
   const { data: existing, error: e0 } = await auth.ctx.supabase
     .from('orders')
-    .select('id, status, service_type, supplier_id')
+    .select('id, status, service_type, supplier_id, accepted_at, can_count')
     .eq('id', id)
     .eq('customer_id', auth.ctx.profile.id)
     .maybeSingle();
@@ -59,6 +60,21 @@ export async function PUT(
   }
   if (!data) {
     return jsonErr('Order can no longer be cancelled', 409);
+  }
+
+  // Release any stock reserved when a supplier accepted the order.
+  // This makes cancellation safe for supplier inventory instead of leaving cans blocked.
+  if (existing.supplier_id && existing.accepted_at && Number(existing.can_count ?? 0) > 0 && existing.service_type === 'water_can') {
+    try {
+      const service = createServiceClient();
+      const { error: releaseError } = await service.rpc('release_reserved_supplier_stock', {
+        p_supplier_id: existing.supplier_id,
+        p_quantity: Math.max(1, Number(existing.can_count ?? 0)),
+      });
+      if (releaseError) console.error('[orders/cancel] stock release failed:', releaseError);
+    } catch (e) {
+      console.error('[orders/cancel] stock release exception:', e);
+    }
   }
 
   const serviceName =

@@ -7,6 +7,7 @@ import { checkAndUpgradeMilestone } from '@/lib/milestone';
 
 const bodySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']),
+  payment_collected: z.boolean().optional(),
 });
 
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -29,7 +30,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { data: before, error: bErr } = await sb
     .from('orders')
-    .select('id, supplier_id, status, customer_id, can_quantity')
+    .select('id, supplier_id, status, accepted_at, customer_id, can_quantity, can_count, payment_method, payment_status')
     .eq('id', id)
     .maybeSingle();
   if (bErr) return jsonErr(bErr.message, 502);
@@ -40,6 +41,23 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const prev = String((before as { status?: string }).status ?? '');
   const next = parsed.data.status;
+  const acceptedAt = (before as { accepted_at?: string | null }).accepted_at ?? null;
+
+  if (next === 'COMPLETED' && !acceptedAt) {
+    return jsonErr('Order must be accepted before it can be completed', 409);
+  }
+
+  const paymentMethod = String((before as { payment_method?: string | null }).payment_method ?? 'cash').toLowerCase();
+  const paymentStatus = String((before as { payment_status?: string | null }).payment_status ?? 'pending').toLowerCase();
+  if (next === 'COMPLETED' && paymentStatus !== 'paid') {
+    if (paymentMethod === 'cash') {
+      if (parsed.data.payment_collected !== true) {
+        return jsonErr('Confirm that cash was collected before marking the delivery complete', 409);
+      }
+    } else {
+      return jsonErr('Online/UPI payment must be marked paid before completing the order', 409);
+    }
+  }
 
   const allowed =
     (prev === 'ASSIGNED' && next === 'IN_PROGRESS') ||
@@ -47,6 +65,9 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!allowed) return jsonErr('Invalid status transition', 400);
 
   const patch: Record<string, unknown> = { status: next };
+  if (next === 'COMPLETED' && paymentStatus !== 'paid' && paymentMethod === 'cash') {
+    patch.payment_status = 'paid';
+  }
   if (next === 'IN_PROGRESS') patch.dispatched_at = new Date().toISOString();
   if (next === 'COMPLETED') patch.completed_at = new Date().toISOString();
 
@@ -65,25 +86,20 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       /* best-effort */
     }
 
-    // Decrement supplier stock (best-effort).
+    // Consume the stock reserved when the supplier accepted this order.
     try {
-      const qty = Math.max(0, Number((before as { can_quantity?: number | null }).can_quantity ?? 0));
+      const qty = Math.max(0, Number((before as { can_count?: number | null; can_quantity?: number | null }).can_count ?? (before as { can_quantity?: number | null }).can_quantity ?? 0));
       if (qty > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', auth.ctx.profile.id)
-          .maybeSingle();
-        const available = Math.max(0, Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0));
-        await sb
-          .from('supplier_stock')
-          .upsert(
-            { supplier_id: auth.ctx.profile.id, cans_available: Math.max(0, available - qty), updated_at: new Date().toISOString() },
-            { onConflict: 'supplier_id' }
-          );
+        const { data: consumed, error: consumeError } = await sb.rpc('consume_reserved_supplier_stock', {
+          p_supplier_id: auth.ctx.profile.id,
+          p_quantity: qty,
+        });
+        if (consumeError || consumed !== true) {
+          console.error('[supplier/orders] reserved stock consumption failed', consumeError ?? 'reservation not found');
+        }
       }
     } catch (e) {
-      console.error('[supplier/orders] supplier_stock decrement failed', e);
+      console.error('[supplier/orders] supplier stock consumption failed', e);
     }
 
     // Notify customer (best-effort).

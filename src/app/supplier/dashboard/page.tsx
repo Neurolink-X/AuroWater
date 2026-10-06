@@ -7,15 +7,28 @@ import { useSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/hooks/useAuth';
 import {
   supplierOrdersList,
+  supplierOrderAccept,
+  supplierOrderReject,
   supplierOrderUpdateStatus,
+  supplierProfileGet,
+  supplierProfileUpdate,
   supplierEarningsSummary,
   supplierPayoutRequest,
+  supplierSettingsGet,
+  supplierSettingsUpdate,
+  supplierStockGet,
+  supplierStockUpdate,
+  supplierFleetList,
+  supplierFleetCreate,
+  supplierFleetUpdate,
+  supplierFleetDelete,
   getApiErrorMessage,
   type ApiOrder,
   type SupplierEarningsSummary,
+  type SupplierSettings,
+  type SupplierStock,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
-import { safeGet, safeSet } from '@/lib/storage';
 
 type TabKey =
   | 'overview'
@@ -39,6 +52,11 @@ type SupplierOrder = {
   eta: string;
   amount: number;
   status: 'pending' | 'active' | 'delivered' | 'cancelled';
+  workflowStatus: string;
+  canCount: number;
+  acceptedAt: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
 };
 
 function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
@@ -46,6 +64,7 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
   const area = [snap.area, snap.city].filter(Boolean).join(', ') || '—';
   const addr = [snap.house_flat, snap.area, snap.city, snap.pincode].filter(Boolean).join(', ') || '—';
   const st = String(o.status ?? '').toUpperCase();
+  const canCount = Math.max(0, Number(o.can_quantity ?? 0));
   let status: SupplierOrder['status'] = 'pending';
   if (st === 'IN_PROGRESS') status = 'active';
   else if (st === 'COMPLETED') status = 'delivered';
@@ -69,17 +88,13 @@ function mapApiOrderToSupplierOrder(o: ApiOrder): SupplierOrder {
     eta: String(o.time_slot ?? '—'),
     amount: Number(o.total_amount ?? 0),
     status,
+    workflowStatus: st,
+    canCount,
+    acceptedAt: (o as ApiOrder & { accepted_at?: string | null }).accepted_at ?? null,
+    paymentMethod: String(o.payment_method ?? 'cash').toLowerCase(),
+    paymentStatus: String(o.payment_status ?? 'pending').toLowerCase(),
   };
 }
-
-type Tanker = {
-  id: string;
-  name: string;
-  size: '1000L' | '3000L' | '5000L' | '10000L';
-  status: 'available' | 'in_use' | 'maintenance';
-  price: number;
-  driver: string;
-};
 
 type SupplierProfile = {
   businessName: string;
@@ -87,18 +102,15 @@ type SupplierProfile = {
   gst: string;
   phone: string;
   email: string;
+  city: string;
+  pincode: string;
+  businessType: string;
+  gstNumber: string;
+  vehicleType: string;
+  serviceRadiusKm: number;
   serviceCities: string[];
   aurotapId: string;
   prices: Record<'1000L' | '3000L' | '5000L', number>;
-};
-
-type SupplierDoc = {
-  key: string;
-  label: string;
-  required: boolean;
-  fileName?: string;
-  fileSizeKb?: number;
-  status: 'not_uploaded' | 'submitted' | 'verified' | 'rejected';
 };
 
 const CITIES = [
@@ -117,29 +129,9 @@ const CITIES = [
   'Ghaziabad',
 ] as const;
 
-const FLEET_KEY = 'aurowater_supplier_fleet';
-const PROFILE_KEY = 'aurowater_supplier_profile';
-const DOCS_KEY = 'aurowater_supplier_docs';
 
 const fmtMoney = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const maskPhone = (p: string) => (p.length < 6 ? p : `${p.slice(0, 2)}XXXXXX${p.slice(-2)}`);
-
-function safeParse<T>(raw: string | null): T | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return null;
-  }
-}
-
-function seedFleet(): Tanker[] {
-  return [
-    { id: 'TK-001', name: 'Tanker Alpha', size: '3000L', status: 'available', price: 399, driver: 'Ramesh Kumar' },
-    { id: 'TK-002', name: 'Tanker Beta', size: '5000L', status: 'in_use', price: 599, driver: 'Suresh Pal' },
-    { id: 'TK-003', name: 'Tanker Gamma', size: '1000L', status: 'available', price: 299, driver: 'Mahesh Singh' },
-  ];
-}
 
 function seedProfile(): SupplierProfile {
   return {
@@ -148,7 +140,13 @@ function seedProfile(): SupplierProfile {
     gst: '09ABCDE1234F1Z5',
     phone: '9889305803',
     email: 'supplier@aurowater.in',
-    serviceCities: ['Kanpur', 'Lucknow'],
+    city: 'Kanpur',
+    pincode: '',
+    businessType: 'Water Service Supplier',
+    gstNumber: '09ABCDE1234F1Z5',
+    vehicleType: 'Bike',
+    serviceRadiusKm: 5,
+    serviceCities: ['Kanpur'],
     aurotapId: '9889305803@aurotap',
     prices: {
       '1000L': 299,
@@ -158,15 +156,6 @@ function seedProfile(): SupplierProfile {
   };
 }
 
-function seedDocs(): SupplierDoc[] {
-  return [
-    { key: 'gst', label: 'GST Certificate', required: true, status: 'submitted', fileName: 'gst_cert.pdf', fileSizeKb: 381 },
-    { key: 'reg', label: 'Business Registration', required: true, status: 'not_uploaded' },
-    { key: 'aadhaar', label: 'Owner Aadhaar', required: true, status: 'verified', fileName: 'aadhaar_owner.jpg', fileSizeKb: 812 },
-    { key: 'insurance', label: 'Fleet Insurance', required: true, status: 'not_uploaded' },
-    { key: 'bank', label: 'Bank Statement', required: true, status: 'not_uploaded' },
-  ];
-}
 
 export default function SupplierDashboardPage() {
   const { settings } = useSettings();
@@ -174,21 +163,31 @@ export default function SupplierDashboardPage() {
   const [tab, setTab] = React.useState<TabKey>('overview');
   const [orders, setOrders] = React.useState<SupplierOrder[]>([]);
   const [earningsSummary, setEarningsSummary] = React.useState<SupplierEarningsSummary | null>(null);
+  const [supplierSettings, setSupplierSettings] = React.useState<SupplierSettings | null>(null);
+  const [supplierStock, setSupplierStock] = React.useState<SupplierStock | null>(null);
+  const [profileSaving, setProfileSaving] = React.useState(false);
   const [ordersLoading, setOrdersLoading] = React.useState(true);
+  const [availabilitySaving, setAvailabilitySaving] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [fleet, setFleet] = React.useState<Tanker[]>([]);
+  const [fleet, setFleet] = React.useState<import('@/lib/api-client').SupplierFleetItem[]>([]);
   const [profile, setProfile] = React.useState<SupplierProfile>(seedProfile());
-  const [docs, setDocs] = React.useState<SupplierDoc[]>([]);
   const [orderFilter, setOrderFilter] = React.useState<'all' | 'pending' | 'active' | 'delivered' | 'cancelled'>('all');
   const [expandedOrderId, setExpandedOrderId] = React.useState<string | null>(null);
-  const [newTanker, setNewTanker] = React.useState({ id: '', size: '3000L' as Tanker['size'], price: '399', driver: '' });
+  const [newTanker, setNewTanker] = React.useState({ name: '', vehicleType: 'Bike', capacity: '20', plateNumber: '', driverName: '' });
   const [boardError, setBoardError] = React.useState<string | null>(null);
 
   const fetchSupplierBoard = React.useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     setBoardError(null);
     try {
-      const [list, earn] = await Promise.allSettled([supplierOrdersList(), supplierEarningsSummary('month')]);
+      const [list, earn, settingsResult, stockResult, fleetResult, profileResult] = await Promise.allSettled([
+        supplierOrdersList(),
+        supplierEarningsSummary('month'),
+        supplierSettingsGet(),
+        supplierStockGet(),
+        supplierFleetList(),
+        supplierProfileGet(),
+      ]);
 
       let primaryErr: string | null = null;
 
@@ -204,6 +203,45 @@ export default function SupplierDashboardPage() {
         toast.error(`Could not load earnings: ${getApiErrorMessage(earn.reason)}`);
       }
 
+      if (settingsResult.status === 'fulfilled') {
+        setSupplierSettings(settingsResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier availability: ${getApiErrorMessage(settingsResult.reason)}`);
+      }
+
+      if (stockResult.status === 'fulfilled') {
+        setSupplierStock(stockResult.value);
+      } else if (!primaryErr) {
+        toast.error(`Could not load stock: ${getApiErrorMessage(stockResult.reason)}`);
+      }
+      if (fleetResult.status === 'fulfilled') {
+        setFleet(fleetResult.value ?? []);
+      } else if (!primaryErr) {
+        toast.error(`Could not load fleet: ${getApiErrorMessage(fleetResult.reason)}`);
+      }
+
+      if (profileResult.status === 'fulfilled') {
+        const p = profileResult.value;
+        setProfile((prev) => ({
+          ...prev,
+          businessName: p.business_name ?? prev.businessName,
+          ownerName: p.full_name ?? prev.ownerName,
+          gst: p.gst_number ?? prev.gst,
+          phone: p.phone ?? prev.phone,
+          email: p.email ?? prev.email,
+          city: p.city ?? prev.city,
+          pincode: p.pincode ?? prev.pincode,
+          businessType: p.business_type ?? prev.businessType,
+          gstNumber: p.gst_number ?? prev.gstNumber,
+          vehicleType: p.vehicle_type ?? prev.vehicleType,
+          serviceRadiusKm: Number(p.service_area_km ?? prev.serviceRadiusKm),
+          aurotapId: p.aurotap_id ?? prev.aurotapId,
+          serviceCities: p.city ? [p.city] : prev.serviceCities,
+        }));
+      } else if (!primaryErr) {
+        toast.error(`Could not load supplier profile: ${getApiErrorMessage(profileResult.reason)}`);
+      }
+
       if (primaryErr) setBoardError(primaryErr);
     } catch (e) {
       setBoardError(getApiErrorMessage(e));
@@ -212,24 +250,6 @@ export default function SupplierDashboardPage() {
       setOrdersLoading(false);
       setRefreshing(false);
     }
-  }, []);
-
-  React.useEffect(() => {
-    const f = safeParse<Tanker[]>(safeGet(FLEET_KEY));
-    const p = safeParse<SupplierProfile>(safeGet(PROFILE_KEY));
-    const d = safeParse<SupplierDoc[]>(safeGet(DOCS_KEY));
-
-    const nextFleet = Array.isArray(f) && f.length ? f : seedFleet();
-    const nextProfile = p ?? seedProfile();
-    const nextDocs = Array.isArray(d) && d.length ? d : seedDocs();
-
-    setFleet(nextFleet);
-    setProfile(nextProfile);
-    setDocs(nextDocs);
-
-    safeSet(FLEET_KEY, JSON.stringify(nextFleet));
-    safeSet(PROFILE_KEY, JSON.stringify(nextProfile));
-    safeSet(DOCS_KEY, JSON.stringify(nextDocs));
   }, []);
 
   React.useEffect(() => {
@@ -263,20 +283,66 @@ export default function SupplierDashboardPage() {
     };
   }, [session?.userId, fetchSupplierBoard]);
 
+  const saveLiveProfile = async (patch: Record<string, unknown>) => {
+    if (profileSaving) return;
+    setProfileSaving(true);
+    try {
+      const updated = await supplierProfileUpdate(patch);
+      setProfile((prev) => ({
+        ...prev,
+        businessName: updated.business_name ?? prev.businessName,
+        ownerName: updated.full_name ?? prev.ownerName,
+        gst: updated.gst_number ?? prev.gst,
+        phone: updated.phone ?? prev.phone,
+        email: updated.email ?? prev.email,
+        city: updated.city ?? prev.city,
+        pincode: updated.pincode ?? prev.pincode ?? '',
+        businessType: updated.business_type ?? prev.businessType,
+        gstNumber: updated.gst_number ?? prev.gstNumber,
+        vehicleType: updated.vehicle_type ?? prev.vehicleType,
+        serviceRadiusKm: Number(updated.service_area_km ?? prev.serviceRadiusKm),
+        aurotapId: updated.aurotap_id ?? prev.aurotapId,
+        serviceCities: updated.city ? [updated.city] : prev.serviceCities,
+      }));
+      toast.success('Profile saved.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const toggleAvailability = async () => {
+    if (availabilitySaving) return;
+    setAvailabilitySaving(true);
+    const nextOnline = !(supplierSettings?.is_online ?? false);
+    try {
+      const updated = await supplierSettingsUpdate({ is_online: nextOnline });
+      setSupplierSettings(updated);
+      toast.success(nextOnline ? 'You are now accepting new delivery offers.' : 'You are now offline. New offers are paused.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    } finally {
+      setAvailabilitySaving(false);
+    }
+  };
+
+  const updateStock = async (value: number) => {
+    if (!Number.isInteger(value) || value < 0 || value > 100000 || !supplierStock) return;
+    try {
+      const updated = await supplierStockUpdate({ cans_available: value });
+      setSupplierStock(updated);
+      toast.success('Stock updated.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    }
+  };
+
   const persistOrders = (next: SupplierOrder[]) => {
     setOrders(next);
   };
-  const persistFleet = (next: Tanker[]) => {
-    setFleet(next);
-    safeSet(FLEET_KEY, JSON.stringify(next));
-  };
   const persistProfile = (next: SupplierProfile) => {
     setProfile(next);
-    safeSet(PROFILE_KEY, JSON.stringify(next));
-  };
-  const persistDocs = (next: SupplierDoc[]) => {
-    setDocs(next);
-    safeSet(DOCS_KEY, JSON.stringify(next));
   };
 
   const filteredOrders = React.useMemo(() => {
@@ -405,25 +471,98 @@ export default function SupplierDashboardPage() {
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div>
                       <div className="text-xs tracking-wider text-white/80">YOUR AUROTAP ID</div>
-                      <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{profile.aurotapId}</div>
+                      <div className="mt-2 text-3xl md:text-4xl font-black font-mono">{session?.aurotapId ?? profile.aurotapId}</div>
                       <div className="mt-2 text-sm text-white/85">
-                        Customers can order directly using your AuroTap ID.
+                        Share your AuroTap ID with repeat customers; direct-order routing is being connected to the marketplace dispatch flow.
                       </div>
                     </div>
                     <div className="flex flex-col items-start gap-3">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(profile.aurotapId);
-                          toast.success('AuroTap ID copied! Share it with customers.');
-                        }}
-                        className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
-                      >
-                        Copy
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(session?.aurotapId ?? profile.aurotapId);
+                            toast.success('AuroTap ID copied.');
+                          }}
+                          className="rounded-xl border border-white/30 px-4 py-2 font-bold hover:bg-white/10"
+                        >
+                          Copy ID
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const id = session?.aurotapId ?? profile.aurotapId;
+                            const url = `${window.location.origin}/book?service=water_can&supplier=${encodeURIComponent(id)}`;
+                            await navigator.clipboard.writeText(url);
+                            toast.success('Direct booking link copied.');
+                          }}
+                          className="rounded-xl bg-white px-4 py-2 font-black text-[#003049] hover:opacity-95"
+                        >
+                          Copy booking link
+                        </button>
+                      </div>
                       <div className="w-20 h-20 rounded-xl bg-white/20 flex items-center justify-center text-xs font-bold">
                         QR Soon
                       </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 md:grid-cols-[1.3fr_.7fr]">
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[.18em] text-slate-500">Delivery availability</p>
+                        <h2 className="mt-2 text-xl font-black text-slate-900">
+                          {supplierSettings?.is_online ? 'Online and accepting orders' : 'Offline — new offers paused'}
+                        </h2>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                          Go online only when you have stock, delivery capacity and a driver/vehicle ready to fulfil an assignment.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void toggleAvailability()}
+                        disabled={availabilitySaving}
+                        className={supplierSettings?.is_online
+                          ? 'rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'
+                          : 'rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white shadow-sm disabled:opacity-50'}
+                      >
+                        {availabilitySaving ? 'Saving…' : supplierSettings?.is_online ? 'Go offline' : 'Go online'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-slate-500">Water inventory</p>
+                    <div className="mt-2 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="text-3xl font-black text-slate-900">{supplierStock ? Math.max(0, supplierStock.cans_available - supplierStock.reserved_cans) : '—'}</div>
+                        <div className="text-xs font-semibold text-slate-500">available cans</div>
+                      </div>
+                      <div className="text-right text-xs font-bold text-slate-500">Reserved: {supplierStock?.reserved_cans ?? 0}</div>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100000}
+                        aria-label="Available water cans"
+                        defaultValue={supplierStock?.cans_available ?? 0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void updateStock(Number((e.target as HTMLInputElement).value));
+                        }}
+                        className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = (e.currentTarget.previousElementSibling as HTMLInputElement | null);
+                          if (input) void updateStock(Number(input.value));
+                        }}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-900"
+                      >
+                        Save stock
+                      </button>
                     </div>
                   </div>
                 </section>
@@ -441,6 +580,33 @@ export default function SupplierDashboardPage() {
                 {refreshing ? (
                   <p className="text-xs text-slate-500 -mt-2">Syncing latest orders…</p>
                 ) : null}
+
+                <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-amber-200 bg-amber-50/70 shadow-sm p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[.18em] text-amber-700">Action required</p>
+                      <h3 className="mt-1 text-lg font-extrabold text-slate-900">Incoming assignments</h3>
+                    </div>
+                    <button type="button" onClick={() => setTab('orders')} className="text-sm font-black text-amber-800 hover:underline">Open orders</button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {orders.filter((o) => o.workflowStatus === 'ASSIGNED').slice(0, 3).map((o) => (
+                      <div key={o.apiId} className="rounded-2xl border border-amber-200 bg-white p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <div className="font-black text-slate-900">{o.label} · {o.canCount || o.size}</div>
+                            <div className="mt-1 text-sm text-slate-600">{o.area} · {o.eta} · {fmtMoney(o.amount)}</div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={async () => { try { await supplierOrderAccept(o.apiId); toast.success('Order accepted. Stock reserved.'); void fetchSupplierBoard(true); } catch (e) { toast.error(getApiErrorMessage(e)); } }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Accept</button>
+                            <button type="button" onClick={async () => { try { await supplierOrderReject(o.apiId, 'Supplier unavailable'); toast.success('Order declined and released.'); void fetchSupplierBoard(true); } catch (e) { toast.error(getApiErrorMessage(e)); } }} className="rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-black text-rose-700">Reject</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {orders.filter((o) => o.workflowStatus === 'ASSIGNED').length === 0 ? <p className="text-sm text-slate-500">No new assignments right now.</p> : null}
+                  </div>
+                </section>
 
                 <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
                   <div className="flex items-center justify-between">
@@ -460,7 +626,7 @@ export default function SupplierDashboardPage() {
                           type="button"
                           onClick={async () => {
                             try {
-                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED');
+                              await supplierOrderUpdateStatus(o.apiId, 'COMPLETED', o.paymentStatus === 'cash' ? { payment_collected: true } : undefined);
                               persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'delivered', eta: 'Delivered' } : x)));
                               toast.success(`Order ${o.label} marked delivered.`);
                               void fetchSupplierBoard(true);
@@ -512,30 +678,56 @@ export default function SupplierDashboardPage() {
                         <div className="mt-3 pt-3 border-t border-slate-100">
                           <div className="text-sm text-slate-700">Address: {o.address}</div>
                           <div className="text-sm text-slate-700 mt-1">Partner phone: {maskPhone(profile.phone)}</div>
-                          {o.status === 'pending' && (
+                          {o.workflowStatus === 'ASSIGNED' && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderAccept(o.apiId);
+                                    toast.success('Order accepted and stock reserved.');
+                                    void fetchSupplierBoard(true);
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
+                                  }
+                                }}
+                                className="rounded-xl bg-emerald-600 text-white px-4 py-2 text-sm font-black"
+                              >
+                                Accept order ✓
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supplierOrderReject(o.apiId, 'Supplier unavailable');
+                                    toast.success('Order declined.');
+                                    void fetchSupplierBoard(true);
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
+                                  }
+                                }}
+                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-black"
+                              >
+                                Reject ✗
+                              </button>
+                            </div>
+                          )}
+                          {o.workflowStatus === 'ASSIGNED' && o.acceptedAt && (
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={async () => {
                                   try {
                                     await supplierOrderUpdateStatus(o.apiId, 'IN_PROGRESS');
-                                    persistOrders(orders.map((x) => (x.apiId === o.apiId ? { ...x, status: 'active' } : x)));
                                     toast.success('Delivery started.');
                                     void fetchSupplierBoard(true);
-                                  } catch {
-                                    toast.error('Could not start order.');
+                                  } catch (e) {
+                                    toast.error(getApiErrorMessage(e));
                                   }
                                 }}
-                                className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-bold"
+                                className="rounded-xl bg-[#2A9D8F] text-white px-4 py-2 text-sm font-black"
                               >
-                                Start delivery ✓
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => toast.message('Contact support to cancel a booked order.')}
-                                className="rounded-xl border border-rose-300 text-rose-700 px-4 py-2 text-sm font-bold"
-                              >
-                                Need help ✗
+                                Start delivery →
                               </button>
                             </div>
                           )}
@@ -569,91 +761,106 @@ export default function SupplierDashboardPage() {
 
             {tab === 'fleet' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Fleet</h3>
-                <div className="mt-4 grid md:grid-cols-2 gap-4">
-                  {fleet.map((t) => (
-                    <div key={t.id} className="rounded-2xl border border-slate-100 bg-white p-4">
-                      <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Live fleet</p>
+                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">Vehicles available for fulfilment</h3>
+                    <p className="mt-1 text-sm text-slate-500">Fleet records are stored in the supplier database and can be used by operations for dispatch capacity.</p>
+                  </div>
+                  <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">{fleet.length} vehicle{fleet.length === 1 ? '' : 's'}</div>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {fleet.map((vehicle) => (
+                    <div key={vehicle.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="grid gap-3 md:grid-cols-[1.1fr_.8fr_.7fr_.9fr_auto] md:items-center">
                         <div>
-                          <div className="font-bold text-slate-900">{t.name}</div>
-                          <div className="text-sm text-slate-600">{t.id} · {t.size}</div>
+                          <div className="font-black text-slate-900">{vehicle.name}</div>
+                          <div className="mt-1 text-xs text-slate-500">{vehicle.vehicle_type} · {vehicle.capacity_cans} can capacity · {vehicle.plate_number ?? 'Plate not added'}</div>
+                        </div>
+                        <div className="text-sm text-slate-700">
+                          <span className="font-bold">Driver</span><br />
+                          {vehicle.driver_name ?? 'Unassigned'}
                         </div>
                         <select
-                          value={t.status}
-                          onChange={(e) => persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, status: e.target.value as Tanker['status'] } : x)))}
-                          className="rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                          value={vehicle.status}
+                          onChange={async (e) => {
+                            try {
+                              const updated = await supplierFleetUpdate(vehicle.id, { status: e.target.value as import('@/lib/api-client').SupplierFleetItem['status'] });
+                              setFleet((prev) => prev.map((x) => x.id === vehicle.id ? updated : x));
+                            } catch (err) {
+                              toast.error(getApiErrorMessage(err));
+                            }
+                          }}
+                          className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold"
                         >
                           <option value="available">Available</option>
-                          <option value="in_use">In Use</option>
+                          <option value="in_use">In use</option>
                           <option value="maintenance">Maintenance</option>
+                          <option value="offline">Offline</option>
                         </select>
-                      </div>
-                      <div className="mt-3 flex items-center gap-3">
-                        <span className="text-sm text-slate-600">Price</span>
-                        <input
-                          value={t.price}
-                          onChange={(e) => {
-                            const p = Number(e.target.value || 0);
-                            persistFleet(fleet.map((x) => (x.id === t.id ? { ...x, price: p } : x)));
+                        <div className="text-sm text-slate-600">Updated {new Date(vehicle.updated_at).toLocaleString('en-IN')}</div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await supplierFleetDelete(vehicle.id);
+                              setFleet((prev) => prev.filter((x) => x.id !== vehicle.id));
+                              toast.success('Vehicle removed.');
+                            } catch (err) {
+                              toast.error(getApiErrorMessage(err));
+                            }
                           }}
-                          className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                        />
-                        <span className="text-sm text-slate-600">Driver: {t.driver}</span>
+                          className="rounded-xl border border-rose-200 px-3 py-2 text-xs font-black text-rose-700"
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
                   ))}
+                  {fleet.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                      <p className="font-black text-slate-900">No vehicle registered yet</p>
+                      <p className="mt-1 text-sm text-slate-500">Add the vehicle you actually use for AuroWater deliveries.</p>
+                    </div>
+                  ) : null}
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="font-bold text-slate-900">+ Add Tanker</div>
-                  <div className="mt-3 grid sm:grid-cols-4 gap-3">
-                    <input
-                      placeholder="Tanker ID"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.id}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, id: e.target.value }))}
-                    />
-                    <select
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.size}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, size: e.target.value as Tanker['size'] }))}
-                    >
-                      <option>1000L</option>
-                      <option>3000L</option>
-                      <option>5000L</option>
-                      <option>10000L</option>
-                    </select>
-                    <input
-                      placeholder="Price"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.price}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, price: e.target.value }))}
-                    />
-                    <input
-                      placeholder="Driver"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      value={newTanker.driver}
-                      onChange={(e) => setNewTanker((x) => ({ ...x, driver: e.target.value }))}
-                    />
+                <div className="mt-7 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="font-black text-slate-900">Add delivery vehicle</div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <input placeholder="Vehicle name" value={newTanker.name} onChange={(e) => setNewTanker((x) => ({ ...x, name: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Type e.g. Mini-truck" value={newTanker.vehicleType} onChange={(e) => setNewTanker((x) => ({ ...x, vehicleType: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input type="number" min={1} max={5000} placeholder="Can capacity" value={newTanker.capacity} onChange={(e) => setNewTanker((x) => ({ ...x, capacity: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Plate number" value={newTanker.plateNumber} onChange={(e) => setNewTanker((x) => ({ ...x, plateNumber: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
+                    <input placeholder="Driver name" value={newTanker.driverName} onChange={(e) => setNewTanker((x) => ({ ...x, driverName: e.target.value }))} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" />
                   </div>
                   <button
-                    className="mt-3 rounded-xl bg-[#003049] text-white px-4 py-2 text-sm font-bold"
-                    onClick={() => {
-                      if (!newTanker.id.trim()) return toast.error('Enter tanker ID');
-                      const add: Tanker = {
-                        id: newTanker.id.trim().toUpperCase(),
-                        name: `Tanker ${newTanker.id.trim().toUpperCase()}`,
-                        size: newTanker.size,
-                        price: Number(newTanker.price || 0),
-                        driver: newTanker.driver || 'Unassigned',
-                        status: 'available',
-                      };
-                      persistFleet([add, ...fleet]);
-                      setNewTanker({ id: '', size: '3000L', price: '399', driver: '' });
-                      toast.success('Tanker added to fleet.');
+                    type="button"
+                    onClick={async () => {
+                      const name = newTanker.name.trim();
+                      const capacity = Math.floor(Number(newTanker.capacity));
+                      if (name.length < 2) return toast.error('Enter vehicle name.');
+                      if (!Number.isInteger(capacity) || capacity < 1 || capacity > 5000) return toast.error('Enter a valid can capacity.');
+                      try {
+                        const created = await supplierFleetCreate({
+                          name,
+                          vehicle_type: newTanker.vehicleType.trim() || 'Vehicle',
+                          capacity_cans: capacity,
+                          plate_number: newTanker.plateNumber.trim() || null,
+                          driver_name: newTanker.driverName.trim() || null,
+                          status: 'available',
+                        });
+                        setFleet((prev) => [...prev, created]);
+                        setNewTanker({ name: '', vehicleType: 'Bike', capacity: '20', plateNumber: '', driverName: '' });
+                        toast.success('Vehicle added.');
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err));
+                      }
                     }}
+                    className="mt-4 rounded-xl bg-[#003049] px-5 py-3 text-sm font-black text-white"
                   >
-                    Add to Fleet
+                    Add vehicle
                   </button>
                 </div>
               </section>
@@ -704,10 +911,10 @@ export default function SupplierDashboardPage() {
                     <LegendRow c="#38BDF8" label="Emergency" pct="15%" />
                     <LegendRow c="#F4A261" label="AMC/Subscription" pct="15%" />
                     <div className="pt-3 text-sm text-slate-600">
-                      Payout account: <span className="font-bold text-slate-900">Account ending in XXXX4521</span>
+                      Payout account: <span className="font-bold text-slate-900">{supplierSettings?.upi_id ?? (supplierSettings?.bank_account ? `Bank ••••${String(supplierSettings.bank_account).slice(-4)}` : 'Not configured')}
                     </div>
-                    <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
-                      Update bank details
+                    <button type="button" onClick={() => setTab('profile')} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold">
+                      Manage payout account
                     </button>
                   </div>
                 </div>
@@ -721,7 +928,7 @@ export default function SupplierDashboardPage() {
                   <div className="text-xs text-white/80">YOUR AUROTAP ID</div>
                   <div className="text-3xl font-black font-mono mt-1">{profile.aurotapId}</div>
                   <div className="mt-2 text-sm text-white/85">
-                    Share this with your regular customers to route orders directly to your fleet.
+                    Share this with repeat customers as your supplier identity. Orders are assigned through the AuroWater dispatch network.
                   </div>
                 </div>
                 <div className="mt-5 space-y-2 text-sm text-slate-700">
@@ -753,116 +960,94 @@ export default function SupplierDashboardPage() {
 
             {tab === 'profile' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Profile</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Partner profile</p>
+                    <h3 className="mt-1 text-xl font-extrabold text-slate-900">Business & payout identity</h3>
+                    <p className="mt-1 text-sm text-slate-500">These fields are stored in your supplier profile. Operational availability and stock are managed separately above.</p>
+                  </div>
+                  <div className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-700">
+                    {profileSaving ? 'Saving…' : 'Live profile'}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid sm:grid-cols-2 gap-3">
                   <Input label="Business Name" value={profile.businessName} onChange={(v) => persistProfile({ ...profile, businessName: v })} />
                   <Input label="Owner Name" value={profile.ownerName} onChange={(v) => persistProfile({ ...profile, ownerName: v })} />
-                  <Input label="GST" value={profile.gst} onChange={(v) => persistProfile({ ...profile, gst: v })} />
+                  <Input label="GST Number" value={profile.gstNumber} onChange={(v) => persistProfile({ ...profile, gstNumber: v, gst: v })} />
                   <Input label="Phone" value={profile.phone} onChange={(v) => persistProfile({ ...profile, phone: v })} />
-                  <Input label="Email" value={profile.email} onChange={(v) => persistProfile({ ...profile, email: v })} />
+                  <div className="block">
+                    <span className="text-xs font-bold text-slate-600">Account email</span>
+                    <div className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">{profile.email || 'Not available'}</div>
+                    <p className="mt-1 text-[11px] text-slate-500">Managed by your authentication account.</p>
+                  </div>
+                  <Input label="City" value={profile.city} onChange={(v) => persistProfile({ ...profile, city: v, serviceCities: v ? [v] : [] })} />
+                  <Input label="Pincode" value={profile.pincode} onChange={(v) => persistProfile({ ...profile, pincode: v })} />
+                  <Input label="Vehicle Type" value={profile.vehicleType} onChange={(v) => persistProfile({ ...profile, vehicleType: v })} />
                 </div>
 
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Service Cities</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CITIES.map((c) => {
-                      const active = profile.serviceCities.includes(c);
-                      return (
-                        <button
-                          key={c}
-                          onClick={() => {
-                            const next = active
-                              ? profile.serviceCities.filter((x) => x !== c)
-                              : [...profile.serviceCities, c];
-                            persistProfile({ ...profile, serviceCities: next });
-                          }}
-                          className={[
-                            'rounded-full px-3 py-1.5 text-xs font-bold border',
-                            active ? 'bg-[#003049] text-white border-[#003049]' : 'bg-white text-slate-700 border-slate-200',
-                          ].join(' ')}
-                        >
-                          {c}
-                        </button>
-                      );
-                    })}
+                <div className="mt-5 grid sm:grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="text-xs font-bold text-slate-600">Service Radius (km)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={profile.serviceRadiusKm}
+                      onChange={(e) => persistProfile({ ...profile, serviceRadiusKm: Number(e.target.value || 1) })}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-black uppercase tracking-wide text-slate-500">AuroTap ID</p>
+                    <p className="mt-1 font-mono font-black text-slate-900">{session?.aurotapId ?? profile.aurotapId}</p>
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-                  <div className="text-sm font-bold text-slate-900">Pricing Table</div>
-                  <div className="mt-3 space-y-2 text-sm">
-                    {(['1000L', '3000L', '5000L'] as const).map((size) => {
-                      const supplierPrice = profile.prices[size];
-                      const platformFee = 29;
-                      const customerPays = supplierPrice + platformFee;
-                      return (
-                        <div key={size} className="grid grid-cols-4 gap-2 items-center">
-                          <div className="font-semibold text-slate-700">{size}</div>
-                          <input
-                            value={supplierPrice}
-                            onChange={(e) => {
-                              const val = Number(e.target.value || 0);
-                              persistProfile({ ...profile, prices: { ...profile.prices, [size]: val } });
-                            }}
-                            className="rounded-lg border border-slate-200 px-2 py-1"
-                          />
-                          <div className="text-slate-600">₹{platformFee}</div>
-                          <div className="font-bold text-[#2A9D8F]">₹{customerPays}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-black text-slate-900">Marketplace pricing</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">Customer checkout uses the platform pricing engine. The old local-only editable price table is no longer treated as operational pricing.</p>
                 </div>
 
-                <div className="mt-5">
-                  <div className="text-sm font-bold text-slate-800">Profile completion: {completion}%</div>
-                  <div className="mt-2 h-2 rounded-full bg-slate-200">
-                    <div className="h-2 rounded-full bg-[#2A9D8F] transition-all" style={{ width: `${completion}%` }} />
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveLiveProfile({
+                    business_name: profile.businessName,
+                    full_name: profile.ownerName,
+                    gst_number: profile.gstNumber,
+                    phone: profile.phone,
+                    email: profile.email,
+                    city: profile.city,
+                    pincode: profile.pincode,
+                    vehicle_type: profile.vehicleType,
+                    service_area_km: Math.min(100, Math.max(1, Math.round(profile.serviceRadiusKm || 1))),
+                  })}
+                  className="mt-5 rounded-xl bg-[#003049] px-5 py-3 text-sm font-black text-white disabled:opacity-50"
+                  disabled={profileSaving}
+                >
+                  {profileSaving ? 'Saving profile…' : 'Save profile'}
+                </button>
               </section>
             )}
 
             {tab === 'documents' && (
               <section className="rounded-3xl bg-white/80 backdrop-blur-xl border border-white shadow-card p-6">
-                <h3 className="text-lg font-extrabold text-slate-900">Documents</h3>
-                <div className="mt-4 grid sm:grid-cols-2 gap-4">
-                  {docs.map((d) => (
-                    <div key={d.key} className="rounded-2xl border border-[#2A9D8F]/20 border-dashed bg-white p-4">
-                      <div className="font-bold text-slate-900">{d.label}</div>
-                      <div className="text-xs text-slate-500 mt-1">{d.required ? 'Required' : 'Optional'} · JPG, PNG, PDF (max 5MB)</div>
-                      <div className="mt-3 text-sm text-slate-700">
-                        {d.fileName ? `${d.fileName} (${d.fileSizeKb} KB)` : 'No file selected'}
-                      </div>
-                      <div className="mt-3 flex items-center gap-2">
-                        <StatusBadge status={d.status} />
-                        <button
-                          className="text-xs font-bold text-[#003049] hover:underline"
-                          onClick={() => {
-                            const next = docs.map((x) =>
-                              x.key === d.key
-                                ? { ...x, fileName: `${d.key}_doc.pdf`, fileSizeKb: 420, status: 'submitted' as const }
-                                : x
-                            );
-                            persistDocs(next);
-                            toast.success(`${d.label} uploaded`);
-                          }}
-                        >
-                          Upload
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <p className="text-xs font-black uppercase tracking-[.18em] text-[#2A9D8F]">Compliance</p>
+                <h3 className="mt-1 text-xl font-extrabold text-slate-900">Supplier verification</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Verification status is controlled by the AuroWater operations team. File storage and document-review workflows are intentionally not simulated in the supplier UI.</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  ,,,
                 </div>
-                <button
-                  className="mt-5 rounded-xl bg-[#003049] text-white px-5 py-3 text-sm font-bold"
-                  disabled={docs.some((d) => d.required && d.status === 'not_uploaded')}
-                  onClick={() => toast.success('Documents submitted for verification.')}
-                >
-                  Submit for Verification
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="font-black text-amber-950">Operational rule</p>
+                  <p className="mt-1 text-sm leading-6 text-amber-900">Do not show a supplier as fully verified until required documents are stored, reviewed and approved by admin.</p>
+                </div>
+                <button type="button" onClick={() => toast.message('Document verification is handled by the operations team.')} className="mt-5 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black text-slate-900">
+                  Contact operations
                 </button>
               </section>
             )}
+
           </main>
         </div>
       </div>
@@ -900,12 +1085,5 @@ function Input({ label, value, onChange }: { label: string; value: string; onCha
       <input value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
     </label>
   );
-}
-
-function StatusBadge({ status }: { status: SupplierDoc['status'] }) {
-  if (status === 'verified') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-emerald-100 text-emerald-700">✓ Verified</span>;
-  if (status === 'submitted') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-blue-100 text-blue-700">↑ Submitted</span>;
-  if (status === 'rejected') return <span className="text-xs font-bold rounded-full px-3 py-1 bg-rose-100 text-rose-700">✗ Rejected</span>;
-  return <span className="text-xs font-bold rounded-full px-3 py-1 bg-slate-100 text-slate-600">○ Not uploaded</span>;
 }
 

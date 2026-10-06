@@ -411,7 +411,11 @@ export type ApiOrder = {
   status: string;
   created_at: string;
   updated_at: string;
-  service_type_id: number;
+  accepted_at?: string | null;
+  dispatched_at?: string | null;
+  completed_at?: string | null;
+  scheduled_at?: string | null;
+  service_type_id?: number | null;
   service_type_key?: string | null;
   sub_option_key?: string | null;
   address_snapshot?: Record<string, unknown> | null;
@@ -424,6 +428,7 @@ export type ApiOrder = {
   technician_id?: string | null;
   notes?: string | null;
   can_quantity?: number | null;
+  can_count?: number | null;
   can_order_type?: string | null;
   can_frequency?: string | null;
   can_price_per_unit?: number | string | null;
@@ -672,6 +677,39 @@ export async function adminFinance(range?: string): Promise<unknown> {
   return apiFetchAuth(`/admin/finance${q}`);
 }
 
+export type AdminPayoutRow = {
+  id: string;
+  supplier_id: string;
+  amount: number | string;
+  method: string | null;
+  reference: string | null;
+  notes: string | null;
+  status: 'pending' | 'processing' | 'paid' | 'rejected';
+  requested_at: string;
+  processed_at?: string | null;
+  paid_at?: string | null;
+  supplier_name: string;
+  supplier_phone?: string | null;
+  supplier_email?: string | null;
+  supplier_city?: string | null;
+};
+
+export async function adminPayoutsList(status?: AdminPayoutRow['status']): Promise<AdminPayoutRow[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiFetchAuth<AdminPayoutRow[]>(`/admin/payouts${q}`);
+}
+
+export async function adminPayoutFinalize(
+  id: string,
+  status: 'paid' | 'rejected',
+  reference?: string,
+): Promise<AdminPayoutRow> {
+  return apiFetchAuth<AdminPayoutRow>(`/admin/payouts?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, reference }),
+  });
+}
+
 export async function adminUsers(params?: { role?: string; limit?: number; offset?: number }): Promise<unknown[]> {
   const sp = new URLSearchParams();
   if (params?.role) sp.set('role', params.role);
@@ -857,10 +895,145 @@ export async function supplierOrdersList(params?: { status?: string }): Promise<
   return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
 }
 
-export async function supplierOrderUpdateStatus(id: string, status: string): Promise<ApiOrder> {
+export type SupplierSettings = {
+  user_id: string;
+  is_online: boolean;
+  price_per_can: number | string;
+  service_radius: number;
+  zone_radius_km?: number | null;
+  commission_rate?: number | string | null;
+  is_primary_zone?: boolean | null;
+  auto_accept?: boolean | null;
+  upi_id?: string | null;
+  bank_account?: string | null;
+  ifsc?: string | null;
+  qr_code_url?: string | null;
+  last_online_at?: string | null;
+};
+
+export type SupplierStock = {
+  id?: string;
+  supplier_id: string;
+  cans_available: number;
+  reserved_cans: number;
+  low_stock_alert: number;
+  updated_at: string;
+};
+
+export async function supplierSettingsGet(): Promise<SupplierSettings | null> {
+  return apiFetchAuth<SupplierSettings | null>('/supplier/settings');
+}
+
+export type SupplierProfile = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  pincode?: string | null;
+  business_name?: string | null;
+  business_type?: string | null;
+  gst_number?: string | null;
+  vehicle_type?: string | null;
+  service_area_km?: number | null;
+  aurotap_id?: string | null;
+  status?: string | null;
+  is_active?: boolean | null;
+};
+
+export async function supplierProfileGet(): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile');
+}
+
+export async function supplierProfileUpdate(patch: Partial<SupplierProfile>): Promise<SupplierProfile> {
+  return apiFetchAuth<SupplierProfile>('/supplier/profile', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierSettingsUpdate(patch: Partial<SupplierSettings>): Promise<SupplierSettings> {
+  return apiFetchAuth<SupplierSettings>('/supplier/settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierStockGet(): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock');
+}
+
+export type SupplierFleetItem = {
+  id: string;
+  supplier_id: string;
+  name: string;
+  vehicle_type: string;
+  capacity_cans: number;
+  plate_number: string | null;
+  driver_name: string | null;
+  status: 'available' | 'in_use' | 'maintenance' | 'offline';
+  created_at: string;
+  updated_at: string;
+};
+
+export async function supplierFleetList(): Promise<SupplierFleetItem[]> {
+  return apiFetchAuth<SupplierFleetItem[]>('/supplier/fleet');
+}
+
+export async function supplierFleetCreate(body: {
+  name: string;
+  vehicle_type: string;
+  capacity_cans: number;
+  plate_number?: string | null;
+  driver_name?: string | null;
+  status?: SupplierFleetItem['status'];
+}): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>('/supplier/fleet', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function supplierFleetUpdate(id: string, patch: Partial<Omit<SupplierFleetItem, 'id' | 'supplier_id' | 'created_at' | 'updated_at'>>): Promise<SupplierFleetItem> {
+  return apiFetchAuth<SupplierFleetItem>(`/supplier/fleet?id=${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierFleetDelete(id: string): Promise<{ deleted: true }> {
+  return apiFetchAuth<{ deleted: true }>(`/supplier/fleet?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function supplierStockUpdate(patch: { cans_available?: number; low_stock_alert?: number }): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function supplierOrderAccept(id: string): Promise<{ accepted: true }> {
+  return apiFetchAuth<{ accepted: true }>(`/supplier/orders/${id}/accept`, { method: 'PUT' });
+}
+
+export async function supplierOrderReject(id: string, reason?: string): Promise<{ released: true; reassigned: boolean }> {
+  return apiFetchAuth<{ released: true; reassigned: boolean }>(`/supplier/orders/${id}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ reason: reason ?? '' }),
+  });
+}
+
+
+export async function supplierOrderUpdateStatus(
+  id: string,
+  status: string,
+  options?: { payment_collected?: boolean },
+): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}/status`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...options }),
   });
 }
 

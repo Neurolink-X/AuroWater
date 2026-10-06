@@ -78,6 +78,7 @@ export interface BookingDraft {
   isEmergency: boolean;
   paymentMethod: 'cash' | 'online' | 'upi';
   notes?: string;
+  supplierAurotapId?: string;
   slotValid?: boolean;
 }
 
@@ -174,6 +175,7 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   if (r.paymentMethod === 'cash' || r.paymentMethod === 'online' || r.paymentMethod === 'upi') out.paymentMethod = r.paymentMethod;
   if (typeof r.isEmergency === 'boolean') out.isEmergency = r.isEmergency;
   if (typeof r.notes === 'string') out.notes = r.notes.slice(0, 500);
+  if (typeof r.supplierAurotapId === 'string' && r.supplierAurotapId.trim()) out.supplierAurotapId = r.supplierAurotapId.trim().slice(0, 100);
   return out;
 }
 
@@ -354,6 +356,8 @@ export default function BookingWizard() {
     base.canQuantity = Math.min(maxCansFor(base), Math.max(1, base.canQuantity ?? 1));
 
     const serviceParam = searchParams?.get('service') ?? '';
+    const supplierParam = searchParams?.get('supplier') ?? searchParams?.get('supplier_aurotap_id') ?? '';
+    if (supplierParam.trim()) base.supplierAurotapId = supplierParam.trim().slice(0, 100);
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
       base.serviceKey = serviceParam;
@@ -822,6 +826,7 @@ export default function BookingWizard() {
         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
+        supplier_aurotap_id: draft.serviceKey === 'water_can' ? draft.supplierAurotapId : undefined,
       });
       try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
@@ -880,6 +885,13 @@ export default function BookingWizard() {
         {/* STEP 1 */}
         {view === 1 && (
           <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            {draft.supplierAurotapId ? (
+              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                <span className="font-black">Preferred supplier:</span> {draft.supplierAurotapId}
+                <span className="ml-2 text-sky-700">We’ll try this supplier first, then use the normal local dispatch network if unavailable.</span>
+              </div>
+            ) : null}
+
             <h2 className="text-base font-bold text-slate-900">1 · Choose service</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SERVICE_LIST.map((s) => (

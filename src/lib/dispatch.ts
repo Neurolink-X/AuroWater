@@ -158,14 +158,14 @@ async function markAttempt(db: any, orderId: string) {
 }
 
 /** Try to assign the best available supplier to a PENDING order. Safe to call repeatedly. */
-export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
+export async function dispatchOrder(orderId: string, preferredSupplierId?: string | null): Promise<DispatchResult> {
   try {
     const db: any = createServiceClient();
     const cfg = await loadCfg(db);
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_count')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -207,7 +207,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     if (!ids.length) return noCandidates();
 
-    const [profRes, loadRes, lastRes] = await Promise.all([
+    const [profRes, loadRes, lastRes, stockRes] = await Promise.all([
       db.from('profiles').select('id, role, city, is_active, status, milestone_tier').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
@@ -219,9 +219,11 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      db.from('supplier_stock').select('supplier_id, cans_available, reserved_cans').in('supplier_id', ids),
     ]);
 
     const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
+    const stockById = new Map<string, any>(((stockRes.data ?? []) as any[]).map((r) => [String(r.supplier_id), r]));
     const activeLoad = new Map<string, number>();
     for (const r of (loadRes.data ?? []) as { supplier_id: string }[]) {
       const k = String(r.supplier_id);
@@ -251,6 +253,17 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
       const load = activeLoad.get(id) ?? 0;
       if (load >= cfg.maxActive) continue;
+
+      // Water orders require enough unreserved stock before assignment.
+      const requiredQty = Math.max(0, Number(order.can_count ?? 0));
+      if (requiredQty > 0) {
+        const stock = stockById.get(id);
+        const available = Math.max(
+          0,
+          Number(stock?.cans_available ?? 0) - Number(stock?.reserved_cans ?? 0)
+        );
+        if (available < requiredQty) continue;
+      }
 
       const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
       const sLat = coord(r.base_lat);
@@ -285,6 +298,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     cands.sort(
       (a, b) =>
+        Number((preferredSupplierId && a.id === preferredSupplierId) ? 1 : 0) - Number((preferredSupplierId && b.id === preferredSupplierId) ? 1 : 0) ||
         Number(b.favourite) - Number(a.favourite) ||
         a.group - b.group ||
         (a.distance ?? 0) - (b.distance ?? 0) ||
@@ -453,16 +467,78 @@ export async function acceptAssignment(orderId: string, supplierId: string): Pro
   try {
     const db: any = createServiceClient();
     const now = new Date().toISOString();
+
+    const { data: current } = await db
+      .from('orders')
+      .select('id, customer_id, status, supplier_id, accepted_at, can_count, service_type, total_amount, supplier_payout')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!current || String(current.supplier_id ?? '') !== supplierId || String(current.status ?? '') !== 'ASSIGNED' || current.accepted_at) {
+      return false;
+    }
+
+    const qty = Math.max(0, Number(current.can_count ?? 0));
+    if (qty > 0 && String(current.service_type ?? '') === 'water_can') {
+      const { data: reserved, error: reserveError } = await db.rpc('reserve_supplier_stock', {
+        p_supplier_id: supplierId,
+        p_quantity: qty,
+      });
+      if (reserveError || reserved !== true) {
+        await notify(
+          supplierId,
+          'Order cannot be accepted',
+          'Your available stock is not sufficient for this order. The order will be offered to another supplier.',
+          'system',
+          orderId,
+          'stock_unavailable'
+        );
+
+        // Release this assignment immediately so the fallback dispatcher can
+        // offer the order to another eligible supplier.
+        await releaseAssignment(
+          orderId,
+          supplierId,
+          'REJECTED',
+          'insufficient stock at acceptance'
+        );
+        return false;
+      }
+    }
+
+    const { data: supplierRateRow } = await db.rpc('get_supplier_commission_rate', {
+      p_supplier_id: supplierId,
+    });
+    const rawSupplierRate = Number(supplierRateRow ?? 30);
+    const supplierShare = Math.max(0, Math.min(1, rawSupplierRate > 1 ? rawSupplierRate / 100 : rawSupplierRate));
+    const totalAmount = Math.max(0, Number(current.total_amount ?? 0));
+    const supplierPayout = Number(current.supplier_payout ?? 0) > 0
+      ? Number(current.supplier_payout)
+      : Math.round(totalAmount * supplierShare * 100) / 100;
+
     const { data: ok } = await db
       .from('orders')
-      .update({ accepted_at: now })
+      .update({
+        accepted_at: now,
+        supplier_payout: supplierPayout,
+        payout_status: supplierPayout > 0 ? 'pending' : 'pending',
+      })
       .eq('id', orderId)
       .eq('supplier_id', supplierId)
       .eq('status', 'ASSIGNED')
       .is('accepted_at', null)
       .select('id, customer_id')
       .maybeSingle();
-    if (!ok) return false;
+
+    if (!ok) {
+      if (qty > 0 && String(current.service_type ?? '') === 'water_can') {
+        await db.rpc('release_reserved_supplier_stock', {
+          p_supplier_id: supplierId,
+          p_quantity: qty,
+        });
+      }
+      return false;
+    }
 
     await db
       .from('order_dispatch')

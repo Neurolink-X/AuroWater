@@ -303,6 +303,17 @@ export async function GET(
           : null;
 
       if (!orderId) {
+        const { data: serviceType } = await db
+          .from('service_types')
+          .select('id')
+          .eq('key', 'water_can')
+          .maybeSingle();
+
+        if (!serviceType?.id) {
+          skipped += 1;
+          continue;
+        }
+
         const {
           base,
           gst,
@@ -383,6 +394,8 @@ export async function GET(
                 subscription.customer_id,
               service_type:
                 'water_can',
+              service_type_id:
+                serviceType.id,
               status:
                 'PENDING',
               subscription_id:
@@ -464,17 +477,21 @@ export async function GET(
         );
       }
 
+      let deliveryAssigned = Boolean(existing?.supplier_id);
       if (orderId) {
-        const result =
-          await dispatchOrder(
-            orderId
-          );
-
-        if (
-          result.supplierId
-        ) {
+        const result = await dispatchOrder(orderId);
+        deliveryAssigned = deliveryAssigned || Boolean(result.supplierId);
+        if (result.supplierId) {
           dispatched += 1;
         }
+      }
+
+      // Do not move the recurring schedule forward when the current delivery
+      // still has no supplier. The same order can be retried by the global
+      // dispatch worker until it is assigned or an operator intervenes.
+      if (!deliveryAssigned) {
+        skipped += 1;
+        continue;
       }
 
       const futureDate =

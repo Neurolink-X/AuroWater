@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
+import { computeExpectedTotal, pickGstRateFromFlat, totalsMatch } from '@/lib/api/order-pricing-server';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import {
   isPostgrestTableUnavailableError,
@@ -197,10 +197,14 @@ export async function POST(req: NextRequest) {
 
   const customerId = auth.ctx.profile.id;
 
+  const supplierAurotapId = typeof body.supplier_aurotap_id === 'string'
+    ? body.supplier_aurotap_id.trim()
+    : '';
+
   // service_types has: id, key, label, description, base_price, is_active
   const { data: st, error: stErr } = await auth.ctx.supabase
     .from('service_types')
-    .select('id, key, label, base_price')
+    .select('id, key, name, base_price')
     .eq('key', service_type_key)
     .eq('is_active', true)
     .maybeSingle();
@@ -244,7 +248,7 @@ if (!serviceability.serviceable) {
   const flat = settingsResult.map;
 
   // ── Pricing ──
-  const gstRate = 0; // GST is not charged
+  const gstRate = pickGstRateFromFlat(flat);
   const convenience = Number(flat.convenience_fee ?? 29);
   const emergencyFee = Number(flat.emergency_surcharge ?? 30);
   const is_emergency = Boolean(body.is_emergency);
@@ -368,6 +372,7 @@ if (!serviceability.serviceable) {
 
   const noteParts = [
     str(body.notes),
+    supplierAurotapId ? `Preferred supplier: ${supplierAurotapId}` : null,
     str(body.time_slot) ? `Slot: ${str(body.time_slot)}` : null,
     str(body.sub_option_key) ? `Option: ${str(body.sub_option_key)}` : null,
     str(body.can_order_type) ? `Type: ${str(body.can_order_type)}` : null,
@@ -397,6 +402,7 @@ if (!serviceability.serviceable) {
     .insert({
       customer_id: customerId,
       service_type: service_type_key,
+      service_type_id: st.id,
       status: 'PENDING',
       zone_id: serviceability.zone?.id ?? null,
       can_count: qty,
@@ -429,8 +435,8 @@ if (!serviceability.serviceable) {
   }
 
   const orderId = String(order.id);
-  const label = typeof st.label === 'string' && st.label.trim()
-    ? st.label
+  const label = typeof st.name === 'string' && st.name.trim()
+    ? st.name
     : service_type_key.replace(/_/g, ' ');
   const slotText = `${sdRaw ?? 'your slot'}${str(body.time_slot) ? ` · ${str(body.time_slot)}` : ''}`;
 
@@ -521,6 +527,7 @@ if (!serviceability.serviceable) {
       .insert({
         customer_id: customerId,
         service_type: service_type_key,
+        service_type_id: st.id,
         status: 'PENDING',
         subscription_id: subscriptionId,
         can_count: qty,
@@ -560,11 +567,29 @@ if (!serviceability.serviceable) {
   // ── Supplier dispatch (water cans): nearest eligible supplier, with automatic fallback ──
   let supplierId: string | null = null;
   if (isWater) {
-    const d = await dispatchOrder(orderId);
+    let preferredSupplierId: string | null = null;
+
+    if (supplierAurotapId) {
+      const admin = createServiceClient();
+      const { data: preferred } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('aurotap_id', supplierAurotapId)
+        .eq('role', 'supplier')
+        .maybeSingle();
+      preferredSupplierId = preferred?.id ? String(preferred.id) : null;
+    }
+
+    const d = await dispatchOrder(orderId, preferredSupplierId);
     supplierId = d.supplierId;
     if (supplierId) {
       (order as Record<string, unknown>).supplier_id = supplierId;
       (order as Record<string, unknown>).status = 'ASSIGNED';
+      if (preferredSupplierId && supplierId !== preferredSupplierId) {
+        (order as Record<string, unknown>).supplier_route = 'fallback_network';
+      } else if (preferredSupplierId) {
+        (order as Record<string, unknown>).supplier_route = 'preferred_supplier';
+      }
     }
   }
 

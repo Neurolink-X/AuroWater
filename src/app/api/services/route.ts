@@ -11,7 +11,7 @@ export async function GET() {
     const sb = createSupabaseAnonClient();
     const { data, error } = await sb
       .from('service_types')
-      .select('id, key, label, description, base_price, is_active, created_at')
+      .select('id, key, name, description, base_price, is_active, created_at')
       .eq('is_active', true)
       .order('sort_order', { ascending: true });
 
@@ -19,7 +19,8 @@ export async function GET() {
       return NextResponse.json(successResponse([]), { status: 200 });
     }
 
-    return NextResponse.json(successResponse(data ?? []), { status: 200 });
+    const normalized = (data ?? []).map((row) => ({ ...row, label: row.name }));
+    return NextResponse.json(successResponse(normalized), { status: 200 });
   } catch {
     return NextResponse.json(successResponse([]), { status: 200 });
   }
