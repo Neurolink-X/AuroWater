@@ -9,7 +9,7 @@ import {
 } from '@/lib/supabase/postgrest-errors';
 import { resolveServiceability } from '@/lib/zones';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
-import { dispatchOrder, sweepCustomerOrders } from '@/lib/dispatch';
+import { dispatchOrder } from '@/lib/dispatch';
 
 /*
  * Real `orders` columns used here:
@@ -124,12 +124,48 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '20') || 20, 1), 100);
   const offset = Math.max(Number(searchParams.get('offset') ?? '0') || 0, 0);
 
-  // Lazy dispatch maintenance (no cron needed): releases unanswered offers and retries unassigned orders
-  if (offset === 0) await sweepCustomerOrders(auth.ctx.profile.id);
+  // Keep the history endpoint read-only and fast.
+  // Dispatch maintenance must not block customer page rendering.
+  // Supplier dispatch continues through the order/dispatch workflow.
 
   let q = auth.ctx.supabase
     .from('orders')
-    .select('*')
+    .select(
+      [
+        'id',
+        'order_number',
+        'status',
+        'customer_id',
+        'supplier_id',
+        'technician_id',
+        'service_type',
+        'sub_option_key',
+        'can_count',
+        'can_order_type',
+        'can_frequency',
+        'can_price_per_unit',
+        'total_amount',
+        'base_amount',
+        'convenience_fee',
+        'emergency_charge',
+        'gst_amount',
+        'final_amount',
+        'payment_method',
+        'payment_status',
+        'address',
+        'address_id',
+        'address_snapshot',
+        'scheduled_at',
+        'time_slot',
+        'is_emergency',
+        'note',
+        'notes',
+        'rating',
+        'has_review',
+        'created_at',
+        'updated_at',
+      ].join(', ')
+    )
     .eq('customer_id', auth.ctx.profile.id)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
