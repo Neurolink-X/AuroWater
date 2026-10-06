@@ -10,6 +10,7 @@ import {
 import { resolveServiceability } from '@/lib/zones';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder } from '@/lib/dispatch';
+import { pickGstRateFromFlat } from '@/lib/api/order-pricing-server';
 import { createServiceClient } from '@/utils/supabase/server';
 import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
 
