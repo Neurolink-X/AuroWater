@@ -165,7 +165,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity, service_type')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, can_quantity')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -429,12 +429,23 @@ export async function sweepDispatchQueue(maxOrders = 100): Promise<{
     const cfg = await loadCfg(db);
     if (!cfg.enabled) return summary;
 
+    const { data: dispatchServices } = await db
+      .from('service_types')
+      .select('id, key')
+      .in('key', ['water_can', 'water_tanker']);
+
+    const waterServiceIds = (dispatchServices ?? [])
+      .map((row: { id?: number }) => Number(row.id))
+      .filter((id: number) => Number.isInteger(id) && id > 0);
+
+    if (!waterServiceIds.length) return summary;
+
     const staleBefore = new Date(Date.now() - cfg.responseSeconds * 1000).toISOString();
 
     const { data: stale } = await db
       .from('orders')
       .select('id, supplier_id')
-      .in('service_type', ['water_can', 'water_tanker'])
+      .in('service_type_id', waterServiceIds)
       .eq('status', 'ASSIGNED')
       .is('accepted_at', null)
       .not('supplier_id', 'is', null)
