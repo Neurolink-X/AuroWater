@@ -493,6 +493,15 @@ export async function acceptAssignment(orderId: string, supplierId: string): Pro
           orderId,
           'stock_unavailable'
         );
+
+        // Release this assignment immediately so the fallback dispatcher can
+        // offer the order to another eligible supplier.
+        await releaseAssignment(
+          orderId,
+          supplierId,
+          'REJECTED',
+          'insufficient stock at acceptance'
+        );
         return false;
       }
     }
