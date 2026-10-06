@@ -150,6 +150,10 @@ export async function GET(req: NextRequest) {
         'scheduled_at',
         'note',
         'rating',
+        'subscription_id',
+        'can_order_type',
+        'can_frequency',
+        'can_price_per_unit',
         'created_at',
         'updated_at',
       ].join(', ')
