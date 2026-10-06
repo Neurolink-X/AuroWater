@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
   // service_types has: id, key, label, description, base_price, is_active
   const { data: st, error: stErr } = await auth.ctx.supabase
     .from('service_types')
-    .select('id, key, label, base_price')
+    .select('id, key, name, base_price')
     .eq('key', service_type_key)
     .eq('is_active', true)
     .maybeSingle();
@@ -402,6 +402,7 @@ if (!serviceability.serviceable) {
     .insert({
       customer_id: customerId,
       service_type: service_type_key,
+      service_type_id: st.id,
       status: 'PENDING',
       zone_id: serviceability.zone?.id ?? null,
       can_count: qty,
@@ -434,8 +435,8 @@ if (!serviceability.serviceable) {
   }
 
   const orderId = String(order.id);
-  const label = typeof st.label === 'string' && st.label.trim()
-    ? st.label
+  const label = typeof st.name === 'string' && st.name.trim()
+    ? st.name
     : service_type_key.replace(/_/g, ' ');
   const slotText = `${sdRaw ?? 'your slot'}${str(body.time_slot) ? ` · ${str(body.time_slot)}` : ''}`;
 
