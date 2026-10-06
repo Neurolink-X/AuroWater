@@ -677,6 +677,39 @@ export async function adminFinance(range?: string): Promise<unknown> {
   return apiFetchAuth(`/admin/finance${q}`);
 }
 
+export type AdminPayoutRow = {
+  id: string;
+  supplier_id: string;
+  amount: number | string;
+  method: string | null;
+  reference: string | null;
+  notes: string | null;
+  status: 'pending' | 'processing' | 'paid' | 'rejected';
+  requested_at: string;
+  processed_at?: string | null;
+  paid_at?: string | null;
+  supplier_name: string;
+  supplier_phone?: string | null;
+  supplier_email?: string | null;
+  supplier_city?: string | null;
+};
+
+export async function adminPayoutsList(status?: AdminPayoutRow['status']): Promise<AdminPayoutRow[]> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return apiFetchAuth<AdminPayoutRow[]>(`/admin/payouts${q}`);
+}
+
+export async function adminPayoutFinalize(
+  id: string,
+  status: 'paid' | 'rejected',
+  reference?: string,
+): Promise<AdminPayoutRow> {
+  return apiFetchAuth<AdminPayoutRow>(`/admin/payouts?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, reference }),
+  });
+}
+
 export async function adminUsers(params?: { role?: string; limit?: number; offset?: number }): Promise<unknown[]> {
   const sp = new URLSearchParams();
   if (params?.role) sp.set('role', params.role);
