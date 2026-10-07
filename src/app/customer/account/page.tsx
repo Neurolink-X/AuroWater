@@ -16,7 +16,7 @@ import LanguageToggle from '@/components/LanguageToggle';
 import { clearSession, getInitials, useAuth } from '@/hooks/useAuth';
 import { getToken } from '@/lib/api-client';
 
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------------------------ */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
 
