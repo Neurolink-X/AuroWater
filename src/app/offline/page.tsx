@@ -105,7 +105,16 @@ export default function OfflinePage() {
         </ul>
       </div>
 
-      <p className="mt-7 max-w-sm text-xs leading-5 text-white/35">
+      <div className="mt-7 max-w-md rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.04] px-5 py-4">
+        <p className="text-sm font-bold leading-6 text-cyan-100">
+          Water is essential. AuroTap is here when you need it.
+        </p>
+        <p className="mt-1 text-xs leading-5 text-white/40">
+          We&apos;ll be here when you&apos;re back online.
+        </p>
+      </div>
+
+      <p className="mt-6 max-w-sm text-xs leading-5 text-white/35">
         AuroWater · Reliable water delivery and essential home services.
       </p>
     </main>
