@@ -412,7 +412,7 @@ if (!serviceability.serviceable) {
       emergency_charge,
       gst_amount,
       address_snapshot,
-      payment_status: 'pending',
+      payment_status: 'unpaid',
       payment_method: str(body.payment_method) ?? 'cash',
       address: addressText || null,
       address_id: addr.id,
