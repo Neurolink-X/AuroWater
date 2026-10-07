@@ -8,6 +8,7 @@ import { getSiteUrl } from '@/lib/env';
 import { Toaster } from 'sonner';
 import OrganizationJsonLd from '@/components/seo/OrganizationJsonLd';
 import WebSiteJsonLd from '@/components/seo/WebSiteJsonLd';
+import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Site configuration
@@ -372,6 +373,10 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <LanguageProvider>
+          {/* Service Worker registration — silent, production-only offline support */}
+
+          <ServiceWorkerRegistration />
+
           {/* OAuth / PKCE callback bridge */}
 
           <AuthPkceBridge />
