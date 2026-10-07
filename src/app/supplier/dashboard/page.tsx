@@ -10,6 +10,10 @@ import React, {
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import {
+  supplierOrderAccept,
+  supplierOrderUpdateStatus,
+} from '@/lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +31,9 @@ type SupplierProfile = {
   rating: number;
   rating_count: number;
   created_at: string;
+  accepted_at?: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
 };
 
 type OrderStatus =
@@ -325,30 +332,35 @@ function StatCard({
 
 function OrderCard({
   order,
+  onAccept,
   onUpdateStatus,
+  onRequestComplete,
   updating,
 }: {
   order: Order;
+  onAccept: (id: string) => Promise<void>;
   onUpdateStatus: (id: string, status: OrderStatus) => Promise<void>;
+  onRequestComplete: (order: Order) => void;
   updating: string | null;
 }) {
   const sm = STATUS_META[order.status];
   const isUpdating = updating === order.id;
 
   const nextStatus: Record<OrderStatus, OrderStatus | null> = {
-    pending: 'assigned',
-    assigned: 'in_progress',
+    pending: null,
+    assigned: order.accepted_at ? 'in_progress' : null,
     in_progress: 'delivered',
     delivered: null,
     cancelled: null,
   };
 
   const next = nextStatus[order.status];
+  const isAssignedAndWaiting = order.status === 'assigned' && !order.accepted_at;
 
   const nextLabel: Record<OrderStatus, string> = {
-    pending: 'Accept',
+    pending: '',
     assigned: 'Start Delivery',
-    in_progress: 'Mark Delivered',
+    in_progress: 'Complete Order',
     delivered: '',
     cancelled: '',
   };
@@ -435,12 +447,39 @@ function OrderCard({
           </p>
         )}
 
+        {/* Assignment acceptance */}
+        {isAssignedAndWaiting && (
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={() => onAccept(order.id)}
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: 10,
+              border: '1px solid rgba(56,189,248,0.25)',
+              background: isUpdating ? 'rgba(56,189,248,0.08)' : 'rgba(56,189,248,0.12)',
+              color: isUpdating ? 'rgba(255,255,255,0.4)' : '#7DD3FC',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: isUpdating ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+            }}
+          >
+            {isUpdating ? 'Confirming…' : 'Accept Order'}
+          </button>
+        )}
+
         {/* Action button */}
         {next && (
           <button
             type="button"
             disabled={isUpdating}
-            onClick={() => onUpdateStatus(order.id, next)}
+            onClick={() => next === 'delivered' ? onRequestComplete(order) : onUpdateStatus(order.id, next)}
             style={{
               width: '100%',
               padding: '10px',
@@ -501,6 +540,9 @@ export default function SupplierDashboardPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
   const realtimeRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
@@ -556,7 +598,8 @@ export default function SupplierDashboardPage() {
       .from('orders')
       .select(
         `id, booking_id, service_type, status, amount, cans_count,
-         scheduled_date, scheduled_slot, notes, created_at,
+         scheduled_date, scheduled_slot, notes, created_at, accepted_at,
+         payment_method, payment_status,
          address_line:delivery_address, city,
          customer_name:customers!orders_customer_id_fkey(full_name),
          customer_phone:customers!orders_customer_id_fkey(phone)`
@@ -708,33 +751,73 @@ export default function SupplierDashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Order status update ─────────────────────────────────────────────────────
-  const handleUpdateStatus = useCallback(
-    async (orderId: string, newStatus: OrderStatus) => {
-      setUpdatingOrder(orderId);
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: newStatus,
-          ...(newStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
-        })
-        .eq('id', orderId);
-
-      if (error) {
-        toast.error('Failed to update order status.');
-      } else {
-        toast.success(
-          newStatus === 'delivered'
-            ? '✅ Order marked as delivered!'
-            : `Order moved to ${STATUS_META[newStatus].label}`
-        );
-        setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-        );
-      }
+  // ── Protected supplier workflow actions ─────────────────────────────────────
+  const handleAcceptOrder = useCallback(async (orderId: string) => {
+    setUpdatingOrder(orderId);
+    try {
+      await supplierOrderAccept(orderId);
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, accepted_at: new Date().toISOString() }
+            : o
+        )
+      );
+      toast.success('Order accepted. You can now start delivery.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Unable to accept this order.');
+      if (profile?.id) await fetchOrders(profile.id);
+    } finally {
       setUpdatingOrder(null);
+    }
+  }, [profile?.id]);
+
+  const handleUpdateStatus = useCallback(
+    async (
+      orderId: string,
+      newStatus: OrderStatus,
+      payment?: {
+        payment_confirmed?: boolean;
+        payment_reference?: string;
+      },
+    ) => {
+      setUpdatingOrder(orderId);
+      try {
+        const apiStatus = newStatus === 'delivered' ? 'COMPLETED' : 'IN_PROGRESS';
+
+        await supplierOrderUpdateStatus(orderId, apiStatus, payment);
+
+        const nextStatus = newStatus === 'delivered' ? 'delivered' : newStatus;
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status: nextStatus,
+                  ...(nextStatus === 'delivered'
+                    ? { payment_status: 'paid' }
+                    : {}),
+                }
+              : o
+          )
+        );
+
+        toast.success(
+          nextStatus === 'delivered'
+            ? 'Order completed and payment recorded.'
+            : `Order moved to ${STATUS_META[nextStatus].label}`
+        );
+      } catch (e) {
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : 'Failed to update order status.'
+        );
+      } finally {
+        setUpdatingOrder(null);
+      }
     },
-    [supabase]
+    [],
   );
 
   // ── Sign out ────────────────────────────────────────────────────────────────
