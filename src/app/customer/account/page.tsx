@@ -241,18 +241,20 @@ function LockIcon() {
  * so this gives a one-tap route back to the main site (Home) without losing the dashboard.
  */
 function TopBar() {
-  const pill =
-    'inline-flex min-h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-bold text-slate-600 transition hover:bg-sky-50 hover:text-sky-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100 sm:px-3';
+  const navItem =
+    'inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-bold transition focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100';
+  const activeItem = 'bg-sky-50 text-sky-800';
+  const idleItem = 'text-slate-600 hover:bg-slate-50 hover:text-sky-800';
 
   return (
-    <div className="sticky top-0 z-40 border-b border-sky-100/80 bg-white/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
+    <div className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 pt-[env(safe-area-inset-top)] shadow-[0_1px_12px_rgba(15,23,42,0.04)] backdrop-blur-xl">
+      <div className="mx-auto flex min-h-16 max-w-6xl items-center gap-2 px-3 sm:px-6 lg:px-8">
         <Link
-          href="/"
-          className="group flex shrink-0 items-center gap-2.5 rounded-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
-          aria-label="AuroTap home"
+          href="/customer/account"
+          className="group flex min-w-0 shrink-0 items-center gap-2.5 rounded-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-100"
+          aria-label="AuroTap account"
         >
-          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-white shadow-md shadow-sky-200/60 ring-1 ring-sky-100 transition-transform group-hover:scale-105">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-sky-100 transition-transform group-hover:scale-105">
             <Image
               src="/splash-logo.svg"
               alt=""
@@ -262,34 +264,41 @@ function TopBar() {
               unoptimized
             />
           </span>
-          <span className="hidden text-base font-black tracking-tight text-slate-900 sm:block">
-            Auro<span className="text-sky-600">Tap</span>
+
+          <span className="hidden min-w-0 sm:block">
+            <span className="block truncate text-sm font-black tracking-tight text-slate-950">
+              Auro<span className="text-sky-600">Tap</span>
+            </span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+              Account
+            </span>
           </span>
         </Link>
 
-        <nav aria-label="Account navigation" className="flex items-center gap-1">
-          <Link href="/" className={pill}>
+        <nav aria-label="Account navigation" className="ml-auto flex items-center gap-1">
+          <Link href="/" className={`${navItem} ${idleItem}`}>
             <HomeIcon />
-            Home
+            <span className="hidden sm:inline">Home</span>
           </Link>
 
-          <Link href="/customer/home" className={pill}>
+          <Link href="/customer/home" className={`${navItem} ${idleItem}`}>
             <GridIcon />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </Link>
 
-          <Link href="/customer/history" className={`${pill} hidden md:inline-flex`}>
+          <Link href="/customer/history" className={`${navItem} ${idleItem}`}>
             <ListIcon />
-            Orders
+            <span className="hidden sm:inline">Orders</span>
           </Link>
 
-          <Link
-            href="/book"
-            className="ml-1 inline-flex min-h-10 items-center gap-1.5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 px-4 text-sm font-black text-white shadow-md shadow-cyan-500/25 transition hover:opacity-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-sky-200 active:scale-95"
+          <span
+            aria-current="page"
+            className={`${navItem} ${activeItem} ml-0.5`}
           >
-            Book
-            <span aria-hidden="true">→</span>
-          </Link>
+            <span className="hidden sm:inline">Account</span>
+            <span className="sm:hidden" aria-hidden="true">●</span>
+            <span className="sr-only sm:hidden">Account</span>
+          </span>
         </nav>
       </div>
     </div>
@@ -1168,23 +1177,23 @@ export default function CustomerAccountPage() {
             : 'pb-[calc(6rem+env(safe-area-inset-bottom))]'
         }`}
       >
-        <div className="mx-auto max-w-5xl px-4 pt-5 sm:px-6 sm:pt-6 lg:px-8">
+        <div className="mx-auto w-full max-w-6xl px-3 pt-4 sm:px-5 sm:pt-6 lg:px-8">
           {/* ---------------------------------------------------------------- */}
           {/* Profile hero                                                     */}
           {/* ---------------------------------------------------------------- */}
-          <header className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#071f38] via-[#0f4a8f] to-[#0ea5e9] p-5 text-white shadow-xl shadow-sky-300/40 sm:p-7">
+          <header className="relative overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-[#071f38] via-[#0f4a8f] to-[#0ea5e9] p-4 text-white shadow-xl shadow-sky-300/30 sm:rounded-3xl sm:p-7">
             <div className="pointer-events-none absolute inset-0" aria-hidden="true">
               <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl" />
               <div className="absolute -bottom-28 left-1/3 h-64 w-64 rounded-full bg-blue-400/20 blur-3xl" />
             </div>
 
-            <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-              <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+            <div className="relative flex flex-col gap-5 sm:gap-6 md:flex-row md:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5 sm:gap-5">
                 <div
                   className="shrink-0 rounded-full bg-gradient-to-br from-cyan-200 via-white/70 to-sky-300 p-[3px] shadow-lg shadow-black/20"
                   aria-hidden="true"
                 >
-                  <div className="grid h-[76px] w-[76px] place-items-center rounded-full bg-[#0a3a6b] text-2xl font-black sm:h-20 sm:w-20">
+                  <div className="grid h-16 w-16 place-items-center rounded-full bg-[#0a3a6b] text-xl font-black sm:h-20 sm:w-20 sm:text-2xl">
                     {initials}
                   </div>
                 </div>
@@ -1216,7 +1225,7 @@ export default function CustomerAccountPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 rounded-2xl border border-white/15 bg-white/10 p-3.5 pr-5 backdrop-blur sm:w-auto">
+              <div className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 pr-4 backdrop-blur sm:w-auto sm:gap-4 sm:p-3.5 sm:pr-5">
                 <StrengthRing pct={completeness.pct} loading={loading} />
 
                 <div className="min-w-0">
@@ -1233,18 +1242,18 @@ export default function CustomerAccountPage() {
               </div>
             </div>
 
-            <div className="relative mt-5 flex flex-wrap gap-2.5">
+            <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
               <button
                 type="button"
                 onClick={handleEditProfile}
-                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-[#0a3a6b] shadow-md shadow-black/10 transition hover:bg-sky-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-white px-3 text-sm font-black text-[#0a3a6b] shadow-md shadow-black/10 transition hover:bg-sky-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/40 sm:w-auto sm:px-5"
               >
                 Edit profile
               </button>
 
               <Link
                 href="/customer/history"
-                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/25 bg-white/10 px-5 text-sm font-bold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-white/25 bg-white/10 px-3 text-sm font-bold text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-4 focus-visible:ring-white/30 sm:w-auto sm:px-5"
               >
                 My orders
               </Link>
@@ -1258,7 +1267,7 @@ export default function CustomerAccountPage() {
           ) : null}
 
           {/* Activity */}
-          <section className="mt-8" aria-labelledby="account-activity">
+          <section className="mt-6 sm:mt-8" aria-labelledby="account-activity">
             <SectionTitle
               title="Your activity"
               description="A quick view of your AuroTap usage."
@@ -1272,7 +1281,7 @@ export default function CustomerAccountPage() {
               Your activity
             </span>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
               <StatCard
                 icon="📦"
                 tone="sky"
@@ -1311,7 +1320,7 @@ export default function CustomerAccountPage() {
             </div>
           </section>
 
-          <div className="mt-8 grid gap-8 lg:grid-cols-5">
+          <div className="mt-6 grid gap-6 sm:mt-8 sm:gap-8 lg:grid-cols-5">
             {/* ───────── Left column: profile + preferences ───────── */}
             <div className="space-y-8 lg:col-span-3">
               <section ref={formRef} className="scroll-mt-20" aria-label="Profile details">
