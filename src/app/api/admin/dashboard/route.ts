@@ -219,6 +219,8 @@ export async function GET(req: NextRequest) {
       cOnlineTechnicians,
       cPendingKyc,
       cFraudFlags,
+      cOpenQualityCases,
+      cUnacceptedTechnicianOffers,
       cUnacceptedAssignments,
       cUnpaidCompleted,
       cActiveEmergencies,
