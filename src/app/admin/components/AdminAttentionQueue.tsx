@@ -8,6 +8,8 @@ export interface AdminAttentionData {
   unpaid_completed_amount: number;
   active_emergencies: number;
   stale_active_orders: number;
+  open_quality_cases: number;
+  unaccepted_technician_offers: number;
 }
 
 function inr(value: number): string {
@@ -25,6 +27,8 @@ export default function AdminAttentionQueue({
     ['Unpaid amount', inr(attention.unpaid_completed_amount), 'Completed revenue not collected', 'text-red-300'],
     ['Active emergency', attention.active_emergencies, 'Priority jobs currently active', 'text-orange-300'],
     ['Stale jobs', attention.stale_active_orders, 'Active for more than 30 min', 'text-sky-300'],
+    ['Tech offers', attention.unaccepted_technician_offers, 'Technician offers awaiting response', 'text-violet-300'],
+    ['Quality cases', attention.open_quality_cases, 'Open service-quality investigations', 'text-rose-300'],
   ] as const;
 
   return (
@@ -44,7 +48,7 @@ export default function AdminAttentionQueue({
         </Link>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-7">
         {items.map(([label, value, hint, tone]) => (
           <div key={label} className="rounded-xl border border-white/8 bg-white/[0.035] p-3.5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
