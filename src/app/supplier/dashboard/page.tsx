@@ -15,6 +15,8 @@ import {
   supplierOrderUpdateStatus,
   supplierStockGet,
   supplierStockUpdate,
+  supplierSettingsGet,
+  supplierSettingsUpdate,
 } from '@/lib/api-client';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -559,6 +561,8 @@ export default function SupplierDashboardPage() {
   const [stockDelta, setStockDelta] = useState('');
   const [stockBusy, setStockBusy] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [dispatchOnline, setDispatchOnline] = useState(false);
+  const [dispatchSettingsBusy, setDispatchSettingsBusy] = useState(false);
 
   const [tab, setTab] = useState<'active' | 'history'>('active');
   const [showNotifs, setShowNotifs] = useState(false);
@@ -595,6 +599,7 @@ export default function SupplierDashboardPage() {
         fetchProfile(userId),
         fetchNotifications(userId),
         fetchStock(),
+        fetchDispatchSettings(),
       ]);
     } finally {
       setLoading(false);
@@ -695,6 +700,30 @@ export default function SupplierDashboardPage() {
     }
 
     setEarnings((data as EarningRow[]) ?? []);
+  };
+
+  const fetchDispatchSettings = async () => {
+    try {
+      const data = await supplierSettingsGet();
+      setDispatchOnline(Boolean(data?.is_online));
+    } catch (error) {
+      console.error('[supplier] dispatch settings load failed:', error);
+    }
+  };
+
+  const toggleDispatchAvailability = async () => {
+    if (dispatchSettingsBusy) return;
+    setDispatchSettingsBusy(true);
+    try {
+      const data = await supplierSettingsUpdate({ is_online: !dispatchOnline });
+      setDispatchOnline(Boolean(data.is_online));
+      toast.success(data.is_online ? 'You are now available for nearby orders.' : 'You are offline for new orders.');
+    } catch (error) {
+      console.error('[supplier] dispatch availability update failed:', error);
+      toast.error('Could not update order availability.');
+    } finally {
+      setDispatchSettingsBusy(false);
+    }
   };
 
   const fetchStock = async () => {
@@ -1379,9 +1408,25 @@ export default function SupplierDashboardPage() {
             </div>
 
             <div style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 18 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: '#7DD3FC', letterSpacing: '0.08em' }}>DISPATCH SAFETY</div>
-              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: '#F0F4FF' }}>Protect stock before accepting</div>
-              <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(255,255,255,0.42)' }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#7DD3FC', letterSpacing: '0.08em' }}>DISPATCH CONTROL</div>
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#F0F4FF' }}>Accept nearby orders</div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                    {dispatchOnline ? 'You are visible to dispatch.' : 'You are hidden from new dispatch offers.'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={dispatchSettingsBusy}
+                  onClick={() => void toggleDispatchAvailability()}
+                  aria-pressed={dispatchOnline}
+                  style={{ border: 0, borderRadius: 999, padding: '8px 12px', background: dispatchOnline ? '#0D9B6C' : 'rgba(255,255,255,0.08)', color: '#fff', fontWeight: 800 }}
+                >
+                  {dispatchSettingsBusy ? '…' : dispatchOnline ? 'Online' : 'Offline'}
+                </button>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 11, lineHeight: 1.5, color: 'rgba(255,255,255,0.42)' }}>
                 Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.
               </div>
               <button
