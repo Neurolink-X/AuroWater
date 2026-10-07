@@ -606,48 +606,59 @@ export default function SupplierDashboardPage() {
 
   const fetchOrders = async (supplierId: string) => {
     setLoadingOrders(true);
-    const { data, error } = await supabase
-      .from('orders')
-      .select(
-        `id, booking_id, service_type, status, amount, cans_count,
-         scheduled_date, scheduled_slot, notes, created_at, accepted_at,
-         payment_method, payment_status,
-         address_line:delivery_address, city,
-         customer_name:customers!orders_customer_id_fkey(full_name),
-         customer_phone:customers!orders_customer_id_fkey(phone)`
-      )
-      .eq('supplier_id', supplierId)
-      .order('created_at', { ascending: false })
-      .limit(100);
 
-    if (error) {
-      toast.error('Failed to load orders.');
-      setLoadingOrders(false);
-      return;
-    }
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(
+          `id, booking_id, service_type, status, amount, cans_count,
+           scheduled_date, scheduled_slot, notes, created_at, accepted_at,
+           payment_method, payment_status,
+           address_line:delivery_address, city,
+           customer_name:customers!orders_customer_id_fkey(full_name),
+           customer_phone:customers!orders_customer_id_fkey(phone)`
+        )
+        .eq('supplier_id', supplierId)
+        .order('created_at', { ascending: false })
+        .limit(100);
 
- // Flatten nested joins
-const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
-  id: row.id as string,
-  booking_id: row.booking_id as string,
-  service_type: row.service_type as string,
-  status: normalizeOrderStatus(row.status),
-  amount: row.amount as number,
-  cans_count: row.cans_count as number | null,
-  scheduled_date: row.scheduled_date as string,
-  scheduled_slot: row.scheduled_slot as string,
-  notes: row.notes as string | null,
-  created_at: row.created_at as string,
-  accepted_at: row.accepted_at as string | null,
-  payment_method: row.payment_method as string | null,
-  payment_status: row.payment_status as string | null,
-  address_line: row.address_line as string,
-  city: row.city as string,
-  customer_name: (row.customer_name as { full_name: string })?.full_name ?? '—',
-  customer_phone: (row.customer_phone as { phone: string })?.phone ?? '—',
-}));
+      if (error) {
+        console.error('[supplier] orders load failed:', error);
+        toast.error('Failed to load orders.');
+        setOrders([]);
+        return;
+      }
 
-setOrders(flat);
+      const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
+        id: String(row.id ?? ''),
+        booking_id: String(row.booking_id ?? ''),
+        service_type: String(row.service_type ?? 'Service'),
+        status: normalizeOrderStatus(row.status),
+        amount: Number(row.amount ?? 0),
+        cans_count:
+          row.cans_count === null || row.cans_count === undefined
+            ? null
+            : Number(row.cans_count),
+        scheduled_date: String(row.scheduled_date ?? ''),
+        scheduled_slot: String(row.scheduled_slot ?? ''),
+        notes: row.notes as string | null,
+        created_at: String(row.created_at ?? ''),
+        accepted_at: row.accepted_at as string | null,
+        payment_method: row.payment_method as string | null,
+        payment_status: row.payment_status as string | null,
+        address_line: String(row.address_line ?? ''),
+        city: String(row.city ?? ''),
+        customer_name:
+          (row.customer_name as { full_name?: string } | null)?.full_name ?? '—',
+        customer_phone:
+          (row.customer_phone as { phone?: string } | null)?.phone ?? '—',
+      }));
+
+      setOrders(flat);
+    } catch (error) {
+      console.error('[supplier] unexpected orders load failure:', error);
+      toast.error('Unable to load supplier orders right now.');
+      setOrders([]);
     } finally {
       setLoadingOrders(false);
     }
