@@ -857,10 +857,26 @@ export async function supplierOrdersList(params?: { status?: string }): Promise<
   return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
 }
 
-export async function supplierOrderUpdateStatus(id: string, status: string): Promise<ApiOrder> {
-  return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}/status`, {
+export async function supplierOrderAccept(id: string): Promise<{ accepted: boolean }> {
+  return apiFetchAuth<{ accepted: boolean }>(`/supplier/orders/${id}/accept`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+  });
+}
+
+export async function supplierOrderUpdateStatus(
+  id: string,
+  status: string,
+  payment?: {
+    payment_confirmed?: boolean;
+    payment_reference?: string;
+  }
+): Promise<ApiOrder> {
+  return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      status,
+      ...payment,
+    }),
   });
 }
 
@@ -1150,7 +1166,7 @@ export const api = {
     settings: { get: adminSettingsGet, put: adminSettingsPut },
   },
   supplier: {
-    orders: { list: supplierOrdersList, updateStatus: supplierOrderUpdateStatus },
+    orders: { list: supplierOrdersList, accept: supplierOrderAccept, updateStatus: supplierOrderUpdateStatus },
     earnings: { summary: supplierEarningsSummary, history: supplierPayoutHistory },
     payouts: { request: supplierPayoutRequest },
   },
