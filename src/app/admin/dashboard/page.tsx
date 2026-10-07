@@ -20,6 +20,8 @@ import {
   adminFinance,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
+import AdminAttentionQueue from '@/app/admin/components/AdminAttentionQueue';
+import PaymentReconciliationCard from '@/app/admin/components/PaymentReconciliationCard';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -322,7 +324,7 @@ export default function AdminDashboardPage() {
       setOrders((o as AdminOrderRow[]) || []);
       setUsersCount(Array.isArray(u) ? u.length : 0);
       setPricingRules(Array.isArray(p) ? p : []);
-      setFinanceSnapshot(f as typeof financeSnapshot);
+      setFinanceSnapshot(f);
       setLastUpdated(new Date());
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to load dashboard';
@@ -625,33 +627,9 @@ export default function AdminDashboardPage() {
             <div className="fade-up space-y-5">
 
               {/* ─── ATTENTION REQUIRED ───────────────────────────────── */}
-          {dashboard.kpis.attention && (
-            <section className="glass rounded-2xl p-4 sm:p-5" aria-labelledby="admin-attention-title">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-400">Operations radar</p>
-                  <h2 id="admin-attention-title" className="adm-disp mt-1 text-lg font-bold text-white">Attention Required</h2>
-                  <p className="mt-1 text-xs text-slate-500">Live exceptions that may affect delivery, payment or customer experience.</p>
-                </div>
-                <Link href="/admin/orders" className="adm-btn adm-btn-g adm-btn-sm">Open Order Control →</Link>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-                {[
-                  ['Unaccepted', dashboard.kpis.attention.unaccepted_assignments, 'Supplier assignment waiting', 'text-amber-300'],
-                  ['Unpaid completed', dashboard.kpis.attention.unpaid_completed_orders, 'Completed but payment open', 'text-red-300'],
-                  ['Unpaid amount', inr(dashboard.kpis.attention.unpaid_completed_amount), 'Completed revenue not collected', 'text-red-300'],
-                  ['Active emergency', dashboard.kpis.attention.active_emergencies, 'Priority jobs currently active', 'text-orange-300'],
-                  ['Stale jobs', dashboard.kpis.attention.stale_active_orders, 'Active for more than 30 min', 'text-sky-300'],
-                ].map(([label, value, hint, tone]) => (
-                  <div key={label} className="rounded-xl border border-white/8 bg-white/[0.035] p-3.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
-                    <p className={`mt-1 text-xl font-black tabular-nums ${tone}`}>{value}</p>
-                    <p className="mt-1 text-[10px] leading-4 text-slate-600">{hint}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+              {dashboard.kpis.attention && (
+                <AdminAttentionQueue attention={dashboard.kpis.attention} />
+              )}
 
           {/* ══════════ OVERVIEW ══════════ */}
               {tab === 'overview' && (
@@ -804,28 +782,7 @@ export default function AdminDashboardPage() {
 
                   {/* Payment reconciliation */}
                   {financeSnapshot && (
-                    <div className="glass rounded-2xl p-6">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-400">30-day collection control</p>
-                          <h2 className="adm-disp mt-1 text-base font-bold text-white">Payment Reconciliation</h2>
-                        </div>
-                        <Link href="/admin/orders?payment_status=unpaid" className="text-xs font-semibold text-sky-400 hover:text-sky-300">Review unpaid orders →</Link>
-                      </div>
-                      <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        {[
-                          ['Completed orders', financeSnapshot.order_count, 'text-white'],
-                          ['Gross', inr(financeSnapshot.gross_revenue), 'text-emerald-300'],
-                          ['Collected', inr(financeSnapshot.collected_revenue), 'text-cyan-300'],
-                          ['Pending', inr(financeSnapshot.pending_payments), 'text-amber-300'],
-                        ].map(([label, value, tone]) => (
-                          <div key={label} className="rounded-xl border border-white/8 bg-white/[0.035] p-3.5">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{label}</p>
-                            <p className={`mt-1 text-lg font-black tabular-nums ${tone}`}>{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <PaymentReconciliationCard finance={financeSnapshot} />
                   )}
 
                   {/* Revenue summary */}
