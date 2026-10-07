@@ -9,7 +9,7 @@ import {
 } from '@/lib/supabase/postgrest-errors';
 import { resolveServiceability } from '@/lib/zones';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
-import { dispatchOrder } from '@/lib/dispatch';
+import { dispatchOrder, dispatchTechnicianJob } from '@/lib/dispatch';
 import { createServiceClient } from '@/utils/supabase/server';
 import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
 
@@ -562,13 +562,24 @@ if (!serviceability.serviceable) {
     }
   }
 
-  // ── Supplier dispatch (water cans): nearest eligible supplier, with automatic fallback ──
+  // ── Role-aware dispatch ─────────────────────────────────────────────
+  // Water delivery uses the supplier engine. Home-service jobs use the
+  // technician engine with location ranking + atomic fallback.
   let supplierId: string | null = null;
+  let technicianId: string | null = null;
+
   if (isWater) {
     const d = await dispatchOrder(orderId);
     supplierId = d.supplierId;
     if (supplierId) {
       (order as Record<string, unknown>).supplier_id = supplierId;
+      (order as Record<string, unknown>).status = 'ASSIGNED';
+    }
+  } else {
+    const d = await dispatchTechnicianJob(orderId);
+    technicianId = d.technicianId;
+    if (technicianId) {
+      (order as Record<string, unknown>).technician_id = technicianId;
       (order as Record<string, unknown>).status = 'ASSIGNED';
     }
   }
