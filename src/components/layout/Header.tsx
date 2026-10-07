@@ -8,6 +8,7 @@ import { authLogout, getToken } from '@/lib/api-client';
 import { createClient } from '@/utils/supabase/client';
 import { FALLBACK_CITIES, type City } from '@/lib/cities';
 import { safeGet, safeSet } from '@/lib/storage';
+import Image from "next/image";
 
 /* ───────────── Navigation data ───────────── */
 
@@ -380,15 +381,27 @@ export default function Header() {
           }`}
         />
 
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6">
-          <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="AuroWater home">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
-              <span className="text-xs font-black text-white">AW</span>
-            </span>
-            <span className="hidden whitespace-nowrap text-lg font-bold tracking-tight text-white sm:block">
-              Auro<span className="text-cyan-400">Water</span>
-            </span>
-          </Link>
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6">
+  <Link
+    href="/"
+    className="group flex shrink-0 items-center gap-2.5"
+    aria-label="AuroWater home"
+  >
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
+      <Image
+        src="/splash-logo.png"
+        alt=""
+        width={36}
+        height={36}
+        className="h-full w-full object-cover"
+        priority
+      />
+    </span>
+
+    <span className="hidden whitespace-nowrap text-lg font-bold tracking-tight text-white sm:block">
+      Auro<span className="text-cyan-400">Water</span>
+    </span>
+  </Link>
 
           <nav className="ml-2 hidden items-center gap-1 lg:flex" aria-label="Main">
             {/* Services: a real link (good for SEO) plus a quick-book menu */}
