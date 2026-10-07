@@ -3,6 +3,12 @@
 
 BEGIN;
 
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+INSERT INTO public.settings (key, value)
+VALUES ('technician_max_active_jobs','3'), ('technician_service_radius_km','15')
+ON CONFLICT (key) DO NOTHING;
+
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS current_lat DOUBLE PRECISION,
   ADD COLUMN IF NOT EXISTS current_lng DOUBLE PRECISION,
