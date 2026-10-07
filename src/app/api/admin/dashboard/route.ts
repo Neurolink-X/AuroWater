@@ -219,6 +219,10 @@ export async function GET(req: NextRequest) {
       cOnlineTechnicians,
       cPendingKyc,
       cFraudFlags,
+      cUnacceptedAssignments,
+      cUnpaidCompleted,
+      cActiveEmergencies,
+      cStaleActiveOrders,
     ] = await Promise.all([
       sb.from('orders').select('*', { count: 'exact', head: true }),
       sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
@@ -234,6 +238,10 @@ export async function GET(req: NextRequest) {
       sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'technician').eq('is_online', true),
       sb.from('applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
       sb.from('fraud_flags').select('*', { count: 'exact', head: true }).eq('resolved', false),
+      sb.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'ASSIGNED').is('accepted_at', null),
+      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').eq('payment_status', 'unpaid'),
+      sb.from('orders').select('*', { count: 'exact', head: true }).eq('is_emergency', true).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']),
+      sb.from('orders').select('*', { count: 'exact', head: true }).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']).lt('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()),
     ]);
 
     const countAndRows = [
@@ -251,6 +259,10 @@ export async function GET(req: NextRequest) {
       cOnlineTechnicians,
       cPendingKyc,
       cFraudFlags,
+      cUnacceptedAssignments,
+      cUnpaidCompleted,
+      cActiveEmergencies,
+      cStaleActiveOrders,
     ];
 
     for (const r of countAndRows) {
@@ -286,6 +298,13 @@ export async function GET(req: NextRequest) {
         online_technicians: cOnlineTechnicians.count ?? 0,
         pending_kyc: cPendingKyc.count ?? 0,
         fraud_alerts: cFraudFlags.count ?? 0,
+        attention: {
+          unaccepted_assignments: cUnacceptedAssignments.count ?? 0,
+          unpaid_completed_orders: cUnpaidCompleted.data?.length ?? 0,
+          unpaid_completed_amount: revSum(cUnpaidCompleted.data as Array<{ total_amount: unknown }> | null),
+          active_emergencies: cActiveEmergencies.count ?? 0,
+          stale_active_orders: cStaleActiveOrders.count ?? 0,
+        },
       },
       recent_orders: recentOrders,
       top_suppliers: topSuppliers,
