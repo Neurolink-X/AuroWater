@@ -299,6 +299,7 @@ export default function TrackOrderPage() {
     if (!sb) return;
     let cancelled = false;
 
+    // Keep the critical order render fast: supplier profile loads independently.
     void sb
       .from('profiles')
       .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
@@ -308,24 +309,24 @@ export default function TrackOrderPage() {
         if (!cancelled && data) setSupplier(data as ProfileLite);
       });
 
-    void (async () => {
-      const { data: orders } = await sb
-        .from('orders')
-        .select('id')
-        .eq('supplier_id', supplierId)
-        .limit(300);
-      const ids = (orders ?? [])
-        .map((o) => String((o as { id?: string }).id ?? ''))
-        .filter(Boolean);
-      if (!ids.length) return;
-      const { data: revs } = await sb.from('reviews').select('rating').in('order_id', ids);
-      const nums = (revs ?? [])
-        .map((r) => Number((r as { rating?: number }).rating ?? 0))
-        .filter((n) => n > 0);
-      if (!cancelled) {
-        setSupplierRating(nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null);
-      }
-    })();
+    // Rating is non-critical. Load only a small recent sample instead of
+    // fetching hundreds of order IDs and then a second reviews query.
+    void sb
+      .from('reviews')
+      .select('rating')
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data: revs }) => {
+        const nums = (revs ?? [])
+          .map((r) => Number((r as { rating?: number }).rating ?? 0))
+          .filter((n) => n > 0);
+        if (!cancelled) {
+          setSupplierRating(
+            nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null,
+          );
+        }
+      });
 
     return () => {
       cancelled = true;
