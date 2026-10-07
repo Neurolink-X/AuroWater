@@ -94,7 +94,7 @@ CREATE OR REPLACE FUNCTION public.adjust_supplier_stock(
   p_low_stock_alert INTEGER DEFAULT NULL,
   p_reservation_buffer_cans INTEGER DEFAULT NULL
 ) RETURNS public.supplier_stock
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE r public.supplier_stock; next_available INTEGER;
 BEGIN
   IF auth.role() <> 'service_role' AND auth.uid() IS DISTINCT FROM p_supplier_id AND public.current_profile_role() <> 'admin' THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
@@ -118,7 +118,7 @@ CREATE OR REPLACE FUNCTION public.set_supplier_stock(
   p_low_stock_alert INTEGER DEFAULT NULL,
   p_reservation_buffer_cans INTEGER DEFAULT NULL
 ) RETURNS public.supplier_stock
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE r public.supplier_stock;
 BEGIN
   IF auth.role() <> 'service_role' AND auth.uid() IS DISTINCT FROM p_supplier_id AND public.current_profile_role() <> 'admin' THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
@@ -140,7 +140,7 @@ CREATE OR REPLACE FUNCTION public.try_assign_supplier_with_stock(
   p_supplier_id UUID,
   p_distance_km NUMERIC DEFAULT NULL
 ) RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE o public.orders; s public.supplier_stock; qty INTEGER; now_ts TIMESTAMPTZ:=now();
 BEGIN
   IF auth.role() <> 'service_role' AND public.current_profile_role() <> 'admin' AND auth.uid() IS DISTINCT FROM p_supplier_id THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
@@ -166,7 +166,7 @@ END; $$;
 
 CREATE OR REPLACE FUNCTION public.sync_order_stock_reservation()
 RETURNS TRIGGER
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE supplier UUID; qty INTEGER;
 BEGIN
   IF OLD.stock_reservation_status <> 'reserved' OR OLD.stock_reserved_quantity <= 0 OR OLD.stock_reserved_supplier_id IS NULL THEN RETURN NEW; END IF;
