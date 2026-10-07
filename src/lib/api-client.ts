@@ -971,6 +971,17 @@ export async function technicianJobReject(id: string): Promise<{ released: boole
   });
 }
 
+export async function technicianAvailabilityUpdate(body: {
+  online: boolean;
+  lat?: number | null;
+  lng?: number | null;
+}): Promise<{ id: string; is_online: boolean; availability_status: string; current_lat: number | null; current_lng: number | null; last_seen_at: string | null }> {
+  return apiFetchAuth('/technician/availability', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
 export async function technicianJobAccept(id: string): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/technician/jobs/${id}/accept`, { method: 'PUT' });
 }
