@@ -397,6 +397,240 @@ export async function releaseAssignment(
   }
 }
 
+export type TechnicianDispatchResult = {
+  technicianId: string | null;
+  reason: 'assigned' | 'not_pending' | 'no_candidates' | 'max_attempts' | 'error';
+  distanceKm?: number | null;
+};
+
+async function technicianTrustScores(db: any, ids: string[]) {
+  if (!ids.length) return new Map<string, number>();
+  const { data } = await db
+    .from('orders')
+    .select('technician_id, rating, status')
+    .in('technician_id', ids)
+    .eq('status', 'COMPLETED')
+    .limit(5000);
+
+  const acc = new Map<string, { sum: number; rated: number; completed: number }>();
+  for (const row of (data ?? []) as any[]) {
+    const id = String(row.technician_id ?? '');
+    if (!id) continue;
+    const cur = acc.get(id) ?? { sum: 0, rated: 0, completed: 0 };
+    cur.completed += 1;
+    const rating = Number(row.rating);
+    if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
+      cur.sum += rating;
+      cur.rated += 1;
+    }
+    acc.set(id, cur);
+  }
+
+  const scores = new Map<string, number>();
+  for (const id of ids) {
+    const x = acc.get(id);
+    if (!x) {
+      scores.set(id, 50);
+      continue;
+    }
+    const ratingScore = x.rated ? (x.sum / x.rated) / 5 * 70 : 50;
+    const experienceScore = Math.min(20, x.completed / 20);
+    scores.set(id, Math.round((ratingScore + experienceScore + 10) * 100) / 100);
+  }
+  return scores;
+}
+
+/** Assign a non-water service to the nearest eligible technician with atomic fallback. */
+export async function dispatchTechnicianJob(orderId: string): Promise<TechnicianDispatchResult> {
+  try {
+    const db: any = createServiceClient();
+    const cfg = await loadCfg(db);
+
+    const { data: order } = await db
+      .from('orders')
+      .select('id, customer_id, status, technician_id, address_id, address_snapshot, technician_dispatch_attempts')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!order || order.status !== 'PENDING' || order.technician_id) {
+      return { technicianId: null, reason: 'not_pending' };
+    }
+
+    const attempts = Number(order.technician_dispatch_attempts ?? 0);
+    const maxAttempts = Math.max(1, Math.min(10, cfg.maxAttempts));
+    if (attempts >= maxAttempts) {
+      await alertAdmins(db, orderId, 'Technician dispatch attempts exhausted; manual assignment is required.', 'technician_dispatch_exhausted');
+      return { technicianId: null, reason: 'max_attempts' };
+    }
+
+    const geo = await orderGeo(db, order);
+    const { data: tried } = await db
+      .from('technician_job_dispatch')
+      .select('technician_id')
+      .eq('order_id', orderId);
+
+    const triedSet = new Set(
+      ((tried ?? []) as { technician_id: string }[]).map((r) => String(r.technician_id)),
+    );
+
+    const { data: techs } = await db
+      .from('profiles')
+      .select('id, role, city, is_active, status, verification_status, availability_status, current_lat, current_lng, milestone_tier')
+      .eq('role', 'technician')
+      .eq('is_active', true)
+      .in('status', ['active'])
+      .limit(500);
+
+    const candidates = ((techs ?? []) as any[]).filter((t) =>
+      t.id && !triedSet.has(String(t.id)) &&
+      (!t.verification_status || String(t.verification_status).toLowerCase() === 'approved') &&
+      ['available', 'online'].includes(String(t.availability_status ?? 'available').toLowerCase()),
+    );
+
+    if (!candidates.length) {
+      await alertAdmins(db, orderId, 'No eligible technician is currently available.', 'technician_no_candidates');
+      return { technicianId: null, reason: 'no_candidates' };
+    }
+
+    const ids = candidates.map((t) => String(t.id));
+    const [loadRes, scores] = await Promise.all([
+      db.from('orders').select('technician_id').in('technician_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
+      technicianTrustScores(db, ids),
+    ]);
+
+    const loads = new Map<string, number>();
+    for (const row of (loadRes.data ?? []) as any[]) {
+      const id = String(row.technician_id ?? '');
+      if (id) loads.set(id, (loads.get(id) ?? 0) + 1);
+    }
+
+    type Candidate = { id: string; distance: number | null; cityMatch: boolean; load: number; trust: number; tier: number };
+    const ranked: Candidate[] = [];
+
+    for (const t of candidates) {
+      const id = String(t.id);
+      const load = loads.get(id) ?? 0;
+      if (load >= 3) continue;
+
+      const lat = coord(t.current_lat);
+      const lng = coord(t.current_lng);
+      let distance: number | null = null;
+      let cityMatch = false;
+
+      if (geo.hasCoords && Number.isFinite(lat) && Number.isFinite(lng)) {
+        distance = haversineKm(geo.lat, geo.lng, lat, lng);
+        if (distance > cfg.defaultRadiusKm) continue;
+      } else {
+        cityMatch = Boolean(geo.city && String(t.city ?? '').trim().toLowerCase() === geo.city);
+        if (!cityMatch) continue;
+      }
+
+      ranked.push({
+        id,
+        distance,
+        cityMatch,
+        load,
+        trust: scores.get(id) ?? 50,
+        tier: TIER_RANK[String(t.milestone_tier ?? 'starter').toLowerCase()] ?? 0,
+      });
+    }
+
+    if (!ranked.length) {
+      await alertAdmins(db, orderId, 'No eligible technician matched the service area.', 'technician_no_candidates');
+      return { technicianId: null, reason: 'no_candidates' };
+    }
+
+    ranked.sort((a,b) =>
+      (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY) ||
+      Number(b.cityMatch) - Number(a.cityMatch) ||
+      b.trust - a.trust ||
+      a.load - b.load ||
+      b.tier - a.tier ||
+      a.id.localeCompare(b.id)
+    );
+
+    for (const candidate of ranked) {
+      const { data: won, error } = await db.rpc('try_assign_technician', {
+        p_order_id: orderId,
+        p_technician_id: candidate.id,
+        p_distance_km: candidate.distance == null ? null : Math.round(candidate.distance * 100) / 100,
+        p_trust_score: candidate.trust,
+      });
+
+      if (error) {
+        console.error('[dispatch] technician atomic assignment failed:', error);
+        continue;
+      }
+      if (!won) continue;
+
+      await notify(
+        candidate.id,
+        'New service job available',
+        candidate.distance != null
+          ? `A new service job is about ${candidate.distance.toFixed(1)} km away.`
+          : 'A new service job is available in your area.',
+        'booking',
+        orderId,
+        'technician_assigned',
+      );
+
+      await notify(
+        String(order.customer_id),
+        'Technician assigned',
+        'A verified technician has been assigned to your service.',
+        'booking',
+        orderId,
+        'technician_assigned',
+      );
+
+      return {
+        technicianId: candidate.id,
+        reason: 'assigned',
+        distanceKm: candidate.distance,
+      };
+    }
+
+    await alertAdmins(db, orderId, 'Eligible technicians were found but assignment lost a concurrency race or was rejected.', 'technician_assignment_failed');
+    return { technicianId: null, reason: 'no_candidates' };
+  } catch (e) {
+    console.error('[dispatch] technician dispatch failed:', e);
+    return { technicianId: null, reason: 'error' };
+  }
+}
+
+/** Release a technician offer and automatically try the next ranked technician. */
+export async function releaseTechnicianAssignment(
+  orderId: string,
+  technicianId: string,
+  why: 'REJECTED' | 'EXPIRED',
+): Promise<{ released: boolean; reassigned: boolean }> {
+  try {
+    const db: any = createServiceClient();
+    const { data: released } = await db
+      .from('orders')
+      .update({ technician_id: null, status: 'PENDING', assigned_at: null })
+      .eq('id', orderId)
+      .eq('technician_id', technicianId)
+      .eq('status', 'ASSIGNED')
+      .maybeSingle();
+
+    if (!released) return { released: false, reassigned: false };
+
+    await db
+      .from('technician_job_dispatch')
+      .update({ status: why, responded_at: new Date().toISOString() })
+      .eq('order_id', orderId)
+      .eq('technician_id', technicianId)
+      .eq('status', 'OFFERED');
+
+    const next = await dispatchTechnicianJob(orderId);
+    return { released: true, reassigned: Boolean(next.technicianId) };
+  } catch (e) {
+    console.error('[dispatch] technician release failed:', e);
+    return { released: false, reassigned: false };
+  }
+}
+
 /** Lazy maintenance for one customer's water orders (no cron needed). Never throws. */
 export async function sweepCustomerOrders(customerId: string): Promise<void> {
   try {
