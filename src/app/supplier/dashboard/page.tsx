@@ -780,7 +780,7 @@ export default function SupplierDashboardPage() {
         payment_confirmed?: boolean;
         payment_reference?: string;
       },
-    ) => {
+    ): Promise<boolean> => {
       setUpdatingOrder(orderId);
       try {
         const apiStatus = newStatus === 'delivered' ? 'COMPLETED' : 'IN_PROGRESS';
