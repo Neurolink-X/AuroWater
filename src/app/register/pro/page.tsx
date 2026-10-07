@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -92,7 +92,7 @@ export default function RegisterProPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
-      const json = (await res.json()) as { success?: boolean; error?: string; data?: unknown };
+      const json = (await res.json()) as { success?: boolean; error?: string; data?: { id?: string } | null };
       if (res.status === 401) {
         router.push(`/auth/login?returnTo=${encodeURIComponent(`/register/pro?type=${kind}`)}`);
         return;
@@ -101,44 +101,49 @@ export default function RegisterProPage() {
         toast.error(json?.error ?? 'Could not submit application.');
         return;
       }
-      toast.success("Application submitted! We'll review within 24 hours.");
-      router.push('/register/pro/success');
+      toast.success('Application submitted successfully.');
+      const applicationId = json.data?.id;
+      router.push(
+        applicationId
+          ? `/register/pro/success?id=${encodeURIComponent(applicationId)}`
+          : '/register/pro/success',
+      );
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Could not submit application.');
     }
   };
 
   return (
-    <div className="min-h-screen px-4 py-12" style={{ background: '#050B18', color: '#E5E7EB' }}>
-      <div className="max-w-5xl mx-auto">
-        <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#071B33] to-[#050B18] p-8 md:p-10">
+    <div\n      className="min-h-screen overflow-x-hidden px-4 py-6 sm:py-10"\n      style={{\n        background:\n          'radial-gradient(circle at 10% 0%, rgba(14,165,233,.16), transparent 30%), radial-gradient(circle at 90% 10%, rgba(20,184,166,.12), transparent 28%), #050B18',\n        color: '#E5E7EB',\n      }}\n    >
+      <div className="mx-auto max-w-6xl">
+        <div className="overflow-hidden rounded-[30px] border border-white/10 bg-gradient-to-br from-[#081D36] via-[#07162B] to-[#050B18] p-6 shadow-[0_30px_100px_rgba(0,0,0,.32)] sm:p-9 md:p-10">
           <p className="text-xs font-bold tracking-[0.22em] uppercase text-sky-300/80">Partner with AuroWater</p>
-          <h1 className="mt-3 text-[clamp(1.9rem,4.6vw,3rem)] font-extrabold aw-heading">
+          <h1 className="mt-4 max-w-3xl text-[clamp(2.2rem,6vw,4rem)] font-black leading-[1.02] tracking-[-0.035em] aw-heading">
             Grow your water business with AuroWater
           </h1>
-          <p className="mt-3 text-slate-200/80 max-w-2xl">
+          <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
             Keep your customers. Earn more per delivery. Expand your area automatically.
           </p>
 
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               '🔒 Your customers stay yours',
               '📈 Commission drops from 8% → 4%',
               '🗺 Unlock up to 20km delivery zone',
             ].map((t) => (
-              <div key={t} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold">
+              <div key={t} className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-slate-100 transition hover:border-cyan-300/20 hover:bg-white/[0.07]">
                 {t}
               </div>
             ))}
           </div>
 
-          <div className="mt-7 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
             {[
               { icon: '🔁', title: 'Repeat customers always assigned to you first' },
               { icon: '🏅', title: 'Reach Bronze at 50 orders → unlock 8km zone + lower commission' },
               { icon: '💰', title: 'Milestone bonuses: ₹500 at Gold, ₹1000 at Platinum' },
             ].map((c) => (
-              <div key={c.title} className="rounded-2xl border border-white/10 bg-white/5 p-5">
+              <div key={c.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 transition hover:border-cyan-300/20 hover:bg-white/[0.05]">
                 <div className="text-2xl">{c.icon}</div>
                 <div className="mt-3 text-sm font-extrabold text-white">{c.title}</div>
               </div>
@@ -176,13 +181,13 @@ export default function RegisterProPage() {
           </details>
         </div>
 
-        <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
+        <div className="mt-7 overflow-hidden rounded-[28px] border border-white/10 bg-[#0B1322] p-5 shadow-[0_24px_80px_rgba(0,0,0,.22)] sm:p-7 md:p-8">
           <div className="flex items-start justify-between flex-wrap gap-3">
             <div>
               <h2 className="text-xl font-extrabold text-white">
                 {kind === 'supplier' ? 'Supplier application' : 'Technician application'}
               </h2>
-              <p className="text-sm text-slate-200/75 mt-1">
+              <p className="mt-2 max-w-xl text-xs leading-5 text-slate-500 sm:text-sm">
                 {hydrated && !isLoggedIn ? (
                   <>
                     You’ll be asked to sign in after you fill the form.
@@ -353,7 +358,7 @@ function SupplierFormView({ onSubmit }: { onSubmit: (v: SupplierForm) => Promise
           disabled={submitting}
           className="w-full rounded-2xl py-4 font-extrabold text-white"
           style={{
-            background: 'linear-gradient(135deg,#14B8A6,#2563EB)',
+            background: 'linear-gradient(135deg,#67E8F9,#38BDF8 45%,#2563EB)',
             boxShadow: '0 10px 30px rgba(37,99,235,0.25)',
             opacity: submitting ? 0.7 : 1,
           }}
