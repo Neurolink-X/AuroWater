@@ -405,24 +405,40 @@ export type TechnicianDispatchResult = {
 
 async function technicianTrustScores(db: any, ids: string[]) {
   if (!ids.length) return new Map<string, number>();
-  const { data } = await db
-    .from('orders')
-    .select('technician_id, rating, status')
-    .in('technician_id', ids)
-    .eq('status', 'COMPLETED')
-    .limit(5000);
+  const [{ data }, { data: cases }] = await Promise.all([
+    db
+      .from('orders')
+      .select('technician_id, rating, status')
+      .in('technician_id', ids)
+      .eq('status', 'COMPLETED')
+      .limit(5000),
+    db
+      .from('service_quality_cases')
+      .select('technician_id, severity, status')
+      .in('technician_id', ids)
+      .in('status', ['OPEN','ASSIGNED','INVESTIGATING','ACTION_REQUIRED','ESCALATED'])
+      .limit(1000),
+  ]);
 
-  const acc = new Map<string, { sum: number; rated: number; completed: number }>();
+  const acc = new Map<string, { sum: number; rated: number; completed: number; complaints: number }>();
   for (const row of (data ?? []) as any[]) {
     const id = String(row.technician_id ?? '');
     if (!id) continue;
-    const cur = acc.get(id) ?? { sum: 0, rated: 0, completed: 0 };
+    const cur = acc.get(id) ?? { sum: 0, rated: 0, completed: 0, complaints: 0 };
     cur.completed += 1;
     const rating = Number(row.rating);
     if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
       cur.sum += rating;
       cur.rated += 1;
     }
+    acc.set(id, cur);
+  }
+
+  for (const row of (cases ?? []) as any[]) {
+    const id = String(row.technician_id ?? '');
+    if (!id) continue;
+    const cur = acc.get(id) ?? { sum: 0, rated: 0, completed: 0, complaints: 0 };
+    cur.complaints += 1;
     acc.set(id, cur);
   }
 
@@ -435,7 +451,8 @@ async function technicianTrustScores(db: any, ids: string[]) {
     }
     const ratingScore = x.rated ? (x.sum / x.rated) / 5 * 70 : 50;
     const experienceScore = Math.min(20, x.completed / 20);
-    scores.set(id, Math.round((ratingScore + experienceScore + 10) * 100) / 100);
+    const complaintPenalty = Math.min(25, x.complaints * 5);
+    scores.set(id, Math.max(0, Math.round((ratingScore + experienceScore + 10 - complaintPenalty) * 100) / 100));
   }
   return scores;
 }
