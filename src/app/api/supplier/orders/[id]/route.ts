@@ -105,26 +105,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       /* best-effort */
     }
 
-    // Decrement supplier stock (best-effort).
-    try {
-      const qty = Math.max(0, Number((before as { can_quantity?: number | null }).can_quantity ?? 0));
-      if (qty > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', auth.ctx.profile.id)
-          .maybeSingle();
-        const available = Math.max(0, Number((stockRow as { cans_available?: number } | null)?.cans_available ?? 0));
-        await sb
-          .from('supplier_stock')
-          .upsert(
-            { supplier_id: auth.ctx.profile.id, cans_available: Math.max(0, available - qty), updated_at: new Date().toISOString() },
-            { onConflict: 'supplier_id' }
-          );
-      }
-    } catch (e) {
-      console.error('[supplier/orders] supplier_stock decrement failed', e);
-    }
+    // Stock is consumed atomically by the database reservation trigger on COMPLETED.
+
 
     // Notify customer (best-effort).
     try {
