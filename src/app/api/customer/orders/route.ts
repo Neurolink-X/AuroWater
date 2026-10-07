@@ -540,7 +540,7 @@ if (!serviceability.serviceable) {
         emergency_charge: 0,
         gst_amount: nextGst,
         address_snapshot,
-        payment_status: 'pending',
+        payment_status: 'unpaid',
         payment_method: String(body.payment_method ?? 'cash').toLowerCase() === 'upi' ? 'upi' : 'cash',
         address: addressText || null,
         address_id: addr.id,
