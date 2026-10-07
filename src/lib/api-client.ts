@@ -860,6 +860,33 @@ export type SupplierEarningsSummary = {
   pending_payout: number;
 };
 
+export type SupplierStock = {
+  supplier_id: string;
+  cans_available: number;
+  reserved_cans: number;
+  low_stock_alert: number;
+  reservation_buffer_cans: number;
+  updated_at: string;
+};
+
+export async function supplierStockGet(): Promise<SupplierStock | null> {
+  return apiFetchAuth<SupplierStock | null>('/supplier/stock');
+}
+
+export async function supplierStockUpdate(body: {
+  cans_available?: number;
+  stock_delta?: number;
+  low_stock_alert?: number;
+  reservation_buffer_cans?: number;
+}): Promise<SupplierStock> {
+  return apiFetchAuth<SupplierStock>('/supplier/stock', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+
+
 export async function supplierOrdersList(params?: { status?: string }): Promise<ApiOrder[]> {
   const q = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
   return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
