@@ -166,3 +166,144 @@ export async function GET(
 
   return jsonOk(data);
 }
+
+/**
+ * PUT /api/technician/orders/[id]
+ *
+ * Advances a technician job without allowing browser-supplied ownership.
+ * Completion requires payment confirmation when the order is still unpaid.
+ */
+export async function PUT(
+  req: NextRequest,
+  ctx: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireSupabaseAuth(req);
+
+  if (!auth.ok) return auth.response;
+  if (!requireRole(auth.ctx, 'technician')) {
+    return jsonErr('Forbidden', 403);
+  }
+
+  const profile =
+    auth.ctx.profile as unknown as TechnicianProfile;
+
+  if (!isTechnicianOperational(profile)) {
+    return jsonErr(
+      'Your technician account is not approved or active',
+      403,
+    );
+  }
+
+  const { id } = await ctx.params;
+  const orderId = id?.trim();
+
+  if (!orderId) {
+    return jsonErr('Order ID is required', 400);
+  }
+
+  let body: {
+    status?: 'IN_PROGRESS' | 'COMPLETED';
+    payment_confirmed?: boolean;
+    payment_reference?: string;
+  };
+
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return jsonErr('Invalid JSON body', 400);
+  }
+
+  if (body.status !== 'IN_PROGRESS' && body.status !== 'COMPLETED') {
+    return jsonErr('Invalid status transition', 400);
+  }
+
+  const sb = auth.ctx.supabase;
+
+  const { data: before, error: beforeError } = await sb
+    .from('orders')
+    .select('id, technician_id, status, customer_id, payment_status, payment_method, total_amount')
+    .eq('id', orderId)
+    .maybeSingle();
+
+  if (beforeError) return jsonErr(beforeError.message, 502);
+  if (!before) return jsonErr('Job not found', 404);
+
+  if (String(before.technician_id ?? '') !== auth.ctx.profile.id) {
+    return jsonErr('Forbidden', 403);
+  }
+
+  const previousStatus = String(before.status ?? '');
+  const nextStatus = body.status;
+
+  const allowed =
+    (previousStatus === 'ASSIGNED' && nextStatus === 'IN_PROGRESS') ||
+    (previousStatus === 'IN_PROGRESS' && nextStatus === 'COMPLETED');
+
+  if (!allowed) {
+    return jsonErr('Invalid status transition', 400);
+  }
+
+  const patch: Record<string, unknown> = {
+    status: nextStatus,
+  };
+
+  if (nextStatus === 'IN_PROGRESS') {
+    patch.dispatched_at = new Date().toISOString();
+  }
+
+  if (nextStatus === 'COMPLETED') {
+    const paymentStatus = String(before.payment_status ?? 'unpaid').toLowerCase();
+    const paymentMethod = String(before.payment_method ?? 'cash').toLowerCase();
+    const reference = typeof body.payment_reference === 'string'
+      ? body.payment_reference.trim()
+      : '';
+
+    if (paymentStatus !== 'paid' && body.payment_confirmed !== true) {
+      return jsonErr('Confirm payment received before completing this service.', 400);
+    }
+
+    if (paymentStatus !== 'paid' && paymentMethod === 'upi' && !reference) {
+      return jsonErr('Enter the UPI transaction reference before completing this service.', 400);
+    }
+
+    if (paymentStatus !== 'paid') {
+      patch.payment_status = 'paid';
+    }
+
+    patch.completed_at = new Date().toISOString();
+  }
+
+  const { data, error } = await sb
+    .from('orders')
+    .update(patch)
+    .eq('id', orderId)
+    .eq('technician_id', auth.ctx.profile.id)
+    .eq('status', previousStatus)
+    .select('*')
+    .single();
+
+  if (error) return jsonErr(error.message, 502);
+
+  if (nextStatus === 'COMPLETED' && String(before.payment_status ?? 'unpaid').toLowerCase() !== 'paid') {
+    try {
+      await sb.from('audit_logs').insert({
+        actor_id: auth.ctx.profile.id,
+        action: 'order.payment_received',
+        entity: 'orders',
+        entity_id: orderId,
+        meta: {
+          method: String(before.payment_method ?? 'cash').toLowerCase(),
+          reference:
+            typeof body.payment_reference === 'string'
+              ? body.payment_reference.trim() || null
+              : null,
+          amount: Number(before.total_amount ?? 0),
+        },
+      });
+    } catch (e) {
+      console.error('[technician-order] payment audit failed', e);
+    }
+  }
+
+  return jsonOk(data);
+}
