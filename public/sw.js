@@ -1,6 +1,5 @@
-const CACHE_NAME = 'aurowater-offline-v2';
+const CACHE_NAME = 'aurowater-offline-v3';
 const OFFLINE_URL = '/offline';
-const OFFLINE_ASSET_PATTERN = /^(\/|https:\/\/[^/]+\/)(?:_next\/static\/|icons\/)/;
 
 async function cacheOfflineAssets(cache) {
   const response = await fetch(OFFLINE_URL, { cache: 'no-store' });
@@ -11,7 +10,10 @@ async function cacheOfflineAssets(cache) {
   await cache.put(OFFLINE_URL, response.clone());
 
   const html = await response.text();
-  const urls = new Set(['/icons/icon-192x192.png']);
+  const urls = new Set([
+    '/icons/icon-192x192.png',
+    '/splash-logo.svg',
+  ]);
   const assetPattern = /(?:src|href)="([^"]+)"/g;
 
   for (const match of html.matchAll(assetPattern)) {
