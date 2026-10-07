@@ -623,24 +623,30 @@ export async function releaseTechnicianAssignment(
 ): Promise<{ released: boolean; reassigned: boolean }> {
   try {
     const db: any = createServiceClient();
-    const { data: released } = await db
-      .from('orders')
-      .update({ technician_id: null, status: 'PENDING', assigned_at: null })
-      .eq('id', orderId)
-      .eq('technician_id', technicianId)
-      .eq('status', 'ASSIGNED')
-      .maybeSingle();
 
-    if (!released) return { released: false, reassigned: false };
+    const { data: released, error } = await db.rpc('release_technician_assignment', {
+      p_order_id: orderId,
+      p_technician_id: technicianId,
+      p_reason: why,
+    });
 
-    await db
-      .from('technician_job_dispatch')
-      .update({ status: why, responded_at: new Date().toISOString() })
-      .eq('order_id', orderId)
-      .eq('technician_id', technicianId)
-      .eq('status', 'OFFERED');
+    if (error || !released) {
+      return { released: false, reassigned: false };
+    }
 
     const next = await dispatchTechnicianJob(orderId);
+
+    await notify(
+      technicianId,
+      why === 'EXPIRED' ? 'Job reassigned' : 'Job declined',
+      why === 'EXPIRED'
+        ? 'You did not respond in time, so this job was offered to another technician.'
+        : 'You declined the job. We are finding the next eligible technician.',
+      'system',
+      orderId,
+      why === 'EXPIRED' ? 'expired' : 'rejected',
+    );
+
     return { released: true, reassigned: Boolean(next.technicianId) };
   } catch (e) {
     console.error('[dispatch] technician release failed:', e);
