@@ -15,24 +15,21 @@ const BASE_URL = getSiteUrl().replace(/\/+$/, '');
  * - useful to a real customer
  * - not a thin duplicate of another page
  */
-const services = [
-  'water-delivery',
-  'water-can-delivery',
-  'water-tanker-delivery',
-  'plumber',
-  'borewell',
-  'submersible-pump',
-  'motor-repair',
-  'ro-service',
-  'tank-cleaning',
+const publicPages = [
+  '/services',
+  '/pricing',
+  '/how-it-works',
+  '/technicians',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/terms',
+  '/cookies',
+  '/security',
+  '/careers',
 ] as const;
 
-const kanpurAreas = [
-  'kalyanpur',
-  'kakadeo',
-  'barra',
-  'swaroop-nagar',
-] as const;
+const kanpurAreas = [] as const;
 
 /**
  * Use stable modification dates.
@@ -76,98 +73,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     }),
 
-    page('/services', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    }),
-
-    page('/kanpur', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'weekly',
-      priority: 0.95,
-    }),
-
-    page('/pricing', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    }),
-
-    page('/how-it-works', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    }),
-
-    page('/technicians', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    }),
-
-    page('/about', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    }),
-
-    page('/contact', {
-      lastModified: SITE_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    }),
-
-    page('/faq', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.6,
-    }),
-
-    page('/reviews', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    }),
-
-    page('/blog', {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    }),
+    ...publicPages.map((path) =>
+      page(path, {
+        lastModified: CONTENT_UPDATED,
+        changeFrequency: path === '/contact' ? 'monthly' : 'weekly',
+        priority:
+          path === '/services'
+            ? 0.9
+            : path === '/pricing' || path === '/how-it-works' || path === '/technicians'
+              ? 0.75
+              : 0.6,
+      }),
+    ),
   ];
-
-  /*
-   * ================================================================
-   * NATIONAL / GENERAL SERVICE PAGES
-   * ================================================================
-   */
-  const servicePages: MetadataRoute.Sitemap = services.map(
-    (service) =>
-      page(`/${service}`, {
-        lastModified: CONTENT_UPDATED,
-        changeFrequency: 'weekly',
-        priority: 0.85,
-      })
-  );
-
-  /*
-   * ================================================================
-   * KANPUR + SERVICE LANDING PAGES
-   *
-   * IMPORTANT:
-   * Only keep these URLs if each page has genuinely unique,
-   * useful Kanpur-specific content.
-   * ================================================================
-   */
-  const kanpurServicePages: MetadataRoute.Sitemap =
-    services.map((service) =>
-      page(`/kanpur/${service}`, {
-        lastModified: CONTENT_UPDATED,
-        changeFrequency: 'weekly',
-        priority: 0.85,
-      })
-    );
 
   /*
    * ================================================================
@@ -180,20 +98,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
    * Do not create hundreds of thin locality pages just for keywords.
    * ================================================================
    */
-  const kanpurAreaPages: MetadataRoute.Sitemap =
-    kanpurAreas.map((area) =>
-      page(`/kanpur/${area}`, {
-        lastModified: CONTENT_UPDATED,
-        changeFrequency: 'monthly',
-        priority: 0.75,
-      })
-    );
+  const kanpurAreaPages: MetadataRoute.Sitemap = kanpurAreas.map((area) =>
+    page(`/kanpur/${area}`, {
+      lastModified: CONTENT_UPDATED,
+      changeFrequency: 'monthly',
+      priority: 0.75,
+    })
+  );
 
-  /*
-   * ================================================================
-   * FINAL SITEMAP
-   * ================================================================
-   */
   return [
     ...corePages,
     ...servicePages,
