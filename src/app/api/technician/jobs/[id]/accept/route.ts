@@ -45,6 +45,8 @@ export async function PUT(
     return jsonErr('Job was already accepted or reassigned', 409);
   }
 
+  const customerId = order.customer_id ? String(order.customer_id) : null;
+
   if (customerId) {
     try {
       const { createNotification } = await import('@/lib/notifications');
