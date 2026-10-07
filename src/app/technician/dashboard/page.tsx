@@ -2696,56 +2696,7 @@ export default function TechnicianDashboardPage() {
                           { label: 'UPI ID set', ok: Boolean(profile?.upiId && profile.upiId.includes('@')) },
                         ];
                         const pct = Math.round((checks.filter(c => c.ok).length / checks.length) * 100);
-                        {completionJobId && (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="complete-job-title">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-gradient-to-br from-[#003049] to-[#0D9B6C] px-5 py-5 text-white">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Secure completion</p>
-          <h2 id="complete-job-title" className="mt-1 text-xl font-black">Verify service before closing</h2>
-          <p className="mt-1 text-xs text-white/70">Ask the customer for the 6-digit service code after the work is complete.</p>
-        </div>
-        <div className="space-y-4 p-5">
-          <label className="block">
-            <span className="text-xs font-extrabold text-slate-700">Customer service code</span>
-            <input
-              value={completionOtp}
-              onChange={(e) => setCompletionOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="6-digit code"
-              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-xl font-black tracking-[0.35em] text-slate-900 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-            />
-          </label>
 
-          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
-            <input
-              type="checkbox"
-              checked={completionPaymentConfirmed}
-              onChange={(e) => setCompletionPaymentConfirmed(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-emerald-600"
-            />
-            <span className="text-xs font-semibold leading-5 text-slate-600">
-              I confirm payment has been received for this service.
-            </span>
-          </label>
-
-          <input
-            value={completionPaymentReference}
-            onChange={(e) => setCompletionPaymentReference(e.target.value.slice(0, 100))}
-            placeholder="UPI reference (if applicable)"
-            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-          />
-
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={() => setCompletionJobId(null)} disabled={completionBusy} className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold text-slate-700">Cancel</button>
-            <button type="button" onClick={() => void completeJob()} disabled={completionBusy || completionOtp.length !== 6 || !completionPaymentConfirmed} className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-40">
-              {completionBusy ? 'Completing…' : 'Verify & Complete'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
 
   return (
                           <div>
@@ -2817,6 +2768,57 @@ export default function TechnicianDashboardPage() {
               </div>
             )}
 
+
+{completionJobId && (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-slate-950/55 p-3 backdrop-blur-sm sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="complete-job-title">
+      <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="border-b border-slate-100 bg-gradient-to-br from-[#003049] to-[#0D9B6C] px-5 py-5 text-white">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">Secure completion</p>
+          <h2 id="complete-job-title" className="mt-1 text-xl font-black">Verify service before closing</h2>
+          <p className="mt-1 text-xs text-white/70">Ask the customer for the 6-digit service code after the work is complete.</p>
+        </div>
+        <div className="space-y-4 p-5">
+          <label className="block">
+            <span className="text-xs font-extrabold text-slate-700">Customer service code</span>
+            <input
+              value={completionOtp}
+              onChange={(e) => setCompletionOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="6-digit code"
+              className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-xl font-black tracking-[0.35em] text-slate-900 outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+
+          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+            <input
+              type="checkbox"
+              checked={completionPaymentConfirmed}
+              onChange={(e) => setCompletionPaymentConfirmed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-emerald-600"
+            />
+            <span className="text-xs font-semibold leading-5 text-slate-600">
+              I confirm payment has been received for this service.
+            </span>
+          </label>
+
+          <input
+            value={completionPaymentReference}
+            onChange={(e) => setCompletionPaymentReference(e.target.value.slice(0, 100))}
+            placeholder="UPI reference (if applicable)"
+            className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+          />
+
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={() => setCompletionJobId(null)} disabled={completionBusy} className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-extrabold text-slate-700">Cancel</button>
+            <button type="button" onClick={() => void completeJob()} disabled={completionBusy || completionOtp.length !== 6 || !completionPaymentConfirmed} className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-40">
+              {completionBusy ? 'Completing…' : 'Verify & Complete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
           </main>
         </div>
       </div>
