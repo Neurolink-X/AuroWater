@@ -58,6 +58,9 @@ type Order = {
   cans_count: number | null;
   notes: string | null;
   created_at: string;
+  accepted_at?: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
 };
 
 type EarningRow = {
@@ -614,27 +617,29 @@ export default function SupplierDashboardPage() {
       return;
     }
 
-    // Flatten nested joins
-    const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
-      id: row.id as string,
-      booking_id: row.booking_id as string,
-      service_type: row.service_type as string,
-      status: row.status as OrderStatus,
-      amount: row.amount as number,
-      cans_count: row.cans_count as number | null,
-      scheduled_date: row.scheduled_date as string,
-      scheduled_slot: row.scheduled_slot as string,
-      notes: row.notes as string | null,
-      created_at: row.created_at as string,
-      address_line: row.address_line as string,
-      city: row.city as string,
-      customer_name: (row.customer_name as { full_name: string })?.full_name ?? '—',
-      customer_phone: (row.customer_phone as { phone: string })?.phone ?? '—',
-    }));
+ // Flatten nested joins
+const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
+  id: row.id as string,
+  booking_id: row.booking_id as string,
+  service_type: row.service_type as string,
+  status: row.status as OrderStatus,
+  amount: row.amount as number,
+  cans_count: row.cans_count as number | null,
+  scheduled_date: row.scheduled_date as string,
+  scheduled_slot: row.scheduled_slot as string,
+  notes: row.notes as string | null,
+  created_at: row.created_at as string,
+  accepted_at: row.accepted_at as string | null,
+  payment_method: row.payment_method as string | null,
+  payment_status: row.payment_status as string | null,
+  address_line: row.address_line as string,
+  city: row.city as string,
+  customer_name: (row.customer_name as { full_name: string })?.full_name ?? '—',
+  customer_phone: (row.customer_phone as { phone: string })?.phone ?? '—',
+}));
 
-    setOrders(flat);
-    setLoadingOrders(false);
-  };
+setOrders(flat);
+setLoadingOrders(false);
 
   const fetchEarnings = async (supplierId: string) => {
     const { data } = await supabase
