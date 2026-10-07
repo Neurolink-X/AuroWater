@@ -285,45 +285,35 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     cands.sort(
       (a, b) =>
-        Number(b.favourite) - Number(a.favourite) ||
         a.group - b.group ||
-        (a.distance ?? 0) - (b.distance ?? 0) ||
+        (a.distance ?? Number.POSITIVE_INFINITY) -
+          (b.distance ?? Number.POSITIVE_INFINITY) ||
+        Number(b.favourite) - Number(a.favourite) ||
         b.tier - a.tier ||
-        a.load - b.load
+        a.load - b.load ||
+        a.id.localeCompare(b.id)
     );
 
     for (const c of cands) {
-      const { error: insErr } = await db.from('order_dispatch').insert({
-        order_id: orderId,
-        supplier_id: c.id,
-        status: 'ASSIGNED',
-        distance_km: c.distance === null ? null : Math.round(c.distance * 100) / 100,
-      });
-      if (insErr) continue;
+      const { data: reserved, error: reserveError } = await db.rpc(
+        'try_assign_supplier_with_stock',
+        {
+          p_order_id: orderId,
+          p_supplier_id: c.id,
+          p_distance_km:
+            c.distance === null ? null : Math.round(c.distance * 100) / 100,
+        }
+      );
 
-      const now = new Date().toISOString();
-      const { data: won } = await db
-        .from('orders')
-        .update({
-          supplier_id: c.id,
-          status: 'ASSIGNED',
-          assigned_at: now,
-          last_dispatch_at: now,
-          dispatch_attempts: attempts + 1,
-        })
-        .eq('id', orderId)
-        .eq('status', 'PENDING')
-        .is('supplier_id', null)
-        .select('id')
-        .maybeSingle();
+      if (reserveError) {
+        console.error('[dispatch] atomic supplier reservation failed:', reserveError);
+        continue;
+      }
 
-      if (!won) {
-        await db
-          .from('order_dispatch')
-          .update({ status: 'CANCELLED', responded_at: now })
-          .eq('order_id', orderId)
-          .eq('supplier_id', c.id);
-        return { supplierId: null, reason: 'not_pending' };
+      // False means the supplier lost a race, lacks stock, or the order is no
+      // longer pending. Continue to the next ranked supplier when appropriate.
+      if (!reserved) {
+        continue;
       }
 
       await notify(
@@ -336,6 +326,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         orderId,
         'assigned'
       );
+
       return { supplierId: c.id, reason: 'assigned', distanceKm: c.distance };
     }
 
