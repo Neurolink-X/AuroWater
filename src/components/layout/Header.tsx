@@ -392,6 +392,7 @@ export default function Header() {
       height={36}
       className="h-full w-full object-contain"
       priority
+      unoptimized
     />
   </span>
 
