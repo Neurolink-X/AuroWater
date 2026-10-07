@@ -965,6 +965,12 @@ export async function technicianJobsList(params?: { status?: string }): Promise<
   return apiFetchAuth<ApiOrder[]>(`/technician/jobs${q}`);
 }
 
+export async function technicianJobReject(id: string): Promise<{ released: boolean; reassigned: boolean }> {
+  return apiFetchAuth<{ released: boolean; reassigned: boolean }>(`/technician/jobs/${id}/reject`, {
+    method: 'PUT',
+  });
+}
+
 export async function technicianJobAccept(id: string): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/technician/jobs/${id}/accept`, { method: 'PUT' });
 }
