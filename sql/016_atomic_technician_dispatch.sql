@@ -207,6 +207,56 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.release_technician_assignment(
+  p_order_id UUID,
+  p_technician_id UUID,
+  p_reason TEXT DEFAULT 'REJECTED'
+) RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $
+DECLARE
+  o public.orders;
+BEGIN
+  IF auth.role() <> 'service_role' AND auth.uid() IS DISTINCT FROM p_technician_id THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  SELECT * INTO o FROM public.orders
+  WHERE id=p_order_id
+    AND technician_id=p_technician_id
+    AND status='ASSIGNED'
+  FOR UPDATE;
+
+  IF NOT FOUND THEN RETURN FALSE; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.technician_job_dispatch
+    WHERE order_id=p_order_id
+      AND technician_id=p_technician_id
+      AND status='OFFERED'
+  ) THEN
+    RETURN FALSE;
+  END IF;
+
+  UPDATE public.technician_job_dispatch
+  SET status=CASE WHEN upper(p_reason)='EXPIRED' THEN 'EXPIRED' ELSE 'REJECTED' END,
+      responded_at=now(),
+      reason=p_reason
+  WHERE order_id=p_order_id
+    AND technician_id=p_technician_id
+    AND status='OFFERED';
+
+  UPDATE public.orders
+  SET technician_id=NULL,
+      status='PENDING',
+      assigned_at=NULL,
+      last_technician_dispatch_at=now()
+  WHERE id=p_order_id;
+
+  RETURN TRUE;
+END;
+$;
+
 CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_order_id UUID,
   p_technician_id UUID
@@ -326,6 +376,7 @@ GRANT EXECUTE ON FUNCTION public.try_assign_technician(UUID,UUID,NUMERIC,NUMERIC
 GRANT EXECUTE ON FUNCTION public.accept_technician_job(UUID,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.start_technician_job(UUID,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.create_service_otp(UUID,UUID) TO authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.release_technician_assignment(UUID,UUID,TEXT) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.verify_service_otp(UUID,TEXT,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.complete_technician_job_atomic(UUID,UUID,BOOLEAN,TEXT) TO authenticated,service_role;
 
