@@ -313,7 +313,7 @@ export default function AdminDashboardPage() {
     else setRefreshing(true);
     setError(null);
     try {
-      const [d, o, u, p] = await Promise.all([
+      const [d, o, u, p, f] = await Promise.all([
         getAdminDashboard(),
         getAdminOrders(undefined, 200, 0),
         getAdminUsers(undefined, 1000, 0),
