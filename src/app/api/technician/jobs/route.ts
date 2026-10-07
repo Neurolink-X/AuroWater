@@ -150,8 +150,14 @@ export async function GET(req: NextRequest) {
 
   const total = count ?? 0;
 
+  const safeRows = (data ?? []).map((row) => {
+    const safe = { ...row } as Record<string, unknown>;
+    delete safe.service_otp_hash;
+    return safe;
+  });
+
   return jsonOk({
-    data: data ?? [],
+    data: safeRows,
     total,
     page,
     limit,
