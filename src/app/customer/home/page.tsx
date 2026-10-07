@@ -89,6 +89,15 @@ function relTime(iso: string | null | undefined): string {
   });
 }
 
+function extractServiceOtp(notification: ApiNotification): string | null {
+  const title = String(notification.title ?? '').toLowerCase();
+  const body = String(notification.body ?? notification.message ?? '');
+  if (!title.includes('technician started')) return null;
+
+  const match = body.match(/service code\s+(\d{6})/i);
+  return match?.[1] ?? null;
+}
+
 function serviceLine(order: CustomerOrder): string {
   return `${order.serviceTitle}${
     order.serviceKey === 'water_can' && order.canCount ? ` × ${order.canCount}` : ''
@@ -939,7 +948,10 @@ export default function CustomerHomePage() {
                         </p>
                       </div>
                     ) : (
-                      notifs.slice(0, 6).map((notification) => (
+                      notifs.slice(0, 6).map((notification) => {
+                      const serviceOtp = extractServiceOtp(notification);
+
+                      return (
                         <button
                           key={notification.id}
                           type="button"
@@ -956,14 +968,28 @@ export default function CustomerHomePage() {
                           ].join(' ')}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-bold text-slate-900">
                                 {notification.title}
                               </p>
 
-                              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-600">
-                                {notification.body ?? notification.message ?? ''}
-                              </p>
+                              {serviceOtp ? (
+                                <div className="mt-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2.5">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-700">
+                                    Service verification code
+                                  </p>
+                                  <p className="mt-1 font-mono text-2xl font-black tracking-[0.22em] text-slate-950 tabular-nums">
+                                    {serviceOtp}
+                                  </p>
+                                  <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-600">
+                                    Share this code only after the technician has finished the work.
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-600">
+                                  {notification.body ?? notification.message ?? ''}
+                                </p>
+                              )}
                             </div>
 
                             <span className="shrink-0 text-[11px] font-semibold text-slate-400">
@@ -971,7 +997,8 @@ export default function CustomerHomePage() {
                             </span>
                           </div>
                         </button>
-                      ))
+                      );
+                    })
                     )}
                   </div>
                 </div>
