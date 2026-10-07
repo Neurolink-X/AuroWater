@@ -31,12 +31,9 @@ type SupplierProfile = {
   rating: number;
   rating_count: number;
   created_at: string;
-  accepted_at?: string | null;
-  payment_method?: string | null;
-  payment_status?: string | null;
 };
 
-type OrderStatus =
+type OrderStatus =/
   | 'pending'
   | 'assigned'
   | 'in_progress'
@@ -173,7 +170,19 @@ const fmtTime = (iso: string) =>
     hour12: true,
   });
 
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
+const normalizeOrderStatus = (status: unknown): OrderStatus => {
+  switch (String(status ?? '').toUpperCase()) {
+    case 'ASSIGNED': return 'assigned';
+    case 'IN_PROGRESS': return 'in_progress';
+    case 'COMPLETED':
+    case 'DELIVERED': return 'delivered';
+    case 'CANCELLED': return 'cancelled';
+    case 'PENDING':
+    default: return 'pending';
+  }
+};
+
+// ─── SVG Icons/ ────────────────────────────────────────────────────────────────
 
 const Icon = {
   drop: (s = 18, c = '#0D9B6C') => (
@@ -342,7 +351,7 @@ function OrderCard({
 }: {
   order: Order;
   onAccept: (id: string) => Promise<void>;
-  onUpdateStatus: (id: string, status: OrderStatus) => Promise<void>;
+  onUpdateStatus: (id: string, status: OrderStatus) => Promise<boolean>;
   onRequestComplete: (order: Order) => void;
   updating: string | null;
 }) {
@@ -622,7 +631,7 @@ const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
   id: row.id as string,
   booking_id: row.booking_id as string,
   service_type: row.service_type as string,
-  status: row.status as OrderStatus,
+  status: normalizeOrderStatus(row.status),
   amount: row.amount as number,
   cans_count: row.cans_count as number | null,
   scheduled_date: row.scheduled_date as string,
@@ -788,12 +797,16 @@ setLoadingOrders(false);
       },
     ): Promise<boolean> => {
       setUpdatingOrder(orderId);
+
       try {
-        const apiStatus = newStatus === 'delivered' ? 'COMPLETED' : 'IN_PROGRESS';
+        const apiStatus =
+          newStatus === 'delivered' ? 'COMPLETED' : 'IN_PROGRESS';
 
         await supplierOrderUpdateStatus(orderId, apiStatus, payment);
 
-        const nextStatus = newStatus === 'delivered' ? 'delivered' : newStatus;
+        const nextStatus =
+          newStatus === 'delivered' ? 'delivered' : newStatus;
+
         setOrders((prev) =>
           prev.map((o) =>
             o.id === orderId
@@ -804,26 +817,36 @@ setLoadingOrders(false);
                     ? { payment_status: 'paid' }
                     : {}),
                 }
-              : o
-          )
+              : o,
+          ),
         );
 
         toast.success(
           nextStatus === 'delivered'
             ? 'Order completed and payment recorded.'
-            : `Order moved to ${STATUS_META[nextStatus].label}`
+            : `Order moved to ${STATUS_META[nextStatus].label}.`,
         );
-      } catch (e) {
+
+        if (profile?.id) {
+          await fetchOrders(profile.id);
+        }
+
+        return true;
+      } catch (error) {
+        console.error('[supplier] update status failed:', error);
+
         toast.error(
-          e instanceof Error
-            ? e.message
-            : 'Failed to update order status.'
+          error instanceof Error
+            ? error.message
+            : 'Failed to update order status.',
         );
+
+        return false;
       } finally {
         setUpdatingOrder(null);
       }
     },
-    [],
+    [profile?.id],
   );
 
   // ── Sign out ────────────────────────────────────────────────────────────────
@@ -1210,13 +1233,191 @@ setLoadingOrders(false);
                   <OrderCard
                     key={o.id}
                     order={o}
+                    onAccept={handleAcceptOrder}
                     onUpdateStatus={handleUpdateStatus}
+                    onRequestComplete={(order) => {
+                      setCompletionOrder(order);
+                      setPaymentReference('');
+                      setPaymentConfirmed(false);
+                    }}
                     updating={updatingOrder}
                   />
                 ))}
               </div>
             )}
           </div>
+
+          {completionOrder && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="complete-order-title"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 200,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+                background: 'rgba(0,0,0,0.72)',
+                backdropFilter: 'blur(10px)',
+              }}
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget && !updatingOrder) {
+                  setCompletionOrder(null);
+                }
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  maxWidth: 460,
+                  maxHeight: 'min(720px, calc(100vh - 32px))',
+                  overflowY: 'auto',
+                  background: '#0A1220',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: 20,
+                  boxShadow: '0 28px 90px rgba(0,0,0,0.55)',
+                  padding: 22,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: '#0D9B6C', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                      Final delivery step
+                    </div>
+                    <h2 id="complete-order-title" style={{ margin: '6px 0 0', fontSize: 20, fontWeight: 900, color: '#F0F4FF' }}>
+                      Confirm completion
+                    </h2>
+                    <p style={{ margin: '7px 0 0', fontSize: 12, lineHeight: 1.6, color: 'rgba(255,255,255,0.45)' }}>
+                      Confirm the service is complete and record payment before closing this order.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close completion dialog"
+                    disabled={Boolean(updatingOrder)}
+                    onClick={() => setCompletionOrder(null)}
+                    style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)', cursor: updatingOrder ? 'wait' : 'pointer', fontSize: 18 }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: '#F0F4FF' }}>{completionOrder.service_type}</div>
+                      <div style={{ marginTop: 3, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                        #{completionOrder.booking_id.slice(0, 8).toUpperCase()} · {completionOrder.customer_name}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 17, fontWeight: 900, color: '#0D9B6C' }}>{INR(completionOrder.amount)}</div>
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                    Payment method: <strong style={{ color: '#F0F4FF' }}>{completionOrder.payment_method?.toUpperCase() || 'CASH'}</strong>
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+                    Payment status: <strong style={{ color: completionOrder.payment_status === 'paid' ? '#10B981' : '#F59E0B' }}>
+                      {completionOrder.payment_status === 'paid' ? 'Already paid' : 'Confirmation required'}
+                    </strong>
+                  </div>
+                </div>
+
+                {completionOrder.payment_status !== 'paid' && (
+                  <>
+                    {completionOrder.payment_method?.toLowerCase() === 'upi' && (
+                      <label style={{ display: 'block', marginTop: 16 }}>
+                        <span style={{ display: 'block', marginBottom: 7, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.62)' }}>
+                          UPI transaction reference
+                        </span>
+                        <input
+                          value={paymentReference}
+                          onChange={(event) => setPaymentReference(event.target.value.slice(0, 100))}
+                          placeholder="Enter UPI / transaction ID"
+                          maxLength={100}
+                          disabled={Boolean(updatingOrder)}
+                          autoComplete="off"
+                          style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 11, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', color: '#F0F4FF', padding: '0 12px', outline: 'none', fontFamily: 'inherit' }}
+                        />
+                      </label>
+                    )}
+
+                    <label style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      marginTop: 16,
+                      padding: 12,
+                      borderRadius: 12,
+                      background: paymentConfirmed ? 'rgba(13,155,108,0.08)' : 'rgba(255,255,255,0.035)',
+                      border: paymentConfirmed ? '1px solid rgba(13,155,108,0.25)' : '1px solid rgba(255,255,255,0.07)',
+                      cursor: updatingOrder ? 'wait' : 'pointer',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={paymentConfirmed}
+                        onChange={(event) => setPaymentConfirmed(event.target.checked)}
+                        disabled={Boolean(updatingOrder)}
+                        style={{ marginTop: 2, accentColor: '#0D9B6C' }}
+                      />
+                      <span style={{ fontSize: 12, lineHeight: 1.55, color: 'rgba(255,255,255,0.68)' }}>
+                        I confirm the customer has paid the order amount and the payment details are accurate.
+                      </span>
+                    </label>
+                  </>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingOrder)}
+                    onClick={() => setCompletionOrder(null)}
+                    style={{ flex: 1, minHeight: 46, borderRadius: 11, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.72)', fontWeight: 800, cursor: updatingOrder ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={Boolean(updatingOrder) || (completionOrder.payment_status !== 'paid' && (!paymentConfirmed || (completionOrder.payment_method?.toLowerCase() === 'upi' && !paymentReference.trim())))}
+                    onClick={async () => {
+                      const ok = await handleUpdateStatus(
+                        completionOrder.id,
+                        'delivered',
+                        completionOrder.payment_status === 'paid'
+                          ? undefined
+                          : {
+                              payment_confirmed: true,
+                              payment_reference: paymentReference.trim() || undefined,
+                            },
+                      );
+
+                      if (ok) {
+                        setCompletionOrder(null);
+                        setPaymentReference('');
+                        setPaymentConfirmed(false);
+                      }
+                    }}
+                    style={{
+                      flex: 1.35,
+                      minHeight: 46,
+                      borderRadius: 11,
+                      border: 'none',
+                      background: 'linear-gradient(135deg,#0D9B6C,#059652)',
+                      color: '#fff',
+                      fontWeight: 900,
+                      cursor: updatingOrder ? 'wait' : 'pointer',
+                      fontFamily: 'inherit',
+                      boxShadow: '0 8px 24px rgba(13,155,108,0.25)',
+                    }}
+                  >
+                    {updatingOrder ? 'Completing…' : 'Confirm & Complete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── EARNINGS TABLE ─────────────────────────────────────────── */}
           {earnings.length > 0 && (
