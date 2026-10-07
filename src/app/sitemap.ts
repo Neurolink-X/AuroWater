@@ -29,8 +29,6 @@ const publicPages = [
   '/careers',
 ] as const;
 
-const kanpurAreas = [] as const;
-
 /**
  * Use stable modification dates.
  *
@@ -98,14 +96,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
    * Do not create hundreds of thin locality pages just for keywords.
    * ================================================================
    */
-  const kanpurAreaPages: MetadataRoute.Sitemap = kanpurAreas.map((area) =>
-    page(`/kanpur/${area}`, {
-      lastModified: CONTENT_UPDATED,
-      changeFrequency: 'monthly',
-      priority: 0.75,
-    })
-  );
-
   return [
     ...corePages,
     ...servicePages,
