@@ -1,116 +1,106 @@
-import {
-  SkeletonHeading,
-  SkeletonSubheading,
-  SkeletonButton,
-  SkeletonOrderRow,
-  SkeletonStatStrip,
-  SkeletonServiceGrid,
-  SkeletonWelcomeCard,
-} from '@/components/ui/Skeleton';
-
 export default function Loading() {
   return (
     <main
       role="status"
-      aria-label="Loading your AuroWater dashboard"
-      className="min-h-screen bg-[#F0F6FF]"
+      aria-label="Loading your AuroTap order"
+      className="min-h-screen bg-slate-50 text-slate-900"
     >
-      {/* Header */}
-      <div className="sticky top-0 z-20 border-b border-blue-100 bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 animate-pulse rounded-xl bg-blue-100" />
-            <div className="hidden space-y-2 sm:block">
-              <div className="h-3 w-24 animate-pulse rounded bg-blue-100" />
-              <div className="h-2.5 w-16 animate-pulse rounded bg-blue-50" />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="h-9 w-9 animate-pulse rounded-xl bg-blue-50" />
-            <div className="h-9 w-9 animate-pulse rounded-xl bg-blue-50" />
-            <div className="h-9 w-9 animate-pulse rounded-full bg-blue-100" />
-          </div>
+      <div className="mx-auto w-full max-w-5xl px-4 pb-28 pt-5 sm:px-6 sm:pt-8">
+        {/* Top navigation skeleton */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="h-10 w-24 animate-pulse rounded-full bg-white shadow-sm ring-1 ring-slate-200" />
+          <div className="h-10 w-32 animate-pulse rounded-full bg-white shadow-sm ring-1 ring-slate-200" />
         </div>
-      </div>
 
-      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 pb-20 sm:space-y-6 sm:px-6 sm:py-7">
-        {/* Welcome / Hero */}
-        <SkeletonWelcomeCard />
-
-        {/* Quick overview */}
-        <section>
-          <div className="mb-3">
-            <SkeletonHeading width={150} />
-          </div>
-
-          <SkeletonStatStrip cols={4} />
-        </section>
-
-        {/* Services */}
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <SkeletonHeading width={130} />
-            <SkeletonButton width={70} height={30} />
-          </div>
-
-          <SkeletonServiceGrid
-            cols={6}
-            items={6}
-          />
-        </section>
-
-        {/* Current / recent orders */}
-        <section className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-          <div className="flex items-center justify-between gap-4 border-b border-blue-50 px-4 py-4 sm:px-5">
-            <div>
-              <SkeletonHeading width={125} />
-              <div className="mt-2">
-                <SkeletonSubheading width={180} />
+        {/* Status hero skeleton */}
+        <section className="mt-5 overflow-hidden rounded-[2rem] bg-[#071A2E] p-5 shadow-xl shadow-slate-900/10 sm:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 gap-4">
+              <div className="h-14 w-14 shrink-0 animate-pulse rounded-2xl bg-white/10" />
+              <div className="min-w-0 space-y-3">
+                <div className="h-3 w-24 animate-pulse rounded bg-white/10" />
+                <div className="h-7 w-52 max-w-[70vw] animate-pulse rounded-lg bg-white/15" />
+                <div className="h-3 w-64 max-w-[78vw] animate-pulse rounded bg-white/10" />
               </div>
             </div>
-
-            <SkeletonButton width={70} height={32} />
+            <div className="hidden h-8 w-20 animate-pulse rounded-full bg-white/10 sm:block" />
           </div>
 
-          <div>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <SkeletonOrderRow key={index} />
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.06]" />
+            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.06]" />
+            <div className="h-20 animate-pulse rounded-2xl bg-white/[0.06]" />
+          </div>
+        </section>
+
+        {/* Order journey skeleton */}
+        <section className="mt-5 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
+          <div className="mt-7 grid gap-5 sm:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="flex items-center gap-3 sm:block">
+                <div className="h-11 w-11 shrink-0 animate-pulse rounded-full bg-slate-200 sm:mx-auto" />
+                <div className="mt-0 space-y-2 sm:mt-3 sm:text-center">
+                  <div className="h-3 w-20 animate-pulse rounded bg-slate-200 sm:mx-auto" />
+                  <div className="h-2.5 w-14 animate-pulse rounded bg-slate-100 sm:mx-auto" />
+                </div>
+              </div>
             ))}
           </div>
         </section>
 
-        {/* Bottom quick-action cards */}
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-            <SkeletonHeading width={150} />
-
-            <div className="mt-3">
-              <SkeletonSubheading width="75%" />
+        {/* Two-column detail skeleton */}
+        <div className="mt-5 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="h-5 w-28 animate-pulse rounded bg-slate-200" />
+            <div className="mt-5 flex items-center gap-4">
+              <div className="h-14 w-14 animate-pulse rounded-full bg-slate-200" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-36 animate-pulse rounded bg-slate-200" />
+                <div className="h-3 w-48 animate-pulse rounded bg-slate-100" />
+              </div>
             </div>
+            <div className="mt-6 h-11 w-32 animate-pulse rounded-xl bg-slate-100" />
+          </section>
 
-            <div className="mt-5">
-              <SkeletonButton width={120} height={40} />
+          <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
+            <div className="mt-5 space-y-4">
+              <div className="flex justify-between">
+                <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                <div className="h-3 w-16 animate-pulse rounded bg-slate-200" />
+              </div>
+              <div className="flex justify-between">
+                <div className="h-3 w-28 animate-pulse rounded bg-slate-100" />
+                <div className="h-3 w-16 animate-pulse rounded bg-slate-200" />
+              </div>
+              <div className="h-px bg-slate-100" />
+              <div className="flex justify-between">
+                <div className="h-5 w-16 animate-pulse rounded bg-slate-200" />
+                <div className="h-5 w-24 animate-pulse rounded bg-slate-200" />
+              </div>
             </div>
-          </div>
+          </section>
+        </div>
 
-          <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-            <SkeletonHeading width={135} />
-
-            <div className="mt-3">
-              <SkeletonSubheading width="70%" />
-            </div>
-
-            <div className="mt-5">
-              <SkeletonButton width={120} height={40} />
-            </div>
-          </div>
+        {/* Address skeleton */}
+        <section className="mt-5 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <div className="h-5 w-36 animate-pulse rounded bg-slate-200" />
+          <div className="mt-4 h-4 w-full max-w-xl animate-pulse rounded bg-slate-100" />
+          <div className="mt-2 h-4 w-3/4 max-w-md animate-pulse rounded bg-slate-100" />
+          <div className="mt-5 h-10 w-28 animate-pulse rounded-xl bg-slate-100" />
         </section>
+
+        {/* Actions skeleton */}
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="h-12 animate-pulse rounded-2xl bg-slate-200" />
+          <div className="h-12 animate-pulse rounded-2xl bg-slate-200" />
+          <div className="h-12 animate-pulse rounded-2xl bg-slate-200" />
+        </div>
       </div>
 
-      {/* Screen-reader announcement */}
       <span className="sr-only">
-        Loading your AuroWater dashboard…
+        Loading your order details…
       </span>
     </main>
   );
