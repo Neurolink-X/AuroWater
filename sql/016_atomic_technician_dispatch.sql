@@ -157,9 +157,28 @@ CREATE OR REPLACE FUNCTION public.accept_technician_job(
   p_technician_id UUID
 ) RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
-DECLARE
-  now_ts TIMESTAMPTZ := now();
+AS $$
+BEGIN
+  IF auth.role() <> 'service_role' AND auth.uid() IS DISTINCT FROM p_technician_id THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+
+  UPDATE public.technician_job_dispatch
+  SET status='ACCEPTED', responded_at=now()
+  WHERE order_id=p_order_id
+    AND technician_id=p_technician_id
+    AND status='OFFERED';
+
+  RETURN FOUND;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.start_technician_job(
+  p_order_id UUID,
+  p_technician_id UUID
+) RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
 BEGIN
   IF auth.role() <> 'service_role' AND auth.uid() IS DISTINCT FROM p_technician_id THEN
     RAISE EXCEPTION 'FORBIDDEN';
@@ -167,23 +186,20 @@ BEGIN
 
   UPDATE public.orders
   SET status='IN_PROGRESS',
-      accepted_at=COALESCE(accepted_at,now_ts),
-      service_started_at=now_ts
+      service_started_at=now()
   WHERE id=p_order_id
     AND technician_id=p_technician_id
-    AND status='ASSIGNED';
+    AND status='ASSIGNED'
+    AND EXISTS (
+      SELECT 1 FROM public.technician_job_dispatch d
+      WHERE d.order_id=p_order_id
+        AND d.technician_id=p_technician_id
+        AND d.status='ACCEPTED'
+    );
 
-  IF NOT FOUND THEN RETURN FALSE; END IF;
-
-  UPDATE public.technician_job_dispatch
-  SET status='ACCEPTED', responded_at=now_ts
-  WHERE order_id=p_order_id
-    AND technician_id=p_technician_id
-    AND status='OFFERED';
-
-  RETURN TRUE;
+  RETURN FOUND;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_order_id UUID,
@@ -302,6 +318,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.try_assign_technician(UUID,UUID,NUMERIC,NUMERIC) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.accept_technician_job(UUID,UUID) TO authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.start_technician_job(UUID,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.create_service_otp(UUID,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.verify_service_otp(UUID,TEXT,UUID) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.complete_technician_job_atomic(UUID,UUID,BOOLEAN,TEXT) TO authenticated,service_role;
