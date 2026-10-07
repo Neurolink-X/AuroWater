@@ -76,6 +76,25 @@ export async function PUT(
     patch.is_default = body.is_default;
   }
 
+  if (body.lat !== undefined || body.lng !== undefined) {
+    const lat = body.lat === null ? null : Number(body.lat);
+    const lng = body.lng === null ? null : Number(body.lng);
+
+    if (
+      (lat !== null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) ||
+      (lng !== null && (!Number.isFinite(lng) || lng < -180 || lng > 180))
+    ) {
+      return jsonErr('Invalid latitude or longitude', 400);
+    }
+
+    if (lat === null || lng === null) {
+      return jsonErr('Latitude and longitude must be provided together', 400);
+    }
+
+    patch.lat = lat;
+    patch.lng = lng;
+  }
+
   if (Object.keys(patch).length === 0) {
     return jsonErr('Nothing to update', 400);
   }
