@@ -114,7 +114,14 @@ export default function RegisterProPage() {
   };
 
   return (
-    <div\n      className="min-h-screen overflow-x-hidden px-4 py-6 sm:py-10"\n      style={{\n        background:\n          'radial-gradient(circle at 10% 0%, rgba(14,165,233,.16), transparent 30%), radial-gradient(circle at 90% 10%, rgba(20,184,166,.12), transparent 28%), #050B18',\n        color: '#E5E7EB',\n      }}\n    >
+    <div
+      className="min-h-screen overflow-x-hidden px-4 py-6 sm:py-10"
+      style={{
+        background:
+          'radial-gradient(circle at 10% 0%, rgba(14,165,233,.16), transparent 30%), radial-gradient(circle at 90% 10%, rgba(20,184,166,.12), transparent 28%), #050B18',
+        color: '#E5E7EB',
+      }}
+    >
       <div className="mx-auto max-w-6xl">
         <div className="overflow-hidden rounded-[30px] border border-white/10 bg-gradient-to-br from-[#081D36] via-[#07162B] to-[#050B18] p-6 shadow-[0_30px_100px_rgba(0,0,0,.32)] sm:p-9 md:p-10">
           <p className="text-xs font-bold tracking-[0.22em] uppercase text-sky-300/80">Partner with AuroWater</p>
