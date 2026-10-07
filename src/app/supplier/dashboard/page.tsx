@@ -33,7 +33,7 @@ type SupplierProfile = {
   created_at: string;
 };
 
-type OrderStatus =/
+type OrderStatus =
   | 'pending'
   | 'assigned'
   | 'in_progress'
@@ -648,28 +648,42 @@ const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
 }));
 
 setOrders(flat);
-setLoadingOrders(false);
-    }; 
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   const fetchEarnings = async (supplierId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('supplier_earnings')
       .select('*')
       .eq('supplier_id', supplierId)
       .order('created_at', { ascending: false })
       .limit(50);
 
+    if (error) {
+      console.error('[supplier] earnings load failed:', error);
+      setEarnings([]);
+      return;
+    }
+
     setEarnings((data as EarningRow[]) ?? []);
   };
 
   const fetchNotifications = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
       .eq('role', 'supplier')
       .order('created_at', { ascending: false })
       .limit(20);
+
+    if (error) {
+      console.error('[supplier] notifications load failed:', error);
+      setNotifications([]);
+      return;
+    }
 
     setNotifications((data as Notification[]) ?? []);
   };
@@ -689,8 +703,8 @@ setLoadingOrders(false);
 
   // Recalculate stats from live order data
   useEffect(() => {
-    if (!orders.length || !profile) return;
-    const today = new Date().toISOString().slice(0, 10);
+    if (!profile) return;
+    const today = new Intl.DateTimeFormat('en-CA').format(new Date());
     const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
 
@@ -852,17 +866,44 @@ setLoadingOrders(false);
   // ── Sign out ────────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
     setSigningOut(true);
-    await supabase.auth.signOut();
-    toast.success('Signed out successfully.');
-    router.push('/auth/login');
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success('Signed out successfully.');
+      router.push('/auth/login');
+    } catch (error) {
+      console.error('[supplier] sign out failed:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Unable to sign out.',
+      );
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   // ── Mark notifications read ─────────────────────────────────────────────────
   const markNotifsRead = async () => {
     const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (!unreadIds.length) return;
-    await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds);
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .in('id', unreadIds);
+
+    if (error) {
+      console.error('[supplier] notification read update failed:', error);
+      toast.error('Unable to mark notifications as read.');
+      return;
+    }
+
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, is_read: true })),
+    );
   };
 
   // ── Derived ─────────────────────────────────────────────────────────────────
