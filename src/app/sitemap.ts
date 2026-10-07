@@ -85,21 +85,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ),
   ];
 
-  /*
-   * ================================================================
-   * KANPUR LOCALITY PAGES
-   *
-   * These should contain real locality-specific information:
-   * service coverage, response expectations, relevant services,
-   * local FAQs, and useful customer information.
-   *
-   * Do not create hundreds of thin locality pages just for keywords.
-   * ================================================================
-   */
   return [
     ...corePages,
-    ...servicePages,
-    ...kanpurServicePages,
-    ...kanpurAreaPages,
   ];
 }
