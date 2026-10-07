@@ -13,6 +13,8 @@ import { toast } from 'sonner';
 import {
   supplierOrderAccept,
   supplierOrderUpdateStatus,
+  supplierStockGet,
+  supplierStockUpdate,
 } from '@/lib/api-client';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -84,6 +86,15 @@ type DashboardStats = {
   monthEarnings: number;
   completionRate: number;
   avgRating: number;
+};
+
+type SupplierStockState = {
+  supplier_id: string;
+  cans_available: number;
+  reserved_cans: number;
+  low_stock_alert: number;
+  reservation_buffer_cans: number;
+  updated_at: string;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -544,6 +555,10 @@ export default function SupplierDashboardPage() {
   const [earnings, setEarnings] = useState<EarningRow[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stock, setStock] = useState<SupplierStockState | null>(null);
+  const [stockDelta, setStockDelta] = useState('');
+  const [stockBusy, setStockBusy] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
 
   const [tab, setTab] = useState<'active' | 'history'>('active');
   const [showNotifs, setShowNotifs] = useState(false);
@@ -579,6 +594,7 @@ export default function SupplierDashboardPage() {
       await Promise.all([
         fetchProfile(userId),
         fetchNotifications(userId),
+        fetchStock(),
       ]);
     } finally {
       setLoading(false);
@@ -679,6 +695,102 @@ export default function SupplierDashboardPage() {
     }
 
     setEarnings((data as EarningRow[]) ?? []);
+  };
+
+  const fetchStock = async () => {
+    try {
+      const data = await supplierStockGet();
+      setStock(data);
+    } catch (error) {
+      console.error('[supplier] stock load failed:', error);
+      setStock(null);
+    }
+  };
+
+  const adjustStock = async (delta: number) => {
+    if (!Number.isInteger(delta) || delta === 0 || stockBusy) return;
+    setStockBusy(true);
+    try {
+      const data = await supplierStockUpdate({ stock_delta: delta });
+      setStock(data);
+      setStockDelta('');
+      toast.success(delta < 0 ? 'Offline sale recorded.' : 'Stock added.');
+    } catch (error) {
+      console.error('[supplier] stock update failed:', error);
+      toast.error('Stock could not be updated. Reserved stock is protected.');
+    } finally {
+      setStockBusy(false);
+    }
+  };
+
+  const updateStockControls = async (patch: {
+    low_stock_alert?: number;
+    reservation_buffer_cans?: number;
+  }) => {
+    if (!stock || stockBusy) return;
+    setStockBusy(true);
+    try {
+      const data = await supplierStockUpdate({
+        cans_available: stock.cans_available,
+        ...patch,
+      });
+      setStock(data);
+      toast.success('Inventory controls updated.');
+    } catch (error) {
+      console.error('[supplier] stock controls update failed:', error);
+      toast.error('Inventory controls could not be saved.');
+    } finally {
+      setStockBusy(false);
+    }
+  };
+
+  const syncDispatchLocation = async () => {
+    if (locationBusy || typeof navigator === 'undefined' || !navigator.geolocation) {
+      toast.error('Location is not available in this browser.');
+      return;
+    }
+
+    setLocationBusy(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const token = await supabase.auth.getSession();
+          if (!token.data.session) {
+            toast.error('Your session has expired.');
+            return;
+          }
+
+          const response = await fetch('/api/supplier/settings', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token.data.session.access_token}`,
+            },
+            body: JSON.stringify({
+              base_lat: position.coords.latitude,
+              base_lng: position.coords.longitude,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Location update failed');
+          }
+
+          toast.success('Dispatch location updated.');
+        } catch (error) {
+          console.error('[supplier] dispatch location update failed:', error);
+          toast.error('Could not update dispatch location.');
+        } finally {
+          setLocationBusy(false);
+        }
+      },
+      (error) => {
+        console.error('[supplier] geolocation failed:', error);
+        toast.error('Please allow location access to improve nearby order matching.');
+        setLocationBusy(false);
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
   };
 
   const fetchNotifications = async (userId: string) => {
@@ -1203,6 +1315,85 @@ export default function SupplierDashboardPage() {
               loading={loading}
             />
           </div>
+
+          {/* ── INVENTORY + DISPATCH CONTROLS ─────────────────────────── */}
+          <section
+            style={{
+              marginBottom: 28,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,320px),1fr))',
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(135deg,rgba(13,155,108,0.10),rgba(56,189,248,0.05))',
+                border: '1.5px solid rgba(13,155,108,0.20)',
+                borderRadius: 18,
+                padding: 18,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: '#5EEAD4', letterSpacing: '0.08em' }}>
+                    LIVE INVENTORY
+                  </div>
+                  <div style={{ marginTop: 5, fontSize: 24, fontWeight: 900, color: '#F0F4FF' }}>
+                    {stock ? stock.cans_available.toLocaleString('en-IN') : '—'} cans
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                    {stock ? `${stock.reserved_cans} reserved · ${Math.max(0, stock.cans_available - stock.reserved_cans)} free before buffer` : 'Loading inventory…'}
+                  </div>
+                </div>
+                <div style={{ minWidth: 210 }}>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={stockDelta}
+                      onChange={(e) => setStockDelta(e.target.value.replace(/[^0-9-]/g, ''))}
+                      inputMode="numeric"
+                      placeholder="Offline sale / restock"
+                      aria-label="Stock adjustment quantity"
+                      style={{ width: '100%', minWidth: 0, borderRadius: 10, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.05)', color: '#fff', padding: '9px 10px', outline: 'none' }}
+                    />
+                    <button
+                      type="button"
+                      disabled={stockBusy || !Number.isInteger(Number(stockDelta)) || Number(stockDelta) === 0}
+                      onClick={() => void adjustStock(Number(stockDelta))}
+                      style={{ border: 0, borderRadius: 10, padding: '0 13px', background: '#0D9B6C', color: '#fff', fontWeight: 800, cursor: stockBusy ? 'wait' : 'pointer', opacity: stockBusy ? 0.6 : 1 }}
+                    >
+                      Adjust
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 7, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                    Use negative values for offline sales, positive values for restocking.
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(-1)} style={{ border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10, background: 'rgba(248,113,113,0.07)', color: '#FDA4AF', padding: '8px 11px', fontWeight: 700 }}>−1 offline sale</button>
+                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(10)} style={{ border: '1px solid rgba(56,189,248,0.22)', borderRadius: 10, background: 'rgba(56,189,248,0.07)', color: '#7DD3FC', padding: '8px 11px', fontWeight: 700 }}>+10 restock</button>
+                <span style={{ alignSelf: 'center', fontSize: 11, color: stock && stock.cans_available - stock.reserved_cans <= stock.low_stock_alert ? '#FBBF24' : 'rgba(255,255,255,0.4)' }}>
+                  Low-stock alert: {stock?.low_stock_alert ?? '—'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: 18 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#7DD3FC', letterSpacing: '0.08em' }}>DISPATCH SAFETY</div>
+              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: '#F0F4FF' }}>Protect stock before accepting</div>
+              <div style={{ marginTop: 5, fontSize: 11, lineHeight: 1.5, color: 'rgba(255,255,255,0.42)' }}>
+                Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.
+              </div>
+              <button
+                type="button"
+                disabled={locationBusy}
+                onClick={() => void syncDispatchLocation()}
+                style={{ marginTop: 14, width: '100%', border: '1px solid rgba(56,189,248,0.22)', borderRadius: 10, background: 'rgba(56,189,248,0.07)', color: '#7DD3FC', padding: '9px 11px', fontWeight: 800 }}
+              >
+                {locationBusy ? 'Updating location…' : 'Use current location for dispatch'}
+              </button>
+            </div>
+          </section>
 
           {/* ── ORDERS SECTION ─────────────────────────────────────────── */}
           <div style={{ marginBottom: 28 }}>
