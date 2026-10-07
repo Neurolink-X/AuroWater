@@ -13,11 +13,9 @@ const VALID_STATUSES = new Set([
 ]);
 
 const VALID_PAYMENT_STATUSES = new Set([
-  'pending',
+  'unpaid',
   'paid',
-  'failed',
   'refunded',
-  'cancelled',
 ]);
 
 const ALLOWED_UPDATE_FIELDS = [
