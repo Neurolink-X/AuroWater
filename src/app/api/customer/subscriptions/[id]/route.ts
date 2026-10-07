@@ -468,7 +468,7 @@ export async function PATCH(
           address_snapshot:
             addressSnapshot,
           payment_status:
-            'pending',
+            'unpaid',
           payment_method:
             subscription.payment_method,
           address:
