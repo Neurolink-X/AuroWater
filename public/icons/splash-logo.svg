@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img" aria-label="AuroWater logo">
+  <defs>
+    <!-- Background gradient — deep navy to mid blue -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0%"  stop-color="#0A2744"/>
+      <stop offset="100%" stop-color="#060D1A"/>
+    </linearGradient>
+
+    <!-- Droplet fill gradient -->
+    <linearGradient id="dropFill" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%"   stop-color="#60A5FA"/>
+      <stop offset="55%"  stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+
+    <!-- Droplet shine -->
+    <radialGradient id="shine" cx="38%" cy="28%" r="42%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Inner glow halo behind droplet -->
+    <radialGradient id="halo" cx="50%" cy="55%" r="50%">
+      <stop offset="0%"   stop-color="#3B82F6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle ring pattern -->
+    <radialGradient id="ring" cx="50%" cy="50%" r="50%">
+      <stop offset="88%"  stop-color="#2563EB" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#60A5FA" stop-opacity="0.15"/>
+    </radialGradient>
+
+    <!-- Icon shadow for depth -->
+    <filter id="dropShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feFlood flood-color="#2563EB" flood-opacity="0.4" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+      <feOffset dx="0" dy="4"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clip to rounded square (iOS icon shape) -->
+    <clipPath id="squircle">
+      <rect width="400" height="400" rx="88" ry="88"/>
+    </clipPath>
+  </defs>
+
+  <!-- ── Background rounded square ── -->
+  <g clip-path="url(#squircle)">
+    <rect width="400" height="400" fill="url(#bg)"/>
+
+    <!-- Subtle ring glow -->
+    <rect width="400" height="400" fill="url(#ring)"/>
+
+    <!-- Fine grid texture -->
+    <line x1="0"   y1="133" x2="400" y2="133" stroke="#fff" stroke-width="0.5" stroke-opacity="0.03"/>
+    <line x1="0"   y1="267" x2="400" y2="267" stroke="#fff" stroke-width="0.5" stroke-opacity="0.03"/>
+    <line x1="133" y1="0"   x2="133" y2="400" stroke="#fff" stroke-width="0.5" stroke-opacity="0.03"/>
+    <line x1="267" y1="0"   x2="267" y2="400" stroke="#fff" stroke-width="0.5" stroke-opacity="0.03"/>
+
+    <!-- Halo glow behind droplet -->
+    <ellipse cx="200" cy="220" rx="130" ry="130" fill="url(#halo)"/>
+
+    <!-- ── Water droplet (centered, vertically balanced) ── -->
+    <!--
+      Path: starts at top tip, curves outward into teardrop.
+      Designed so the visual centroid sits at 200,210 — optically centred.
+    -->
+    <g filter="url(#dropShadow)">
+      <path
+        d="M 200 78
+           C 162 118, 112 162, 112 212
+           C 112 274, 152 322, 200 322
+           C 248 322, 288 274, 288 212
+           C 288 162, 238 118, 200 78 Z"
+        fill="url(#dropFill)"
+      />
+      <!-- Shine overlay -->
+      <path
+        d="M 200 78
+           C 162 118, 112 162, 112 212
+           C 112 274, 152 322, 200 322
+           C 248 322, 288 274, 288 212
+           C 288 162, 238 118, 200 78 Z"
+        fill="url(#shine)"
+      />
+    </g>
+
+    <!-- ── Inner wave (water inside the drop) ── -->
+    <clipPath id="dropClip">
+      <path d="M 200 78 C 162 118, 112 162, 112 212 C 112 274, 152 322, 200 322 C 248 322, 288 274, 288 212 C 288 162, 238 118, 200 78 Z"/>
+    </clipPath>
+    <g clip-path="url(#dropClip)">
+      <!-- Wave 1 -->
+      <path
+        d="M 112 252
+           Q 145 238, 178 252
+           Q 211 266, 244 252
+           Q 277 238, 310 252
+           L 310 322 L 112 322 Z"
+        fill="#ffffff"
+        fill-opacity="0.1"
+      />
+      <!-- Wave 2 -->
+      <path
+        d="M 112 272
+           Q 150 258, 188 272
+           Q 226 286, 264 272
+           Q 302 258, 340 272
+           L 340 322 L 112 322 Z"
+        fill="#ffffff"
+        fill-opacity="0.07"
+      />
+      <!-- Highlight streak inside drop -->
+      <ellipse cx="165" cy="155" rx="16" ry="36" fill="#fff" fill-opacity="0.18" transform="rotate(-18, 165, 155)"/>
+    </g>
+
+    <!-- ── Decorative ring around droplet ── -->
+    <circle cx="200" cy="210" r="118" fill="none" stroke="#60A5FA" stroke-width="1.2" stroke-opacity="0.12"/>
+    <circle cx="200" cy="210" r="136" fill="none" stroke="#3B82F6" stroke-width="0.7" stroke-opacity="0.07"/>
+
+    <!-- ── Small "A" letterform (subtle brand mark, bottom-right of drop) ── -->
+    <!-- Minimal — only visible at large sizes, disappears at small -->
+    <text
+      x="200" y="308"
+      font-family="'Syne', 'Georgia', serif"
+      font-size="32"
+      font-weight="900"
+      fill="#ffffff"
+      fill-opacity="0.22"
+      text-anchor="middle"
+      dominant-baseline="middle"
+      letter-spacing="-1px"
+    >AW</text>
+  </g>
+
+  <!-- Outer border ring (visible on light backgrounds) -->
+  <rect
+    width="400" height="400" rx="88" ry="88"
+    fill="none"
+    stroke="#2563EB"
+    stroke-width="1.5"
+    stroke-opacity="0.2"
+  />
+</svg>
