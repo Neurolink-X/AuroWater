@@ -1378,6 +1378,13 @@ CREATE POLICY order_dispatch_admin_all ON public.order_dispatch FOR ALL TO authe
   USING (COALESCE(public.current_profile_role(), '') = 'admin')
   WITH CHECK (COALESCE(public.current_profile_role(), '') = 'admin');
 
+-- Browser clients read inventory/dispatch state but cannot mutate reservation fields directly.
+-- All writes go through the locked SECURITY DEFINER RPCs above.
+REVOKE INSERT, UPDATE, DELETE ON public.supplier_stock FROM authenticated;
+GRANT SELECT ON public.supplier_stock TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.order_dispatch FROM authenticated;
+GRANT SELECT ON public.order_dispatch TO authenticated;
+
 ALTER TABLE public.supplier_stock
   ADD COLUMN IF NOT EXISTS reserved_cans INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS reservation_buffer_cans INTEGER NOT NULL DEFAULT 0;
