@@ -5,10 +5,23 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
 
-const stockSchema = z.object({
-  cans_available: z.number().int().min(0).max(100000).optional(),
-  low_stock_alert: z.number().int().min(0).max(10000).optional(),
-});
+const stockSchema = z
+  .object({
+    cans_available: z.number().int().min(0).max(100000).optional(),
+    stock_delta: z.number().int().min(-100000).max(100000).optional(),
+    low_stock_alert: z.number().int().min(0).max(10000).optional(),
+    reservation_buffer_cans: z.number().int().min(0).max(10000).optional(),
+  })
+  .refine(
+    (value) =>
+      value.cans_available !== undefined || value.stock_delta !== undefined,
+    { message: 'cans_available or stock_delta is required' },
+  )
+  .refine(
+    (value) =>
+      !(value.cans_available !== undefined && value.stock_delta !== undefined),
+    { message: 'Use either cans_available or stock_delta, not both' },
+  );
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
@@ -52,15 +65,33 @@ export async function PUT(req: NextRequest) {
   if (!parsed.success) return jsonErr(parsed.error.issues[0]?.message ?? 'Invalid payload', 422);
 
   const supplier_id = auth.ctx.profile.id;
-  const { data, error } = await auth.ctx.supabase
-    .from('supplier_stock')
-    .upsert(
-      { supplier_id, ...parsed.data, updated_at: new Date().toISOString() },
-      { onConflict: 'supplier_id' }
-    )
-    .select('*')
-    .single();
-  if (error) return jsonErr(error.message, 502);
+
+  let data: unknown = null;
+  let error: { message?: string } | null = null;
+
+  if (parsed.data.stock_delta !== undefined) {
+    const result = await auth.ctx.supabase.rpc('adjust_supplier_stock', {
+      p_supplier_id: supplier_id,
+      p_delta: parsed.data.stock_delta,
+      p_low_stock_alert: parsed.data.low_stock_alert ?? null,
+      p_reservation_buffer_cans:
+        parsed.data.reservation_buffer_cans ?? null,
+    });
+    data = result.data;
+    error = result.error;
+  } else {
+    const result = await auth.ctx.supabase.rpc('set_supplier_stock', {
+      p_supplier_id: supplier_id,
+      p_cans_available: parsed.data.cans_available,
+      p_low_stock_alert: parsed.data.low_stock_alert ?? null,
+      p_reservation_buffer_cans:
+        parsed.data.reservation_buffer_cans ?? null,
+    });
+    data = result.data;
+    error = result.error;
+  }
+
+  if (error) return jsonErr(error.message ?? 'Stock update failed', 409);
 
   // Low stock alert notification (best-effort, never blocks response).
   try {
