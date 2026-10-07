@@ -45,41 +45,16 @@ export async function PUT(
     return jsonErr('Job was already accepted or reassigned', 409);
   }
 
-  // Generate the one-time service completion proof only after the technician
-  // has atomically started the job. The plaintext is never stored in the DB.
-  const { data: otp, error: otpError } =
-    await auth.ctx.supabase.rpc('create_service_otp', {
-      p_order_id: id,
-      p_technician_id: auth.ctx.profile.id,
-    });
-
-  if (otpError || !otp) {
-    console.error('[technician/accept] OTP creation failed:', otpError);
-    return jsonErr('Job started, but service verification could not be prepared', 500);
-  }
-
-  const customerId = order.customer_id != null ? String(order.customer_id) : '';
-  let serviceName = 'service';
-
-  if (order.service_type_id != null) {
-    const { data: st } = await auth.ctx.supabase
-      .from('service_types')
-      .select('name')
-      .eq('id', order.service_type_id)
-      .maybeSingle();
-    if (st?.name) serviceName = String(st.name);
-  }
-
   if (customerId) {
     try {
       const { createNotification } = await import('@/lib/notifications');
       await createNotification(
         customerId,
-        'Technician has started your service',
-        `Your ${serviceName} visit has started. Share service code ${String(otp)} with the technician only when the work is ready to be completed.`,
+        'Technician accepted your service',
+        'Your technician accepted the job. They will start the visit shortly.',
         'booking',
         id,
-        'technician_started',
+        'technician_accepted',
       );
     } catch (error) {
       console.error('[technician/accept] notification failed:', error);
@@ -88,8 +63,7 @@ export async function PUT(
 
   return jsonOk({
     accepted: true,
-    status: 'IN_PROGRESS',
-    otp_created: true,
+    status: 'ASSIGNED',
   });
 }
 
