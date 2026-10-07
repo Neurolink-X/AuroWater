@@ -1528,6 +1528,7 @@ import {
   technicianJobAccept,
   technicianJobReject,
   technicianJobUpdateStatus,
+  technicianAvailabilityUpdate,
   getApiErrorMessage,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
@@ -1825,6 +1826,46 @@ export default function TechnicianDashboardPage() {
   const [completionPaymentConfirmed, setCompletionPaymentConfirmed] = useState(false);
   const [completionPaymentReference, setCompletionPaymentReference] = useState('');
   const [completionBusy, setCompletionBusy] = useState(false);
+
+  const handleOnlineChange = useCallback(
+    async (next: TechnicianOnline) => {
+      const previous = online;
+      setOnline(next);
+
+      try {
+        let lat: number | null = null;
+        let lng: number | null = null;
+
+        if (next === 'online' && typeof navigator !== 'undefined' && navigator.geolocation) {
+          try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: false,
+                timeout: 8000,
+                maximumAge: 300000,
+              }),
+            );
+            lat = position.coords.latitude;
+            lng = position.coords.longitude;
+          } catch (locationError) {
+            console.warn('[TechnicianDashboard] location unavailable:', locationError);
+          }
+        }
+
+        await technicianAvailabilityUpdate({
+          online: next === 'online',
+          lat,
+          lng,
+        });
+
+        toast.success(next === 'online' ? 'You are now available for nearby jobs.' : 'You are now offline.');
+      } catch (error) {
+        setOnline(previous);
+        toast.error(getApiErrorMessage(error) || 'Could not update availability.');
+      }
+    },
+    [online],
+  );
 
   const fetchTechnicianJobs = useCallback(async () => {
     setJobsError(null);
@@ -2209,7 +2250,7 @@ export default function TechnicianDashboardPage() {
                       <h1 className="text-2xl font-black text-zinc-900 mt-0.5">{techName}</h1>
                       <p className="text-sm text-zinc-500 mt-1">Here's your performance at a glance</p>
                     </div>
-                    <StatusToggle online={online} onChange={setOnline} />
+                    <StatusToggle online={online} onChange={handleOnlineChange} />
                   </div>
                 </div>
 
