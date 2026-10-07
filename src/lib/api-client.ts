@@ -667,9 +667,17 @@ export async function adminOrders(params?: Record<string, string | undefined>): 
   return apiFetchAuth(`/admin/orders${q ? `?${q}` : ''}`);
 }
 
-export async function adminFinance(range?: string): Promise<unknown> {
+export type AdminFinanceSnapshot = {
+  range: '7d' | '30d' | '90d' | 'all';
+  order_count: number;
+  gross_revenue: number;
+  collected_revenue: number;
+  pending_payments: number;
+};
+
+export async function adminFinance(range?: '7d' | '30d' | '90d' | 'all'): Promise<AdminFinanceSnapshot> {
   const q = range ? `?range=${encodeURIComponent(range)}` : '';
-  return apiFetchAuth(`/admin/finance${q}`);
+  return apiFetchAuth<AdminFinanceSnapshot>(`/admin/finance${q}`);
 }
 
 export async function adminUsers(params?: { role?: string; limit?: number; offset?: number }): Promise<unknown[]> {
