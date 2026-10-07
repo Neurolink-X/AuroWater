@@ -13,7 +13,10 @@ export type OrderNotificationEventType =
   | 'cancelled'
   | 'assigned'
   | 'status_changed'
-  | 'completed';
+  | 'completed'
+  | 'technician_accepted'
+  | 'technician_started'
+  | 'technician_cancelled';
 
 interface NotificationInsertRow {
   user_id: string;
