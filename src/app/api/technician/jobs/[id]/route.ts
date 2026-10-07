@@ -28,7 +28,9 @@ export async function GET(
     return jsonErr('Job not found', 404);
   }
 
-  return jsonOk(data);
+  const safe = { ...data } as Record<string, unknown>;
+  delete safe.service_otp_hash;
+  return jsonOk(safe);
 }
 
 
