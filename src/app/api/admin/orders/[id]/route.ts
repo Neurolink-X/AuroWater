@@ -400,64 +400,9 @@ export async function PUT(
     }
 
     /*
-     * Decrease supplier stock.
-     *
-     * Best-effort because the current implementation
-     * does not use an atomic stock-decrement RPC.
+     * Stock is consumed atomically by the database reservation trigger.
+     * Keep this API side-effect free so completion cannot double-decrement inventory.
      */
-    try {
-      const quantity = Math.max(
-        0,
-        Number(
-          (
-            beforeRow as {
-              can_quantity?: number | null;
-            }
-          ).can_quantity ?? 0,
-        ),
-      );
-
-      if (quantity > 0) {
-        const { data: stockRow } = await sb
-          .from('supplier_stock')
-          .select('cans_available')
-          .eq('supplier_id', supplierId)
-          .maybeSingle();
-
-        const available = Math.max(
-          0,
-          Number(
-            (
-              stockRow as {
-                cans_available?: number;
-              } | null
-            )?.cans_available ?? 0,
-          ),
-        );
-
-        await sb
-          .from('supplier_stock')
-          .upsert(
-            {
-              supplier_id: supplierId,
-              cans_available: Math.max(
-                0,
-                available - quantity,
-              ),
-              updated_at:
-                new Date().toISOString(),
-            },
-            {
-              onConflict: 'supplier_id',
-            },
-          );
-      }
-    } catch (error) {
-      console.error(
-        '[admin/orders] supplier_stock decrement failed',
-        error,
-      );
-    }
   }
 
   /*
