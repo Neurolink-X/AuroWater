@@ -11,6 +11,9 @@ const settingsSchema = z.object({
   ifsc: z.string().min(6).optional(),
   auto_accept: z.boolean().optional(),
   qr_code_url: z.string().url().optional(),
+  base_lat: z.number().min(-90).max(90).nullable().optional(),
+  base_lng: z.number().min(-180).max(180).nullable().optional(),
+  zone_radius_km: z.number().int().min(1).max(100).optional(),
 });
 
 export async function GET(req: NextRequest) {
