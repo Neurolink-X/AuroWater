@@ -873,6 +873,31 @@ export async function supplierStockGet(): Promise<SupplierStock | null> {
   return apiFetchAuth<SupplierStock | null>('/supplier/stock');
 }
 
+export type SupplierDispatchSettings = {
+  is_online: boolean;
+  zone_radius_km: number;
+  base_lat: number | null;
+  base_lng: number | null;
+};
+
+export async function supplierSettingsGet(): Promise<SupplierDispatchSettings | null> {
+  return apiFetchAuth<SupplierDispatchSettings | null>('/supplier/settings');
+}
+
+export async function supplierSettingsUpdate(body: {
+  is_online?: boolean;
+  base_lat?: number | null;
+  base_lng?: number | null;
+  zone_radius_km?: number;
+}): Promise<SupplierDispatchSettings> {
+  return apiFetchAuth<SupplierDispatchSettings>('/supplier/settings', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  });
+}
+
+
+
 export async function supplierStockUpdate(body: {
   cans_available?: number;
   stock_delta?: number;
