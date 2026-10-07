@@ -412,7 +412,7 @@ export async function GET(
               address_snapshot:
                 snapshot,
               payment_status:
-                'pending',
+                'unpaid',
               payment_method:
                 subscription.payment_method,
               address:
