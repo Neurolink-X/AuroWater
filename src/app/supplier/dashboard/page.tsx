@@ -640,6 +640,7 @@ const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
 
 setOrders(flat);
 setLoadingOrders(false);
+    }; 
 
   const fetchEarnings = async (supplierId: string) => {
     const { data } = await supabase
