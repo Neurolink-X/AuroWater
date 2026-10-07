@@ -237,7 +237,7 @@ export default function TrackOrderPage() {
   /* Auto-refresh for every active status (fast when realtime is down, slow safety net when live) */
   useEffect(() => {
     if (!id || !isActive) return;
-    const ms = channelLive ? 60_000 : 12_000;
+    const ms = channelLive ? 90_000 : 30_000;
     const tick = () => {
       if (document.visibilityState === 'visible') void load(true);
     };
@@ -443,7 +443,7 @@ export default function TrackOrderPage() {
             </div>
           </section>
 
-          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_0.72fr]">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.72fr]">
             <div className="h-44 animate-pulse rounded-[2rem] bg-white shadow-sm ring-1 ring-slate-200" />
             <div className="h-44 animate-pulse rounded-[2rem] bg-white shadow-sm ring-1 ring-slate-200" />
           </div>
@@ -781,7 +781,7 @@ export default function TrackOrderPage() {
         </div>
 
         {/* Order details */}
-        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -850,7 +850,7 @@ export default function TrackOrderPage() {
         </div>
 
         {/* Actions */}
-        <section className="mt-5 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="mt-4 rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             {canCancel ? (
               <button
