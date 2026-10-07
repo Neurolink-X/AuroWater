@@ -377,11 +377,13 @@ export interface SupplierSettingsRow {
 ══════════════════════════════════════════════════ */
 
 export interface SupplierStockRow {
-  id:               string;
-  supplier_id:      string;
-  cans_available:   number;
-  low_stock_alert:  number;
-  updated_at:       string;
+  id:                        string;
+  supplier_id:               string;
+  cans_available:             number;
+  reserved_cans:              number;
+  low_stock_alert:             number;
+  reservation_buffer_cans:     number;
+  updated_at:                 string;
 }
 
 /* ══════════════════════════════════════════════════
