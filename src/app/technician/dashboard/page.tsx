@@ -1526,6 +1526,7 @@ import type { ApiOrder } from '@/lib/api-client';
 import {
   technicianJobsList,
   technicianJobAccept,
+  technicianJobReject,
   technicianJobUpdateStatus,
   getApiErrorMessage,
 } from '@/lib/api-client';
@@ -1987,9 +1988,18 @@ export default function TechnicianDashboardPage() {
     [fetchTechnicianJobs]
   );
 
-  const declineJob = useCallback((_job: JobQueueItem) => {
-    toast.message('Contact admin if you cannot take this assignment.');
-  }, []);
+  const declineJob = useCallback(
+    async (job: JobQueueItem) => {
+      try {
+        const result = await technicianJobReject(job.id);
+        toast.success(result.reassigned ? 'Job declined. Finding the next technician.' : 'Job declined safely.');
+        await fetchTechnicianJobs();
+      } catch (error) {
+        toast.error(getApiErrorMessage(error) || 'Failed to decline job.');
+      }
+    },
+    [fetchTechnicianJobs],
+  );
 
   const startJob = useCallback(
     async (id: string) => {
