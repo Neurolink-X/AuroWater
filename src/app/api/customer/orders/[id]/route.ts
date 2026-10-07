@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
-import { sweepCustomerOrders } from '@/lib/dispatch';
 
 export async function GET(
   req: NextRequest,
@@ -15,12 +14,16 @@ export async function GET(
 
   const { id } = await ctx.params;
 
-  // Lazy dispatch maintenance (releases unanswered offers, retries unassigned orders)
-  await sweepCustomerOrders(auth.ctx.profile.id);
+  // Latency-sensitive tracking read: dispatch maintenance runs independently.
 
   const { data, error } = await auth.ctx.supabase
     .from('orders')
-    .select('*')
+    .select(`id, order_number, status, created_at, updated_at, service_type,
+      address_snapshot, address, scheduled_at, note, total_amount, base_amount,
+      platform_fee, convenience_fee, gst_amount, emergency_charge,
+      payment_method, payment_status, technician_id, supplier_id,
+      assigned_at, accepted_at, dispatched_at, completed_at, cancelled_at,
+      cancel_reason, can_count, is_emergency`)
     .eq('id', id)
     .eq('customer_id', auth.ctx.profile.id)
     .maybeSingle();
