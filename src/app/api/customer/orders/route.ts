@@ -220,6 +220,11 @@ export async function POST(req: NextRequest) {
 
 const addrLat = toNum(a.lat);
 const addrLng = toNum(a.lng);
+const hasValidCoordinates = Number.isFinite(addrLat) && Number.isFinite(addrLng) && addrLat >= -90 && addrLat <= 90 && addrLng >= -180 && addrLng <= 180;
+
+if (service_type_key === 'water_can' && !hasValidCoordinates) {
+  return jsonErr('Please save this delivery address with a valid map location before ordering water.', 400, 'DELIVERY_LOCATION_REQUIRED');
+}
 
 const serviceability = await resolveServiceability(
   a,
