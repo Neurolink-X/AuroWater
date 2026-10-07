@@ -909,10 +909,20 @@ export async function technicianJobAccept(id: string): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/technician/jobs/${id}/accept`, { method: 'PUT' });
 }
 
-export async function technicianJobUpdateStatus(id: string, status: string): Promise<ApiOrder> {
-  return apiFetchAuth<ApiOrder>(`/technician/jobs/${id}/status`, {
+export async function technicianJobUpdateStatus(
+  id: string,
+  status: string,
+  payment?: {
+    payment_confirmed?: boolean;
+    payment_reference?: string;
+  }
+): Promise<ApiOrder> {
+  return apiFetchAuth<ApiOrder>(`/technician/jobs/${id}`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({
+      status,
+      ...payment,
+    }),
   });
 }
 
