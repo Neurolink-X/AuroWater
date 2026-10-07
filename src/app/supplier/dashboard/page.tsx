@@ -15,7 +15,7 @@ import {
   supplierOrderUpdateStatus,
 } from '@/lib/api-client';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────
 
 type SupplierProfile = {
   id: string;
