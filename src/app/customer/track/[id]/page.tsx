@@ -156,6 +156,7 @@ export default function TrackOrderPage() {
   const [tech, setTech] = useState<ProfileLite | null>(null);
   const [supplier, setSupplier] = useState<ProfileLite | null>(null);
   const [supplierRating, setSupplierRating] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0]);
   const [cancelling, setCancelling] = useState(false);
@@ -386,6 +387,17 @@ export default function TrackOrderPage() {
     }
   };
 
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await load(true);
+      toast.success('Order status refreshed.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const copyId = async () => {
     try {
       await navigator.clipboard.writeText(id);
@@ -546,6 +558,19 @@ export default function TrackOrderPage() {
                     <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
                       Order {shortId}
                     </span>
+                    {isActive ? (
+                      <button
+                        type="button"
+                        onClick={() => void refreshNow()}
+                        disabled={refreshing}
+                        className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 text-[10px] font-bold text-white/80 transition hover:bg-white/15 disabled:opacity-50"
+                        aria-label="Refresh order status"
+                      >
+                        <span aria-hidden>{refreshing ? '↻' : '⟳'}</span>
+                        {refreshing ? 'Updating' : 'Refresh'}
+                      </button>
+                    ) : null}
+
                     {channelLive && isActive ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-200">
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" />
