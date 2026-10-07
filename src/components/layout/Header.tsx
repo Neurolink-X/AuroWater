@@ -382,21 +382,18 @@ export default function Header() {
         />
 
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6">
-  <Link
-    href="/"
-    className="group flex shrink-0 items-center gap-2.5"
-    aria-label="AuroWater home"
-  >
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
-      <Image
-        src="/splash-logo.png"
-        alt=""
-        width={36}
-        height={36}
-        className="h-full w-full object-cover"
-        priority
-      />
-    </span>
+        
+ <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="AuroWater home">
+  <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
+    <Image
+      src="/splash-logo.svg"
+      alt=""
+      width={36}
+      height={36}
+      className="h-full w-full object-contain"
+      priority
+    />
+  </span>
 
     <span className="hidden whitespace-nowrap text-lg font-bold tracking-tight text-white sm:block">
       Auro<span className="text-cyan-400">Water</span>
