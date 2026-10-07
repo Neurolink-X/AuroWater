@@ -77,7 +77,7 @@ export async function PUT(
     }
 
     const { data: accepted, error: acceptError } =
-      await auth.ctx.supabase.rpc('accept_technician_job', {
+      await auth.ctx.supabase.rpc('start_technician_job', {
         p_order_id: id,
         p_technician_id: auth.ctx.profile.id,
       });
