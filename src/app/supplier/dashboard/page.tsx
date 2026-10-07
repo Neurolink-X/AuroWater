@@ -559,6 +559,8 @@ export default function SupplierDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [stock, setStock] = useState<SupplierStockState | null>(null);
   const [stockDelta, setStockDelta] = useState('');
+  const [lowStockInput, setLowStockInput] = useState('');
+  const [bufferInput, setBufferInput] = useState('');
   const [stockBusy, setStockBusy] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [dispatchOnline, setDispatchOnline] = useState(false);
@@ -730,6 +732,8 @@ export default function SupplierDashboardPage() {
     try {
       const data = await supplierStockGet();
       setStock(data);
+      setLowStockInput(data ? String(data.low_stock_alert) : '');
+      setBufferInput(data ? String(data.reservation_buffer_cans) : '');
     } catch (error) {
       console.error('[supplier] stock load failed:', error);
       setStock(null);
@@ -1404,6 +1408,37 @@ export default function SupplierDashboardPage() {
                 <span style={{ alignSelf: 'center', fontSize: 11, color: stock && stock.cans_available - stock.reserved_cans <= stock.low_stock_alert ? '#FBBF24' : 'rgba(255,255,255,0.4)' }}>
                   Low-stock alert: {stock?.low_stock_alert ?? '—'}
                 </span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                  Alert
+                  <input
+                    value={lowStockInput}
+                    onChange={(e) => setLowStockInput(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    aria-label="Low stock alert threshold"
+                    style={{ width: 58, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '5px 7px' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'rgba(255,255,255,0.45)' }}>
+                  Buffer
+                  <input
+                    value={bufferInput}
+                    onChange={(e) => setBufferInput(e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    aria-label="Reservation buffer cans"
+                    style={{ width: 58, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#fff', padding: '5px 7px' }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={stockBusy || !stock}
+                  onClick={() => void updateStockControls({
+                    low_stock_alert: Math.max(0, Math.floor(Number(lowStockInput || 0))),
+                    reservation_buffer_cans: Math.max(0, Math.floor(Number(bufferInput || 0))),
+                  })}
+                  style={{ border: '1px solid rgba(255,255,255,0.10)', borderRadius: 8, background: 'rgba(255,255,255,0.05)', color: '#D1FAE5', padding: '5px 8px', fontWeight: 700 }}
+                >
+                  Save
+                </button>
               </div>
             </div>
 
