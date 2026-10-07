@@ -18,6 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jsonErr } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
+const VALID_PAYMENT_STATUSES = new Set(['unpaid', 'paid', 'refunded']);
+
 const VALID_STATUSES = new Set([
   'PENDING',
   'ASSIGNED',
@@ -147,6 +149,7 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
 
   const status = sp.get('status')?.toUpperCase() ?? undefined;
+  const paymentStatus = sp.get('payment_status')?.toLowerCase() ?? undefined;
   const service = sp.get('service')?.trim() || undefined;
   const sortAscending = sp.get('sort') === 'asc';
 
@@ -161,6 +164,13 @@ export async function GET(req: NextRequest) {
 
   const from = parseISODate(fromRaw);
   const to = parseISODate(toRaw);
+
+  if (paymentStatus && !VALID_PAYMENT_STATUSES.has(paymentStatus)) {
+    return jsonErr(
+      `Invalid payment_status "${paymentStatus}". Allowed: ${[...VALID_PAYMENT_STATUSES].join(', ')}`,
+      400,
+    );
+  }
 
   if (status && !VALID_STATUSES.has(status)) {
     return jsonErr(
@@ -213,6 +223,10 @@ export async function GET(req: NextRequest) {
 
   if (status) {
     q = q.eq('status', status);
+  }
+
+  if (paymentStatus) {
+    q = q.eq('payment_status', paymentStatus);
   }
 
   if (service) {
