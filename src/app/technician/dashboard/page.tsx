@@ -2290,7 +2290,7 @@ export default function TechnicianDashboardPage() {
                             <p className="text-xs text-zinc-500">{activeJob.sub} · {activeJob.area}</p>
                           </div>
                         </div>
-                        <button onClick={() => completeJob(activeJob.id)} className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors text-sm">
+                        <button onClick={() => openCompletion(activeJob.id)} className="w-full bg-emerald-600 text-white font-bold py-2.5 rounded-xl hover:bg-emerald-700 transition-colors text-sm">
                           Mark as Completed ✓
                         </button>
                       </div>
