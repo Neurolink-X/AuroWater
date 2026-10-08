@@ -216,6 +216,9 @@ async function runSweep(req: NextRequest) {
     dispatch_errors: dispatchErrors,
     stale_checked: stale?.length ?? 0,
     pending_checked: pending?.length ?? 0,
+    supplier_retried: supplierRetried,
+    supplier_dispatch_errors: supplierDispatchErrors,
+    supplier_pending_checked: pendingSupplierOrders?.length ?? 0,
     duration_ms: durationMs,
     checked_at: new Date().toISOString(),
   });
