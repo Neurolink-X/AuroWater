@@ -1,1454 +1,1050 @@
-# AuroWater Authentication System
+# AuroWater
 
-Production-oriented authentication state management for the AuroWater platform.
+> Technology platform for water delivery and essential home water-system services.
 
-AuroWater is a role-based water delivery and home-service marketplace with four primary roles:
+AuroWater is a production-oriented marketplace platform designed to connect customers with water suppliers and field technicians through a single digital workflow.
 
-- **Customer**
-- **Supplier**
-- **Technician**
-- **Admin**
+The platform combines customer booking, serviceability, pricing, order tracking, supplier dispatch, technician dispatch, inventory-aware water fulfillment, OTP-based service verification, payment confirmation, reviews, operational dashboards, and role-based administration.
 
-This authentication module provides a consistent client-side authentication experience while keeping the actual security boundary on the server, API, Supabase Auth, and database Row Level Security (RLS).
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Core Concepts](#core-concepts)
-- [Roles](#roles)
-- [Account Lifecycle](#account-lifecycle)
-- [Operational Access](#operational-access)
-- [Permissions](#permissions)
-- [File Responsibilities](#file-responsibilities)
-- [Installation](#installation)
-- [Provider Setup](#provider-setup)
-- [Basic Usage](#basic-usage)
-- [Role Protection](#role-protection)
-- [Permission Protection](#permission-protection)
-- [Supplier and Technician Gating](#supplier-and-technician-gating)
-- [Session Management](#session-management)
-- [Cross-Tab Synchronization](#cross-tab-synchronization)
-- [Session Expiry](#session-expiry)
-- [Security Model](#security-model)
-- [Server-Side Requirements](#server-side-requirements)
-- [Supabase RLS Requirements](#supabase-rls-requirements)
-- [Login Flow](#login-flow)
-- [Logout Flow](#logout-flow)
-- [Migration Notes](#migration-notes)
-- [Production Checklist](#production-checklist)
-- [Recommended Future Architecture](#recommended-future-architecture)
-- [Troubleshooting](#troubleshooting)
-- [Design Principles](#design-principles)
+**Consumer experience:** AuroTap  
+**Primary stack:** Next.js 16 · React 19 · TypeScript · Tailwind CSS · Supabase  
+**Repository:** Neurolink-X/AuroWater  
+**Primary production domain:** aurotap.in
 
 ---
 
-# Overview
+## Product at a glance
 
-The AuroWater authentication layer is designed around one principle:
+AuroWater is built around two closely related operational models:
 
-> **Client authentication state improves UX; server-side authorization provides security.**
+### Water delivery
 
-The `useAuth` hook manages:
+Customer → address/serviceability → water order → supplier selection → stock reservation → supplier acceptance → fulfillment → completion
 
-- Client authentication state
-- Hydration
-- Session expiry
-- Cross-tab synchronization
-- Role information
-- Account status
-- Supplier/technician verification state
-- Operational state
-- UI permission checks
-- Central logout
-- Dashboard routing
-- Backward-compatible session utilities
+### Home water-system services
 
-It must **never** be used as the only security mechanism.
+Customer → address/serviceability → service booking → technician dispatch → technician acceptance → OTP/service execution → payment confirmation → completion → review
+
+The platform is designed so that business-critical assignment and state transitions are enforced on the server/database rather than trusted to browser state.
+
+---
+
+## Current service areas
+
+The application currently exposes Gorakhpur, Kanpur, and Lucknow as active service cities.
+
+Additional cities can be represented as coming-soon or waitlist locations without opening them for production fulfillment.
+
+---
+
+## Core services
+
+- Water can delivery
+- Water tanker delivery
+- RO service and repair
+- Plumbing services
+- Borewell services
+- Submersible pump services
+- Motor pump repair
+- Water tank cleaning
+- Related technician-based home water-system services
+
+The service catalogue is database-backed and the booking flow uses service keys rather than relying only on hardcoded frontend pricing.
+
+---
+
+## Platform capabilities
+
+### Customer
+
+- Registration and authentication
+- Address management
+- Serviceability checks
+- Water-can ordering
+- Scheduled bookings
+- Subscription/recurring water delivery
+- Order history
+- Order tracking
+- Customer support
+- Reviews and feedback
+- Account management
+
+### Supplier
+
+- Supplier account and approval lifecycle
+- Supplier dashboard
+- Online/offline operational state
+- Service area configuration
+- Water inventory/stock management
+- Stock-aware order assignment
+- Order acceptance/rejection
+- Supplier dispatch records
+- Earnings/payout workflows
+
+### Technician
+
+- Technician onboarding and verification
+- Technician dashboard
+- Availability and service-area information
+- Job queue
+- Assignment offers
+- Atomic job acceptance
+- Job start/completion lifecycle
+- Service OTP generation/verification
+- Payment confirmation during completion
+- Quality/review-related operational data
+
+### Admin
+
+- Admin-only authentication
+- Dashboard and operational metrics
+- Customer/supplier/technician oversight
+- Order oversight
+- Applications and approval workflows
+- Quality cases
+- Fraud flags
+- Settings
+- Finance/payout visibility
+- Audit-oriented operational controls
 
 ---
 
 # Architecture
 
-## High-Level Flow
-
-```text
-                 ┌─────────────────────────┐
-                 │      Supabase Auth      │
-                 │   Authentication Layer  │
-                 └────────────┬────────────┘
-                              │
-                              ▼
-                 ┌─────────────────────────┐
-                 │    public.profiles      │
-                 │                         │
-                 │ role                    │
-                 │ account status           │
-                 │ verification status      │
-                 └────────────┬────────────┘
-                              │
-                              ▼
-                 ┌─────────────────────────┐
-                 │ Server / API / RLS       │
-                 │ Authorization Boundary   │
-                 └────────────┬────────────┘
-                              │
-                              ▼
-                 ┌─────────────────────────┐
-                 │       useAuth()         │
-                 │    Client UI State      │
-                 └────────────┬────────────┘
-                              │
-             ┌────────────────┼────────────────┐
-             ▼                ▼                ▼
-         Customer          Supplier        Technician
-             │                │                │
-             ▼                ▼                ▼
-          Customer       Approval gate     Verification
-          workspace      + operational     + operational
-                              gate              gate
-```
-
-Admin access follows the same server-authorized model with elevated permissions.
-
----
-
-# Core Concepts
-
-## 1. Authentication
-
-Authentication answers:
-
-> "Who is this user?"
-
-This should be established by the trusted authentication provider/server.
-
-The browser must not be allowed to decide that it is an authenticated user merely by modifying local storage.
-
----
-
-## 2. Authorization
-
-Authorization answers:
-
-> "What is this authenticated user allowed to do?"
-
-AuroWater uses multiple authorization dimensions:
-
-```text
-Identity
-  +
-Role
-  +
-Account Status
-  +
-Verification Status
-  +
-Operational State
-  +
-Resource Ownership
-  +
-Permission
-```
-
-For sensitive actions, all relevant checks should happen server-side.
-
----
-
-## 3. Role
-
-The platform supports:
-
-```ts
-type AuthRole =
-  | 'customer'
-  | 'technician'
-  | 'supplier'
-  | 'admin';
-```
-
-Role determines the user's general platform responsibilities.
-
----
-
-## 4. Account Status
-
-Account lifecycle is represented by:
-
-```ts
-type AccountStatus =
-  | 'pending'
-  | 'active'
-  | 'suspended'
-  | 'banned'
-  | 'rejected';
-```
-
-A role alone does not mean that an account is operational.
-
-For example:
-
-```text
-role = supplier
-status = pending
-```
-
-does **not** mean the supplier can receive production orders.
-
----
-
-## 5. Verification Status
-
-Supplier and technician operational access can additionally depend on:
-
-```ts
-type VerificationStatus =
-  | 'not_required'
-  | 'pending'
-  | 'approved'
-  | 'rejected';
-```
-
-This separates:
-
-- Account existence
-- Admin approval
-- Verification
-- Operational eligibility
-
----
-
-# Roles
-
-## Customer
-
-Typical capabilities:
-
-- Browse available services
-- Create orders
-- View own orders
-- Cancel eligible orders
-- Manage customer-side account information
-
-Customer order/resource ownership must be enforced server-side.
-
----
-
-## Supplier
-
-Typical capabilities:
-
-- Access supplier workspace
-- Manage eligible supplier orders
-- View supplier earnings
-- Request payouts
-
-Recommended lifecycle:
-
-```text
-Registration
-    ↓
-Pending
-    ↓
-Admin Review
-    ↓
-Approved
-    ↓
-Service Area Configured
-    ↓
-Inventory / Business Setup
-    ↓
-Active
-    ↓
-Operational
-```
-
-Suspended, banned, rejected, or otherwise ineligible suppliers must not receive operational work.
-
----
-
-## Technician
-
-Typical capabilities:
-
-- Access technician workspace
-- Accept eligible jobs
-- Update job status
-- View technician earnings
-
-Recommended lifecycle:
-
-```text
-Application
-    ↓
-Pending Review
-    ↓
-Admin Approval
-    ↓
-Document Verification
-    ↓
-Active
-    ↓
-Operational
-```
-
-A technician who is not operational must not receive or execute production jobs.
-
----
-
-## Admin
-
-Admin has elevated platform permissions including:
-
-- User management
-- Order management
-- Finance management
-- Settings
-- Supplier oversight
-- Technician oversight
-- Operational administration
-
-Admin authorization must always be verified server-side.
-
----
-
-# Account Lifecycle
-
-AuroWater should treat account state as a state machine rather than a single boolean.
-
-```text
-                    ┌──────────────┐
-                    │    PENDING   │
-                    └──────┬───────┘
-                           │
-                     Admin review
-                           │
-              ┌────────────┴────────────┐
-              ▼                         ▼
-         ┌─────────┐              ┌──────────┐
-         │ ACTIVE  │              │ REJECTED │
-         └────┬────┘              └──────────┘
-              │
-       ┌──────┴──────┐
-       ▼             ▼
- SUSPENDED         BANNED
-```
-
-The exact workflow can differ by role, but the important principle is:
-
-> **Registration and operational eligibility are different states.**
-
----
-
-# Operational Access
-
-`isOperational` is intentionally stricter than `isLoggedIn`.
-
-Conceptually:
-
-```text
-Logged in
-   ↓
-Active account?
-   ↓
-Role-specific verification?
-   ↓
-Operational
-```
-
-For suppliers:
-
-```text
-logged in
-+ accountStatus = active
-+ verificationStatus = approved
-= operational
-```
-
-For technicians:
-
-```text
-logged in
-+ accountStatus = active
-+ verificationStatus = approved
-= operational
-```
-
-For customers/admins, operational eligibility is based on an active account according to the platform authorization policy.
-
----
-
-# Permissions
-
-Permissions are represented using explicit action keys.
-
-Examples:
-
-```ts
-'view:admin_dashboard'
-'view:supplier_dashboard'
-'view:technician_dashboard'
-'view:customer_dashboard'
-
-'manage:settings'
-'manage:users'
-'manage:orders'
-'manage:finance'
-
-'create:order'
-'cancel:order'
-
-'view:earnings'
-'request:payout'
-
-'accept:job'
-'update:job_status'
-```
-
-The `can()` helper is intended primarily for **UI gating**.
-
-Example:
-
-```tsx
-const { can } = useAuthContext();
-
-{can('create:order') && (
-  <button>Create Order</button>
-)}
-```
-
-This improves UX but does not secure the API.
-
----
-
-# Operational Permissions
-
-These permissions require an operational account:
-
-```text
-manage:orders
-request:payout
-accept:job
-update:job_status
-```
-
-For example:
-
-```ts
-can('accept:job')
-```
-
-returns false for a technician who is:
-
-- Pending
-- Suspended
-- Banned
-- Rejected
-- Not verified
-
----
-
-# File Responsibilities
-
-## `src/hooks/useAuth.ts`
-
-Responsible for client-side:
-
-- Auth state
-- Session cache
-- Hydration
-- Expiry
-- Role helpers
-- Status helpers
-- Permission helpers
-- Redirect helpers
-- Logout
-- Context provider
-
-It is **not** the server security boundary.
-
----
-
-## Authentication Provider
-
-The authentication provider should be responsible for:
-
-- Identity
-- Credentials
-- Authentication sessions
-- Token lifecycle
-- Sign-in
-- Sign-out
-- Refresh
-
-For AuroWater, Supabase Auth is the preferred source of authentication truth.
-
----
-
-## `public.profiles`
-
-The profile layer should contain trusted application-level identity information such as:
-
-```text
-user_id
-role
-account_status
-verification_status
-full_name
-phone
-avatar_url
-created_at
-updated_at
-```
-
-Sensitive authorization decisions should use trusted server/database values.
-
----
-
-## API Routes
-
-API routes must independently verify:
-
-```text
-authenticated user
-+
-role
-+
-account status
-+
-verification status
-+
-permission
-+
-resource ownership
-```
-
----
-
-# Installation
-
-The hook is designed for a Next.js App Router application.
-
-Place the file at:
-
-```text
-src/hooks/useAuth.ts
-```
-
-Required project dependencies/imports include:
-
-```text
-next/navigation
-react
-sonner
-@/lib/api-client
-@/lib/auth/client-gate-cookies
-@/lib/storage
-```
-
-These project utilities must exist and retain compatible APIs.
-
----
-
-# Provider Setup
-
-Wrap the appropriate application layout with `AuthProvider`.
-
-```tsx
-import { AuthProvider } from '@/hooks/useAuth';
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <AuthProvider>
-      {children}
-    </AuthProvider>
-  );
-}
-```
-
-Then consume the shared state:
-
-```tsx
-import { useAuthContext } from '@/hooks/useAuth';
-
-export default function DashboardHeader() {
-  const {
-    fullName,
-    role,
-    isLoggedIn,
-    isOperational,
-  } = useAuthContext();
-
-  return (
-    <header>
-      <span>{fullName}</span>
-      <span>{role}</span>
-
-      {isOperational && (
-        <span>Operational</span>
-      )}
-    </header>
-  );
-}
-```
-
----
-
-# Basic Usage
-
-```tsx
-const {
-  session,
-  loading,
-  hydrated,
-  isLoggedIn,
-  role,
-  isSupplier,
-  isTechnician,
-  isOperational,
-} = useAuthContext();
-```
-
-Recommended rendering pattern:
-
-```tsx
-if (loading || !hydrated) {
-  return <LoadingState />;
-}
-
-if (!isLoggedIn) {
-  return <LoginRequired />;
-}
-
-return <Dashboard />;
-```
-
----
-
-# Role Protection
-
-Use:
-
-```tsx
-const { requireRole } = useAuthContext();
-
-const allowed = requireRole('supplier', {
-  unauthorizedPath: '/',
-});
-
-if (!allowed) {
-  return null;
-}
-```
-
-Multiple roles:
-
-```tsx
-requireRole(['supplier', 'admin']);
-```
-
-Remember:
-
-> This is a client navigation/UX guard.
-
-The server must still enforce the role.
-
----
-
-# Permission Protection
-
-Use:
-
-```tsx
-const { requirePermission } = useAuthContext();
-
-if (
-  !requirePermission('manage:orders', {
-    unauthorizedPath: '/',
-  })
-) {
-  return null;
-}
-```
-
-For UI:
-
-```tsx
-const { can } = useAuthContext();
-
-if (can('request:payout')) {
-  // Show payout action
-}
-```
-
----
-
-# Supplier and Technician Gating
-
-A supplier should not be treated as fully operational simply because:
-
-```ts
-role === 'supplier'
-```
-
-Instead:
-
-```tsx
-const {
-  isSupplier,
-  isApproved,
-  isOperational,
-} = useAuthContext();
-```
-
-Example:
-
-```tsx
-if (isSupplier && !isOperational) {
-  return <SupplierApprovalState />;
-}
-```
-
-Technician:
-
-```tsx
-if (isTechnician && !isOperational) {
-  return <TechnicianVerificationState />;
-}
-```
-
-Recommended supplier states:
-
-```text
-Pending approval
-Under review
-Approved
-Configure service area
-Configure inventory
-Active
-Suspended
-Rejected
-Banned
-```
-
-Recommended technician states:
-
-```text
-Application submitted
-Under review
-Approved
-Documents pending
-Documents verified
-Active
-Suspended
-Rejected
-Banned
-```
-
----
-
-# Session Management
-
-## Write Session
-
-After a trusted login response:
-
-```ts
-import { writeSession } from '@/hooks/useAuth';
-
-writeSession({
-  name: profile.full_name,
-  email: user.email,
-  role: profile.role,
-  userId: user.id,
-  accountStatus: profile.account_status,
-  verificationStatus: profile.verification_status,
-  accessToken,
-});
-```
-
-The role and status should come from trusted server/database data.
-
-Do not allow the browser to choose its own role.
-
----
-
-## Update Session
-
-For non-authentication profile changes:
-
-```ts
-const { updateSession } = useAuthContext();
-
-updateSession({
-  name: 'Updated Name',
-  avatarUrl: '/avatar.webp',
-});
-```
-
-Do not use client-side session updates to grant permissions.
-
-For example, this must **not** be used as an authorization mechanism:
-
-```ts
-updateSession({
-  role: 'admin',
-});
-```
-
-Real role changes must happen through an authorized server/admin workflow.
-
----
-
-# Logout
-
-Use:
-
-```ts
-const { logout } = useAuthContext();
-
-logout();
-```
-
-Silent logout:
-
-```ts
-logout({
-  silent: true,
-});
-```
-
-Custom destination:
-
-```ts
-logout({
-  redirectTo: '/auth/login',
-});
-```
-
-For complete production logout, the authentication provider should also invalidate the server-side/auth-provider session where applicable.
-
----
-
-# Cross-Tab Synchronization
-
-The authentication module listens for changes to:
-
-```text
-aurowater_session
-```
-
-When another browser tab changes or removes the session, the current tab updates its local authentication state.
-
-This prevents situations such as:
-
-```text
-Tab A → user logs out
-Tab B → still shows authenticated UI
-```
-
-The browser storage mechanism remains a synchronization mechanism, not a security boundary.
-
----
-
-# Session Expiry
-
-Default client cache TTL:
-
-```text
-7 days
-```
-
-It can be customized:
-
-```tsx
-<AuthProvider ttlMs={24 * 60 * 60 * 1000}>
-  {children}
-</AuthProvider>
-```
-
-When the local session expires:
-
-1. Client session is cleared.
-2. API token cache is cleared.
-3. Auth gate cookies are cleared.
-4. The user is redirected to login where appropriate.
-
-Server authentication/session expiry must still be handled independently.
-
----
-
-# Security Model
-
-## Never Trust localStorage for Authorization
-
-This is unsafe:
-
-```ts
-const session = JSON.parse(
-  localStorage.getItem('aurowater_session')!
-);
-
-if (session.role === 'admin') {
-  // Sensitive operation
-}
-```
-
-A user can modify browser storage.
-
-Correct approach:
-
-```text
+## High-level architecture
+
+~~~text
+                         ┌──────────────────────┐
+                         │      Customer        │
+                         │   Web / PWA / Mobile │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │      Next.js 16      │
+                         │   App Router + API   │
+                         └──────────┬───────────┘
+                                    │
+             ┌──────────────────────┼──────────────────────┐
+             │                      │                      │
+             ▼                      ▼                      ▼
+      ┌─────────────┐       ┌──────────────┐       ┌──────────────┐
+      │ Auth / RBAC │       │ Domain Logic │       │ Public / SEO │
+      │ + Proxy     │       │ Dispatch     │       │ Pages / PWA  │
+      └──────┬──────┘       └──────┬───────┘       └──────────────┘
+             │                      │
+             └──────────────┬───────┘
+                            ▼
+                   ┌──────────────────┐
+                   │     Supabase     │
+                   │ Auth + Postgres  │
+                   │ RLS + RPC + Cron │
+                   └────────┬─────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+         ┌─────────┐   ┌──────────┐   ┌──────────┐
+         │Supplier │   │Technician│   │  Admin   │
+         │workflow │   │ workflow │   │ control  │
+         └─────────┘   └──────────┘   └──────────┘
+~~~
+
+### Security boundary
+
+The browser is a UX layer, not the authorization authority.
+
+The intended trust model is:
+
+~~~text
 Browser
    ↓
-Request
+Next.js API / server logic
    ↓
-Server verifies authentication
+Authenticate identity
    ↓
-Server loads trusted profile
+Validate role + account state
    ↓
-Server checks role/status/permission
+Validate operational eligibility
    ↓
-Server checks ownership
+Validate resource ownership/state
    ↓
-Operation
-```
+Supabase / PostgreSQL / RLS
+   ↓
+Atomic business operation
+~~~
+
+Client-side auth state, local storage, and routing cookies must never be treated as proof of authorization.
 
 ---
 
-# Server-Side Requirements
+# Technology stack
 
-Every sensitive API endpoint should follow this structure:
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16.1.6 |
+| UI | React 19.2.3 |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 |
+| Database | PostgreSQL via Supabase |
+| Authentication | Supabase Auth |
+| SSR auth | @supabase/ssr |
+| Client data/API | Native fetch + project API utilities |
+| Validation/forms | React Hook Form + Zod |
+| Charts | Recharts |
+| Animation | Framer Motion |
+| Notifications | Sonner |
+| Icons | Lucide React |
+| Hosting | Vercel |
+| Database scheduling | Supabase pg_cron / pg_net |
+| PWA | Web App Manifest + Service Worker |
+| Source control | GitHub |
 
-```text
-1. Authenticate request
-2. Identify authenticated user
-3. Load trusted profile
-4. Validate account status
-5. Validate role
-6. Validate verification/operational state
-7. Validate permission
-8. Validate resource ownership
-9. Perform operation
-10. Write audit event where appropriate
-```
-
-Example:
-
-```text
-POST /api/supplier/orders/:id/accept
-```
-
-should verify:
-
-```text
-authenticated user
-       +
-role = supplier
-       +
-accountStatus = active
-       +
-verificationStatus = approved
-       +
-supplier owns/is assigned to order
-       +
-order is still acceptable
-```
-
-The client hook cannot safely perform these checks alone.
+The repository intentionally avoids adding infrastructure unless the operational requirement justifies it.
 
 ---
 
-# Supabase RLS Requirements
+# Repository structure
 
-Supabase RLS should protect database access independently of React.
+~~~text
+AuroWater/
+├── src/
+│   ├── app/
+│   │   ├── (public)/          Public SEO/customer acquisition pages
+│   │   ├── auth/              Authentication flows
+│   │   ├── customer/          Customer workspace
+│   │   ├── supplier/          Supplier workspace
+│   │   ├── technician/        Technician workspace
+│   │   ├── admin/             Admin workspace
+│   │   └── api/               Server/API endpoints
+│   │
+│   ├── components/
+│   │   ├── auth/
+│   │   ├── booking/
+│   │   ├── geo/
+│   │   ├── layout/
+│   │   └── ui/
+│   │
+│   ├── hooks/                 Shared client hooks
+│   ├── lib/                   Domain/business utilities
+│   ├── types/                 TypeScript/database types
+│   ├── utils/                 Server/Supabase utilities
+│   └── proxy.ts               Request routing/security proxy
+│
+├── sql/
+│   ├── 001_core_schema.sql
+│   ├── 002_rls_policies.sql
+│   ├── ...
+│   ├── 015_atomic_supplier_stock_dispatch.sql
+│   ├── 016_atomic_technician_dispatch.sql
+│   ├── 017_align_orders_payment_status_constraint.sql
+│   ├── 018_supplier_dispatch_recovery.sql
+│   └── ALL_MIGRATIONS_ORDERED.sql
+│
+├── supabase/                  Schema/reference SQL
+├── scripts/                   Operational and verification scripts
+├── tests/                     Regression tests
+├── public/                    Static assets, PWA assets and SEO files
+├── .github/workflows/         Operational GitHub Actions
+├── DEPLOY.md                  Deployment/runbook documentation
+├── CLAUDE.md                  Agent/developer context
+├── next.config.ts             Next.js/security configuration
+├── vercel.json                Vercel build/cron configuration
+├── package.json
+└── package-lock.json
+~~~
 
-Ownership concepts:
+---
 
-```text
+# Request and routing model
+
+AuroWater uses Next.js App Router with a dedicated request proxy.
+
+The proxy is responsible for:
+
+- Public/SEO route handling
+- Private route gating
+- Role-aware browser routing
+- Admin authentication separation
+- Smart dashboard routing
+- API pass-through so APIs can return JSON 401/403 responses
+- Return-to sanitization
+- Security headers
+- Static asset bypasses
+
+Important:
+
+**Proxy cookies are routing signals, not the final security boundary.**
+
+Sensitive API handlers independently authenticate requests and should enforce authorization and ownership.
+
+---
+
+# Authentication and authorization
+
+The platform has four primary roles:
+
+~~~text
+customer
+supplier
+technician
+admin
+~~~
+
+Account lifecycle and operational eligibility are separate concepts.
+
+A role does not automatically mean operational access.
+
+For example:
+
+~~~text
+supplier
+   +
+active account
+   +
+approved/eligible operational state
+   =
+supplier can receive production work
+~~~
+
+The same principle applies to technicians.
+
+The repository's authentication documentation follows this rule:
+
+> The UI may hide an action. The server must prevent the action. The database must enforce the data boundary.
+
+---
+
+# Order and dispatch architecture
+
+## Water order flow
+
+~~~text
 Customer
-  → can access own customer records
+  ↓
+Address + serviceability
+  ↓
+Pricing
+  ↓
+Create PENDING order
+  ↓
+Supplier dispatch engine
+  ↓
+Eligible supplier ranking
+  ↓
+Atomic stock-aware assignment
+  ↓
+Supplier acceptance
+  ↓
+Delivery
+  ↓
+Completion / payment state
+  ↓
+Review
+~~~
+
+The supplier assignment RPC locks the relevant order/stock state so concurrent assignment attempts do not casually oversell available inventory.
+
+The application uses an order dispatch history table to track supplier assignment attempts and states.
+
+---
+
+## Technician order flow
+
+~~~text
+Customer service booking
+  ↓
+PENDING order
+  ↓
+Technician candidate ranking
+  ↓
+Atomic technician assignment
+  ↓
+OFFERED
+  ↓
+Technician accepts
+  ↓
+ACCEPTED
+  ↓
+IN_PROGRESS
+  ↓
+OTP / service proof when required
+  ↓
+Payment confirmation
+  ↓
+COMPLETED
+~~~
+
+The technician system includes atomic database functions for assignment, acceptance, start, release, OTP verification, and completion.
+
+This protects critical state transitions from race conditions between multiple requests or scheduler runs.
+
+---
+
+# Automated recovery and scheduling
+
+## Supplier recovery
+
+Pending water orders that cannot immediately find an eligible supplier can be retried by the existing scheduler.
+
+Recovery is bounded and uses the existing dispatch engine rather than creating a second supplier-dispatch implementation.
+
+## Technician dispatch sweep
+
+The production technician sweep runs through:
+
+~~~text
+Supabase pg_cron
+      ↓
+Every 5 minutes
+      ↓
+Secure HTTP request
+      ↓
+/api/internal/technician-dispatch-sweep
+      ↓
+CRON_SECRET validation
+      ↓
+Stale offer release
+      ↓
+Technician retry
+      ↓
+Pending non-water technician dispatch
+~~~
+
+The endpoint has bounded batch size and runtime controls.
+
+GitHub Actions currently provides a **manual emergency fallback** rather than being the primary 5-minute scheduler.
+
+## Vercel
+
+Vercel remains responsible for the normal Next.js application deployment and the scheduled subscription job configured in vercel.json.
+
+This separation avoids depending on Vercel Hobby's cron frequency for the 5-minute dispatch requirement.
+
+---
+
+# Database architecture
+
+Supabase PostgreSQL is the system of record.
+
+Important domain areas include:
+
+- profiles
+- addresses
+- service_types
+- orders
+- order_dispatch
+- technician_job_dispatch
+- notifications
+- settings
+- applications
+- reviews
+- payouts
+- fraud_flags
+- audit_logs
+- supplier_settings
+- plumber_bookings
+- founding_members
+- supplier_stock
+- OTP/request security data
+- login attempt data
+- subscription/milestone/referral data
+
+The production schema contains atomic PostgreSQL functions for critical operations instead of relying exclusively on multi-step client/API updates.
+
+---
+
+# Row Level Security
+
+RLS is a required part of the security model.
+
+Examples of ownership boundaries include:
+
+~~~text
+Customer
+  → customer-owned addresses/orders/data
 
 Supplier
-  → can access authorized supplier records
+  → supplier-authorized operational records
 
 Technician
-  → can access assigned/authorized jobs
+  → assigned/authorized job records
 
 Admin
-  → elevated access through trusted server/admin policy
-```
+  → trusted elevated operational access
+~~~
 
-Do not rely on:
+Do not assume a browser-supplied customer_id, supplier_id, technician_id, or role is trustworthy.
 
-```text
-customer_id supplied by browser
-supplier_id supplied by browser
-technician_id supplied by browser
-role supplied by browser
-```
-
-as proof of authorization.
-
-The database/API must derive or validate ownership.
+Authorization must be derived from the authenticated identity and trusted database state.
 
 ---
 
-# Login Flow
+# Address and serviceability model
 
-Recommended production flow:
+Customer addresses are owned through customer_id.
 
-```text
-User submits credentials
-        ↓
-Authentication provider
-        ↓
-Authenticated identity
-        ↓
-Load trusted profile
-        ↓
-Read role/status/verification
-        ↓
-Create client auth state
-        ↓
-Redirect to role dashboard
-```
+This distinction matters because the production addresses table uses:
 
-Dashboard mapping:
+~~~text
+customer_id = authenticated user's profile/auth identity
+~~~
 
-```text
-Customer
-    → /customer
+rather than a generic user_id ownership field.
 
-Supplier
-    → /supplier
+Water delivery also depends on valid serviceability/location information. The customer order API requires a valid delivery location for water-can orders.
 
-Technician
-    → /technician
-
-Admin
-    → /admin
-```
-
-A supplier or technician who is not yet operational should see the appropriate approval/verification workspace rather than receiving production work.
+This prevents dispatch from being attempted against an unusable delivery location.
 
 ---
 
-# Logout Flow
+# Pricing and payment model
+
+Pricing is server-aware and booking/order creation should not rely solely on a browser-calculated total.
+
+Water-can ordering supports:
+
+- quantity
+- one-time ordering
+- recurring/subscription ordering
+- scheduled delivery
+- payment method
+- payment status
+- delivery/address data
+- pricing components
+
+Payment status currently supports:
+
+~~~text
+pending
+unpaid
+paid
+refunded
+failed
+~~~
+
+Operational completion can require payment confirmation and, for applicable UPI flows, a payment reference.
+
+There is currently no requirement for a full third-party payment gateway in the core operational flow.
+
+---
+
+# PWA and offline strategy
+
+The application includes:
+
+- Web App Manifest
+- AuroTap branding for installed app experience
+- Service worker
+- Offline fallback
+- Cached application shell assets
+- Progressive enhancement for installation
+
+The service worker is intentionally lightweight.
+
+Sensitive authenticated application data should not be blindly cached as offline public content.
+
+---
+
+# SEO and public web
+
+Public pages are designed for search visibility while private application routes remain operational/authenticated.
+
+The repository includes:
+
+- Metadata
+- Canonical URLs
+- Open Graph metadata
+- Twitter/X metadata
+- robots.txt generation
+- sitemap generation
+- JSON-LD organization/site schemas
+- city/service landing pages
+- public service pages
+- crawl controls for private flows
+
+Booking/private routes should not be treated as normal SEO landing pages.
+
+---
+
+# Security controls
+
+The project currently includes multiple defense layers:
+
+- Supabase Auth
+- Server-side authentication helpers
+- PostgreSQL RLS
+- Role-aware proxy routing
+- Resource ownership checks
+- Atomic PostgreSQL RPCs
+- Service-role isolation
+- CRON_SECRET-protected internal scheduler endpoint
+- HSTS
+- X-Content-Type-Options
+- Referrer-Policy
+- Permissions-Policy
+- CSP
+- X-Frame-Options
+- Open-redirect protection for returnTo
+- Production console removal
+- Restricted image remote patterns
+- API no-store caching through Vercel configuration
+
+Security principle:
+
+**Fail closed when authentication, ownership, or operational eligibility cannot be established.**
+
+---
+
+# Performance architecture
+
+The application is being optimized incrementally rather than through a risky rewrite.
+
+Current principles:
+
+- Keep server-renderable content server-side where safe
+- Minimize unnecessary client hydration
+- Keep sensitive data uncached
+- Use database indexes for high-frequency dispatch queries
+- Bound scheduler work
+- Use atomic database operations for concurrency-sensitive flows
+- Keep the service worker lightweight
+- Use modern image formats
+- Remove production console output
+- Avoid unnecessary infrastructure
+
+Recent safe optimization:
+
+The static Footer was converted away from unnecessary client hydration and its duplicate Google Fonts import was removed without changing its visual markup or behavior.
+
+Future optimization targets should be audited independently, especially the interactive Header and customer dashboard.
+
+---
+
+# Environment configuration
+
+Create a local environment file from .env.example.
+
+Required core variables:
+
+~~~text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_APP_URL
+~~~
+
+The application also supports the publishable-key naming used by newer Supabase dashboards.
+
+Optional operational variables include configuration for:
+
+- Google Maps/geocoding
+- admin invitation/access controls
+- support contact details
+- database connection
+- application URL behavior
+
+Never expose SUPABASE_SERVICE_ROLE_KEY or other server secrets through NEXT_PUBLIC_* variables.
+
+---
+
+# Local development
+
+## Requirements
 
 Recommended:
 
-```text
-User clicks Logout
-        ↓
-Authentication provider sign-out
-        ↓
-Clear local session cache
-        ↓
-Clear API token cache
-        ↓
-Clear auth gate state
-        ↓
-Clear client auth state
-        ↓
-Redirect
-```
+- Node.js 20.x LTS
+- npm
+- Supabase project or development database
+- Git
 
-Do not rely only on:
+## Install
 
-```ts
-localStorage.removeItem(...)
-```
+~~~bash
+git clone https://github.com/Neurolink-X/AuroWater.git
+cd AuroWater
+npm ci
+~~~
 
-for production authentication invalidation.
+Create .env.local and configure the required variables.
 
----
+Validate environment configuration:
 
-# Migration Notes
+~~~bash
+npm run verify:env
+~~~
 
-The upgraded hook maintains compatibility with existing imports.
+Start development:
 
-Existing helpers remain available:
+~~~bash
+npm run dev
+~~~
 
-```ts
-saveSession()
-removeSession()
-useAuthLegacy()
-```
+Then open:
 
-They are retained so existing AuroWater screens do not need to be migrated simultaneously.
-
-New code should use:
-
-```ts
-writeSession()
-clearSession()
-useAuth()
-useAuthContext()
-```
-
-instead.
+~~~text
+http://localhost:3000
+~~~
 
 ---
 
-# Important Migration: Account Status
+# Quality checks
 
-Existing login flows may currently create sessions containing only:
+Available project commands:
 
-```ts
-{
-  name,
-  email,
-  role
-}
-```
+~~~bash
+npm run lint
+npm run build
+npm run test:regression
+npm run smoke
+npm run smoke:auth
+npm run verify:env
+npm run db:bundle-sql
+~~~
 
-The upgraded architecture supports:
+### Regression test
 
-```ts
-{
-  name,
-  email,
-  role,
-  userId,
-  accountStatus,
-  verificationStatus
-}
-```
+The route/access regression test checks for:
 
-For production supplier/technician authorization, login/profile loading should provide trusted values for:
+- duplicate App Router URLs
+- supplier route protection invariants
+- proxy route structure
 
-```text
-accountStatus
-verificationStatus
-```
+Run:
 
-Otherwise the client cannot correctly represent operational state.
+~~~bash
+npm run test:regression
+~~~
 
----
+### Public smoke test
 
-# Important Migration: Refresh Tokens
+Against a running local instance:
 
-The custom `Session` interface retains `refreshToken` only for compatibility with existing code.
+~~~bash
+BASE_URL=http://localhost:3000 npm run smoke
+~~~
 
-New authentication code should **not** introduce or persist refresh tokens in the custom localStorage session.
+### Authenticated smoke test
 
-Prefer the authentication provider's secure session/token lifecycle.
+Use a dedicated development Supabase account only.
 
----
+~~~bash
+BASE_URL=http://localhost:3000 \
+SMOKE_TEST_EMAIL=dev-smoke@example.test \
+SMOKE_TEST_PASSWORD='your-development-password' \
+SMOKE_EXPECTED_ROLE=customer \
+npm run smoke:auth
+~~~
 
-# Recommended Data Model
+The authenticated smoke test reads the development user's profile/address data and intentionally submits an invalid order payload. It should return HTTP 400 and create no order.
 
-AuroWater's profile layer should conceptually support:
-
-```text
-profiles
-├── id
-├── role
-├── account_status
-├── verification_status
-├── full_name
-├── phone
-├── avatar_url
-├── created_at
-└── updated_at
-```
-
-Role-specific operational information should remain in dedicated tables where appropriate.
-
-For example:
-
-```text
-supplier_settings
-supplier_stock
-supplier_milestones
-
-applications
-technician-specific verification data
-
-orders
-payouts
-reviews
-audit_logs
-fraud_flags
-```
-
-Avoid putting every business attribute into the authentication session.
-
-The session should remain lightweight.
+**Never point this test at production.**
 
 ---
 
-# Recommended Future Architecture
+# Database migrations
 
-The strongest long-term architecture is:
+Migration source files live in sql/.
 
-```text
-                 ┌─────────────────────┐
-                 │    Supabase Auth     │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │  Trusted Profile    │
-                 │  Role + Status      │
-                 └──────────┬──────────┘
-                            │
-                            ▼
-                 ┌─────────────────────┐
-                 │ Authorization Layer │
-                 │ Policy / Server     │
-                 └──────────┬──────────┘
-                            │
-                 ┌──────────┴──────────┐
-                 ▼                     ▼
-             API / RSC               RLS
-                 │                     │
-                 └──────────┬──────────┘
-                            ▼
-                     Client useAuth
-                            │
-                            ▼
-                           UI
-```
+The ordered bundle is:
 
-The client should become a **projection of trusted authentication state**, not the owner of authorization.
+~~~text
+sql/ALL_MIGRATIONS_ORDERED.sql
+~~~
 
----
+The repository also provides:
 
-# Production Checklist
+~~~bash
+npm run db:bundle-sql
+~~~
 
-## Authentication
+to regenerate the ordered bundle from the migration sources included by the migration builder.
 
-- [ ] Supabase Auth/session is the authentication source of truth.
-- [ ] Login response derives role from trusted profile data.
-- [ ] Client cannot self-upgrade its role.
-- [ ] Logout invalidates the real authentication session.
-- [ ] Session expiry is handled.
-- [ ] Cross-tab logout works.
+## Important migration audit note
 
-## Authorization
+The current repository's generated ALL_MIGRATIONS_ORDERED.sql includes the technician migration through 016.
 
-- [ ] Every sensitive API route authenticates the request.
-- [ ] Role is validated server-side.
-- [ ] Account status is validated server-side.
-- [ ] Supplier approval is validated server-side.
-- [ ] Technician verification is validated server-side.
-- [ ] Resource ownership is validated server-side.
-- [ ] Financial actions have independent authorization.
-- [ ] Admin routes have independent authorization.
+Production compatibility/recovery patches 017 and 018 are tracked as standalone migration files:
 
-## Database
+~~~text
+017_align_orders_payment_status_constraint.sql
+018_supplier_dispatch_recovery.sql
+~~~
 
-- [ ] RLS is enabled on sensitive tables.
-- [ ] Customer ownership policies are tested.
-- [ ] Supplier ownership/assignment policies are tested.
-- [ ] Technician assignment policies are tested.
-- [ ] Admin access is explicitly controlled.
-- [ ] Service-role credentials are never exposed to the browser.
+Therefore, when provisioning a new environment, verify that the environment has all migrations through the current production state rather than assuming the generated bundle alone contains every later operational patch.
 
-## UX
+After DDL changes, reload PostgREST:
 
-- [ ] No authentication flicker.
-- [ ] Loading state exists.
-- [ ] Unauthorized state exists.
-- [ ] Supplier pending state exists.
-- [ ] Technician verification state exists.
-- [ ] Suspended account state exists.
-- [ ] Expired session redirects cleanly.
-- [ ] No sensitive error details are exposed.
+~~~sql
+SELECT pg_notify('pgrst', 'reload schema');
+~~~
 
-## Engineering
+For production schema changes:
 
-- [ ] TypeScript build passes.
-- [ ] ESLint passes.
-- [ ] No hydration errors.
-- [ ] No browser console errors.
-- [ ] No secret/token logging.
-- [ ] API 401/403 responses are handled consistently.
-- [ ] Authentication events have appropriate telemetry.
-- [ ] Critical authorization paths have automated tests.
+1. Audit the live schema first.
+2. Create an idempotent migration.
+3. Test it on a development/staging database where possible.
+4. Apply it deliberately.
+5. Reload PostgREST when required.
+6. Verify the live schema.
+7. Run relevant smoke/regression checks.
+8. Record the resulting commit and migration state.
 
 ---
 
-# Troubleshooting
+# Deployment
 
-## `useAuthContext must be called inside <AuthProvider>`
+The current deployment model is intentionally simple:
 
-Wrap the relevant layout:
+~~~text
+GitHub
+   ↓
+Vercel
+   ↓
+Next.js application
+   ↓
+Supabase
+   ├── Auth
+   ├── PostgreSQL
+   ├── RLS
+   ├── RPC
+   └── pg_cron / pg_net
+~~~
 
-```tsx
-<AuthProvider>
-  {children}
-</AuthProvider>
-```
+See DEPLOY.md for the operational deployment runbook.
 
-Or use:
+Production deployment should verify:
 
-```ts
-useAuth()
-```
-
-directly in a component that does not need shared context.
-
----
-
-## User appears logged in but API returns 401
-
-Check:
-
-1. Authentication provider session.
-2. API Authorization header.
-3. Token expiry.
-4. Server-side auth verification.
-5. Supabase session/cookie configuration.
-6. API client token handling.
-
-Do not solve a 401 by simply trusting localStorage.
-
----
-
-## Supplier is logged in but cannot receive orders
-
-Check:
-
-```text
-role
-accountStatus
-verificationStatus
-```
-
-Expected:
-
-```text
-role = supplier
-accountStatus = active
-verificationStatus = approved
-```
-
-Then verify the server/API has the same operational policy.
+- environment variables
+- database migrations
+- PostgREST schema visibility
+- public SEO routes
+- authentication
+- customer booking
+- address/serviceability
+- supplier dispatch
+- technician dispatch
+- role protection
+- scheduler authentication
+- no leaked service-role credentials
 
 ---
 
-## Technician cannot accept a job
+# Internal scheduler security
 
-Check:
+The technician dispatch sweep is an internal server endpoint.
 
-```text
-role = technician
-accountStatus = active
-verificationStatus = approved
-```
+It requires:
 
-Then verify:
+~~~text
+Authorization: Bearer <CRON_SECRET>
+~~~
 
-```text
-job is assigned/eligible
-job status allows transition
-technician owns/has authority over the job
-```
+The proxy allows the endpoint to reach its own route handler without converting the request into a browser login redirect.
 
-The client permission helper is not enough.
+The route itself validates CRON_SECRET.
 
----
+This separation is deliberate:
 
-## Hydration mismatch
+~~~text
+Proxy routing exception
+        ≠
+Authorization bypass
+~~~
 
-Authentication state intentionally begins in a neutral client state and hydrates after mount.
-
-Use:
-
-```tsx
-if (loading || !hydrated) {
-  return <LoadingState />;
-}
-```
-
-Avoid rendering storage-dependent authentication data during SSR.
+The scheduler route remains server-secret protected.
 
 ---
 
-# Design Principles
+# Operational reliability
 
-## 1. Security over convenience
+Critical dispatch operations are designed around idempotency and concurrency safety.
 
-A browser-controlled value is never trusted for authorization.
+Important patterns include:
 
-## 2. Role is not status
+- atomic supplier assignment
+- stock reservation within the assignment transaction
+- atomic technician assignment
+- explicit offer/release states
+- bounded retry intervals
+- scheduler runtime limits
+- indexed pending/stale work queries
+- server-side role/ownership checks
+- explicit order state transitions
 
-```text
-supplier ≠ approved supplier
-technician ≠ verified technician
-```
-
-## 3. Authentication is not authorization
-
-Being logged in does not mean the user can perform every operation.
-
-## 4. Client guards are UX
-
-They improve navigation and UI behavior.
-
-Server/API/RLS controls actual access.
-
-## 5. Keep sessions small
-
-Authentication sessions should not become a dumping ground for business data.
-
-## 6. Fail closed
-
-If authorization information is missing or ambiguous, operational access should not be granted.
-
-## 7. Backward compatibility matters
-
-Existing AuroWater pages should be migrated progressively rather than breaking the entire application.
-
-## 8. Business lifecycle belongs in the domain model
-
-Supplier approval, technician verification, serviceability, inventory, assignments, payouts, and order transitions should be represented by trusted domain data—not browser flags.
+The goal is to make repeated scheduler execution safe rather than assuming a scheduler will run exactly once.
 
 ---
 
-# Final Architecture Principle
+# Observability and diagnostics
 
-AuroWater should follow this rule everywhere:
+The project has lightweight startup diagnostics through Next.js instrumentation.
 
-```text
-┌─────────────────────────────────────────────┐
-│                USER ACTION                  │
-└──────────────────────┬──────────────────────┘
-                       ↓
-              Client UI / useAuth
-                       ↓
-               API / Server Action
-                       ↓
-             Authenticate identity
-                       ↓
-                 Check role
-                       ↓
-              Check account status
-                       ↓
-          Check verification/approval
-                       ↓
-              Check permission
-                       ↓
-             Check ownership/state
-                       ↓
-                 Database/RLS
-                       ↓
-                  Operation
-                       ↓
-               Audit / telemetry
-```
+It can detect missing Supabase configuration and optionally emit Supabase/PostgREST migration diagnostics.
 
-> **The UI can hide an action.  
-> The server must prevent the action.  
-> The database must enforce the data boundary.**
+Production logging is intentionally reduced through the Next.js production console-removal configuration.
 
-This is the foundation for a production-grade AuroWater marketplace.
+For future scale, recommended additions include:
+
+- structured server logging
+- request correlation IDs
+- error tracking
+- performance telemetry
+- scheduler execution metrics
+- dispatch latency metrics
+- assignment failure reasons
+- business-level operational dashboards
+
+These should be introduced based on actual production requirements rather than adding unnecessary services prematurely.
+
+---
+
+# Documentation map
+
+| Document | Purpose |
+|---|---|
+| README.md | Product, architecture, development, operations overview |
+| DEPLOY.md | Deployment and Supabase operational runbook |
+| CLAUDE.md | Agent/developer-specific repository context |
+| .env.example | Safe environment-variable template |
+| sql/ | Database migration source |
+| sql/ALL_MIGRATIONS_ORDERED.sql | Generated ordered SQL bundle |
+| supabase/ | Reference Supabase schema assets |
+| scripts/ | Verification, smoke tests and migration tooling |
+| tests/ | Regression tests |
+
+---
+
+# Engineering principles
+
+AuroWater development follows these rules:
+
+1. **Audit before modifying.**
+2. **Prefer the smallest safe change.**
+3. **Never replace working architecture without evidence.**
+4. **Do not trust browser state for authorization.**
+5. **Do not assume database column names; verify the live schema.**
+6. **Use atomic database operations for concurrency-sensitive business logic.**
+7. **Keep public SEO pages separate from private application workflows.**
+8. **Do not cache sensitive authenticated data as public content.**
+9. **Keep scheduled work bounded and retryable.**
+10. **Preserve backward compatibility unless there is a verified reason to break it.**
+11. **Validate production changes with tests and live-state verification.**
+12. **Avoid infrastructure complexity until the workload justifies it.**
+
+---
+
+# Known repository maturity items
+
+The current repository is production-oriented, but it is not represented as a mature enterprise engineering organization yet.
+
+The audit identified these areas for continued improvement:
+
+- Add a required CI pipeline for lint, type/build verification and regression tests.
+- Add pull-request checks before merging to main.
+- Add dedicated integration/e2e coverage for critical booking and dispatch flows.
+- Add a formal SECURITY.md security reporting policy.
+- Add CONTRIBUTING.md and CODE_OF_CONDUCT.md if the repository becomes externally collaborative.
+- Establish a formal staging environment and database migration promotion process.
+- Keep generated migration bundles synchronized with every new migration source.
+- Reduce large legacy commented blocks in frequently loaded source files.
+- Continue reducing unnecessary client-component hydration.
+- Add structured production observability before operational scale makes debugging expensive.
+
+These are maturity improvements, not reasons to rewrite the existing product.
+
+---
+
+# Roadmap
+
+## Near term
+
+- Strengthen CI/CD verification
+- Complete migration-tooling consistency
+- Continue client-hydration/performance audit
+- Expand critical API regression coverage
+- Improve dispatch observability
+- Strengthen production smoke verification
+
+## Medium term
+
+- Real-time order/dispatch updates where justified
+- Better supplier inventory forecasting
+- Technician quality scoring and operational analytics
+- Stronger fraud/risk controls
+- Structured telemetry and error monitoring
+- Staging-to-production migration workflow
+
+## Scale phase
+
+- Distributed caching where proven necessary
+- Real-time event infrastructure where polling becomes insufficient
+- More advanced dispatch optimization
+- Regional operational expansion
+- Deeper supplier/technician marketplace automation
+
+---
+
+# Contributing
+
+For internal development:
+
+1. Start from the latest main branch.
+2. Audit the affected implementation before editing.
+3. Make the smallest safe change.
+4. Run relevant tests.
+5. Verify the exact diff.
+6. Document schema/migration changes.
+7. Open a focused pull request.
+8. Do not mix unrelated refactors with production fixes.
+
+Avoid large rewrites of authentication, dispatch, database state transitions, or role systems without a migration plan and regression coverage.
+
+---
+
+# Production change checklist
+
+Before merging a production-sensitive change:
+
+~~~text
+[ ] Current main audited
+[ ] Live schema verified when DB-related
+[ ] Existing API/UI behavior understood
+[ ] Smallest safe change implemented
+[ ] No secrets added
+[ ] Type/lint/build checks run
+[ ] Relevant regression tests run
+[ ] Migration generated/applied if required
+[ ] PostgREST refreshed if required
+[ ] Exact diff reviewed
+[ ] Deployment impact understood
+[ ] Rollback path understood
+~~~
+
+---
+
+# Project status
+
+AuroWater is an actively developed production-oriented platform.
+
+The repository prioritizes:
+
+**reliability → security → correctness → performance → UX → scale**
+
+The engineering objective is not to maximize architectural complexity. It is to build a dependable water-delivery and home water-services marketplace that can scale operationally while keeping the customer experience fast and simple.
+
+---
+
+## License
+
+No repository-level open-source license file is currently declared.
+
+Until an explicit license is added, treat the repository and its source code as proprietary and do not assume permission to redistribute or reuse it.
+
+---
+
+## AuroWater
+
+**Water delivery and essential water-system services, connected by software.**
+
+Built with Next.js, React, TypeScript, Supabase, PostgreSQL, and a strong focus on operational reliability.
