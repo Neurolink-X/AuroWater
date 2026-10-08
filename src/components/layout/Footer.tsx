@@ -1,6 +1,5 @@
 // import Link from 'next/link';
-// import React from 'react';
-// import { MessageCircle } from 'lucide-react';
+// // import { MessageCircle } from 'lucide-react';
 
 // const InstagramIcon = ({ size = 18 }: { size?: number }) => (
 //   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -126,8 +125,6 @@
 
 
 /* eslint-disable react/no-unescaped-entities */
-'use client';
-
 import Link from 'next/link';
 import React from 'react';
 
@@ -244,8 +241,6 @@ export default function Footer() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
         .ft-root {
           font-family: 'DM Sans', sans-serif;
           background: #08111F;
