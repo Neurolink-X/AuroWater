@@ -6,7 +6,7 @@
  *
  * Design: Deep ocean command center — dark navy base, electric cyan accents,
  * frosted-glass cards, animated water-flow backgrounds, Syne + DM Sans fonts.
- * Dashboard metrics are derived from API responses. Financial payout splits are not estimated.
+ * Dashboard metrics are derived from API responses. Financial payout splits are not estimateds.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
