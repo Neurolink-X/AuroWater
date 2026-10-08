@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/utils/supabase/server';
-import { releaseTechnicianAssignment, dispatchTechnicianJob } from '@/lib/dispatch';
+import { dispatchOrder, releaseTechnicianAssignment, dispatchTechnicianJob } from '@/lib/dispatch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,6 +9,7 @@ export const maxDuration = 170;
 const BATCH_SIZE = 25;
 const MAX_RUNTIME_MS = 150_000;
 const RECENT_ORDER_GRACE_MS = 30_000;
+const SUPPLIER_RETRY_INTERVAL_MS = 5 * 60_000;
 
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -149,6 +150,61 @@ async function runSweep(req: NextRequest) {
     }
   }
 
+  // Recover stale water orders through the existing supplier dispatch engine.
+  // Assignment remains atomic inside try_assign_supplier_with_stock().
+  const supplierRetryBefore = new Date(
+    Date.now() - SUPPLIER_RETRY_INTERVAL_MS,
+  ).toISOString();
+
+  const { data: pendingSupplierOrders, error: supplierPendingError } = await db
+    .from('orders')
+    .select('id')
+    .eq('status', 'PENDING')
+    .is('supplier_id', null)
+    .eq('service_type', 'water_can')
+    .lt('created_at', retryBefore)
+    .or(`last_dispatch_at.is.null,last_dispatch_at.lt.${supplierRetryBefore}`)
+    .order('created_at', { ascending: true })
+    .limit(BATCH_SIZE);
+
+  if (supplierPendingError) {
+    console.error(
+      '[technician-dispatch-sweep] pending supplier-order query failed:',
+      supplierPendingError,
+    );
+    return Response.json(
+      {
+        ok: false,
+        error: 'Unable to load pending supplier orders',
+        expired,
+        reassigned,
+        retried,
+        release_errors: releaseErrors,
+        dispatch_errors: dispatchErrors,
+      },
+      { status: 502 },
+    );
+  }
+
+  let supplierRetried = 0;
+  let supplierDispatchErrors = 0;
+
+  for (const order of pendingSupplierOrders ?? []) {
+    if (Date.now() - startedAt >= MAX_RUNTIME_MS) break;
+
+    try {
+      const result = await dispatchOrder(String(order.id));
+      if (result.supplierId) supplierRetried += 1;
+    } catch (error) {
+      supplierDispatchErrors += 1;
+      console.error(
+        '[technician-dispatch-sweep] supplier dispatch failed:',
+        order.id,
+        error,
+      );
+    }
+  }
+
   const durationMs = Date.now() - startedAt;
 
   return Response.json({
@@ -160,6 +216,9 @@ async function runSweep(req: NextRequest) {
     dispatch_errors: dispatchErrors,
     stale_checked: stale?.length ?? 0,
     pending_checked: pending?.length ?? 0,
+    supplier_retried: supplierRetried,
+    supplier_dispatch_errors: supplierDispatchErrors,
+    supplier_pending_checked: pendingSupplierOrders?.length ?? 0,
     duration_ms: durationMs,
     checked_at: new Date().toISOString(),
   });
