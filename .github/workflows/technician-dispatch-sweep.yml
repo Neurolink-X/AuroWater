@@ -1,0 +1,43 @@
+name: AuroTap Technician Dispatch Sweep
+
+on:
+  schedule:
+    # GitHub Actions supports a minimum 5-minute schedule.
+    # Stagger from the top of the hour to reduce scheduler congestion.
+    - cron: "2-57/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aurotap-technician-dispatch-sweep
+  cancel-in-progress: false
+
+jobs:
+  dispatch-sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+
+    steps:
+      - name: Validate scheduler secret
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Repository secret CRON_SECRET is not configured."
+            exit 1
+          fi
+
+      - name: Invoke technician dispatch sweep
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body \
+            --show-error \
+            --silent \
+            --max-time 210 \
+            --retry 1 \
+            --retry-delay 5 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://aurotap.in/api/internal/technician-dispatch-sweep"
