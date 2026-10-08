@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import RetryButton from './RetryButton';
 
@@ -94,12 +95,12 @@ export default function OfflinePage() {
       <div className="mt-5 flex w-full max-w-sm flex-col items-center gap-3 sm:flex-row sm:justify-center">
         <RetryButton />
 
-        <a
+        <Link
           href="/"
           className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-bold text-white transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0A1628] sm:w-auto"
         >
           Go to AuroWater
-        </a>
+        </Link>
       </div>
 
       <section

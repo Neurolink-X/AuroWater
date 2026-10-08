@@ -1,0 +1,177 @@
+{
+  "scripts/setup-db.js": {
+    "@typescript-eslint/no-require-imports": {
+      "count": 3
+    }
+  },
+  "src/admin/zones/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/(public)/about/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
+  "src/app/(public)/contact/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 6
+    }
+  },
+  "src/app/(public)/how-it-works/page.tsx": {
+    "react-hooks/refs": {
+      "count": 3
+    },
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
+  "src/app/(public)/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/(public)/pricing/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/(public)/services/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/(public)/technicians/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/admin/dashboard/page.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/api/cron/subscriptions/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/api/customer/orders/route.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/cookies/CookiesClient.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/app/customer/feedback/[orderId]/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 1
+    }
+  },
+  "src/app/error.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 1
+    }
+  },
+  "src/app/not-found.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 1
+    }
+  },
+  "src/app/technician/dashboard/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 3
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/app/technician/job/[id]/page.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/components/booking/TimeSlotPicker.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/layout/Header.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 5
+    }
+  },
+  "src/components/layout/SiteNav.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/components/pwa/PwaInstallBanner.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/CitySelector.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
+  "src/lib/Pricingvisualizer.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react/jsx-no-comment-textnodes": {
+      "count": 3
+    }
+  },
+  "src/lib/auth/jwt.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/lib/auth/middleware.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/i18n/LanguageContext.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/lib/pricing/engine.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/utils/helpers.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/lib/validation/time-slot.ts": {
+    "prefer-const": {
+      "count": 1
+    }
+  },
+  "src/types/canvas-confetti.d.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/types/index.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  }
+}
