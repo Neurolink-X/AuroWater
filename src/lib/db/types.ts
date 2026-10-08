@@ -158,7 +158,7 @@ export type ProfileRole    = 'customer' | 'supplier' | 'technician' | 'admin';
 export type ProfileStatus  = 'active' | 'suspended' | 'pending' | 'pending_approval' | 'rejected' | 'banned';
 
 export type OrderStatus    = 'PENDING' | 'ASSIGNED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
-export type PaymentStatus  = 'pending' | 'paid' | 'refunded' | 'failed';
+export type PaymentStatus  = 'pending' | 'unpaid' | 'paid' | 'refunded' | 'failed';
 
 export type ApplicationType   = 'supplier' | 'technician';
 export type ApplicationStatus = 'pending'  | 'approved' | 'rejected';
