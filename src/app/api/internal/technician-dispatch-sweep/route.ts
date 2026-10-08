@@ -4,7 +4,7 @@ import { releaseTechnicianAssignment, dispatchTechnicianJob } from '@/lib/dispat
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
+//for commit
 const BATCH_SIZE = 25;
 const MAX_RUNTIME_MS = 180_000;
 const RECENT_ORDER_GRACE_MS = 30_000;
