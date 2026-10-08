@@ -4,9 +4,10 @@ import { releaseTechnicianAssignment, dispatchTechnicianJob } from '@/lib/dispat
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-//for commit
+export const maxDuration = 170;
+
 const BATCH_SIZE = 25;
-const MAX_RUNTIME_MS = 180_000;
+const MAX_RUNTIME_MS = 150_000;
 const RECENT_ORDER_GRACE_MS = 30_000;
 
 function authorized(req: NextRequest): boolean {
