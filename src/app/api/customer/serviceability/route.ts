@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     .from('addresses')
     .select('*')
     .eq('id', addressId)
-    .eq('user_id', auth.ctx.profile.id)
+    .eq('customer_id', auth.ctx.profile.id)
     .maybeSingle();
 
   if (addressError) {
