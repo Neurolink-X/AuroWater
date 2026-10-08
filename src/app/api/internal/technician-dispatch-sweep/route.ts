@@ -18,6 +18,14 @@ function authorized(req: NextRequest): boolean {
 }
 
 export async function GET(req: NextRequest) {
+  return runSweep(req);
+}
+
+export async function POST(req: NextRequest) {
+  return runSweep(req);
+}
+
+async function runSweep(req: NextRequest) {
   const startedAt = Date.now();
 
   if (!authorized(req)) {
