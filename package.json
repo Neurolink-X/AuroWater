@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint --suppressions-location eslint-suppressions.json",
     "db:setup": "node scripts/setup-db.js",
     "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
     "smoke": "node scripts/smoke-test.mjs",
