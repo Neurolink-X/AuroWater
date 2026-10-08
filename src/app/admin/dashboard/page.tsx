@@ -42,6 +42,8 @@ interface KpiBlock {
     unpaid_completed_amount: number;
     active_emergencies: number;
     stale_active_orders: number;
+    open_quality_cases: number;
+    unaccepted_technician_offers: number;
   };
 }
 
