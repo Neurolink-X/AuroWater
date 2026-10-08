@@ -17,10 +17,6 @@
     {
       "path": "/api/cron/subscriptions",
       "schedule": "30 22 * * *"
-    },
-    {
-      "path": "/api/internal/technician-dispatch-sweep",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
