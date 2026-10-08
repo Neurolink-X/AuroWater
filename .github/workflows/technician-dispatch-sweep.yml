@@ -1,10 +1,8 @@
 name: AuroTap Technician Dispatch Sweep
 
 on:
-  schedule:
-    # GitHub Actions supports a minimum 5-minute schedule.
-    # Stagger from the top of the hour to reduce scheduler congestion.
-    - cron: "2-57/5 * * * *"
+  # Emergency/manual fallback only.
+  # Production scheduling is handled by Supabase pg_cron.
   workflow_dispatch:
 
 permissions:
@@ -40,4 +38,4 @@ jobs:
             --retry 1 \
             --retry-delay 5 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "https://aurotap.in/api/internal/technician-dispatch-sweep"
+            "https://www.aurotap.in/api/internal/technician-dispatch-sweep"
