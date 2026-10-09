@@ -191,10 +191,10 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
       Math.max(1, draft.canQuantity ?? 1)
     );
     const per =
-      draft.canOrderType === 'subscription'
-        ? settings.subscription_can_price
-        : qty >= settings.bulk_threshold
-          ? settings.bulk_can_price
+      qty >= settings.bulk_threshold
+        ? settings.bulk_can_price
+        : draft.canOrderType === 'subscription'
+          ? settings.subscription_can_price
           : settings.default_can_price;
     return Math.round(qty * per);
   }
@@ -357,13 +357,14 @@ export default function BookingWizard() {
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
       base.serviceKey = serviceParam;
-      const planCounts: Record<string, number> = { starter: 30, pro: 60, office: 120 };
-      const plan    = searchParams?.get('plan') ?? '';
-      const billing = searchParams?.get('billing');
+      const planCounts: Record<string, number> = { starter: 10, pro: 20, office: 50 };
+      const plan = searchParams?.get('plan') ?? '';
+      const frequencyParam = searchParams?.get('frequency') ?? searchParams?.get('billing') ?? '';
+      const allowedFrequencies = ['daily', 'alternate', 'weekly', 'biweekly', 'monthly'];
       if (serviceParam === 'water_can' && planCounts[plan]) {
-        base.canQuantity  = planCounts[plan];
+        base.canQuantity = planCounts[plan];
         base.canOrderType = 'subscription';
-        base.canFrequency = billing === 'yearly' ? 'monthly' : base.canFrequency ?? 'weekly';
+        base.canFrequency = allowedFrequencies.includes(frequencyParam) ? frequencyParam : 'weekly';
       }
     }
     const cansParam = parseInt(searchParams?.get('cans') ?? '', 10);
