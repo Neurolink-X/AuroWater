@@ -48,7 +48,7 @@ const publicPages = [
  * Replace these with the real dates when your pages/content
  * were last materially updated.
  */
-const SITE_UPDATED = new Date('2026-10-06T00:00:00+05:30');
+const SITE_UPDATED = new Date('2026-10-09T00:00:00+05:30');
 
 const CONTENT_UPDATED = new Date('2026-10-06T00:00:00+05:30');
 
