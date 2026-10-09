@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { safeTechnicianOrder } from '@/lib/api/technician-order-view';
 
 const ALLOWED = new Set(['IN_PROGRESS', 'COMPLETED', 'CANCELLED']);
 
@@ -87,5 +88,5 @@ export async function PUT(
     }
   }
 
-  return jsonOk(data);
+  return jsonOk(safeTechnicianOrder(data as unknown as Record<string, unknown>));
 }
