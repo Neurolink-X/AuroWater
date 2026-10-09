@@ -121,16 +121,16 @@ export async function GET(req: NextRequest) {
     })
     .range(
       offset,
-      offset + limit - 1,
+      offset + ((status && ['PENDING', 'ACCEPTED'].includes(status.toUpperCase())) ? MAX_LIMIT : limit) - 1,
     );
 
   if (status) {
     switch (status.toUpperCase()) {
       case 'PENDING':
-        query = query.eq('status', 'ASSIGNED').is('accepted_at', null);
-        break;
       case 'ACCEPTED':
-        query = query.eq('status', 'ASSIGNED').not('accepted_at', 'is', null);
+        // The accept RPC records state in technician_job_dispatch, not always
+        // on orders.accepted_at. Filter after secure enrichment below.
+        query = query.eq('status', 'ASSIGNED');
         break;
       case 'ON_THE_WAY':
       case 'WORKING':
@@ -178,9 +178,12 @@ export async function GET(req: NextRequest) {
   }
 
   // This API is consumed as an array by the technician dashboard.
-  // Keep pagination internal for now; the client requests a bounded page.
+  // Filter normalized statuses after enrichment so dispatch acceptance state is honored.
+  const normalizedRows = status
+    ? safeRows.filter((row) => String(row.status ?? '').toUpperCase() === status.toUpperCase())
+    : safeRows;
   void total;
   void page;
   void limit;
-  return jsonOk(safeRows);
+  return jsonOk(normalizedRows);
 }
