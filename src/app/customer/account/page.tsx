@@ -86,10 +86,6 @@ const WHATSAPP_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
   'Hi AuroTap! I need help with my account.'
 )}`;
 
-const CHANGE_CONTACT_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
-  'Hi AuroTap, I would like to update my login email or mobile number.'
-)}`;
-
 const DELETE_REQUEST_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
   'Hi AuroTap, I would like to request deletion of my account and data.'
 )}`;
