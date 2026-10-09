@@ -15,6 +15,16 @@ const BASE_URL = getSiteUrl().replace(/\/+$/, '');
  * - useful to a real customer
  * - not a thin duplicate of another page
  */
+const serviceDetailPages = [
+  '/services/water_can',
+  '/services/water_tanker',
+  '/services/ro_service',
+  '/services/plumbing',
+  '/services/borewell',
+  '/services/motor_pump',
+  '/services/tank_cleaning',
+] as const;
+
 const publicPages = [
   '/services',
   '/pricing',
@@ -85,7 +95,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ),
   ];
 
-  return [
-    ...corePages,
-  ];
+  const detailPages: MetadataRoute.Sitemap = serviceDetailPages.map((path) =>
+    page(path, { lastModified: SITE_UPDATED, changeFrequency: 'monthly', priority: 0.8 }),
+  );
+
+  return [...corePages, ...detailPages];
 }
