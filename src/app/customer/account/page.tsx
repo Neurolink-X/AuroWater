@@ -1444,6 +1444,43 @@ export default function CustomerAccountPage() {
                         ) : null}
                       </div>
 
+                      <div>
+                        <label htmlFor="customer-phone" className="text-sm font-bold text-slate-700">
+                          Mobile number
+                        </label>
+                        <input
+                          id="customer-phone"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel-national"
+                          maxLength={16}
+                          value={phoneInput}
+                          onChange={(event) => {
+                            setPhoneInput(event.target.value);
+                            setFormErrors((current) => ({ ...current, phone: undefined }));
+                            setSaveError(null);
+                          }}
+                          className={[
+                            inputBase,
+                            formErrors.phone
+                              ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-50'
+                              : 'border-slate-200 focus:border-sky-400 focus:ring-sky-50',
+                          ].join(' ')}
+                          placeholder="Enter your 10-digit mobile number"
+                          aria-invalid={Boolean(formErrors.phone)}
+                          aria-describedby={formErrors.phone ? 'customer-phone-error' : 'customer-phone-hint'}
+                        />
+                        {formErrors.phone ? (
+                          <p id="customer-phone-error" className="mt-1.5 text-xs font-bold text-rose-600" role="alert">
+                            {formErrors.phone}
+                          </p>
+                        ) : (
+                          <p id="customer-phone-hint" className="mt-1.5 text-xs text-slate-500">
+                            Used for delivery coordination. Save a valid Indian mobile number.
+                          </p>
+                        )}
+                      </div>
+
                       <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
@@ -1530,16 +1567,7 @@ export default function CustomerAccountPage() {
                       />
 
                       <p className="px-5 pb-4 pt-1 text-xs leading-5 text-slate-500 sm:px-6">
-                        Your login email and number are protected.{' '}
-                        <a
-                          href={CHANGE_CONTACT_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-bold text-sky-700 hover:underline"
-                        >
-                          Ask support to change them
-                        </a>
-                        .
+                        You can update your mobile number in Profile details. Your login email remains read-only for account security.
                       </p>
                     </div>
                   </div>
