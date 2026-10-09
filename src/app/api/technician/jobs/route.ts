@@ -9,6 +9,7 @@ import {
   requireRole,
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
+import { enrichTechnicianOrders } from '@/lib/api/technician-order-view';
 
 export const runtime = 'nodejs';
 
@@ -150,22 +151,20 @@ export async function GET(req: NextRequest) {
 
   const total = count ?? 0;
 
-  const safeRows = (data ?? []).map((row) => {
-    const safe = { ...row } as Record<string, unknown>;
-    delete safe.service_otp_hash;
-    return safe;
-  });
+  let safeRows: Record<string, unknown>[];
+  try {
+    safeRows = await enrichTechnicianOrders(
+      (data ?? []) as unknown as Record<string, unknown>[],
+    );
+  } catch (enrichmentError) {
+    console.error('[technician-orders] customer contact enrichment failed:', enrichmentError);
+    return jsonErr('Unable to load job contact details right now', 502);
+  }
 
-  return jsonOk({
-    data: safeRows,
-    total,
-    page,
-    limit,
-    totalPages:
-      total === 0
-        ? 0
-        : Math.ceil(
-            total / limit,
-          ),
-  });
+  // This API is consumed as an array by the technician dashboard.
+  // Keep pagination internal for now; the client requests a bounded page.
+  void total;
+  void page;
+  void limit;
+  return jsonOk(safeRows);
 }
