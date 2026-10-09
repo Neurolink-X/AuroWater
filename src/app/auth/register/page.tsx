@@ -13,6 +13,7 @@ import {
 } from '@/lib/api-client';
 import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
+import { createClient } from '@/utils/supabase/client';
 
 const SERVICE_CITIES = [
   'Kanpur',
@@ -155,6 +156,7 @@ export default function RegisterPage() {
 
   const [role, setRole] = useState<Role>('customer');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
@@ -351,6 +353,35 @@ export default function RegisterPage() {
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     router.replace(destination);
+  };
+
+  const onGoogleSignup = async () => {
+    if (loading || googleLoading) return;
+    if (role !== 'customer') {
+      const message = 'Google sign-up is currently available for customer accounts. Use the form for supplier or technician applications so your required verification details are collected.';
+      setError(message);
+      toast.error(message);
+      return;
+    }
+    setError(null);
+    setGoogleLoading(true);
+    try {
+      const supabase = createClient();
+      const origin = window.location.origin;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent('/customer/home')}`,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (error) throw error;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Google sign-up could not be started. Please try again.';
+      setError(message);
+      toast.error(message);
+      setGoogleLoading(false);
+    }
   };
 
   const onSubmit = async (event: React.FormEvent) => {
@@ -1253,6 +1284,28 @@ export default function RegisterPage() {
                     </>
                   )}
                 </button>
+
+                {role === 'customer' ? (
+                  <>
+                    <div className="flex items-center gap-3 py-1" aria-hidden="true">
+                      <span className="h-px flex-1 bg-slate-200" />
+                      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">or</span>
+                      <span className="h-px flex-1 bg-slate-200" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void onGoogleSignup(); }}
+                      disabled={loading || googleLoading}
+                      className="flex min-h-14 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-extrabold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {googleLoading ? (
+                        <><span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" aria-hidden="true" /> Connecting to Google…</>
+                      ) : (
+                        <><span aria-hidden="true" className="text-base font-black text-blue-600">G</span> Sign up with Google</>
+                      )}
+                    </button>
+                  </>
+                ) : null}
 
                 <div className="flex flex-col gap-3 border-t border-slate-100 pt-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
                   <p className="text-sm text-slate-500">
