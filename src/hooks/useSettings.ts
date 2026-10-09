@@ -413,9 +413,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
 
   /* ── Price calculator ── */
   const calcOrderTotal = React.useCallback(
-    (basePrice: number, isEmergency = false): OrderBreakdown => {
+    (basePrice: number, isEmergency = false, serviceKey?: string): OrderBreakdown => {
       const base        = Math.round(Math.max(0, basePrice));
-      const convenience = Math.round(settings.convenience_fee);
+      // The server order API intentionally applies no separate convenience fee
+      // to water-can orders. Keep the client breakdown aligned with that rule.
+      const convenience = serviceKey === 'water_can' ? 0 : Math.round(settings.convenience_fee);
       const emergency   = isEmergency ? Math.round(settings.emergency_surcharge) : 0;
       const subtotal    = base + convenience + emergency;
       const gst         = Math.round(subtotal * settings.gst_rate);
