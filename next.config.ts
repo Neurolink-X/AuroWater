@@ -99,6 +99,11 @@ const nextConfig: NextConfig = {
         hostname: 'mwfcwhxdlnqldciigicl.supabase.co',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
     ],
   },
 
