@@ -1426,7 +1426,7 @@ export default function BookingWizard() {
         {view === 5 && (
           <div className="fixed left-0 right-0 bottom-3 z-40 px-4 pointer-events-none">
             <div className="mx-auto max-w-3xl rounded-xl border border-blue-200 bg-blue-50 text-blue-800 px-4 py-3 text-xs font-semibold">
-              🛡 AuroWater Guarantee: Delivered in 45 mins or next order FREE. 100% refund if we cancel.
+              🛡 Delivery slots depend on your address and local provider availability. Review the full order total before confirming.
             </div>
           </div>
         )}
