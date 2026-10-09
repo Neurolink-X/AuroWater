@@ -159,7 +159,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
               <Image src={illustration} alt={service.key === 'plumbing' ? 'Plumber at work repairing household plumbing' : service.key === 'water_can' || service.key === 'ro_service' ? '20 litre reusable water jars and household water purification equipment in India' : `${service.title} service illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
               {(service.key === 'water_can' || service.key === 'ro_service') && <p className="px-4 py-2 text-[10px] text-slate-300/80">Photo: FacetsOfNonStickPans · <a className="underline" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>}
-              {service.key === 'plumbing' && <p className="px-4 py-2 text-[10px] text-slate-300/80">Photo: rick / Wikimedia Commons · <a className="underline" href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noreferrer">CC BY 2.0</a></p>
+              {service.key === 'plumbing' && <p className="px-4 py-2 text-[10px] text-slate-300/80">Photo: rick / Wikimedia Commons · <a className="underline" href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noreferrer">CC BY 2.0</a></p>}
               <div className="p-7">
               <p className="text-sm font-semibold text-slate-300">Current configured price</p>
               {service.key === 'water_can' ? (
