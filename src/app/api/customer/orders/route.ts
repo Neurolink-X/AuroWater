@@ -253,7 +253,7 @@ if (!serviceability.serviceable) {
   // sync until tax registration/configuration is explicitly enabled.
   const gstRate = 0;
   const convenience = service_type_key === 'water_can' ? 0 : Number(flat.convenience_fee ?? 29);
-  const emergencyFee = Number(flat.emergency_surcharge ?? 30);
+  const emergencyFee = Number(flat.emergency_surcharge ?? 199);
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
