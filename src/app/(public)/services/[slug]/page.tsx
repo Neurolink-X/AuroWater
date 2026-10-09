@@ -105,7 +105,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   if (!service) notFound();
 
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
-  const illustration = service.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
+  const illustration = service.key === 'water_can' ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg'
     : service.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
     : service.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
     : service.key === 'motor_pump' || service.key === 'ro_service' ? '/illustrations/pump-service.svg'
@@ -156,7 +156,8 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               </div>
             </div>
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
-              <Image src={illustration} alt={`${service.title} illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
+              <Image src={illustration} alt={service.key === 'water_can' ? '20 litre reusable water jars and household water purification equipment in India' : `${service.title} service illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
+              {service.key === 'water_can' && <p className="px-4 py-2 text-[10px] text-slate-300/80">Photo: FacetsOfNonStickPans · <a className="underline" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>}
               <div className="p-7">
               <p className="text-sm font-semibold text-slate-300">Current configured price</p>
               {service.key === 'water_can' ? (
