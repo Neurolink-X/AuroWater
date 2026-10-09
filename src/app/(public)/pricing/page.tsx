@@ -226,7 +226,7 @@
 //             </div>
 
 //             <h1 className="syne" style={{ margin: 0, fontSize: 'clamp(2rem,6.5vw,4.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-2px', lineHeight: 1.05, maxWidth: 680 }}>
-//               20L water cans, delivered.
+//               Clear water-can pricing.
 //               <br />
 //               <span style={{ color: '#34D399' }}>20L cans from ₹{settings.default_can_price}.</span>
 //             </h1>
@@ -1260,7 +1260,7 @@ export default function PricingPage() {
   maxWidth: 640,
 }}>
   <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#fff' }}>
-    20L water cans, delivered.
+    Clear water-can pricing.
   </span>
   <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#34D399' }}>
     20L cans from ₹{settings.default_can_price}.
