@@ -349,11 +349,11 @@ INSERT INTO public.settings (key, value) VALUES
   ('bulk_threshold',           '50'),
   ('market_can_price',         '50'),
   ('water_tanker_price',       '299'),
-  ('ro_service_price',         '199'),
+  ('ro_service_price',         '349'),
   ('plumbing_price',           '149'),
   ('borewell_price',           '499'),
-  ('motor_pump_price',         '249'),
-  ('tank_cleaning_price',      '349'),
+  ('motor_pump_price',         '299'),
+  ('tank_cleaning_price',      '599'),
   ('convenience_fee',          '29'),
   ('emergency_surcharge',      '199'),
   ('gst_rate',                 '18'),
@@ -368,7 +368,7 @@ INSERT INTO public.settings (key, value) VALUES
   ('working_hours',            '09:00–21:00 IST'),
   ('brand_name',               'Auro Water'),
   ('whatsapp_enabled',         '1'),
-  ('service_base_prices',      '{"water_tanker":299,"ro_service":199,"plumbing":149,"borewell":499,"motor_pump":249,"tank_cleaning":349}')
+  ('service_base_prices',      '{"water_tanker":299,"ro_service":349,"plumbing":149,"borewell":499,"motor_pump":299,"tank_cleaning":599}')
 ON CONFLICT (key) DO NOTHING;
 
 
