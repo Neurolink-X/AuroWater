@@ -906,9 +906,8 @@ function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequ
           </div>
           {plan.unitPrice !== null && savingsPercent > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginTop: 7 }} aria-label={`Indicative saving of ${savingsPercent} percent against a local reference price`}>
-              <span style={{ fontSize: 11, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Reference</span>
-              <del style={{ fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.55)' : '#94A3B8' }}>₹{marketPrice}/can</del>
-              <Pill color="green">{savingsPercent}% lower*</Pill>
+              <span style={{ fontSize: 11, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Configured reference ₹{marketPrice}/can</span>
+              <Pill color="green">{savingsPercent}% lower vs reference*</Pill>
             </div>
           ) : null}
           {typeof plan.cansPerDelivery === 'number' && (
@@ -1493,7 +1492,7 @@ export default function PricingPage() {
               {settings.market_can_price > settings.default_can_price ? `${Math.round(((settings.market_can_price - settings.default_can_price) / settings.market_can_price) * 100)}% lower vs reference` : 'Transparent per-can price'}
             </span>
             <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', textDecoration: 'line-through' }}>
-              Configured reference ₹{settings.market_can_price} / can
+              Reference set in admin: ₹{settings.market_can_price} / can
             </span>
           </div>
         </div>
