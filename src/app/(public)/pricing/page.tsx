@@ -689,6 +689,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 
@@ -1214,6 +1215,8 @@ export default function PricingPage() {
         .pricing-page h1, .pricing-page h2, .pricing-page .display { font-family: 'Syne', system-ui, sans-serif; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,0.2);} 50%{box-shadow:0 0 0 7px rgba(16,185,129,0.06);} }
+        .pricing-hero-illustration { position: absolute; right: max(20px, calc((100vw - 1160px) / 2)); top: 50%; transform: translateY(-50%); width: min(30vw, 340px); height: auto; opacity: .94; pointer-events: none; }
+        @media (max-width: 900px) { .pricing-hero-illustration { display: none; } }
         .pricing-page .plan-card { animation: fadeUp 0.5s ease both; }
         .pricing-page .plan-card:nth-child(1){animation-delay:0ms}
         .pricing-page .plan-card:nth-child(2){animation-delay:80ms}
@@ -1230,6 +1233,16 @@ export default function PricingPage() {
           <div style={{ position:'absolute',inset:0,opacity:0.06,backgroundImage:'radial-gradient(circle,#fff 1px,transparent 1px)',backgroundSize:'28px 28px',pointerEvents:'none' }} />
           <div style={{ position:'absolute',top:-100,right:-80,width:360,height:360,borderRadius:'50%',background:'#34D399',opacity:0.07,pointerEvents:'none' }} />
           <div style={{ position:'absolute',bottom:-60,left:-60,width:240,height:240,borderRadius:'50%',background:'#0D9B6C',opacity:0.06,pointerEvents:'none' }} />
+          <Image
+            src="/illustrations/water-can-delivery.svg"
+            alt=""
+            aria-hidden="true"
+            width={640}
+            height={420}
+            priority
+            sizes="(max-width: 900px) 0px, 32vw"
+            className="pricing-hero-illustration"
+          />
 
           <div style={{ maxWidth: 1160, margin: '0 auto', position: 'relative', zIndex: 1 }}>
             {/* trust pill */}
