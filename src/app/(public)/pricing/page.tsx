@@ -1230,7 +1230,7 @@ export default function PricingPage() {
 }}>
   <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34D399', display: 'inline-block' }} />
   <span style={{ fontSize: 11, fontWeight: 600, color: '#6ee7b7', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-    Delivering across 13 cities in UP
+    Serving Kanpur, Lucknow & Gorakhpur
   </span>
 </div>
 
@@ -1550,7 +1550,7 @@ export default function PricingPage() {
               <h2 style={{ margin:0,fontSize:'clamp(1.5rem,3.5vw,2.2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.8px' }}>
                 Choose your plan
               </h2>
-              <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Transparent pricing. No lock-in. Cancel anytime.</p>
+              <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Transparent per-delivery pricing. Pause or cancel future deliveries.</p>
             </div>
 
             <div style={{ display:'flex',flexDirection:'column',alignItems:'flex-end',gap:10 }}>
