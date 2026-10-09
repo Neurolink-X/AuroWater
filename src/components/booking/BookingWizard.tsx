@@ -660,7 +660,7 @@ export default function BookingWizard() {
           lat,
           lng,
           area:    result.area || d.newAddress?.area || '',
-          city:    matchedCity ?? d.newAddress?.city ?? LIVE_CITIES[0] ?? '',
+          city:    matchedCity ?? result.city ?? d.newAddress?.city ?? '',
           pincode: result.pincode || d.newAddress?.pincode || '',
         },
       }));
