@@ -212,6 +212,22 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
           </ul>
         </div>
 
+        {/* Service details and booking are separate actions. */}
+        <button
+          type="button"
+          onClick={() => router.push(`/services/${s.key}`)}
+          className="sv-cta"
+          style={{
+            marginBottom: 8,
+            background: 'white',
+            border: `1.5px solid ${s.accent}55`,
+            color: s.accent,
+          }}
+        >
+          <span>View details</span>
+          <IconArrow />
+        </button>
+
         {/* CTA */}
         <button
           type="button"
