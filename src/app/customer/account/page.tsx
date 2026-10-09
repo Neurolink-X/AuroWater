@@ -71,6 +71,7 @@ type ApiEnvelope<T> = {
 type FormErrors = {
   full_name?: string;
   city?: string;
+  phone?: string;
 };
 
 type Toast = { kind: 'success' | 'error' | 'info'; text: string };
@@ -771,6 +772,7 @@ export default function CustomerAccountPage() {
 
   const [fullName, setFullName] = useState('');
   const [city, setCity] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
@@ -876,6 +878,7 @@ export default function CustomerAccountPage() {
 
         setFullName(nextProfile?.full_name?.trim() ?? '');
         setCity(nextProfile?.city?.trim() ?? '');
+        setPhoneInput(nextProfile?.phone?.trim() ?? session?.phone?.trim() ?? '');
         setNotificationsEnabled(getNotificationPreference(nextProfile?.settings));
         setSaveError(null);
       } catch (cause) {
@@ -895,11 +898,13 @@ export default function CustomerAccountPage() {
   /* ── Form state ──────────────────────────────────────────────────── */
   const originalName = profile?.full_name?.trim() ?? '';
   const originalCity = profile?.city?.trim() ?? '';
+  const originalPhone = profile?.phone?.trim() ?? session?.phone?.trim() ?? '';
   const originalNotifications = getNotificationPreference(profile?.settings);
 
   const hasChanges =
     fullName.trim() !== originalName ||
     city.trim() !== originalCity ||
+    phoneInput.replace(/\\D/g, '') !== originalPhone.replace(/\\D/g, '') ||
     notificationsEnabled !== originalNotifications;
 
   const initials = useMemo(
@@ -946,6 +951,7 @@ export default function CustomerAccountPage() {
 
     const name = fullName.trim();
     const selectedCity = city.trim();
+    const normalizedPhone = phoneInput.replace(/\\D/g, '');
 
     if (name.length < 2) {
       nextErrors.full_name = 'Enter at least 2 characters.';
@@ -955,6 +961,10 @@ export default function CustomerAccountPage() {
 
     if (selectedCity.length < 2) {
       nextErrors.city = 'Select your city.';
+    }
+
+    if (normalizedPhone && !/^[6-9]\\d{9}$/.test(normalizedPhone)) {
+      nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     }
 
     setFormErrors(nextErrors);
@@ -1008,6 +1018,7 @@ export default function CustomerAccountPage() {
         body: JSON.stringify({
           full_name: fullName.trim(),
           city: city.trim(),
+          phone: phoneInput.trim(),
           settings: nextSettings,
         }),
       });
@@ -1030,6 +1041,7 @@ export default function CustomerAccountPage() {
           ...profile,
           full_name: fullName.trim(),
           city: city.trim(),
+          phone: phoneInput.trim(),
           settings: nextSettings,
         } as ProfilePayload);
 
@@ -1037,6 +1049,7 @@ export default function CustomerAccountPage() {
 
       updateSession({
         name: savedProfile.full_name ?? session?.name ?? '',
+        phone: savedProfile.phone ?? '',
       });
 
       setFormErrors({});
@@ -1056,6 +1069,7 @@ export default function CustomerAccountPage() {
   const handleDiscard = () => {
     setFullName(originalName);
     setCity(originalCity);
+    setPhoneInput(originalPhone);
     setNotificationsEnabled(originalNotifications);
     setFormErrors({});
     setSaveError(null);
