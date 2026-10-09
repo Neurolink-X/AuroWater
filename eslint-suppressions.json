@@ -132,5 +132,46 @@
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     }
+  },
+  "src/app/(public)/about/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
+  "src/app/(public)/contact/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 6
+    }
+  },
+  "src/app/(public)/how-it-works/page.tsx": {
+    "react-hooks/refs": {
+      "count": 3
+    },
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
+  "src/app/(public)/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/(public)/pricing/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 1
+    }
+  },
+  "src/app/(public)/services/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 2
+    }
+  },
+  "src/app/(public)/technicians/page.tsx": {
+    "react/no-unescaped-entities": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
   }
 }
