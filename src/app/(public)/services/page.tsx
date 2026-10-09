@@ -159,7 +159,7 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
     : s.key === 'plumbing' ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Plumber_at_work.jpg/960px-Plumber_at_work.jpg'
     : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
     : s.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
-    : s.key === 'motor_pump' || s.key === 'ro_service' ? '/illustrations/pump-service.svg'
+    : s.key === 'motor_pump' ? '/illustrations/pump-service.svg'
     : '/illustrations/home-technician.svg';
 
   return (
