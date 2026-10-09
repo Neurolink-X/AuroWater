@@ -815,12 +815,9 @@ type SubPlan = {
   highlight?: boolean;
 };
 
-function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequency: BillingCycle; marketPrice: number; onCta: () => void }) {
+function SubCard({ plan, frequency, onCta }: { plan: SubPlan; frequency: BillingCycle; onCta: () => void }) {
   const [hovered, setHovered] = useState(false);
   const price = plan.pricePerDelivery;
-  const savingsPercent = plan.unitPrice !== null && marketPrice > plan.unitPrice
-    ? Math.round(((marketPrice - plan.unitPrice) / marketPrice) * 100)
-    : 0;
 
   const ctaStyles: Record<string, React.CSSProperties> = {
     primary: {
@@ -905,12 +902,7 @@ function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequ
           <div style={{ marginTop: 6, fontSize: 13, color: plan.highlight ? '#6EE7B7' : '#059669', fontWeight: 700 }}>
             {plan.perCan}
           </div>
-          {plan.unitPrice !== null && savingsPercent > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginTop: 7 }} aria-label={`Indicative saving of ${savingsPercent} percent against a local reference price`}>
-              <span style={{ fontSize: 11, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Configured reference ₹{marketPrice}/can</span>
-              <Pill color="green">{savingsPercent}% lower vs reference*</Pill>
-            </div>
-          ) : null}
+          <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Delivery included · No separate water handling fee</div>
           {typeof plan.cansPerDelivery === 'number' && (
             <div style={{ marginTop: 3, fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}>
               {plan.id === 'pay-per-can' ? 'Example total for 1 can' : `Up to ${plan.cansPerDelivery} cans per delivery`}
@@ -1488,17 +1480,8 @@ export default function PricingPage() {
             <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>/ can · one-time</span>
           </div>
 
-          {/* Savings */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
-            <span className="pc-save-pill">
-              <svg width={11} height={11} viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 1l1.8 4h4.2l-3.4 2.6 1.3 4L8 9.2l-3.9 2.4 1.3-4L2 5h4.2z" fill="#CA8A04" />
-              </svg>
-              {settings.market_can_price > settings.default_can_price ? `${Math.round(((settings.market_can_price - settings.default_can_price) / settings.market_can_price) * 100)}% lower vs reference` : 'Transparent per-can price'}
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>
-              Reference set in admin: ₹{settings.market_can_price} / can
-            </span>
+            <span className="pc-save-pill">Delivery included · No separate water delivery fee</span>
           </div>
         </div>
       </div>
@@ -1628,13 +1611,12 @@ export default function PricingPage() {
           <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:22 }}>
             {activePlans.map(plan => (
               <div key={plan.id} className="plan-card">
-                <SubCard plan={plan} frequency={billing} marketPrice={settings.market_can_price} onCta={() => handlePlanCta(plan)} />
+                <SubCard plan={plan} frequency={billing} onCta={() => handlePlanCta(plan)} />
               </div>
             ))}
           </div>
 
           <p style={{ margin: '12px 0 0', fontSize: 11, lineHeight: 1.6, color: '#64748B' }}>
-            *Reference prices are manually configured estimates, not a verified market average. Savings are illustrative and depend on comparable can size, brand, deposit/exchange and locality. Confirm your address and final total before ordering.
           </p>
 
           {/* Compare table toggle */}
@@ -1655,16 +1637,10 @@ export default function PricingPage() {
             </div>
           )}
 
-          {/* ── Savings Calculator ── */}
-          <div style={{ marginTop:60 }}>
-            <div style={{ display:'flex',flexWrap:'wrap',gap:10,alignItems:'center',marginBottom:4 }}>
-              <h2 style={{ margin:0,fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>See your savings</h2>
-              <Pill color="blue">Interactive</Pill>
-            </div>
-            <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Adjust monthly usage to compare AuroWater’s current price with the configured reference. Results are estimates, not a guaranteed saving.</p>
-            <div style={{ maxWidth:580 }}>
-              <SavingsCalc marketPrice={settings.market_can_price} ourPrice={settings.default_can_price} />
-            </div>
+          {/* Honest value proposition: no unverified competitor-price claims. */}
+          <div style={{ marginTop:60, border:'1px solid #D1FAE5', background:'linear-gradient(135deg,#F0FDF4,#F0FDFA)', borderRadius:20, padding:24 }}>
+            <h2 style={{ margin:0,fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#064E3B',letterSpacing:'-0.5px' }}>A simpler way to manage water delivery</h2>
+            <p style={{ margin:'8px 0 0',fontSize:14,lineHeight:1.7,color:'#475569' }}>Choose one-time delivery when you need it, or schedule recurring deliveries for convenience. There is no automatic debit. The price shown for each delivery is reviewed before you confirm, and you can pause or cancel future schedules.</p>
           </div>
 
           {/* ── Other home services pricing ── */}
