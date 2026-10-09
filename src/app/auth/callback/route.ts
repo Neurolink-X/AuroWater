@@ -198,7 +198,13 @@ setAll(cookies: CookieToSet[]) {
     return redirect('/auth/login?error=profile_setup_failed');
   }
 
-  const response = redirect(nextPath);
+  // Google does not reliably provide a phone number. Route customers with
+  // missing contact details to the existing account page, where they can add it.
+  const destination =
+    role === 'customer' && !profile.phone
+      ? '/customer/account?complete=phone'
+      : nextPath;
+  const response = redirect(destination);
 
   // Compatibility cookies only; never use these to authorize requests.
   response.cookies.set('aw_session', '1', {
