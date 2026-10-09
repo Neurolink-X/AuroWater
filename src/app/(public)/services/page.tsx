@@ -622,11 +622,11 @@ export default function ServicesPage() {
             </h1>
 
             <p className="sv-hero-sub">
-              Verified technicians, transparent pricing, same-day slots. Pick a service and book in under 60 seconds.
+              Explore water delivery and home water services. Availability and final pricing are confirmed for your address before booking.
             </p>
 
             <div className="sv-hero-stats">
-              {['7 services', '500+ verified pros', 'Upfront pricing', 'Same-day available'].map((s) => (
+              {['7 services', '3 live service zones', 'Upfront pricing', 'Availability checked before booking'].map((s) => (
                 <div key={s} className="sv-stat">
                   <span className="sv-stat-dot" />
                   {s}
