@@ -202,7 +202,7 @@ export async function PUT(
       .eq('id', id)
       .single();
 
-    return jsonOk(updated);
+    return jsonOk(updated ? safeTechnicianOrder(updated as unknown as Record<string, unknown>) : updated);
   }
 
   if (!['ASSIGNED', 'IN_PROGRESS'].includes(String(order.status).toUpperCase())) {
@@ -238,5 +238,5 @@ export async function PUT(
     }
   }
 
-  return jsonOk(cancelled);
+  return jsonOk(cancelled ? safeTechnicianOrder(cancelled as unknown as Record<string, unknown>) : cancelled);
 }
