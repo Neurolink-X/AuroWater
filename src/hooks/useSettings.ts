@@ -222,12 +222,19 @@ export function mergeSettings(
   if (!commissions.supplier)   commissions.supplier   = DEFAULT_SETTINGS.commissions.supplier;
 
   const gstRate = toRate(raw.gst_rate) || DEFAULT_SETTINGS.gst_rate;
+  const defaultCanPrice = safePositive(raw.default_can_price, DEFAULT_SETTINGS.default_can_price);
+  const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
+  // A bulk rate must be lower than the one-time rate to qualify as a discount.
+  // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.
+  const effectiveBulkCanPrice = configuredBulkCanPrice < defaultCanPrice
+    ? configuredBulkCanPrice
+    : defaultCanPrice;
 
   return {
-    default_can_price:      safePositive(raw.default_can_price,      DEFAULT_SETTINGS.default_can_price),
+    default_can_price:      defaultCanPrice,
     chilled_can_price:      safePositive(raw.chilled_can_price,       DEFAULT_SETTINGS.chilled_can_price),
     subscription_can_price: safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price),
-    bulk_can_price:         safePositive(raw.bulk_can_price,         DEFAULT_SETTINGS.bulk_can_price),
+    bulk_can_price:         effectiveBulkCanPrice,
     bulk_threshold:         safePositive(raw.bulk_threshold,         DEFAULT_SETTINGS.bulk_threshold),
     market_can_price:       safePositive(raw.market_can_price,       DEFAULT_SETTINGS.market_can_price),
     convenience_fee:        safePositive(raw.convenience_fee,        DEFAULT_SETTINGS.convenience_fee),
@@ -546,7 +553,9 @@ export function canPriceForQty(
   qty: number,
   s: Pick<PlatformSettings, 'default_can_price' | 'bulk_can_price' | 'bulk_threshold'>
 ): number {
-  return qty >= s.bulk_threshold ? s.bulk_can_price : s.default_can_price;
+  return qty >= s.bulk_threshold && s.bulk_can_price < s.default_can_price
+    ? s.bulk_can_price
+    : s.default_can_price;
 }
 
 /**
