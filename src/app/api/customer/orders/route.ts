@@ -307,7 +307,7 @@ if (!serviceability.serviceable) {
           ? subPrice
           : Number.isFinite(defPrice) && defPrice > 0
             ? defPrice
-            : Number(st.base_price) || 39;
+            : Number(st.base_price) || 20;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
