@@ -1819,6 +1819,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import React, {
   useEffect,
   useState,
@@ -2646,13 +2647,29 @@ export default function HomePage() {
                   initial={{ opacity:0, x:36 }} animate={{ opacity:1, x:0 }}
                   transition={{ delay:.18, duration:.75, ease:[.22,1,.36,1] }}>
 
-                  {/* Stats */}
+                  {/* Real water-service photography; attribution is kept visible. */}
+                  <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
+                    <Image
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
+                      alt="Reusable 20-litre water jars and household water purification equipment in India"
+                      width={960}
+                      height={960}
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 42vw"
+                      className="h-56 w-full object-cover sm:h-72"
+                    />
+                    <figcaption className="px-3 py-2 text-[10px] leading-4 text-slate-300/80">
+                      Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a>
+                    </figcaption>
+                  </figure>
+
+                  {/* Factual product/service information, not inflated social proof. */}
                   <div className="grid grid-cols-2 gap-3">
                     {STATS.map((s, i) => (
-                      <motion.div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
+                      <div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
                         initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }}
-                        transition={{ delay:.32+i*.07 }}>
-                        <div className="text-2xl mb-2 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]">{s.icon}</div>
+                        >
+                        <div className="text-2xl mb-2">{s.icon}</div>
                         <div
                           className="hero-stat-val"
                           style={{ textShadow: `0 0 22px ${s.glow}60` }}
@@ -2660,7 +2677,7 @@ export default function HomePage() {
                           {s.value}{s.suffix}
                         </div>
                         <div className="hero-stat-lbl">{s.label}</div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
