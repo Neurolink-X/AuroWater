@@ -207,6 +207,11 @@ function serviceLabel(key: string): string {
   return SERVICE_LIST.find((s) => s.key === key)?.title ?? key;
 }
 
+function selectedServiceLabel(draft: BookingDraft): string {
+  if (draft.serviceKey === 'water_can') return draft.subOptionKey === 'chilled_ro' ? 'Chilled RO Water' : 'Normal RO Water';
+  return serviceLabel(draft.serviceKey);
+}
+
 function formatAddressCard(a: AddressRow): string {
   return [a.house_flat ?? a.line1, a.area ?? a.line2, a.city, a.pincode]
     .filter((x): x is string => typeof x === 'string' && x.trim() !== '')
@@ -1368,7 +1373,7 @@ export default function BookingWizard() {
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-3 text-sm">
               {[
-                ['Service', `${serviceLabel(draft.serviceKey)}${draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''}`],
+                ['Service', `${selectedServiceLabel(draft)}${draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''}`],
                 ['Address', selectedAddress ? formatAddressCard(selectedAddress) : '—'],
                 ['Window',  windowText],
                 ...(isSubscription
@@ -1466,7 +1471,7 @@ export default function BookingWizard() {
               #{orderNo}
             </div>
             <div className="text-slate-600 space-y-1 text-sm">
-              <p>{serviceLabel(draft.serviceKey)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
+              <p>{selectedServiceLabel(draft)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
               <p>Window: <span className="font-semibold text-slate-900">{windowText}</span></p>
               <p>{supplierSearching ? 'Finding the nearest supplier…' : 'Supplier assigned. Tracking updates automatically.'}</p>
             </div>
