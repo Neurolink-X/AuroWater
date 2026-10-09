@@ -524,9 +524,9 @@ export default function BookingWizard() {
 
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
   const breakdown  = useMemo(() => {
-    const raw = calcOrderTotal(baseAmount, draft.isEmergency);
+    const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
     return { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
-  }, [calcOrderTotal, baseAmount, draft.isEmergency]);
+  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
 
   const fromPrice = useCallback((key: string) => {
     if (key === 'water_can') return settings.default_can_price;
