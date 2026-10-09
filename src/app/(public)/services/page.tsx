@@ -212,7 +212,7 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
 
         {/* Includes */}
         <div className="sv-card-includes">
-          <div className="sv-includes-label">What's included</div>
+          <div className="sv-includes-label">What&apos;s included</div>
           <ul className="sv-includes-list">
             {s.includes.map((it) => (
               <li key={it} className="sv-includes-item" style={{ color: '#374151' }}>
