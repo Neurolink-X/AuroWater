@@ -141,8 +141,8 @@
 //         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
 //         .pricing-page * { box-sizing: border-box; }
-//         .pricing-page { font-family: 'DM Sans', sans-serif; }
-//         .pricing-page .syne { font-family: 'Syne', sans-serif; }
+//         .pricing-page { font-family: 'DM Sans', system-ui, sans-serif; }
+//         .pricing-page .syne { font-family: 'Syne', system-ui, sans-serif; }
 
 //         @keyframes floatDrop {
 //           0%, 100% { transform: translateY(0px) rotate(-8deg); }
@@ -1210,9 +1210,9 @@ export default function PricingPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
-        .pricing-page * { box-sizing: border-box; font-family: 'DM Sans', sans-serif; }
-        .pricing-page h1, .pricing-page h2, .pricing-page .display { font-family: 'Syne', sans-serif; }
+        /* Use system font fallbacks to avoid render-blocking third-party font requests. */
+        .pricing-page * { box-sizing: border-box; font-family: 'DM Sans', system-ui, sans-serif; }
+        .pricing-page h1, .pricing-page h2, .pricing-page .display { font-family: 'Syne', system-ui, sans-serif; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes pulse { 0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,0.2);} 50%{box-shadow:0 0 0 7px rgba(16,185,129,0.06);} }
         .pricing-page .plan-card { animation: fadeUp 0.5s ease both; }
@@ -1301,7 +1301,7 @@ export default function PricingPage() {
 
 {/* ── Styles ── */}
 <style>{`
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
+  /* Use system font fallbacks to avoid render-blocking third-party font requests. */
 
   .pc-root {
     max-width: 1160px;
@@ -1509,7 +1509,7 @@ export default function PricingPage() {
         <div className="pc-tiers">
           {(
             [
-              { label: 'Pay‑as‑go',    sublabel: 'No commitment', price: '₹10–12', bg: '#F8FAFF', border: '1px solid #DBEAFE',    tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
+              { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
               { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: true },
               { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Configured bulk rate', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
@@ -1700,7 +1700,7 @@ export default function PricingPage() {
                 </div>
                 <button type="button" onClick={() => router.push('/contact')}
                   style={{ background:'#fff',color:'#0C4A6E',fontWeight:800,fontSize:14,padding:'14px 28px',borderRadius:14,border:'none',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.2)',whiteSpace:'nowrap',display:'flex',alignItems:'center',gap:8 }}>
-                  Get AMC
+                  Request a Quote
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5" stroke="#0C4A6E" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 </button>
               </div>
