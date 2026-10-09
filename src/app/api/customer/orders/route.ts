@@ -392,6 +392,7 @@ if (!serviceability.serviceable) {
     str(body.notes),
     str(body.time_slot) ? `Slot: ${str(body.time_slot)}` : null,
     str(body.sub_option_key) ? `Option: ${str(body.sub_option_key)}` : null,
+    service_type_key === 'water_can' ? `Water: ${str(body.sub_option_key) === 'chilled_ro' ? 'Chilled RO' : 'Normal RO'}` : null,
     str(body.can_order_type) ? `Type: ${str(body.can_order_type)}` : null,
     str(body.can_frequency) ? `Frequency: ${str(body.can_frequency)}` : null,
   ].filter(Boolean);
