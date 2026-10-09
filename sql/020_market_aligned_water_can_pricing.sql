@@ -48,5 +48,19 @@ UPDATE public.service_types
 SET base_price = 599
 WHERE key = 'tank_cleaning' AND base_price = 349;
 
+-- Ensure required pricing keys exist on older installations, without
+-- overwriting any current admin-managed value.
+INSERT INTO public.settings (key, value) VALUES
+  ('default_can_price', '39'),
+  ('subscription_can_price', '37'),
+  ('bulk_can_price', '35'),
+  ('bulk_threshold', '50'),
+  ('market_can_price', '50'),
+  ('convenience_fee', '29'),
+  ('emergency_surcharge', '199'),
+  ('gst_rate', '18'),
+  ('service_base_prices', '{"water_tanker":299,"ro_service":349,"plumbing":149,"borewell":499,"motor_pump":299,"tank_cleaning":599}')
+ON CONFLICT (key) DO NOTHING;
+
 -- Keep the public API aware of updated settings.
 SELECT pg_notify('pgrst', 'reload schema');
