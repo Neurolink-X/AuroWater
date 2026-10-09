@@ -99,7 +99,7 @@ function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
 }
 
 const SERVICE_LIST = [
-  { key: 'water_can',     emoji: '💧', title: 'Water cans'    },
+  { key: 'water_can',     emoji: '💧', title: 'Normal / Chilled RO'    },
   { key: 'water_tanker',  emoji: '🚚', title: 'Water tanker'  },
   { key: 'ro_service',    emoji: '🔧', title: 'RO service'    },
   { key: 'plumbing',      emoji: '🛠️', title: 'Plumbing'      },
@@ -993,6 +993,7 @@ export default function BookingWizard() {
 
                   <button
                     type="button"
+                    disabled={draft.subOptionKey === 'chilled_ro'}
                     aria-pressed={draft.canOrderType === 'subscription'}
                     onClick={() =>
                       setDraft((d) => ({
@@ -1006,7 +1007,7 @@ export default function BookingWizard() {
                             : d.paymentMethod,
                       }))
                     }
-                    className={optionBtn(draft.canOrderType === 'subscription')}
+                    className={`${optionBtn(draft.canOrderType === 'subscription')} disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-sm font-extrabold">Subscription</span>
@@ -1019,6 +1020,7 @@ export default function BookingWizard() {
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
                       {inr(settings.subscription_can_price)} per can · recurring
                     </span>
+                    {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
                     <span className="mt-1 block text-[11px] text-slate-400">
                       Pay per delivery · no automatic debit
                     </span>
