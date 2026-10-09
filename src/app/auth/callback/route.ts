@@ -40,7 +40,7 @@ function getRedirectOrigin(requestUrl: URL): string {
   // Preview OAuth must finish on the same host that initiated the flow so the
   // session cookies set during code exchange remain available to the browser.
   // Vercel exposes VERCEL_ENV as "preview" for deployment previews.
-  if (process.env.VERCEL_ENV === 'preview') {
+  if (process.env.VERCEL_ENV === 'preview' || process.env.NODE_ENV !== 'production') {
     return requestUrl.origin;
   }
 
