@@ -77,8 +77,8 @@ export const SETTINGS_SCHEMA: Record<
 
   bulk_threshold: {
     type: 'number',
-    min: 1,
-    max: 500,
+    min: 2,
+    max: 200,
     label: 'Bulk price threshold (cans)',
   },
 
@@ -262,6 +262,13 @@ function validateSetting(
         return {
           ok: false,
           error: `${meta.label} must be at most ${meta.max}`,
+        };
+      }
+
+      if (key === 'bulk_threshold' && !Number.isInteger(raw)) {
+        return {
+          ok: false,
+          error: 'Bulk price threshold must be a whole number of cans',
         };
       }
 
