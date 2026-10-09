@@ -101,9 +101,18 @@ export async function GET(request: NextRequest) {
         return cookieStore.getAll();
       },
 
-      setAll(cookies: CookieToSet[]) {
-        cookiesToSet.push(...cookies);
-      },
+     
+setAll(cookies: CookieToSet[]) {
+  cookies.forEach(({ name, value, options }) => {
+    // Make the new session available to getUser()
+    // during this callback request.
+    cookieStore.set(name, value, options);
+
+    // Also preserve cookies for the redirect response.
+    cookiesToSet.push({ name, value, options });
+  });
+},
+
     },
   });
 
