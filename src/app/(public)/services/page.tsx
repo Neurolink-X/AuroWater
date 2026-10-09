@@ -34,13 +34,13 @@ const SERVICES: Service[] = [
     category: 'Water',
     title: '20L Water Can Delivery',
     tag: 'Water supply',
-    fromPrice: 39,
-    unit: '/ can',
-    desc: 'Sealed 20L drinking-water cans from local suppliers. Confirm the supplier and final price before booking.',
+    fromPrice: 20,
+    unit: '/ 20L can',
+    desc: 'Choose everyday Normal RO Water for ₹20 per 20L can or chilled water for ₹25 per 20L can. Delivery availability and final total are confirmed before booking.',
     accent: '#1D6FC4',
     accentLight: '#EFF6FF',
     includes: ['20L can options', 'Address serviceability check', 'Recurring delivery options'],
-    badge: 'From ₹39',
+    badge: 'Normal ₹20 · Chilled ₹25',
   },
   {
     key: 'water_tanker',
@@ -641,7 +641,7 @@ export default function ServicesPage() {
             </h1>
 
             <p className="sv-hero-sub">
-              Need a plumber, RO technician, pump repair or water delivery? Explore services in one place. Availability and the final price are confirmed before you book.
+              Order Normal RO Water for ₹20 or Chilled RO Water for ₹25 per 20L can, or find help with plumbing, pumps and other water services. Availability and final price are confirmed before booking.
             </p>
 
             <div className="sv-hero-stats">
