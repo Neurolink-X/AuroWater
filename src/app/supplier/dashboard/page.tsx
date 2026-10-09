@@ -9,6 +9,8 @@ import React, {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { authLogout } from '@/lib/api-client';
+import { clearSession } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
   supplierOrderAccept,
@@ -1021,23 +1023,18 @@ export default function SupplierDashboardPage() {
 
   // ── Sign out ────────────────────────────────────────────────────────────────
   const handleSignOut = async () => {
+    if (signingOut) return;
     setSigningOut(true);
     try {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        throw error;
-      }
-
-      toast.success('Signed out successfully.');
-      router.push('/auth/login');
+      // Clear the server cookie and browser Supabase session before leaving.
+      await authLogout();
+      await supabase.auth.signOut();
     } catch (error) {
-      console.error('[supplier] sign out failed:', error);
-      toast.error(
-        error instanceof Error ? error.message : 'Unable to sign out.',
-      );
+      console.error('[supplier] sign out cleanup:', error);
     } finally {
-      setSigningOut(false);
+      clearSession();
+      // Full navigation avoids leaving the authenticated dashboard rendered.
+      window.location.replace('/auth/login?signedOut=1');
     }
   };
 
