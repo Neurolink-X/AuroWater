@@ -51,7 +51,7 @@ const LABELS: Record<ManagedKey, string> = {
   subscription_can_price: 'Recurring can price',
   bulk_can_price: 'Bulk can price',
   bulk_threshold: 'Bulk price threshold',
-  market_can_price: 'Market reference price',
+  market_can_price: 'Illustrative reference price (not verified market average)',
   convenience_fee: 'Order handling fee',
   min_can_price: 'Minimum can price',
   max_can_price: 'Maximum can price',
@@ -79,7 +79,7 @@ const DESCRIPTIONS: Record<ManagedKey, string> = {
   bulk_threshold:
     'Minimum can quantity required to apply the bulk rate.',
   market_can_price:
-    'Illustrative benchmark for the savings calculator; local competitor prices vary.',
+    'Manually configured comparison reference for illustrative savings only. Research comparable local prices before setting it; do not present it as a verified market average or MRP.',
   convenience_fee:
     'Order handling fee shown before the customer confirms a booking.',
   min_can_price:
