@@ -805,6 +805,7 @@ type SubPlan = {
   badge?: string;
   badgeColor?: 'green' | 'blue' | 'amber';
   pricePerDelivery: number;
+  unitPrice: number | null;
   cansPerDelivery: number | string;
   perCan: string;
   features: { text: string; included: boolean }[];
@@ -813,9 +814,12 @@ type SubPlan = {
   highlight?: boolean;
 };
 
-function SubCard({ plan, frequency, onCta }: { plan: SubPlan; frequency: BillingCycle; onCta: () => void }) {
+function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequency: BillingCycle; marketPrice: number; onCta: () => void }) {
   const [hovered, setHovered] = useState(false);
   const price = plan.pricePerDelivery;
+  const savingsPercent = plan.unitPrice !== null && marketPrice > plan.unitPrice
+    ? Math.round(((marketPrice - plan.unitPrice) / marketPrice) * 100)
+    : 0;
 
   const ctaStyles: Record<string, React.CSSProperties> = {
     primary: {
@@ -900,6 +904,13 @@ function SubCard({ plan, frequency, onCta }: { plan: SubPlan; frequency: Billing
           <div style={{ marginTop: 6, fontSize: 13, color: plan.highlight ? '#6EE7B7' : '#059669', fontWeight: 700 }}>
             {plan.perCan}
           </div>
+          {plan.unitPrice !== null && savingsPercent > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginTop: 7 }} aria-label={`Indicative saving of ${savingsPercent} percent against a local reference price`}>
+              <span style={{ fontSize: 11, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Reference</span>
+              <del style={{ fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.55)' : '#94A3B8' }}>₹{marketPrice}/can</del>
+              <Pill color="green">{savingsPercent}% lower*</Pill>
+            </div>
+          ) : null}
           {typeof plan.cansPerDelivery === 'number' && (
             <div style={{ marginTop: 3, fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}>
               {plan.id === 'pay-per-can' ? 'Example total for 1 can' : `Up to ${plan.cansPerDelivery} cans per delivery`}
@@ -1075,6 +1086,7 @@ export default function PricingPage() {
       name: 'Pay as you go',
       tagline: 'No commitment. Order only when needed.',
       pricePerDelivery: deliveryTotal(1, 'one_time'),
+      unitPrice: settings.default_can_price,
       cansPerDelivery: 1,
       perCan: `₹${settings.default_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
@@ -1096,6 +1108,7 @@ export default function PricingPage() {
       badge: 'Most Popular',
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
+      unitPrice: settings.subscription_can_price,
       cansPerDelivery: 10,
       perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
@@ -1118,6 +1131,7 @@ export default function PricingPage() {
       badge: 'Best Value',
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
+      unitPrice: settings.subscription_can_price,
       cansPerDelivery: 20,
       perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
@@ -1142,6 +1156,7 @@ export default function PricingPage() {
       badge: 'Popular',
       badgeColor: 'amber',
       pricePerDelivery: deliveryTotal(officeQuantity),
+      unitPrice: settings.bulk_can_price,
       cansPerDelivery: officeQuantity,
       perCan: `₹${settings.bulk_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
@@ -1163,6 +1178,7 @@ export default function PricingPage() {
       badge: 'Enterprise',
       badgeColor: 'green',
       pricePerDelivery: 0,
+      unitPrice: null,
       cansPerDelivery: 'Custom volume',
       perCan: 'Request a volume and locality-based quote',
       features: [
@@ -1584,7 +1600,7 @@ export default function PricingPage() {
           <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:22 }}>
             {activePlans.map(plan => (
               <div key={plan.id} className="plan-card">
-                <SubCard plan={plan} frequency={billing} onCta={() => handlePlanCta(plan)} />
+                <SubCard plan={plan} frequency={billing} marketPrice={settings.market_can_price} onCta={() => handlePlanCta(plan)} />
               </div>
             ))}
           </div>
