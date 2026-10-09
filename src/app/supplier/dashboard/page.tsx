@@ -446,7 +446,7 @@ function OrderCard({
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>{Icon.phone(12)}</span>
             <span>{order.customer_name} · </span>
             {order.customer_phone && order.customer_phone !== '—' ? (
-              <a href={`tel:${order.customer_phone.replace(/[^\\d+]/g, '')}`} style={{ color: '#6EE7B7', textDecoration: 'underline', textUnderlineOffset: 3 }} aria-label={`Call customer ${order.customer_name}`}>
+              <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} style={{ color: '#6EE7B7', textDecoration: 'underline', textUnderlineOffset: 3 }} aria-label={`Call customer ${order.customer_name}`}>
                 {order.customer_phone}
               </a>
             ) : <span>Phone not provided</span>}
