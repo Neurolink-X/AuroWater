@@ -321,7 +321,7 @@
 //         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 //           <div className="flex flex-wrap justify-center gap-x-10 gap-y-3 text-xs sm:text-sm text-slate-200">
 //             <span>✅ Verified Suppliers</span>
-//             <span>✅ Always Free Delivery</span>
+//             <span>✅ Transparent order fees</span>
 //             <span>✅ Cash + UPI</span>
 //             <span>✅ Hindi + English Support</span>
 //             <span>✅ 2hr Emergency Response</span>
@@ -1327,7 +1327,7 @@
 //           </div>
 
 //           <p className="mt-8 text-center text-sm text-slate-500">
-//             🛡️ All accounts are phone-verified. Suppliers & plumbers undergo KYC before activation.
+//             🛡️ Customers can add a contact number for delivery coordination. Supplier and technician access may require approval and verification.
 //           </p>
 //         </div>
 //       </section>
@@ -2839,7 +2839,7 @@ export default function HomePage() {
             </div>
 
             <p className="mt-8 text-center text-sm text-slate-500">
-              🛡️ All accounts are phone-verified. Suppliers &amp; plumbers undergo KYC before activation.
+              🛡️ Customers can add a contact number for delivery coordination. Supplier and technician access may require approval and verification.
             </p>
           </div>
         </section>
