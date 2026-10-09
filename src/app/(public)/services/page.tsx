@@ -173,6 +173,13 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
       <div className="sv-card-illustration">
         <Image src={illustration} alt={s.key === 'plumbing' ? 'Plumber at work repairing household plumbing' : s.key === 'water_can' || s.key === 'ro_service' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
       </div>
+      {s.key === 'water_can' && (
+        <div className="flex flex-wrap gap-2 px-4 pt-3" aria-label="20 litre water prices">
+          <span className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-extrabold text-cyan-900">Normal RO ₹{normalCanPrice}/20L</span>
+          <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-extrabold text-sky-900">Chilled RO ₹{chilledCanPrice}/20L</span>
+          <span className="w-full text-[11px] text-slate-500">Delivery included · No separate water delivery fee</span>
+        </div>
+      )}
       <div className="sv-card-stripe" style={{ background: hovered ? s.accent : '#E8F0FE' }} />
 
       {/* Category tag */}
