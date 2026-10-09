@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import ServicePrice from '@/components/services/ServicePrice';
 
 type ServiceDetail = {
   key: string;
@@ -156,10 +157,8 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
               <Image src={illustration} alt={`${service.title} illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
               <div className="p-7">
-              <p className="text-sm font-semibold text-slate-300">Indicative starting price</p>
-              <p className="mt-2 text-4xl font-black">{service.startingPrice}</p>
-              <p className="mt-1 text-sm text-slate-400">{service.unit}</p>
-              <p className="mt-5 border-t border-white/10 pt-4 text-sm leading-6 text-slate-300">Your address, service scope and availability can affect the final quote. Review the applicable amount in the booking flow before confirming.</p>
+              <p className="text-sm font-semibold text-slate-300">Current indicative starting price</p>
+              <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
               </div>
             </aside>
           </div>
