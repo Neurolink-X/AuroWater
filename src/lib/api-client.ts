@@ -1209,18 +1209,32 @@ export async function getTechnicianJobDetail(jobId: string | number): Promise<un
 export async function updateJobStatus(
   job_id: string | number,
   action: string,
-  _notes?: string
+  _notes?: string,
+  verification?: {
+    otp?: string;
+    payment_confirmed?: boolean;
+    payment_reference?: string;
+  }
 ): Promise<unknown> {
   void _notes;
   const a = (action ?? '').toLowerCase();
-  let status = 'IN_PROGRESS';
+
+  if (a.includes('accept')) {
+    return apiFetchAuth(`/technician/jobs/${String(job_id)}/accept`, {
+      method: 'PUT',
+    });
+  }
+
+  let status = '';
   if (a.includes('complete')) status = 'COMPLETED';
   else if (a.includes('cancel')) status = 'CANCELLED';
-  else if (a.includes('accept') || a.includes('start')) status = 'IN_PROGRESS';
+  else if (a.includes('start') || a.includes('on_the_way') || a.includes('working')) status = 'IN_PROGRESS';
 
-  return apiFetchAuth(`/technician/jobs/${String(job_id)}/status`, {
+  if (!status) throw new ApiError('Unsupported technician job action', 400);
+
+  return apiFetchAuth(`/technician/jobs/${String(job_id)}`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...(verification ?? {}) }),
   });
 }
 
