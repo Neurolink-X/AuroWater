@@ -44,13 +44,18 @@ export async function enrichTechnicianOrders(rows: Row[]): Promise<Row[]> {
   const service = createServiceClient();
   const customerIds = [...new Set(rows.map((row) => String(row.customer_id ?? '')).filter(Boolean))];
   const serviceTypeIds = [...new Set(rows.map((row) => Number(row.service_type_id)).filter((id) => Number.isInteger(id) && id > 0))];
+  const orderIds = [...new Set(rows.map((row) => String(row.id ?? '')).filter(Boolean))];
+  const technicianIds = [...new Set(rows.map((row) => String(row.technician_id ?? '')).filter(Boolean))];
 
-  const [profilesResult, serviceTypesResult] = await Promise.all([
+  const [profilesResult, serviceTypesResult, dispatchResult] = await Promise.all([
     customerIds.length
       ? service.from('profiles').select('id, full_name, phone, city').in('id', customerIds)
       : Promise.resolve({ data: [], error: null }),
     serviceTypeIds.length
       ? service.from('service_types').select('id, key, name').in('id', serviceTypeIds)
+      : Promise.resolve({ data: [], error: null }),
+    orderIds.length && technicianIds.length
+      ? service.from('technician_job_dispatch').select('order_id, technician_id, status').in('order_id', orderIds).in('technician_id', technicianIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -64,6 +69,9 @@ export async function enrichTechnicianOrders(rows: Row[]): Promise<Row[]> {
   const serviceTypes = new Map(
     (serviceTypesResult.data ?? []).map((item) => [Number(item.id), item]),
   );
+  const dispatchByOrderId = new Map(
+    (dispatchResult.data ?? []).map((item) => [String(item.order_id), String(item.status ?? '').toUpperCase()]),
+  );
 
   return rows.map((source) => {
     const row = cleanOrder(source);
@@ -71,8 +79,9 @@ export async function enrichTechnicianOrders(rows: Row[]): Promise<Row[]> {
     const serviceType = serviceTypes.get(Number(row.service_type_id));
     const address = addressFields(row);
     const dbStatus = String(row.status ?? 'PENDING').toUpperCase();
+    const dispatchStatus = dispatchByOrderId.get(String(row.id ?? ''));
     const displayStatus = dbStatus === 'ASSIGNED'
-      ? (row.accepted_at ? 'ACCEPTED' : 'PENDING')
+      ? (row.accepted_at || dispatchStatus === 'ACCEPTED' ? 'ACCEPTED' : 'PENDING')
       : dbStatus === 'IN_PROGRESS'
         ? 'WORKING'
         : dbStatus === 'CANCELLED'
