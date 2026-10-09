@@ -755,49 +755,6 @@ function Pill({ children, color = 'green' }: { children: React.ReactNode; color?
   );
 }
 
-// ─── Can savings calculator ───────────────────────────────────────────────────
-function SavingsCalc({ marketPrice, ourPrice }: { marketPrice: number; ourPrice: number }) {
-  const [cans, setCans] = useState(20);
-  const retail = marketPrice;
-  const saving = (retail - ourPrice) * cans;
-  const yearly = saving * 12;
-
-  return (
-    <div style={{ background: 'linear-gradient(135deg,#0C4A6E,#0369A1)', borderRadius: 20, padding: '28px 28px 24px', color: '#fff', marginTop: 28 }}>
-      <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: '#BAE6FD' }}>Comparison uses the reference price configured by AuroWater, not a verified live market average. Update the reference only after local price research.</p>
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: '#7DD3FC', marginBottom: 6 }}>SAVINGS CALCULATOR</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: '#E0F2FE', marginBottom: 16 }}>
-        How much do you spend on water cans?
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-        <input
-          type="range" min={5} max={100} step={1} value={cans}
-          onChange={e => setCans(Number(e.target.value))}
-          style={{ flex: 1, accentColor: '#38BDF8', height: 4 }}
-        />
-        <div style={{ minWidth: 80, textAlign: 'right' }}>
-          <span style={{ fontSize: 22, fontWeight: 900, color: '#38BDF8' }}>{cans}</span>
-          <span style={{ fontSize: 13, color: '#7DD3FC', marginLeft: 4 }}>cans/mo</span>
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Configured reference price</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#FCA5A5' }}>₹{retail * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
-        </div>
-        <div style={{ background: 'rgba(56,189,248,0.15)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(56,189,248,0.3)' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>AuroWater price</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#38BDF8' }}>₹{ourPrice * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
-        </div>
-      </div>
-      <div style={{ marginTop: 14, background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: '#6EE7B7', fontWeight: 600 }}>Estimated annual difference vs configured reference</span>
-        <span style={{ fontSize: 22, fontWeight: 900, color: '#34D399' }}>₹{yearly.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Subscription card ────────────────────────────────────────────────────────
 type SubPlan = {
   id: string;
