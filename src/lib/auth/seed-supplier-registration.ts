@@ -17,7 +17,7 @@ export async function seedSupplierRegistrationDefaults(profileId: string): Promi
   const settingsRow: Record<string, string | number | boolean> = {
     user_id: profileId,
     is_online: false,
-    price_per_can: 12,
+    price_per_can: 39,
     service_radius: 5,
   };
 
