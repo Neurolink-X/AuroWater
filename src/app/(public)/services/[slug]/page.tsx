@@ -92,6 +92,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     alternates: { canonical: `/services/${service.key}` },
     keywords: [service.title, `${service.title} near me`, `${service.title} Kanpur`, `${service.title} Lucknow`, `${service.title} Gorakhpur`, 'AuroWater'],
     openGraph: { title: `${service.title} | AuroWater`, description: service.description, url: `/services/${service.key}`, type: 'website' },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -101,9 +102,30 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   if (!service) notFound();
 
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
+  const serviceSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name: service.title,
+    description: service.description,
+    serviceType: service.title,
+    provider: { '@type': 'Organization', name: 'AuroWater', url: 'https://aurotap.in/' },
+    areaServed: ['Kanpur', 'Lucknow', 'Gorakhpur'].map((name) => ({ '@type': 'City', name, containedInPlace: { '@type': 'State', name: 'Uttar Pradesh' } })),
+    url: `https://aurotap.in/services/${service.key}`,
+  };
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: service.faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+    })),
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <section className="relative overflow-hidden bg-slate-950 px-5 py-16 text-white sm:py-24">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full opacity-20 blur-3xl" style={{ background: service.accent }} />
         <div className="relative mx-auto max-w-6xl">
