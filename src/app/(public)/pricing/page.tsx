@@ -1053,7 +1053,13 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<BillingCycle>('weekly');
   const [showCompare, setShowCompare] = useState(false);
   const { settings } = useSettings();
-  const deliveryTotal = (quantity: number) => quantity * (quantity >= settings.bulk_threshold ? settings.bulk_can_price : settings.subscription_can_price) + settings.convenience_fee;
+  const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
+    const unit = quantity >= settings.bulk_threshold
+      ? settings.bulk_can_price
+      : orderType === 'one_time' ? settings.default_can_price : settings.subscription_can_price;
+    const subtotal = quantity * unit + settings.convenience_fee;
+    return subtotal + Math.round(subtotal * settings.gst_rate);
+  };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 
   const faq: FaqItem[] = useMemo(() => [
@@ -1072,7 +1078,7 @@ export default function PricingPage() {
       id: 'pay-per-can',
       name: 'Pay as you go',
       tagline: 'No commitment. Order only when needed.',
-      pricePerDelivery: deliveryTotal(1),
+      pricePerDelivery: deliveryTotal(1, 'one_time'),
       cansPerDelivery: 1,
       perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
       features: [
@@ -1117,7 +1123,7 @@ export default function PricingPage() {
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
       cansPerDelivery: 20,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee`,
+      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -1527,11 +1533,11 @@ export default function PricingPage() {
           </button>
 
           <div className="pc-trust">
-            <span>Same-day delivery</span>
+            <span>Availability checked for your address</span>
             <span className="pc-trust-dot" />
-            <span>Free first can</span>
+            <span>Clear order total</span>
             <span className="pc-trust-dot" />
-            <span>Cancel anytime</span>
+            <span>Pause future deliveries</span>
           </div>
         </div>
 
