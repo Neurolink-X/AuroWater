@@ -1860,7 +1860,7 @@ interface ServiceItem {
 const SERVICES: ServiceItem[] = [
   {
     icon: '💧', title: 'Normal RO Water', badge: 'Everyday Essential',
-    body: 'Order a 20L RO water can for everyday home and office needs. Confirm availability and the final total before booking.',
+    body: 'Normal RO ₹20 / 20L or Chilled RO ₹25 / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.',
     cta: 'Order Water', href: '/book?service=water_can',
     features: ['20L can', 'Clear total before confirmation', 'Address availability checked'],
     accent: '#0ea5e9', accentBg: 'rgba(14,165,233,0.13)',
