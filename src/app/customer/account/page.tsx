@@ -904,7 +904,7 @@ export default function CustomerAccountPage() {
   const hasChanges =
     fullName.trim() !== originalName ||
     city.trim() !== originalCity ||
-    phoneInput.replace(/\\D/g, '') !== originalPhone.replace(/\\D/g, '') ||
+    phoneInput.replace(/\D/g, '') !== originalPhone.replace(/\D/g, '') ||
     notificationsEnabled !== originalNotifications;
 
   const initials = useMemo(
@@ -951,7 +951,7 @@ export default function CustomerAccountPage() {
 
     const name = fullName.trim();
     const selectedCity = city.trim();
-    const normalizedPhone = phoneInput.replace(/\\D/g, '');
+    const normalizedPhone = phoneInput.replace(/\D/g, '');
 
     if (name.length < 2) {
       nextErrors.full_name = 'Enter at least 2 characters.';
@@ -963,7 +963,7 @@ export default function CustomerAccountPage() {
       nextErrors.city = 'Select your city.';
     }
 
-    if (normalizedPhone && !/^[6-9]\\d{9}$/.test(normalizedPhone)) {
+    if (normalizedPhone && !/^[6-9]\d{9}$/.test(normalizedPhone)) {
       nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     }
 
