@@ -12,8 +12,8 @@ const CACHE = {
 
 function defaultPayload(): Record<string, unknown> {
   return {
-    default_can_price: 12,
-    subscription_can_price: 10,
+    default_can_price: 39,
+    subscription_can_price: 37,
     can_price_small: 1000,
     can_price_large: 1200,
     delivery_fee: 0,
