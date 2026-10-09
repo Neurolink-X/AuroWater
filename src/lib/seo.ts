@@ -19,7 +19,7 @@ export const SITE = {
   name: BRAND,
   tagline: '20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
   description:
-    'Book 20L drinking water can delivery, water tanker enquiries, RO purifier repair, plumbing, submersible pump service and water tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur. Check address availability and review pricing before confirming.'
+    'Book 20L drinking water can delivery, water tanker enquiries, RO purifier repair, plumbing, submersible pump service and water tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur. Check address availability and review pricing before confirming.',
   email: 'team@neurolinkxtech.com',
   cities: ['Gorakhpur', 'Kanpur', 'Lucknow'],
   logo: `${APP_ORIGIN}/icons/icon-512x512.png`,
