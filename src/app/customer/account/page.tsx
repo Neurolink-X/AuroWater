@@ -881,7 +881,7 @@ export default function CustomerAccountPage() {
 
         setFullName(nextProfile?.full_name?.trim() ?? '');
         setCity(nextProfile?.city?.trim() ?? '');
-        setPhoneInput(nextProfile?.phone?.trim() ?? session?.phone?.trim() ?? '');
+        setPhoneInput(nextProfile?.phone?.trim() || session?.phone?.trim() || '');
         setNotificationsEnabled(getNotificationPreference(nextProfile?.settings));
         setSaveError(null);
       } catch (cause) {
@@ -901,7 +901,7 @@ export default function CustomerAccountPage() {
   /* ── Form state ──────────────────────────────────────────────────── */
   const originalName = profile?.full_name?.trim() ?? '';
   const originalCity = profile?.city?.trim() ?? '';
-  const originalPhone = profile?.phone?.trim() ?? session?.phone?.trim() ?? '';
+  const originalPhone = profile?.phone?.trim() || session?.phone?.trim() || '';
   const originalNotifications = getNotificationPreference(profile?.settings);
 
   const hasChanges =
@@ -916,7 +916,7 @@ export default function CustomerAccountPage() {
   );
 
   const email = session?.email?.trim() ?? '';
-  const phone = profile?.phone?.trim() ?? session?.phone?.trim() ?? '';
+  const phone = profile?.phone?.trim() || session?.phone?.trim() || '';
 
   const memberSince = formatMemberSince(stats?.member_since ?? profile?.created_at);
 
