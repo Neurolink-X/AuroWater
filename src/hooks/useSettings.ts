@@ -42,6 +42,7 @@ export interface CommissionRates {
 /** Everything needed to price any order */
 export interface PricingConfig {
   default_can_price:      number;  // ₹ pay-as-go
+  chilled_can_price:       number;  // ₹ chilled 20L can
   subscription_can_price: number;  // ₹ subscription rate
   bulk_can_price:         number;  // ₹ bulk rate (≥ bulk_threshold cans)
   bulk_threshold:         number;  // minimum qty for bulk pricing
@@ -109,11 +110,12 @@ export interface UseSettingsReturn {
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
-  default_can_price:      39,
-  subscription_can_price: 37,
-  bulk_can_price:         35,
+  default_can_price:      20,
+  chilled_can_price:      25,
+  subscription_can_price: 20,
+  bulk_can_price:         20,
   bulk_threshold:         50,
-  market_can_price:       50,
+  market_can_price:       20,
   service_base_prices: {
     water_tanker:  299,
     ro_service:    349,
@@ -223,6 +225,7 @@ export function mergeSettings(
 
   return {
     default_can_price:      safePositive(raw.default_can_price,      DEFAULT_SETTINGS.default_can_price),
+    chilled_can_price:      safePositive(raw.chilled_can_price,       DEFAULT_SETTINGS.chilled_can_price),
     subscription_can_price: safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price),
     bulk_can_price:         safePositive(raw.bulk_can_price,         DEFAULT_SETTINGS.bulk_can_price),
     bulk_threshold:         safePositive(raw.bulk_threshold,         DEFAULT_SETTINGS.bulk_threshold),
@@ -557,7 +560,7 @@ export function settingsToApiPayload(
   const out: Record<string, string | number> = {};
 
   const numeric: (keyof PricingConfig)[] = [
-    'default_can_price', 'subscription_can_price', 'bulk_can_price',
+    'default_can_price', 'chilled_can_price', 'subscription_can_price', 'bulk_can_price',
     'bulk_threshold', 'market_can_price', 'convenience_fee', 'emergency_surcharge',
   ];
   for (const k of numeric) {
