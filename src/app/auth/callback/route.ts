@@ -33,7 +33,12 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type');
   const nextRaw = searchParams.get('next') ?? (type === 'recovery' ? '/auth/update-password' : '/customer/home');
-  const safeNext = nextRaw.startsWith('/') ? nextRaw : '/customer/home';
+  const safeNext =
+    nextRaw.startsWith('/') &&
+    !nextRaw.startsWith('//') &&
+    (!nextRaw.startsWith('/auth/') || nextRaw === '/auth/update-password')
+      ? nextRaw
+      : '/customer/home';
 
   const cookieStore = await cookies();
   const supabase = supabaseFromCookies(cookieStore);
