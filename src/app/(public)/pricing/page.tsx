@@ -39,7 +39,10 @@ import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 //   const [tab, setTab] = useState<PricingTab>('individual');
 //   const [billing, setBilling] = useState<BillingCycle>('weekly');
   const { settings } = useSettings();
-  const deliveryTotal = (quantity: number) => quantity * (quantity >= settings.bulk_threshold ? settings.bulk_can_price : settings.subscription_can_price) + settings.convenience_fee;
+  const deliveryTotal = (quantity: number) => {
+    const subtotal = quantity * (quantity >= settings.bulk_threshold ? settings.bulk_can_price : settings.subscription_can_price) + settings.convenience_fee;
+    return subtotal + Math.round(subtotal * settings.gst_rate);
+  };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 //   const [openFaq, setOpenFaq] = useState<number | null>(0);
 //   const [hoveredPlan, setHoveredPlan] = useState<CanPlan | null>(null);
@@ -232,7 +235,7 @@ import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 //             <h1 className="syne" style={{ margin: 0, fontSize: 'clamp(2rem,6.5vw,4.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-2px', lineHeight: 1.05, maxWidth: 680 }}>
 //               Pure water at your door.
 //               <br />
-//               <span style={{ color: '#34D399' }}>Starting ₹10 / can.</span>
+//               <span style={{ color: '#34D399' }}>20L cans from ₹{settings.default_can_price}.</span>
 //             </h1>
 //             <p style={{ margin: '18px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.52)', maxWidth: 460, lineHeight: 1.75 }}>
 //               Subscribe and save. No contracts, no surprises — clean 20L cans delivered on your schedule across UP.
@@ -1069,9 +1072,9 @@ export default function PricingPage() {
       id: 'pay-per-can',
       name: 'Pay as you go',
       tagline: 'No commitment. Order only when needed.',
-      pricePerDelivery: settings.default_can_price + settings.convenience_fee,
+      pricePerDelivery: deliveryTotal(1),
       cansPerDelivery: 1,
-      perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee`,
+      perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
@@ -1092,7 +1095,7 @@ export default function PricingPage() {
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
       cansPerDelivery: 10,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee`,
+      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -1138,7 +1141,7 @@ export default function PricingPage() {
       badgeColor: 'amber',
       pricePerDelivery: deliveryTotal(officeQuantity),
       cansPerDelivery: officeQuantity,
-      perCan: `₹${settings.bulk_can_price}/can + ₹${settings.convenience_fee} order fee`,
+      perCan: `₹${settings.bulk_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
       features: [
         { text: `${officeQuantity} cans per delivery at the bulk rate`, included: true },
         { text: 'Scheduled bulk deliveries', included: true },
