@@ -776,11 +776,18 @@ export default function CustomerAccountPage() {
   const [showPhone, setShowPhone] = useState(false);
   const [copied, setCopied] = useState<'phone' | 'email' | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [needsPhoneCompletion, setNeedsPhoneCompletion] = useState(false);
 
   const toastTimer = useRef<number | null>(null);
   const copyTimer = useRef<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setNeedsPhoneCompletion(new URLSearchParams(window.location.search).get('complete') === 'phone');
+    }
+  }, []);
 
   const ready = hydrated && isLoggedIn && isCustomer;
 
@@ -1042,6 +1049,7 @@ export default function CustomerAccountPage() {
         } as ProfilePayload);
 
       setProfile(savedProfile);
+      if (savedProfile.phone) setNeedsPhoneCompletion(false);
 
       updateSession({
         name: savedProfile.full_name ?? session?.name ?? '',
@@ -1274,6 +1282,16 @@ export default function CustomerAccountPage() {
             <div className="mt-5">
               <ErrorCard message={error} onRetry={() => void load()} />
             </div>
+          ) : null}
+
+          {needsPhoneCompletion && !phone ? (
+            <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950" role="status">
+              <p className="font-black">Add your mobile number to finish setting up your account</p>
+              <p className="mt-1 text-sm leading-6">Google sign-in does not reliably share a phone number. Enter your 10-digit Indian mobile number under Profile details and save it so delivery updates can reach you.</p>
+              <button type="button" onClick={handleEditProfile} className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800">
+                Add mobile number
+              </button>
+            </section>
           ) : null}
 
           {/* Activity */}
