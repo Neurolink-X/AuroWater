@@ -17,9 +17,9 @@ export const OG_IMAGE = '/opengraph-image';
 
 export const SITE = {
   name: BRAND,
-  tagline: 'Fresh Water Delivery in Gorakhpur, Kanpur & Lucknow',
+  tagline: '20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
   description:
-    'Book fresh drinking water delivery at your door in Gorakhpur, Kanpur and Lucknow. Easy booking, trusted suppliers, order tracking and loyalty rewards.',
+    'Book 20L drinking water can delivery, water tanker enquiries, RO purifier repair, plumbing, submersible pump service and water tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur. Check address availability and review pricing before confirming.'
   email: 'team@neurolinkxtech.com',
   cities: ['Gorakhpur', 'Kanpur', 'Lucknow'],
   logo: `${APP_ORIGIN}/icons/icon-512x512.png`,
@@ -75,12 +75,20 @@ export const siteMetadata: Metadata = {
   description: SITE.description,
   applicationName: BRAND,
   keywords: [
-    'water delivery Gorakhpur',
-    'water delivery Kanpur',
-    'water delivery Lucknow',
+    '20 litre water can delivery Kanpur',
+    '20 litre water can delivery Lucknow',
+    '20 litre water can delivery Gorakhpur',
+    'water delivery near me',
     'drinking water home delivery',
-    'water tanker booking UP',
-    'RO water delivery',
+    'water can home delivery',
+    'water tanker service Kanpur',
+    'water tanker service Lucknow',
+    'RO water purifier repair Kanpur',
+    'RO service near me',
+    'plumber near me Kanpur',
+    'plumbing services Lucknow',
+    'submersible pump repair Kanpur',
+    'water tank cleaning Kanpur',
     BRAND,
   ],
   authors: [{ name: BRAND, url: APP_ORIGIN }],
