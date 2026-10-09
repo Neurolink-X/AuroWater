@@ -542,7 +542,7 @@
 //                   onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
 //                   onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
 //                 >
-//                   Get AMC →
+//                   Request a Quote →
 //                 </button>
 //               </div>
 //             </>
@@ -1639,18 +1639,18 @@ export default function PricingPage() {
             </div>
           </div>
 
-          {/* ── Other services pricing ── */}
+          {/* ── Other home services pricing ── */}
           <div style={{ marginTop:60 }}>
-            <h2 style={{ margin:'0 0 6px',fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>Other water services</h2>
-            <p style={{ margin:'0 0 22px',fontSize:14,color:'#6B7280' }}>All prices transparent. You see the full breakdown before confirming.</p>
+            <h2 style={{ margin:'0 0 6px',fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>Water &amp; home services
+            <p style={{ margin:'0 0 22px',fontSize:14,color:'#6B7280' }}>Starting estimates are taken from current public settings. Confirm scope, availability and the final price before booking.</p>
             <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16 }}>
               {[
-                { key:'water_tanker', emoji:'🚰',name:'Water Tanker',price:'₹299–₹799',unit:'per tanker',note:'Up to 5000L. Same-day in 8 cities.', tag:'Popular' },
-                { key:'plumbing', emoji:'🔧',name:'Plumber',price:'₹149',unit:'per visit',note:'Starting rate. Pay after service.', tag:'' },
-                { key:'borewell', emoji:'⛏️',name:'Borewell Service',price:'₹499',unit:'per visit',note:'Drilling & inspection included.', tag:'' },
-                { key:'motor_pump', emoji:'⚙️',name:'Motor Repair',price:'₹299',unit:'per visit',note:'All motor types. Warranty on parts.', tag:'' },
-                { key:'ro_service', emoji:'💧',name:'RO Service',price:'₹349',unit:'per visit',note:'Filter change + sanitization.', tag:'New' },
-                { key:'tank_cleaning', emoji:'🪣',name:'Tank Cleaning',price:'₹599',unit:'per tank',note:'Certified hygienic cleaning.', tag:'' },
+                { key:'water_tanker', emoji:'🚰',name:'Water Tanker',price:settings.service_base_prices.water_tanker,unit:'starting estimate',note:'Final quote depends on volume, access and service area.', tag:'' },
+                { key:'plumbing', emoji:'🔧',name:'Plumbing',price:settings.service_base_prices.plumbing,unit:'starting estimate',note:'Materials and additional work may cost extra.', tag:'' },
+                { key:'borewell', emoji:'⛏️',name:'Borewell Service',price:settings.service_base_prices.borewell,unit:'starting estimate',note:'Scope and site requirements affect the quote.', tag:'' },
+                { key:'motor_pump', emoji:'⚙️',name:'Motor & Pump Repair',price:settings.service_base_prices.motor_pump,unit:'starting estimate',note:'Parts and repair work are quoted after diagnosis.', tag:'' },
+                { key:'ro_service', emoji:'💧',name:'RO Service',price:settings.service_base_prices.ro_service,unit:'starting estimate',note:'Replacement parts may cost extra.', tag:'' },
+                { key:'tank_cleaning', emoji:'🪣',name:'Tank Cleaning',price:settings.service_base_prices.tank_cleaning,unit:'starting estimate',note:'Tank capacity and access can affect the final price.', tag:'' },
               ].map(s => (
                 <div key={s.key} role="link" tabIndex={0} aria-label={`View details for ${s.name}`} style={{ background:'#fff',borderRadius:16,border:'1.5px solid #E5E7EB',padding:'18px 20px',display:'flex',flexDirection:'column',gap:10,transition:'all 0.2s',cursor:'pointer' }}
                   onClick={() => router.push(`/services/${s.key}`)}
@@ -1667,7 +1667,7 @@ export default function PricingPage() {
                     <div style={{ fontSize:11,color:'#6B7280',marginTop:2 }}>{s.note}</div>
                   </div>
                   <div style={{ display:'flex',alignItems:'baseline',gap:4 }}>
-                    <span style={{ fontSize:22,fontWeight:900,color:'#0D9B6C',letterSpacing:'-0.5px' }}>{s.price}</span>
+                    <span style={{ fontSize:22,fontWeight:900,color:'#0D9B6C',letterSpacing:'-0.5px' }}>₹{s.price.toLocaleString('en-IN')}</span>
                     <span style={{ fontSize:12,color:'#9CA3AF' }}>{s.unit}</span>
                   </div>
                 </div>
@@ -1682,15 +1682,15 @@ export default function PricingPage() {
               <div style={{ position:'absolute',top:-80,right:-80,width:300,height:300,borderRadius:'50%',background:'#38BDF8',opacity:0.1,pointerEvents:'none' }} />
               <div style={{ position:'relative',zIndex:1,display:'flex',flexWrap:'wrap',gap:24,alignItems:'center',justifyContent:'space-between' }}>
                 <div>
-                  <Pill color="blue">Annual Maintenance Contract</Pill>
+                  <Pill color="blue">Maintenance &amp; repeat service</Pill>
                   <h2 style={{ margin:'12px 0 6px',fontSize:'clamp(1.3rem,3.5vw,1.8rem)',fontWeight:900,color:'#fff',letterSpacing:'-0.5px' }}>
-                    Need worry-free water all year?
+                    Need help maintaining your water system?
                   </h2>
                   <p style={{ margin:0,color:'rgba(255,255,255,0.65)',fontSize:14,lineHeight:1.6,maxWidth:440 }}>
-                    <strong style={{ color:'#7DD3FC' }}>₹4,999/year</strong> — includes 6 service visits, priority booking, free filter change, and free annual water quality test.
+                    Ask for a tailored maintenance quote based on your purifier, equipment and service needs. We will confirm the included work and price before you commit.
                   </p>
                   <div style={{ display:'flex',flexWrap:'wrap',gap:8,marginTop:14 }}>
-                    {['6 service visits','Free RO filter change','Priority slots','Water quality test'].map(t => (
+                    {['Scope agreed before work','Parts quoted separately where needed','Availability checked by area','Written quote before commitment'].map(t => (
                       <div key={t} style={{ display:'flex',alignItems:'center',gap:5,background:'rgba(255,255,255,0.09)',borderRadius:999,padding:'5px 12px',border:'1px solid rgba(255,255,255,0.12)' }}>
                         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="#38BDF8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         <span style={{ fontSize:12,color:'rgba(255,255,255,0.8)',fontWeight:600 }}>{t}</span>
