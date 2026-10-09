@@ -186,6 +186,14 @@ function FieldIcon({
 /* Main login page                                                            */
 /* -------------------------------------------------------------------------- */
 
+function googleProviderError(error: unknown, action: 'sign in' | 'sign up') {
+  const raw = error instanceof Error ? error.message : '';
+  if (/unsupported provider|provider.*not enabled|validation_failed/i.test(raw)) {
+    return 'Google authentication is not enabled for this Supabase project yet. Enable Google in Supabase Dashboard → Authentication → Sign In / Providers, add the Google OAuth Client ID and Client Secret, and save the provider settings.';
+  }
+  return raw || `Google ${action} could not be started. Please try again.`;
+}
+
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -277,7 +285,7 @@ function LoginPageInner() {
       if (error) throw error;
       // Supabase navigates to Google. Keep the busy state while redirecting.
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Google sign-in could not be started. Please try again.';
+      const message = googleProviderError(error, 'sign in');
       setErr(message);
       toast.error(message);
       setGoogleLoading(false);
