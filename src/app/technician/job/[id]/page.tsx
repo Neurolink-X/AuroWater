@@ -70,7 +70,6 @@ export default function JobDetail() {
       return;
     }
 
-    setUpdating(true);
     setError('');
     setSuccess('');
 
