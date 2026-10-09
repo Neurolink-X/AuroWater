@@ -71,7 +71,7 @@ const LABELS: Record<ManagedKey, string> = {
 
 const DESCRIPTIONS: Record<ManagedKey, string> = {
   default_can_price:
-    'Customer price per 20L can for a one-time order, before the order fee and applicable tax.',
+    'Customer price per 20L can for a one-time water-can order. The current order API applies no separate water-can convenience fee; the booking review shows the final amount.',
   subscription_can_price:
     'Per-can rate for recurring deliveries. Each delivery is paid separately; no automatic debit.',
   bulk_can_price:
@@ -81,7 +81,7 @@ const DESCRIPTIONS: Record<ManagedKey, string> = {
   market_can_price:
     'Manually configured comparison reference for illustrative savings only. Research comparable local prices before setting it; do not present it as a verified market average or MRP.',
   convenience_fee:
-    'Order handling fee shown before the customer confirms a booking.',
+    'Flat fee for eligible non-water-can bookings. The water-can order API currently applies no separate convenience fee.',
   min_can_price:
     'Lowest allowed water-can price.',
   max_can_price:
