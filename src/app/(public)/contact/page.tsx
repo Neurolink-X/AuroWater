@@ -916,9 +916,9 @@ export default function ContactPage() {
 
             <div className="ct-hero-stats">
               {[
-                '24hr response guarantee',
                 'WhatsApp support',
-                '13 cities covered',
+                'WhatsApp support',
+                '3 live service zones',
               ].map((s) => (
                 <div key={s} className="ct-stat-chip">
                   <span className="ct-stat-chip-dot" />
