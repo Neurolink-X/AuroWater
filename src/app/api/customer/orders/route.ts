@@ -308,15 +308,22 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
+    const regularPrice = Number.isFinite(defPrice) && defPrice > 0
+      ? defPrice
+      : Number(st.base_price) || 20;
+    const recurringPrice = Number.isFinite(subPrice) && subPrice > 0
+      ? subPrice
+      : regularPrice;
+    const hasValidBulkDiscount =
+      Number.isFinite(bulkPrice) && bulkPrice > 0 && bulkPrice < regularPrice;
+
     waterUnitPrice = isChilled
       ? (Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
-      : qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
-        ? bulkPrice
-        : isSubscription && Number.isFinite(subPrice) && subPrice > 0
-          ? subPrice
-          : Number.isFinite(defPrice) && defPrice > 0
-            ? defPrice
-            : Number(st.base_price) || 20;
+      : isSubscription
+        ? recurringPrice
+        : qty >= bulkThreshold && hasValidBulkDiscount
+          ? bulkPrice
+          : regularPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
