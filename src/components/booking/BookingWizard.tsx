@@ -358,6 +358,11 @@ export default function BookingWizard() {
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
       base.serviceKey = serviceParam;
+      if (serviceParam === 'water_can') {
+        const waterParam = searchParams?.get('water');
+        if (waterParam === 'chilled') { base.subOptionKey = 'chilled_ro'; base.canOrderType = 'one_time'; }
+        else if (waterParam === 'normal') { base.subOptionKey = 'normal_ro'; }
+      }
       const planCounts: Record<string, number> = { starter: 10, pro: 20, office: 50 };
       const plan = searchParams?.get('plan') ?? '';
       const frequencyParam = searchParams?.get('frequency') ?? searchParams?.get('billing') ?? '';
