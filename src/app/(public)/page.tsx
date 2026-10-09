@@ -1859,24 +1859,24 @@ interface ServiceItem {
 ═══════════════════════════════════════════════════ */
 const SERVICES: ServiceItem[] = [
   {
-    icon: '💧', title: 'Water Delivery', badge: 'Most Popular',
-    body: '20L water-can delivery with transparent pricing. Check serviceability and the current total before booking.',
-    cta: 'Order Now', href: '/book',
-    features: ['Real-time tracking', 'Always free delivery', 'Cash + UPI'],
+    icon: '💧', title: 'Normal RO Water', badge: 'Everyday Essential',
+    body: 'Order a 20L RO water can for everyday home and office needs. Confirm availability and the final total before booking.',
+    cta: 'Order Water', href: '/book?service=water_can',
+    features: ['20L can', 'Clear total before confirmation', 'Address availability checked'],
     accent: '#0ea5e9', accentBg: 'rgba(14,165,233,0.13)',
   },
   {
-    icon: '🔧', title: 'Plumber Service', badge: 'Verified Pros',
-    body: 'Fitting, boring, repair & pump installation by verified, background-checked local plumbers.',
-    cta: 'Book Now', href: '/book',
-    features: ['Background checked', 'Fixed pricing', 'Same-day service'],
+    icon: '🔧', title: 'Plumber Service', badge: 'Water Problem?',
+    body: 'Get help with leaking taps, plumbing repairs, fittings and supported water-system jobs through the existing booking flow.',
+    cta: 'Find a Plumber', href: '/book?service=plumbing',
+    features: ['Clear pricing before confirmation', 'Describe your problem', 'Availability checked for your area'],
     accent: '#6366f1', accentBg: 'rgba(99,102,241,0.13)',
   },
   {
-    icon: '🚚', title: 'Bulk & Events', badge: 'Enterprise',
-    body: 'Weddings, offices, construction, schools — cans, tankers & plumber teams on demand.',
-    cta: 'Get Quote', href: '/contact',
-    features: ['Custom volume', 'On-site team', 'Priority support'],
+    icon: '🚚', title: 'Event & Office Water', badge: 'Bulk Enquiries',
+    body: 'Planning water for a wedding, party or office? Share your quantity, schedule and location to confirm available options.',
+    cta: 'Request a Quote', href: '/contact',
+    features: ['Normal or chilled requirements', 'Quantity-based enquiry', 'Availability confirmed before booking'],
     accent: '#10b981', accentBg: 'rgba(16,185,129,0.13)',
   },
 ];
@@ -2673,8 +2673,8 @@ export default function HomePage() {
                     transition={{ delay: 0.22 }}
                     className="hero-sub mb-9 max-w-lg"
                   >
-                    Book RO service, water cans, plumbing &amp; more — verified pros, upfront prices, same-day slots.
-                    On-demand delivery for students, families, offices &amp; events in one simple app.
+                    Order everyday RO water or find a plumber for leaks, fittings and supported water-system problems.
+                    Event and office water enquiries are available too — all through one simple platform.
                   </motion.p>
 
                   {/* CTAs */}
@@ -2691,7 +2691,7 @@ export default function HomePage() {
                   {/* Trust pills */}
                   <motion.div className="flex flex-wrap gap-2"
                     initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:.42 }}>
-                    {['Cash + UPI','Hindi & English','2hr Emergency','Free Delivery'].map(tag => (
+                    {['Cash + UPI','Hindi & English','Clear order totals','Local availability'].map(tag => (
                       <span key={tag} className="rounded-full border border-sky-500/20 bg-sky-500/8 text-sky-300/80 text-xs font-medium px-3 py-1">
                         ✦ {tag}
                       </span>
@@ -2853,7 +2853,7 @@ export default function HomePage() {
             <motion.div className="text-center mb-12"
               initial={{ opacity:0, y:20 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }}>
               <span className="aw-badge">What We Offer</span>
-              <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">Services for every water need</h2>
+              <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">Water first. Plumbing when you need it.</h2>
             </motion.div>
 
             <div className="flex justify-center gap-2 flex-wrap mb-10">
