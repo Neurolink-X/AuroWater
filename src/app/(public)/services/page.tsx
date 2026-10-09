@@ -146,9 +146,14 @@ const IconDroplet = () => (
 /* ─────────────────────────────────────────────
    SERVICE CARD
 ───────────────────────────────────────────── */
-function ServiceCard({ s, index }: { s: Service; index: number }) {
+function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service; index: number; normalCanPrice: number; chilledCanPrice: number }) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
+  const displayPrice = s.key === 'water_can' ? normalCanPrice : s.fromPrice;
+  const displayUnit = s.key === 'water_can' ? '/ 20L can' : s.unit;
+  const displayDescription = s.key === 'water_can'
+    ? `Normal RO ₹${normalCanPrice} / 20L or Chilled RO ₹${chilledCanPrice} / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.`
+    : s.desc;
 
   const illustration = s.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
     : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
@@ -198,14 +203,14 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
           <div className="sv-card-price-wrap">
             <div className="sv-card-from">From</div>
             <div className="sv-card-price" style={{ color: s.accent }}>
-              ₹{s.fromPrice.toLocaleString('en-IN')}
+              ₹{displayPrice.toLocaleString('en-IN')}
             </div>
-            <div className="sv-card-unit">{s.unit}</div>
+            <div className="sv-card-unit">{displayUnit}</div>
           </div>
         </div>
 
         {/* Description */}
-        <p className="sv-card-desc">{s.desc}</p>
+        <p className="sv-card-desc">{displayDescription}</p>
 
         {/* Divider */}
         <div className="sv-card-divider" />
@@ -699,7 +704,7 @@ export default function ServicesPage() {
           {/* Cards grid */}
           <div className="sv-grid">
             {filtered.map((s, i) => (
-              <ServiceCard key={s.key} s={s} index={i} />
+              <ServiceCard key={s.key} s={s} index={i} normalCanPrice={settings.default_can_price} chilledCanPrice={settings.chilled_can_price} />
             ))}
           </div>
 
