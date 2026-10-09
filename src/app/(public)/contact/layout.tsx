@@ -2,7 +2,7 @@ import { pageMeta } from '@/lib/seo';
 
 export const metadata = pageMeta(
   'Contact AuroWater | WhatsApp, Call & Email Support',
-  'Reach AuroWater on WhatsApp, phone or email for water delivery support in UP.',
+  'Contact AuroWater by WhatsApp, phone or email for water-can delivery and home water-service support in Kanpur, Lucknow and Gorakhpur.',
   '/contact'
 );
 
