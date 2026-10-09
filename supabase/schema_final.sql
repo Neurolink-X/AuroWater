@@ -725,11 +725,11 @@ CREATE POLICY "fraud_flags_admin_all" ON public.fraud_flags
 INSERT INTO public.service_types (key, name, description, base_price, unit, is_active, sort_order) VALUES
   ('water_can', 'Water Can (20L)', 'Sealed 20L drinking-water can; supplier-specific quality and availability confirmed before order.', 39, 'per can', true, 1),
   ('water_tanker', 'Water Tanker', 'Bulk water delivery via tanker.', 299, 'per delivery', true, 2),
-  ('ro_service', 'RO Service & Repair', 'RO purifier service, filter change, AMC.', 199, 'per visit', true, 3),
+  ('ro_service', 'RO Service & Repair', 'RO purifier service, filter change, AMC.', 349, 'per visit', true, 3),
   ('plumbing', 'Plumbing', 'Pipe fitting, leakage repair, installation.', 149, 'per visit', true, 4),
   ('borewell', 'Borewell Services', 'Borewell drilling, repair, motor fitting.', 499, 'per service', true, 5),
-  ('motor_pump', 'Motor & Pump Repair', 'Submersible motor repair, pump installation.', 249, 'per visit', true, 6),
-  ('tank_cleaning', 'Water Tank Cleaning', 'Overhead/underground tank cleaning.', 349, 'per tank', true, 7)
+  ('motor_pump', 'Motor & Pump Repair', 'Submersible motor repair, pump installation.', 299, 'per visit', true, 6),
+  ('tank_cleaning', 'Water Tank Cleaning', 'Overhead/underground tank cleaning.', 599, 'per tank', true, 7)
 ON CONFLICT (key) DO UPDATE SET
   name = EXCLUDED.name,
   description = EXCLUDED.description,
