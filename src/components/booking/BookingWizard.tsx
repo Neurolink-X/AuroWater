@@ -534,10 +534,10 @@ export default function BookingWizard() {
   }, [settings]);
 
   const perCan =
-    draft.canOrderType === 'subscription'
-      ? settings.subscription_can_price
-      : (draft.canQuantity ?? 1) >= settings.bulk_threshold
-        ? settings.bulk_can_price
+    (draft.canQuantity ?? 1) >= settings.bulk_threshold
+      ? settings.bulk_can_price
+      : draft.canOrderType === 'subscription'
+        ? settings.subscription_can_price
         : settings.default_can_price;
 
   const isSubscription =
@@ -1041,7 +1041,7 @@ export default function BookingWizard() {
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
                   <span className="text-xs font-semibold text-slate-500">Price for this delivery</span>
                   <span className="text-sm font-extrabold text-slate-900">
-                    {inr(perCan)} × {draft.canQuantity ?? 1}
+                    {inr(perCan)} × {draft.canQuantity ?? 1} = {inr(perCan * (draft.canQuantity ?? 1))}
                   </span>
                 </div>
               </div>
