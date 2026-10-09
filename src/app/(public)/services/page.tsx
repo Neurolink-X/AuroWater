@@ -32,13 +32,13 @@ const SERVICES: Service[] = [
     category: 'Water',
     title: 'RO Water Can',
     tag: 'Most Ordered',
-    fromPrice: 10,
+    fromPrice: 39,
     unit: '/ can',
-    desc: 'Sealed 20L RO cans delivered to your door. BIS certified, no hidden charges.',
+    desc: 'Sealed 20L drinking-water cans from local suppliers. Confirm the supplier and final price before booking.',
     accent: '#1D6FC4',
     accentLight: '#EFF6FF',
-    includes: ['BIS Certified 20L cans', 'Same-day delivery', 'Subscription discounts'],
-    badge: 'From ₹10',
+    includes: ['20L sealed cans', 'Available delivery slots', 'Recurring delivery options'],
+    badge: 'From ₹39',
   },
   {
     key: 'water_tanker',
@@ -613,7 +613,7 @@ export default function ServicesPage() {
           <div style={{ position: 'relative', zIndex: 2 }}>
             <div className="sv-hero-eyebrow">
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#60A5FA', display: 'inline-block' }} />
-              Trusted across 13 cities in UP
+              Serving Kanpur, Lucknow & Gorakhpur
             </div>
 
             <h1 className="sv-hero-title">
