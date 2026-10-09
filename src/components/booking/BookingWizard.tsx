@@ -192,10 +192,10 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
     );
     const per = draft.subOptionKey === 'chilled_ro'
       ? settings.chilled_can_price
-      : qty >= settings.bulk_threshold
-        ? settings.bulk_can_price
-        : draft.canOrderType === 'subscription'
-          ? settings.subscription_can_price
+      : draft.canOrderType === 'subscription'
+        ? settings.subscription_can_price
+        : qty >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
+          ? settings.bulk_can_price
           : settings.default_can_price;
     return Math.round(qty * per);
   }
@@ -546,10 +546,10 @@ export default function BookingWizard() {
 
   const perCan = draft.subOptionKey === 'chilled_ro'
     ? settings.chilled_can_price
-    : (draft.canQuantity ?? 1) >= settings.bulk_threshold
-      ? settings.bulk_can_price
-      : draft.canOrderType === 'subscription'
-        ? settings.subscription_can_price
+    : draft.canOrderType === 'subscription'
+      ? settings.subscription_can_price
+      : (draft.canQuantity ?? 1) >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
+        ? settings.bulk_can_price
         : settings.default_can_price;
 
   const isSubscription =
@@ -1123,7 +1123,7 @@ export default function BookingWizard() {
                 <span className="text-slate-600">Estimated base</span>
                 <span className="font-bold text-slate-900">{inr(baseAmount)}</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Platform fees are added at checkout.</p>
+              <p className="text-xs text-slate-500 mt-1">Water-can orders have no separate handling fee. Review the complete payable total before confirming.</p>
             </div>
 
             <div className="flex justify-between gap-3">
