@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
@@ -102,6 +103,11 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   if (!service) notFound();
 
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
+  const illustration = service.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
+    : service.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
+    : service.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
+    : service.key === 'motor_pump' || service.key === 'ro_service' ? '/illustrations/pump-service.svg'
+    : '/illustrations/home-technician.svg';
   const serviceSchema = {
     '@context': 'https://schema.org',
     '@type': 'Service',
@@ -147,11 +153,14 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                 <Link href="/pricing" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white transition hover:bg-white/10">View pricing</Link>
               </div>
             </div>
-            <aside className="rounded-3xl border border-white/10 bg-white/[0.06] p-7 shadow-2xl backdrop-blur">
+            <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
+              <Image src={illustration} alt={`${service.title} illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
+              <div className="p-7">
               <p className="text-sm font-semibold text-slate-300">Indicative starting price</p>
               <p className="mt-2 text-4xl font-black">{service.startingPrice}</p>
               <p className="mt-1 text-sm text-slate-400">{service.unit}</p>
               <p className="mt-5 border-t border-white/10 pt-4 text-sm leading-6 text-slate-300">Your address, service scope and availability can affect the final quote. Review the applicable amount in the booking flow before confirming.</p>
+              </div>
             </aside>
           </div>
         </div>
@@ -161,7 +170,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: service.accent }}>Designed around your needs</p>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A clearer way to arrange {service.title.toLowerCase()}</h2>
-          <p className="mt-4 leading-7 text-slate-600">Get the key details in one place and confirm the work only after reviewing the booking information.</p>
+          <p className="mt-4 leading-7 text-slate-600">Find the service, understand the typical scope and confirm availability and the final quote before work begins.</p>
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {service.benefits.map((benefit, index) => (
