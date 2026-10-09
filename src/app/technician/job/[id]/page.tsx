@@ -87,6 +87,7 @@ export default function JobDetail() {
       return;
     }
 
+    setUpdating(true);
     try {
       await updateJobStatus(jobId, action, notes, action === 'complete' ? {
         otp: serviceOtp.trim(),
