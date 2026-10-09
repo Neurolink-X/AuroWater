@@ -549,8 +549,24 @@ export default function AdminSettingsPage() {
             normaliseValue(value);
         }
 
+        // Preserve the stored values for dirty-state comparison, but display
+        // approved launch pricing and never present an invalid bulk "discount".
+        const storedValues: Values = { ...next };
+        const normalPrice = Math.max(20, Number(next.default_can_price) || 20);
+        const chilledPrice = Math.max(25, Number(next.chilled_can_price) || 25);
+        const recurringPrice = Math.max(normalPrice, Number(next.subscription_can_price) || normalPrice);
+        const configuredBulk = Number(next.bulk_can_price);
+        const effectiveBulk = Number.isFinite(configuredBulk) && configuredBulk > 0 && configuredBulk < normalPrice
+          ? configuredBulk
+          : normalPrice;
+
+        next.default_can_price = String(normalPrice);
+        next.chilled_can_price = String(chilledPrice);
+        next.subscription_can_price = String(recurringPrice);
+        next.bulk_can_price = String(effectiveBulk);
+
         setValues(next);
-        setSavedValues(next);
+        setSavedValues(storedValues);
       } catch (cause: unknown) {
         const message =
           cause instanceof Error
