@@ -31,7 +31,6 @@ interface Job {
 type JobStatus =
   | 'PENDING'
   | 'ACCEPTED'
-  | 'ON_THE_WAY'
   | 'WORKING'
   | 'COMPLETED'
   | 'REJECTED';
@@ -53,11 +52,6 @@ const STATUS_META: Record<
     label: 'Accepted',
     className: 'bg-blue-50 text-blue-700 border-blue-200',
     dotClass: 'bg-blue-500',
-  },
-  ON_THE_WAY: {
-    label: 'On the way',
-    className: 'bg-orange-50 text-orange-700 border-orange-200',
-    dotClass: 'bg-orange-500',
   },
   WORKING: {
     label: 'Working',
@@ -82,7 +76,6 @@ const FILTERS: Array<{
 }> = [
   { value: 'PENDING', label: 'Pending' },
   { value: 'ACCEPTED', label: 'Accepted' },
-  { value: 'ON_THE_WAY', label: 'On the way' },
   { value: 'WORKING', label: 'Working' },
   { value: 'COMPLETED', label: 'Completed' },
 ];
@@ -129,12 +122,6 @@ function getNextAction(status: string) {
       return {
         label: 'Start journey',
         action: 'on_the_way',
-      };
-
-    case 'ON_THE_WAY':
-      return {
-        label: 'Start work',
-        action: 'working',
       };
 
     case 'WORKING':
