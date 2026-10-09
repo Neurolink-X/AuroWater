@@ -125,10 +125,26 @@ export async function GET(req: NextRequest) {
     );
 
   if (status) {
-    query = query.eq(
-      'status',
-      status,
-    );
+    switch (status.toUpperCase()) {
+      case 'PENDING':
+        query = query.eq('status', 'ASSIGNED').is('accepted_at', null);
+        break;
+      case 'ACCEPTED':
+        query = query.eq('status', 'ASSIGNED').not('accepted_at', 'is', null);
+        break;
+      case 'ON_THE_WAY':
+      case 'WORKING':
+        query = query.eq('status', 'IN_PROGRESS');
+        break;
+      case 'COMPLETED':
+        query = query.eq('status', 'COMPLETED');
+        break;
+      case 'REJECTED':
+        query = query.eq('status', 'CANCELLED');
+        break;
+      default:
+        query = query.eq('status', status.toUpperCase());
+    }
   }
 
   const {
