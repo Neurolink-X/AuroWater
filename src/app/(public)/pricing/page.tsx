@@ -1060,7 +1060,7 @@ export default function PricingPage() {
     // Match the current booking/server checkout calculation (no GST line is
     // currently charged by the order API). Update only when tax handling is
     // explicitly enabled in both checkout and server pricing.
-    return quantity * unit + (orderType === 'one_time' || quantity > 0 ? 0 : settings.convenience_fee);
+    return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 
@@ -1103,7 +1103,7 @@ export default function PricingPage() {
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
       cansPerDelivery: 10,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
+      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -1125,7 +1125,7 @@ export default function PricingPage() {
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
       cansPerDelivery: 20,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
+      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -1149,7 +1149,7 @@ export default function PricingPage() {
       badgeColor: 'amber',
       pricePerDelivery: deliveryTotal(officeQuantity),
       cansPerDelivery: officeQuantity,
-      perCan: `₹${settings.bulk_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
+      perCan: `₹${settings.bulk_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
       features: [
         { text: `${officeQuantity} cans per delivery at the bulk rate`, included: true },
         { text: 'Scheduled bulk deliveries', included: true },
