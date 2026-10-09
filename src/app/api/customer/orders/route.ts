@@ -411,6 +411,9 @@ if (!serviceability.serviceable) {
       .in('status', ['PENDING', 'ASSIGNED'])
       .gte('created_at', new Date(Date.now() - 20_000).toISOString());
     if (scheduledAt) dq = dq.eq('scheduled_at', scheduledAt);
+    if (isWater && qty !== null && waterUnitPrice !== null) {
+      dq = dq.eq('can_count', qty).eq('can_price_per_unit', waterUnitPrice);
+    }
     const { data: dup } = await dq.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (dup) return jsonOk(withCompat(dup), 200);
   }
