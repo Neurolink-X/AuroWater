@@ -10,12 +10,11 @@ import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { User } from '@/types';
 
-const jobStatusSteps = ['PENDING', 'ACCEPTED', 'ON_THE_WAY', 'WORKING', 'COMPLETED'];
+const jobStatusSteps = ['PENDING', 'ACCEPTED', 'WORKING', 'COMPLETED'];
 
 const stepActions: any = {
   PENDING: { action: 'accept', label: 'Accept Job', next: 'ACCEPTED' },
-  ACCEPTED: { action: 'on_the_way', label: 'Im On The Way', next: 'ON_THE_WAY' },
-  ON_THE_WAY: { action: 'working', label: 'Start Working', next: 'WORKING' },
+  ACCEPTED: { action: 'on_the_way', label: 'Start Visit', next: 'WORKING' },
   WORKING: { action: 'complete', label: 'Mark Complete', next: 'COMPLETED' },
 };
 
@@ -30,6 +29,9 @@ export default function JobDetail() {
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState('');
   const [notes, setNotes] = useState('');
+  const [serviceOtp, setServiceOtp] = useState('');
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentReference, setPaymentReference] = useState('');
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function JobDetail() {
     try {
       setLoading(true);
       setError('');
-      const data = await getTechnicianJobDetail(parseInt(jobId, 10));
+      const data = await getTechnicianJobDetail(jobId);
       setJob(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load job');
@@ -72,10 +74,28 @@ export default function JobDetail() {
     setError('');
     setSuccess('');
 
+    if (action === 'complete' && !/^\\d{6}$/.test(serviceOtp.trim())) {
+      setError('Enter the 6-digit service code shared by the customer.');
+      return;
+    }
+    if (action === 'complete' && !paymentConfirmed) {
+      setError('Confirm that payment has been collected or correctly recorded before completing the job.');
+      return;
+    }
+    if (action === 'complete' && String(job.payment_method ?? '').toLowerCase() === 'upi' && !paymentReference.trim()) {
+      setError('Enter the UPI payment reference before completing this job.');
+      return;
+    }
+
     try {
-      await updateJobStatus(parseInt(jobId), action, notes);
+      await updateJobStatus(jobId, action, notes, action === 'complete' ? {
+        otp: serviceOtp.trim(),
+        payment_confirmed: paymentConfirmed,
+        payment_reference: paymentReference.trim() || undefined,
+      } : undefined);
       setSuccess('Job status updated successfully!');
       setNotes('');
+      if (action === 'complete') setServiceOtp('');
       
       // Update local state
       setJob({
@@ -271,6 +291,20 @@ export default function JobDetail() {
                     <p className="text-sm text-gray-600 mb-2">Current Status</p>
                     <p className="text-lg font-bold text-blue-600">{job.status}</p>
                   </div>
+
+                  {actionInfo.action === 'complete' ? (
+                    <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <label className="block text-sm font-semibold text-gray-800" htmlFor="service-otp">6-digit customer service code</label>
+                      <input id="service-otp" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={serviceOtp} onChange={(event) => setServiceOtp(event.target.value.replace(/\\D/g, '').slice(0, 6))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base tracking-[0.3em]" placeholder="••••••" />
+                      <label className="flex items-start gap-2 text-sm text-gray-700">
+                        <input type="checkbox" checked={paymentConfirmed} onChange={(event) => setPaymentConfirmed(event.target.checked)} className="mt-1" />
+                        <span>I confirm the payment has been collected or accurately recorded.</span>
+                      </label>
+                      {String(job.payment_method ?? '').toLowerCase() === 'upi' ? (
+                        <Input label="UPI payment reference" type="text" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} />
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <Input
                     label="Add Notes (Optional)"
