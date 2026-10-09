@@ -107,7 +107,7 @@ export default async function WaterDeliveryCityPage({ params }: { params: Promis
                 alt="20-litre reusable drinking water jars and household water purification equipment"
                 width={960}
                 height={960}
-                loading="lazy"
+                priority
                 sizes="(max-width: 1024px) 100vw, 40vw"
                 className="h-48 w-full object-cover sm:h-56"
               />
