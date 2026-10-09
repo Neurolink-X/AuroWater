@@ -16,7 +16,9 @@ BEGIN
   v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'customer');
   IF v_role IN ('seller') THEN v_role := 'supplier'; END IF;
   IF v_role IN ('agent', 'plumber') THEN v_role := 'technician'; END IF;
-  IF v_role NOT IN ('customer', 'supplier', 'technician', 'admin') THEN
+  -- Never grant admin from user-editable Auth metadata. Admin accounts are
+  -- promoted only by the invite-protected server registration flow.
+  IF v_role NOT IN ('customer', 'supplier', 'technician') THEN
     v_role := 'customer';
   END IF;
 
