@@ -256,15 +256,8 @@ export default function TechnicianJobs() {
   );
 
   const activeJobs = useMemo(
-    () =>
-      completedJobs.length >= 0
-        ? jobs.filter((job) =>
-            ['ACCEPTED', 'ON_THE_WAY', 'WORKING'].includes(
-              job.status
-            )
-          ).length
-        : 0,
-    [jobs, completedJobs]
+    () => jobs.filter((job) => ['ACCEPTED', 'WORKING'].includes(job.status)).length,
+    [jobs]
   );
 
   const pendingJobs = useMemo(
