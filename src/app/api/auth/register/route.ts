@@ -612,9 +612,12 @@ export async function POST(
     profile as ProfileRow | null;
 
   if (!resolved) {
+    // Registration has already validated the requested role and, for admin,
+    // verified the invite code. Pass that trusted server-side role into repair.
     resolved =
       await ensureProfileForUser(
         session.user,
+        { role, city },
       );
   }
 
