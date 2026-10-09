@@ -1277,8 +1277,12 @@ export default function PricingPage() {
   </span>
 </h1>
             <p style={{ margin:'18px 0 0',fontSize:17,color:'rgba(255,255,255,0.65)',maxWidth:480,lineHeight:1.65 }}>
-              Clear water-can and home-service pricing. Review the per-can rate and final total before you confirm.
+              Normal RO ₹{settings.default_can_price} and Chilled RO ₹{settings.chilled_can_price} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
             </p>
+            <div style={{ display:'flex',flexWrap:'wrap',gap:10,marginTop:18 }}>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ border:0,borderRadius:999,padding:'12px 18px',background:'#06B6D4',color:'#082F49',fontWeight:800,cursor:'pointer' }}>Order Normal RO</button>
+              <button type="button" onClick={() => router.push('/book?service=plumbing')} style={{ border:'1px solid rgba(255,255,255,.35)',borderRadius:999,padding:'12px 18px',background:'rgba(255,255,255,.1)',color:'#fff',fontWeight:800,cursor:'pointer' }}>Find a Plumber</button>
+            </div>
 
             {/* hero value props */}
             <div style={{ display:'flex',flexWrap:'wrap',gap:12,marginTop:28 }}>
