@@ -20,7 +20,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   water_can: {
     key: 'water_can', title: '20L Water Can Delivery', eyebrow: 'Daily drinking water',
     description: 'Order sealed drinking-water cans for home or workplace with clear pricing and delivery details before you confirm.',
-    startingPrice: '₹10', unit: 'per can (indicative)', icon: '💧', accent: '#0284c7',
+    startingPrice: '₹39', unit: 'per 20L can (indicative)', icon: '💧', accent: '#0284c7',
     benefits: ['Order when you need it; no subscription required', 'Choose your delivery address and available slot', 'Review the final amount before confirming', 'Track your order from your account'],
     process: ['Choose your quantity', 'Confirm address and available slot', 'Review price and place your order'],
     faqs: [
@@ -87,9 +87,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const service = SERVICE_DETAILS[slug];
   if (!service) return { title: 'Service not found | AuroWater' };
   return {
-    title: `${service.title} in Kanpur and nearby cities | AuroWater`,
+    title: `${service.title} in Kanpur, Lucknow & Gorakhpur | AuroWater`,
     description: service.description,
     alternates: { canonical: `/services/${service.key}` },
+    keywords: [service.title, `${service.title} near me`, `${service.title} Kanpur`, `${service.title} Lucknow`, `${service.title} Gorakhpur`, 'AuroWater'],
+    openGraph: { title: `${service.title} | AuroWater`, description: service.description, url: `/services/${service.key}`, type: 'website' },
   };
 }
 
