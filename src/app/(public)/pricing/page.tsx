@@ -1605,6 +1605,10 @@ export default function PricingPage() {
             ))}
           </div>
 
+          <p style={{ margin: '12px 0 0', fontSize: 11, lineHeight: 1.6, color: '#64748B' }}>
+            *Reference prices are indicative and vary by supplier, area, brand and empty-jar exchange. Confirm your address and final total before ordering.
+          </p>
+
           {/* Compare table toggle */}
           <div style={{ textAlign:'center',marginTop:28 }}>
             <button
