@@ -85,6 +85,11 @@ const DRAFT_KEY = 'aw_booking_draft_v2';
 const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
+// Approved launch prices for 20L RO cans.
+const NORMAL_RO_CAN_PRICE = 20;
+const CHILLED_RO_CAN_PRICE = 25;
+const SUBSCRIPTION_RO_CAN_PRICE = 20;
+const BULK_RO_CAN_PRICE = 20;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -191,12 +196,12 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
       Math.max(1, draft.canQuantity ?? 1)
     );
     const per = draft.subOptionKey === 'chilled_ro'
-      ? settings.chilled_can_price
+      ? CHILLED_RO_CAN_PRICE
       : draft.canOrderType === 'subscription'
-        ? settings.subscription_can_price
-        : qty >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
-          ? settings.bulk_can_price
-          : settings.default_can_price;
+        ? SUBSCRIPTION_RO_CAN_PRICE
+        : qty >= settings.bulk_threshold
+          ? BULK_RO_CAN_PRICE
+          : NORMAL_RO_CAN_PRICE;
     return Math.round(qty * per);
   }
   const base = settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
@@ -540,17 +545,17 @@ export default function BookingWizard() {
   }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
 
   const fromPrice = useCallback((key: string) => {
-    if (key === 'water_can') return settings.default_can_price;
+    if (key === 'water_can') return NORMAL_RO_CAN_PRICE;
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
   const perCan = draft.subOptionKey === 'chilled_ro'
-    ? settings.chilled_can_price
+    ? CHILLED_RO_CAN_PRICE
     : draft.canOrderType === 'subscription'
-      ? settings.subscription_can_price
-      : (draft.canQuantity ?? 1) >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
-        ? settings.bulk_can_price
-        : settings.default_can_price;
+      ? SUBSCRIPTION_RO_CAN_PRICE
+      : (draft.canQuantity ?? 1) >= settings.bulk_threshold
+        ? BULK_RO_CAN_PRICE
+        : NORMAL_RO_CAN_PRICE;
 
   const isSubscription =
     draft.serviceKey === 'water_can' &&
@@ -937,13 +942,13 @@ export default function BookingWizard() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Water type">
                   <button type="button" aria-pressed={draft.subOptionKey !== 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'normal_ro' }))} className={optionBtn(draft.subOptionKey !== 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
-                    <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(settings.default_can_price)} / 20L</span>
+                    <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(NORMAL_RO_CAN_PRICE)} / 20L</span>
                     <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
                     <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
                   </button>
                   <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Chilled RO Water</span>
-                    <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(settings.chilled_can_price)} / 20L</span>
+                    <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(CHILLED_RO_CAN_PRICE)} / 20L</span>
                     <span className="mt-1 block text-xs text-slate-500">For parties, weddings &amp; events</span>
                     <span className="mt-1 block text-[11px] text-slate-500">Chilled &amp; delivered</span>
                   </button>
@@ -994,10 +999,10 @@ export default function BookingWizard() {
                   >
                     <span className="block text-sm font-extrabold">One-time</span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(draft.subOptionKey === 'chilled_ro' ? settings.chilled_can_price : settings.default_can_price)} per can
+                      {inr(draft.subOptionKey === 'chilled_ro' ? CHILLED_RO_CAN_PRICE : NORMAL_RO_CAN_PRICE)} per can
                     </span>
                     <span className="mt-1 block text-[11px] text-slate-400">
-                      {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(settings.bulk_can_price)} per can from ${settings.bulk_threshold} cans`}
+                      {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(BULK_RO_CAN_PRICE)} per can from ${settings.bulk_threshold} cans`}
                     </span>
                   </button>
 
@@ -1024,7 +1029,7 @@ export default function BookingWizard() {
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
                         {(draft.canQuantity ?? 1) >= settings.bulk_threshold
                           ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-                          : `Save ${inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can`}
+                          : `Subscription ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
