@@ -14,7 +14,7 @@ export default function ServicePrice({ serviceKey, fallback, unit }: ServicePric
   const configured = serviceKey === 'water_can'
     ? settings.default_can_price
     : (settings.service_base_prices as Record<string, number>)[serviceKey];
-  const amount = Number.isFinite(configured) && configured > 0 ? configured : null;
+  const amount = typeof configured === 'number' && Number.isFinite(configured) && configured > 0 ? configured : null;
 
   return (
     <>
