@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { enrichTechnicianOrders, safeTechnicianOrder } from '@/lib/api/technician-order-view';
 
 export async function GET(
   req: NextRequest,
@@ -28,9 +29,15 @@ export async function GET(
     return jsonErr('Job not found', 404);
   }
 
-  const safe = { ...data } as Record<string, unknown>;
-  delete safe.service_otp_hash;
-  return jsonOk(safe);
+  try {
+    const [safe] = await enrichTechnicianOrders([
+      data as unknown as Record<string, unknown>,
+    ]);
+    return jsonOk(safe);
+  } catch (enrichmentError) {
+    console.error('[technician-job] customer contact enrichment failed:', enrichmentError);
+    return jsonErr('Unable to load job contact details right now', 502);
+  }
 }
 
 
@@ -120,7 +127,7 @@ export async function PUT(
       .eq('id', id)
       .single();
 
-    return jsonOk(updated);
+    return jsonOk(updated ? safeTechnicianOrder(updated as unknown as Record<string, unknown>) : updated);
   }
 
   if (status === 'COMPLETED') {
