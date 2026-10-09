@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { useSettings } from '@/hooks/useSettings';
 
 /* ─────────────────────────────────────────────
    TYPES
@@ -148,6 +150,12 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
 
+  const illustration = s.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
+    : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
+    : s.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
+    : s.key === 'motor_pump' || s.key === 'ro_service' ? '/illustrations/pump-service.svg'
+    : '/illustrations/home-technician.svg';
+
   return (
     <article
       className="sv-card"
@@ -155,7 +163,10 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Top color stripe */}
+      {/* Lightweight original local SVG; no third-party image request. */}
+      <div className="sv-card-illustration">
+        <Image src={illustration} alt={`${s.title} illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+      </div>
       <div className="sv-card-stripe" style={{ background: hovered ? s.accent : '#E8F0FE' }} />
 
       {/* Category tag */}
@@ -262,14 +273,19 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
 ───────────────────────────────────────────── */
 export default function ServicesPage() {
   const router = useRouter();
+  const { settings } = useSettings();
   const [filter, setFilter] = useState<ServiceCategory>('All');
   const [scrolled, setScrolled] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
+  const currentServices = useMemo(() => SERVICES.map((s) => ({
+    ...s,
+    fromPrice: s.key === 'water_can' ? settings.default_can_price : settings.service_base_prices[s.key] ?? s.fromPrice,
+  })), [settings]);
+
   const filtered = useMemo(
-    () => filter === 'All' ? SERVICES : SERVICES.filter((s) => s.category === filter),
-    [filter],
-  );
+    () => filter === 'All' ? currentServices : currentServices.filter((s) => s.category === filter),
+    [filter, currentServices],
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 60);
@@ -466,6 +482,8 @@ export default function ServicesPage() {
         }
         @keyframes cardRise { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
 
+        .sv-card-illustration { width: 100%; aspect-ratio: 16 / 8; background: #F8FAFC; overflow: hidden; }
+        .sv-card-illustration img { display: block; width: 100%; height: 100%; object-fit: cover; }
         .sv-card-stripe { height: 3px; width: 100%; transition: background 0.3s; }
 
         .sv-card-tag {
@@ -673,7 +691,7 @@ export default function ServicesPage() {
               <h2 className="sv-section-title">
                 {filter === 'All' ? 'All Services' : `${filter} Services`}
               </h2>
-              <p className="sv-section-sub">Transparent pricing · Verified pros · Book in 60 seconds</p>
+              <p className="sv-section-sub">Clear starting prices · Check serviceability · Confirm scope and final price before booking</p>
             </div>
           </div>
 
@@ -691,10 +709,10 @@ export default function ServicesPage() {
               <div>
                 <div className="sv-banner-eyebrow">Full transparency</div>
                 <h3 className="sv-banner-title">
-                  Want to compare<br />
-                  <span>all prices first?</span>
+                  Looking for a plumber<br />
+                  <span>or home-service professional?</span>
                 </h3>
-                <p className="sv-banner-sub">No hidden fees. No surprises. See the full pricing breakdown.</p>
+                <p className="sv-banner-sub">Choose the job you need, check your address, and review the service scope and final price before confirming.</p>
               </div>
               <button
                 type="button"
@@ -702,7 +720,7 @@ export default function ServicesPage() {
                 className="sv-banner-btn"
               >
                 <IconDroplet />
-                View Full Pricing
+                Explore Service Pricing
                 <IconArrow />
               </button>
             </div>
