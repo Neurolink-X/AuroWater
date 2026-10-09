@@ -1640,7 +1640,7 @@ export default function PricingPage() {
 
           {/* ── Other home services pricing ── */}
           <div style={{ marginTop:60 }}>
-            <h2 style={{ margin:'0 0 6px',fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>Water &amp; home services
+            <h2 style={{ margin:'0 0 6px',fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>Water &amp; home services</h2>
             <p style={{ margin:'0 0 22px',fontSize:14,color:'#6B7280' }}>Starting estimates are taken from current public settings. Confirm scope, availability and the final price before booking.</p>
             <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))',gap:16 }}>
               {[
