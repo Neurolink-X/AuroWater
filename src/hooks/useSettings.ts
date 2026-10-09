@@ -96,7 +96,7 @@ export interface UseSettingsReturn {
   /** WhatsApp deep-link for primary phone, or null */
   whatsappHref:   string | null;
   /** Full order cost breakdown */
-  calcOrderTotal: (basePrice: number, isEmergency?: boolean) => OrderBreakdown;
+  calcOrderTotal: (basePrice: number, isEmergency?: boolean, serviceKey?: string) => OrderBreakdown;
   /** Savings % vs market_can_price */
   savingsPct:     (pricePerCan: number) => number;
   /** Display-formatted GST rate, e.g. "18%" */
