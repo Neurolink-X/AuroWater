@@ -2,7 +2,6 @@
 
 // import React, { useMemo, useState } from 'react';
 // import { useRouter } from 'next/navigation';
-import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 
 // type PricingTab = 'individual' | 'business';
 // type CanPlan = 'starter' | 'popular' | 'family';
@@ -38,12 +37,6 @@ import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 //   const router = useRouter();
 //   const [tab, setTab] = useState<PricingTab>('individual');
 //   const [billing, setBilling] = useState<BillingCycle>('weekly');
-  const { settings } = useSettings();
-  const deliveryTotal = (quantity: number) => {
-    const subtotal = quantity * (quantity >= settings.bulk_threshold ? settings.bulk_can_price : settings.subscription_can_price) + settings.convenience_fee;
-    return subtotal + Math.round(subtotal * settings.gst_rate);
-  };
-  const officeQuantity = Math.max(50, settings.bulk_threshold);
 //   const [openFaq, setOpenFaq] = useState<number | null>(0);
 //   const [hoveredPlan, setHoveredPlan] = useState<CanPlan | null>(null);
 
@@ -697,6 +690,7 @@ import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 
 import React, { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 
 type PricingTab = 'individual' | 'business';
 type BillingCycle = 'weekly' | 'monthly';
