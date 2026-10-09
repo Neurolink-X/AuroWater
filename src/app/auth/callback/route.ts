@@ -16,24 +16,52 @@ function getSafeNextPath(
   value: string | null,
   type: string | null
 ): string {
-  const fallback =
+  const defaultPath =
     type === 'recovery'
       ? '/auth/update-password'
       : '/customer/home';
 
-  if (!value) return fallback;
+  if (!value) return defaultPath;
 
-  // Prevent external redirects and protocol-relative URLs.
+  // Allow only same-site relative paths.
   if (!value.startsWith('/') || value.startsWith('//')) {
-    return fallback;
+    return defaultPath;
   }
 
-  // Only allow the existing password recovery route under /auth.
+  // Preserve the existing recovery-route restriction.
   if (value.startsWith('/auth/') && value !== '/auth/update-password') {
-    return fallback;
+    return defaultPath;
   }
 
   return value;
+}
+
+function getRedirectOrigin(requestUrl: URL): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+  if (!configuredUrl) {
+    return requestUrl.origin;
+  }
+
+  try {
+    const parsed = new URL(configuredUrl);
+
+    if (
+      process.env.NODE_ENV === 'production' &&
+      parsed.protocol !== 'https:'
+    ) {
+      throw new Error('Production site URL must use HTTPS.');
+    }
+
+    return parsed.origin;
+  } catch (error) {
+    console.error(
+      '[auth/callback] Invalid NEXT_PUBLIC_SITE_URL:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+
+    return requestUrl.origin;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -47,8 +75,8 @@ export async function GET(request: NextRequest) {
     type
   );
 
-  const cookieStore = await cookies();
-  const cookiesToSet: CookieToSet[] = [];
+  const redirectOrigin = getRedirectOrigin(requestUrl);
+  const loginUrl = new URL('/auth/login', redirectOrigin);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
@@ -56,19 +84,24 @@ export async function GET(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('[auth/callback] Supabase environment variables are missing.');
-
-    return NextResponse.redirect(
-      new URL('/auth/login?error=auth_configuration_error', requestUrl.origin)
+    console.error(
+      '[auth/callback] Supabase URL or public key is missing.'
     );
+
+    loginUrl.searchParams.set('error', 'auth_configuration_error');
+    return NextResponse.redirect(loginUrl);
   }
+
+  const cookieStore = await cookies();
+  const cookiesToSet: CookieToSet[] = [];
 
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookies) {
+
+      setAll(cookies: CookieToSet[]) {
         cookiesToSet.push(...cookies);
       },
     },
@@ -92,20 +125,12 @@ export async function GET(request: NextRequest) {
     authError = 'Missing authentication code or token.';
   }
 
-  const configuredSiteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, '');
-
-  // Use the configured production domain when provided.
-  const redirectOrigin = configuredSiteUrl
-    ? new URL(configuredSiteUrl).origin
-    : requestUrl.origin;
-
   function redirect(path: string): NextResponse {
     const response = NextResponse.redirect(
       new URL(path, `${redirectOrigin}/`)
     );
 
-    // Preserve Supabase session cookies on the redirect response.
+    // Persist all Supabase cookies generated during authentication.
     for (const cookie of cookiesToSet) {
       response.cookies.set(
         cookie.name,
@@ -118,6 +143,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (authError) {
+    // Do not expose internal authentication errors in the URL.
     console.error(
       '[auth/callback] Authentication exchange failed:',
       authError
@@ -126,9 +152,12 @@ export async function GET(request: NextRequest) {
     return redirect('/auth/login?error=oauth_callback_failed');
   }
 
-  const { data, error: userError } = await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
 
-  if (userError || !data.user) {
+  if (userError || !user) {
     console.error(
       '[auth/callback] Session validation failed:',
       userError?.message ?? 'No authenticated user returned'
@@ -137,18 +166,20 @@ export async function GET(request: NextRequest) {
     return redirect('/auth/login?error=session_validation_failed');
   }
 
-  let role = 'customer';
+  let role: string;
 
   try {
-    const profile = await ensureProfileForUser(data.user);
+    const profile = await ensureProfileForUser(user);
 
-    if (!profile) {
-      console.error('[auth/callback] User profile was not returned.');
+    if (!profile?.role) {
+      console.error(
+        '[auth/callback] User profile or role is missing.'
+      );
 
       return redirect('/auth/login?error=profile_setup_failed');
     }
 
-    role = profile.role ?? 'customer';
+    role = profile.role;
   } catch (error) {
     console.error(
       '[auth/callback] Profile setup failed:',
@@ -160,7 +191,7 @@ export async function GET(request: NextRequest) {
 
   const response = redirect(nextPath);
 
-  // Compatibility cookies only; never use these as proof of authentication.
+  // Compatibility cookies only; never use these to authorize requests.
   response.cookies.set('aw_session', '1', {
     maxAge: 60 * 60 * 24 * 7,
     path: '/',
