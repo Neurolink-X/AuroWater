@@ -171,7 +171,7 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
     >
       {/* Lightweight original local SVG; no third-party image request. */}
       <div className="sv-card-illustration">
-        <Image src={illustration} alt={s.key === 'water_can' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+        <Image src={illustration} alt={s.key === 'plumbing' ? 'Plumber at work repairing household plumbing' : s.key === 'water_can' || s.key === 'ro_service' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
         {(s.key === 'water_can' || s.key === 'ro_service') && <p className="px-3 py-1 text-[9px] text-slate-500">Photo: FacetsOfNonStickPans · <a className="underline" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>}
         {s.key === 'plumbing' && <p className="px-3 py-1 text-[9px] text-slate-500">Photo: rick / Wikimedia Commons · <a className="underline" href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noreferrer">CC BY 2.0</a></p>}
       </div>
