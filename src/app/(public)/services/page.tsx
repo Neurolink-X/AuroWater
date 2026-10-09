@@ -32,14 +32,14 @@ const SERVICES: Service[] = [
   {
     key: 'water_can',
     category: 'Water',
-    title: '20L Water Can Delivery',
+    title: 'Normal & Chilled RO Water',
     tag: 'Water supply',
     fromPrice: 20,
     unit: '/ 20L can',
     desc: 'Choose everyday Normal RO Water for ₹20 per 20L can or chilled water for ₹25 per 20L can. Delivery availability and final total are confirmed before booking.',
     accent: '#1D6FC4',
     accentLight: '#EFF6FF',
-    includes: ['20L can options', 'Address serviceability check', 'Recurring delivery options'],
+    includes: ['Normal RO ₹20 / 20L', 'Chilled RO ₹25 / 20L', 'Delivery availability checked'], 
     badge: 'Normal ₹20 · Chilled ₹25',
   },
   {
