@@ -155,11 +155,11 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
     ? `Normal RO ₹${normalCanPrice} / 20L or Chilled RO ₹${chilledCanPrice} / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.`
     : s.desc;
 
-  const illustration = s.key === 'water_can' || s.key === 'ro_service' ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg'
-    : s.key === 'plumbing' ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Plumber_at_work.jpg/960px-Plumber_at_work.jpg'
+  const illustration = s.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
     : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
+    : s.key === 'ro_service' || s.key === 'motor_pump' ? '/illustrations/pump-service.svg'
     : s.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
-    : s.key === 'motor_pump' ? '/illustrations/pump-service.svg'
+    : s.key === 'plumbing' ? '/illustrations/plumber-repair.svg'
     : '/illustrations/home-technician.svg';
 
   return (
@@ -172,8 +172,6 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
       {/* Lightweight original local SVG; no third-party image request. */}
       <div className="sv-card-illustration">
         <Image src={illustration} alt={s.key === 'plumbing' ? 'Plumber at work repairing household plumbing' : s.key === 'water_can' || s.key === 'ro_service' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
-        {(s.key === 'water_can' || s.key === 'ro_service') && <p className="px-3 py-1 text-[9px] text-slate-500">Photo: FacetsOfNonStickPans · <a className="underline" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>}
-        {s.key === 'plumbing' && <p className="px-3 py-1 text-[9px] text-slate-500">Photo: rick / Wikimedia Commons · <a className="underline" href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noreferrer">CC BY 2.0</a></p>}
       </div>
       <div className="sv-card-stripe" style={{ background: hovered ? s.accent : '#E8F0FE' }} />
 
@@ -649,7 +647,7 @@ export default function ServicesPage() {
             </h1>
 
             <p className="sv-hero-sub">
-              Order Normal RO Water for ₹20 or Chilled RO Water for ₹25 per 20L can, or find help with plumbing, pumps and other water services. Availability and final price are confirmed before booking.
+              Order Normal RO Water for ₹{settings.default_can_price} or Chilled RO Water for ₹{settings.chilled_can_price} per 20L can, or book a plumber, RO technician, pump repair or tank-cleaning professional. Check availability and review the total before confirming.
             </p>
 
             <div className="sv-hero-stats">
@@ -659,6 +657,15 @@ export default function ServicesPage() {
                   {s}
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={() => router.push('/book?service=water_can')} className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-400">
+                Order 20L Water
+              </button>
+              <button type="button" onClick={() => router.push('/book?service=plumbing')} className="rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-extrabold text-white backdrop-blur transition hover:bg-white/20">
+                Find a Plumber
+              </button>
             </div>
           </div>
 
