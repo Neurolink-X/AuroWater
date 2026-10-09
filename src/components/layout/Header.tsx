@@ -493,11 +493,11 @@
 //  <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="AuroWater home">
 //   <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
 //     <Image
-//       src="/splash-logo.svg"
+//       src="/aurotap-mark.svg"
 //       alt=""
 //       width={40}
 //       height={40}
-//       className="h-full w-full object-contain"
+//       className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]"
 //       priority
 //       unoptimized
 //     />
@@ -825,11 +825,11 @@
 //               >
 //                 <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 ring-1 ring-white/10">
 //                   <Image
-//                     src="/splash-logo.svg"
+//                     src="/aurotap-mark.svg"
 //                     alt=""
 //                     width={40}
 //                     height={40}
-//                     className="h-full w-full object-contain"
+//                     className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]"
 //                     unoptimized
 //                   />
 //                 </span>
@@ -1063,7 +1063,7 @@
 //                   alt=""
 //                   width={44}
 //                   height={44}
-//                   className="h-full w-full object-contain"
+//                   className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]"
 //                   unoptimized
 //                 />
 //               </span>
@@ -1595,8 +1595,8 @@ function InstallSheet({
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden="true" />
         <div className="flex items-start gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-lg shadow-cyan-500/20">
-            <Image src="/splash-logo.svg" alt="" width={40} height={40} className="h-10 w-10 object-contain" unoptimized />
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-visible">
+            <Image src="/aurotap-mark.svg" alt="" width={40} height={40} className="h-10 w-10 object-contain drop-shadow-[0_4px_12px_rgba(56,189,248,0.25)]" unoptimized />
           </span>
           <div className="min-w-0 flex-1">
             <h2 id="install-sheet-title" className="text-base font-bold text-white">
@@ -1857,11 +1857,11 @@ export default function Header() {
           <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="AuroWater home">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
               <Image
-                src="/splash-logo.svg"
+                src="/aurotap-mark.svg"
                 alt=""
                 width={36}
                 height={36}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]"
                 priority
                 unoptimized
               />
@@ -2189,8 +2189,8 @@ export default function Header() {
         {/* Drawer top bar */}
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/5 px-4">
           <span className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-white">
-              <Image src="/splash-logo.svg" alt="" width={32} height={32} className="h-full w-full object-contain" unoptimized />
+            <span className="flex h-8 w-8 items-center justify-center overflow-visible">
+              <Image src="/aurotap-mark.svg" alt="" width={32} height={32} className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]" unoptimized />
             </span>
             <span className="text-base font-bold tracking-tight text-white">
               Auro<span className="text-cyan-400">Water</span>
@@ -2776,11 +2776,11 @@ export default function Header() {
 // //  <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="AuroWater home">
 // //   <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-lg shadow-cyan-500/20 transition-transform duration-200 group-hover:scale-105">
 // //     <Image
-// //       src="/splash-logo.svg"
+// //       src="/aurotap-mark.svg"
 // //       alt=""
 // //       width={36}
 // //       height={36}
-// //       className="h-full w-full object-contain"
+// //       className="h-full w-full object-contain drop-shadow-[0_3px_8px_rgba(56,189,248,0.25)]"
 // //       priority
 // //       unoptimized
 // //     />

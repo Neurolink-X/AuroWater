@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="AuroTap water drop">
+  <defs>
+    <linearGradient id="drop" x1="20%" y1="5%" x2="80%" y2="95%">
+      <stop offset="0%" stop-color="#7DD3FC"/>
+      <stop offset="42%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity=".28"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-40%" y="-30%" width="180%" height="180%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
+      <feFlood flood-color="#2563EB" flood-opacity=".28" result="color"/>
+      <feComposite in="color" in2="blur" operator="in" result="shadow"/>
+      <feOffset dy="3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="dropClip"><path d="M64 12C51 29 27 50 27 73a37 37 0 0 0 74 0C101 50 77 29 64 12Z"/></clipPath>
+  </defs>
+  <circle cx="64" cy="65" r="61" fill="url(#glow)"/>
+  <g filter="url(#shadow)">
+    <path d="M64 12C51 29 27 50 27 73a37 37 0 0 0 74 0C101 50 77 29 64 12Z" fill="url(#drop)"/>
+    <path d="M64 12C51 29 27 50 27 73a37 37 0 0 0 74 0C101 50 77 29 64 12Z" fill="#fff" fill-opacity=".12"/>
+    <g clip-path="url(#dropClip)">
+      <path d="M24 76Q42 67 60 76T96 76T114 76V116H24Z" fill="#fff" fill-opacity=".16"/>
+      <ellipse cx="48" cy="51" rx="5" ry="14" fill="#fff" fill-opacity=".45" transform="rotate(-20 48 51)"/>
+    </g>
+  </g>
+</svg>
