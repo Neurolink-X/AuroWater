@@ -26,7 +26,7 @@
 // ];
 
 // /**
-//  * Quick-book shortcuts: open the booking wizard with the service preselected.
+//  * Service shortcuts: open each service's detail page and let customers start booking there.
 //  * After the service-page SEO audit you can point these at each service's own page.
 //  */
 // const SERVICES = [
@@ -39,7 +39,7 @@
 //   { key: 'tank_cleaning', label: 'Tank cleaning', hint: 'Safe, hygienic', icon: '✨' },
 // ] as const;
 
-// const bookHref = (key: string) => `/book?service=${encodeURIComponent(key)}`;
+// const serviceHref = (key: string) => `/services/${encodeURIComponent(key)}`;
 
 // const ORDER_LABEL: Record<string, string> = {
 //   PENDING: 'Finding supplier',
@@ -534,18 +534,18 @@
 //               {servicesOpen && (
 //                 <div
 //                   role="menu"
-//                   aria-label="Book a service"
+//                   aria-label="Explore services"
 //                   className="absolute left-0 top-full mt-2 w-[22rem] rounded-2xl border border-white/10 bg-[#0F1D33] p-2 shadow-2xl shadow-black/40"
 //                 >
 //                   <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-//                     Book in a minute
+//                     Explore services
 //                   </p>
 //                   <div className="grid grid-cols-2 gap-1">
 //                     {SERVICES.map((s) => (
 //                       <Link
 //                         key={s.key}
 //                         role="menuitem"
-//                         href={bookHref(s.key)}
+//                         href={serviceHref(s.key)}
 //                         prefetch={false}
 //                         className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none"
 //                       >
@@ -912,7 +912,7 @@
 //                 {SERVICES.map((s) => (
 //                   <Link
 //                     key={s.key}
-//                     href={bookHref(s.key)}
+//                     href={serviceHref(s.key)}
 //                     prefetch={false}
 //                     onClick={() => setMobileOpen(false)}
 //                     className="group flex min-h-[3.45rem] items-center gap-2.5 rounded-2xl border border-white/7 bg-white/[0.045] px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:border-cyan-400/25 hover:bg-cyan-400/[0.06] active:scale-[0.98]"
@@ -1908,7 +1908,7 @@ export default function Header() {
                       <Link
                         key={s.key}
                         role="menuitem"
-                        href={bookHref(s.key)}
+                        href={serviceHref(s.key)}
                         prefetch={false}
                         className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none"
                       >
@@ -2275,7 +2275,7 @@ export default function Header() {
               {SERVICES.map((s) => (
                 <Link
                   key={s.key}
-                  href={bookHref(s.key)}
+                  href={serviceHref(s.key)}
                   prefetch={false}
                   className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/5 px-3 py-3 text-sm font-medium text-white transition-colors hover:border-cyan-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 >
@@ -2828,7 +2828,7 @@ export default function Header() {
 // //                       <Link
 // //                         key={s.key}
 // //                         role="menuitem"
-// //                         href={bookHref(s.key)}
+// //                         href={serviceHref(s.key)}
 // //                         prefetch={false}
 // //                         className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none"
 // //                       >
@@ -3114,7 +3114,7 @@ export default function Header() {
 // //             {SERVICES.map((s) => (
 // //               <Link
 // //                 key={s.key}
-// //                 href={bookHref(s.key)}
+// //                 href={serviceHref(s.key)}
 // //                 prefetch={false}
 // //                 className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:border-cyan-500/30"
 // //               >
