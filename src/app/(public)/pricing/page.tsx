@@ -1049,6 +1049,9 @@ export default function PricingPage() {
   const [tab, setTab] = useState<PricingTab>('individual');
   const [billing, setBilling] = useState<BillingCycle>('weekly');
   const [showCompare, setShowCompare] = useState(false);
+  const { settings } = useSettings();
+  const deliveryTotal = (quantity: number) => quantity * (quantity >= settings.bulk_threshold ? settings.bulk_can_price : settings.subscription_can_price) + settings.convenience_fee;
+  const officeQuantity = Math.max(50, settings.bulk_threshold);
 
   const faq: FaqItem[] = useMemo(() => [
     { q: 'What is the minimum order for can delivery?', a: 'You can order one 20L can on a pay-as-you-go basis. The applicable per-can rate and order fee are shown before you confirm.' },
