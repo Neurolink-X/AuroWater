@@ -992,7 +992,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
     { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.bulk_can_price}`, business: 'Quote' },
-    { feature: 'Order handling fee', payg: `₹${settings.convenience_fee}/order`, starter: `₹${settings.convenience_fee}/delivery`, pro: `₹${settings.convenience_fee}/delivery`, office: `₹${settings.convenience_fee}/delivery`, business: 'Confirmed in quote' },
+    { feature: 'Order handling fee', payg: `No separate water handling fee`, starter: `No separate water handling fee`, pro: `No separate water handling fee`, office: `No separate water handling fee`, business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
     { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', office: 'Cash / UPI per delivery', business: 'Confirmed before order' },
@@ -1082,7 +1082,7 @@ export default function PricingPage() {
       tagline: 'No commitment. Order only when needed.',
       pricePerDelivery: deliveryTotal(1, 'one_time'),
       cansPerDelivery: 1,
-      perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
+      perCan: `₹${settings.default_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
@@ -1103,7 +1103,7 @@ export default function PricingPage() {
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
       cansPerDelivery: 10,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
+      perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -1125,7 +1125,7 @@ export default function PricingPage() {
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
       cansPerDelivery: 20,
-      perCan: `₹${settings.subscription_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
+      perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -1149,7 +1149,7 @@ export default function PricingPage() {
       badgeColor: 'amber',
       pricePerDelivery: deliveryTotal(officeQuantity),
       cansPerDelivery: officeQuantity,
-      perCan: `₹${settings.bulk_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
+      perCan: `₹${settings.bulk_can_price}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: `${officeQuantity} cans per delivery at the bulk rate`, included: true },
         { text: 'Scheduled bulk deliveries', included: true },
