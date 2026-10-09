@@ -157,6 +157,7 @@ const CONTACT_KEYS: ReadonlySet<ManagedKey> = new Set([
 
 const DEFAULT_VALUES: Values = {
   default_can_price: '',
+  chilled_can_price: '25',
   subscription_can_price: '',
   bulk_can_price: '',
   bulk_threshold: '',
