@@ -754,7 +754,7 @@ export default function HowItWorksPage() {
             <div className="hiw-cta-content">
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 16, background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.25)', padding: '5px 14px', borderRadius: 99 }}>
                 {[1,2,3,4,5].map((i) => <IconStar key={i} />)}
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#93C5FD', marginLeft: 4 }}>4.8 from 3,200+ bookings</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#93C5FD', marginLeft: 4 }}>Availability confirmed before booking</span>
               </div>
               <h3 className="hiw-cta-title">
                 Ready to get started?<br />
