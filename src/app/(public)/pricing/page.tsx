@@ -1740,16 +1740,16 @@ export default function PricingPage() {
           <div style={{ marginTop:64,borderRadius:22,background:'linear-gradient(135deg,#022C22,#065F46 60%,#0D9B6C)',padding:'48px 40px',position:'relative',overflow:'hidden',textAlign:'center' }}>
             <div style={{ position:'absolute',inset:0,opacity:0.05,backgroundImage:'radial-gradient(circle,#fff 1px,transparent 1px)',backgroundSize:'24px 24px',pointerEvents:'none' }} />
             <div style={{ position:'relative',zIndex:1 }}>
-              <div style={{ fontSize:'clamp(1.5rem,4vw,2.5rem)',fontWeight:900,color:'#fff',letterSpacing:'-0.8px',fontFamily:'Syne,sans-serif' }}>
+              <div style={{ fontSize:'clamp(1.5rem,4vw,2.5rem)',fontWeight:900,color:'#fff',letterSpacing:'-0.8px',fontFamily:'Syne, system-ui, sans-serif' }}>
                 Still deciding?
               </div>
               <p style={{ color:'rgba(255,255,255,0.6)',fontSize:15,marginTop:10,marginBottom:28,maxWidth:400,margin:'10px auto 28px' }}>
-                Order a single can at ₹10 today — no signup required. Upgrade to a subscription when you're ready.
+                Order a single 20L can at the current one-time rate. Confirm address availability and the final amount before placing your order.
               </p>
               <div style={{ display:'flex',flexWrap:'wrap',gap:12,justifyContent:'center' }}>
                 <button type="button" onClick={() => router.push('/book?service=water_can')}
                   style={{ background:'#fff',color:'#065F46',fontWeight:800,fontSize:15,padding:'14px 28px',borderRadius:14,border:'none',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.2)' }}>
-                  Order a Can — ₹10–12
+                  Order a Can — ₹{settings.default_can_price}
                 </button>
                 <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
                   style={{ background:'rgba(255,255,255,0.12)',color:'#fff',fontWeight:700,fontSize:15,padding:'14px 28px',borderRadius:14,border:'1px solid rgba(255,255,255,0.2)',cursor:'pointer',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:8 }}>
