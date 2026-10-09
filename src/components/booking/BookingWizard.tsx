@@ -994,7 +994,9 @@ export default function BookingWizard() {
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-sm font-extrabold">Subscription</span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
-                        Save {inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can
+                        {(draft.canQuantity ?? 1) >= settings.bulk_threshold
+                          ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
+                          : `Save ${inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
