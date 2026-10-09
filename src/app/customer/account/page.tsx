@@ -888,7 +888,7 @@ export default function CustomerAccountPage() {
         setRefreshing(false);
       }
     },
-    [hydrated, isLoggedIn, isCustomer, pathname, router]
+    [hydrated, isLoggedIn, isCustomer, pathname, router, session?.phone]
   );
 
   useEffect(() => {
