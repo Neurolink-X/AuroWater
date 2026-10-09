@@ -21,6 +21,7 @@ import { safeRemove } from '@/lib/storage';
  */
 const MANAGED_KEYS = [
   'default_can_price',
+  'chilled_can_price',
   'subscription_can_price',
   'bulk_can_price',
   'bulk_threshold',
@@ -117,6 +118,7 @@ const DESCRIPTIONS: Record<ManagedKey, string> = {
 
 const CURRENCY_KEYS: ReadonlySet<ManagedKey> = new Set([
   'default_can_price',
+  'chilled_can_price',
   'subscription_can_price',
   'bulk_can_price',
   'market_can_price',
