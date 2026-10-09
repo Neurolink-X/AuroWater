@@ -70,6 +70,14 @@ export async function enrichTechnicianOrders(rows: Row[]): Promise<Row[]> {
     const customer = profiles.get(String(row.customer_id ?? ''));
     const serviceType = serviceTypes.get(Number(row.service_type_id));
     const address = addressFields(row);
+    const dbStatus = String(row.status ?? 'PENDING').toUpperCase();
+    const displayStatus = dbStatus === 'ASSIGNED'
+      ? (row.accepted_at ? 'ACCEPTED' : 'PENDING')
+      : dbStatus === 'IN_PROGRESS'
+        ? 'WORKING'
+        : dbStatus === 'CANCELLED'
+          ? 'REJECTED'
+          : dbStatus;
     const scheduled = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? null;
     const scheduledDate = row.scheduled_date
       ? String(row.scheduled_date)
@@ -79,6 +87,7 @@ export async function enrichTechnicianOrders(rows: Row[]): Promise<Row[]> {
 
     return {
       ...row,
+      status: displayStatus,
       service_name: String(row.service_type ?? row.service_type_key ?? serviceType?.name ?? serviceType?.key ?? 'Service'),
       customer_name: String(customer?.full_name ?? '—'),
       customer_phone: String(customer?.phone ?? ''),
