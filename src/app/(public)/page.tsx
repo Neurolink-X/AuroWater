@@ -1822,18 +1822,12 @@ import Link from 'next/link';
 import React, {
   useEffect,
   useState,
-  useRef,
   useCallback,
   useMemo,
 } from 'react';
 import {
   motion,
-  useScroll,
-  useTransform,
-  useInView,
   AnimatePresence,
-  useMotionValue,
-  useSpring,
 } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 
@@ -1882,10 +1876,10 @@ const SERVICES: ServiceItem[] = [
 ];
 
 const STATS = [
-  { value: '500', suffix: '+', label: 'Daily Deliveries', icon: '💧', glow: '#0ea5e9' },
-  { value: '50',  suffix: '+', label: 'Expert Plumbers',  icon: '🔧', glow: '#6366f1' },
-  { value: '20',  suffix: '+', label: 'Suppliers',        icon: '🚛', glow: '#10b981' },
-  { value: '4.8', suffix: '',  label: 'Star Rating',      icon: '⭐', glow: '#f59e0b' },
+  { value: '20L', suffix: '', label: 'Water can size', icon: '💧', glow: '#0ea5e9' },
+  { value: '3', suffix: '', label: 'Configured service cities', icon: '📍', glow: '#6366f1' },
+  { value: '2', suffix: '', label: 'Water options', icon: '🚰', glow: '#10b981' },
+  { value: '₹20', suffix: '', label: 'Normal RO price per can', icon: '₹', glow: '#f59e0b' },
 ] as const;
 
 const ROLES = [
@@ -2049,34 +2043,7 @@ const RisingDrop = React.memo(function RisingDrop({
 });
 RisingDrop.displayName = 'RisingDrop';
 
-const CountUp = React.memo(function CountUp({
-  target, suffix, isDecimal,
-}: { target: number; suffix: string; isDecimal: boolean }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-40px' });
-  const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!isInView) return;
-    let frame = 0;
-    const totalFrames = 72;
-    const tick = () => {
-      frame++;
-      const eased = 1 - Math.pow(1 - frame / totalFrames, 3);
-      setCount(eased * target);
-      if (frame < totalFrames) requestAnimationFrame(tick);
-      else setCount(target);
-    };
-    requestAnimationFrame(tick);
-  }, [isInView, target]);
-
-  return (
-    <span ref={ref}>
-      {isDecimal ? count.toFixed(1) : Math.floor(count)}{suffix}
-    </span>
-  );
-});
-CountUp.displayName = 'CountUp';
 
 const ReviewCard = React.memo(function ReviewCard({
   r,
@@ -2122,26 +2089,6 @@ export default function HomePage() {
   const [customersCount, setCustomersCount] = useState(0);
   const [suppliersTarget, setSuppliersTarget] = useState<number | null>(null);
   const [suppliersCount, setSuppliersCount] = useState(0);
-
-  const heroRef = useRef<HTMLElement>(null);
-
-  /* ── Parallax ── */
-  const { scrollYProgress } = useScroll({
-    target: heroRef, offset: ['start start', 'end start'],
-  });
-  const heroY       = useTransform(scrollYProgress, [0, 1], ['0%', '28%']);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
-
-  /* ── Custom cursor ── */
-  const cursorX = useMotionValue(-100);
-  const cursorY = useMotionValue(-100);
-  const springX = useSpring(cursorX, { stiffness: 500, damping: 38 });
-  const springY = useSpring(cursorY, { stiffness: 500, damping: 38 });
-  useEffect(() => {
-    const move = (e: MouseEvent) => { cursorX.set(e.clientX - 12); cursorY.set(e.clientY - 12); };
-    window.addEventListener('mousemove', move);
-    return () => window.removeEventListener('mousemove', move);
-  }, [cursorX, cursorY]);
 
   /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
   useEffect(() => {
@@ -2285,13 +2232,6 @@ export default function HomePage() {
   /* ══════════════════════════ RENDER ══════════════════════════ */
   return (
     <>
-      {/* Decorative cursor (pointer devices only) */}
-      <motion.div
-        className="aw-cursor"
-        style={{ x: springX, y: springY }}
-        aria-hidden="true"
-      />
-
       {/* ── GLOBAL CSS ── */}
       <style>{`
         /* Fonts load from root layout <link> — avoid duplicate @import */
@@ -2591,39 +2531,13 @@ export default function HomePage() {
       <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--navy)' }}>
 
         {/* ═══════════════════════════════ HERO ═══════════════════════════════ */}
-        <section ref={heroRef} className="aw-hero-bg hero-section relative min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
+        <section className="aw-hero-bg hero-section relative min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
 
           {/* Grid texture */}
           <div className="absolute inset-0 pointer-events-none aw-grid-dots" style={{ opacity: .028 }} aria-hidden="true" />
 
-          {/* Ambient orbs */}
-          <HeroGlowOrbs />
-
-          {/* Rising drops */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-            {DROPS_CONFIG.map((d, i) => <RisingDrop key={i} {...d} />)}
-          </div>
-
-          {/* Ripple ring — top right */}
-          <div className="absolute top-16 right-8 sm:right-16 w-52 h-52 pointer-events-none hidden sm:flex items-center justify-center" aria-hidden="true">
-            {[1,2,3].map(i => (
-              <div key={i} className="aw-ring absolute rounded-full border-2 border-sky-400/20"
-                style={{ width: i*60, height: i*60 }} />
-            ))}
-            <span className="aw-float relative z-10 text-5xl select-none">💧</span>
-          </div>
-
-          {/* Ripple ring — bottom left */}
-          <div className="absolute bottom-28 left-8 sm:left-16 w-32 h-32 pointer-events-none hidden md:flex items-center justify-center opacity-55" aria-hidden="true">
-            {[1,2].map(i => (
-              <div key={i} className="aw-ring absolute rounded-full border border-teal-400/18"
-                style={{ width: i*48, height: i*48, animationDelay: `${i*.7}s` }} />
-            ))}
-            <span className="aw-float relative z-10 text-3xl select-none" style={{ animationDelay: '1s' }}>🔧</span>
-          </div>
-
           {/* ── Content ── */}
-          <motion.div className="relative z-10 flex-1 flex items-center" style={{ y: heroY, opacity: heroOpacity }}>
+          <div className="relative z-10 flex-1 flex items-center">
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 sm:py-24 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-12 xl:gap-16 items-center">
 
@@ -2643,7 +2557,7 @@ export default function HomePage() {
                     className="hero-eyebrow"
                   >
                     <span className="aw-live shrink-0" aria-hidden="true" />
-                    Now live in Delhi &amp; UP
+                    Now serving eligible areas of Kanpur, Lucknow &amp; Gorakhpur
                   </motion.div>
 
                   <motion.p
@@ -2680,7 +2594,7 @@ export default function HomePage() {
                   {/* CTAs */}
                   <motion.div className="flex flex-wrap gap-3 mb-9"
                     initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:.3 }}>
-                    <Link href="/book?service=water_tanker" className="aw-btn px-7 py-3.5 text-sm sm:text-base shadow-xl">
+                    <Link href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base shadow-xl">
                       💧 Order Water Now
                     </Link>
                     <Link href="/book?service=plumbing" className="aw-btn-ol px-7 py-3.5 text-sm sm:text-base">
@@ -2707,19 +2621,19 @@ export default function HomePage() {
                     <div className="flex flex-wrap gap-x-5 gap-y-1">
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(2000, deliveredCount).toLocaleString('en-IN')}+
+                          {deliveredCount.toLocaleString('en-IN')}
                         </span>{' '}
-                        cans delivered in Delhi & UP
+                        completed orders
                       </div>
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(500 , customersCount).toLocaleString('en-IN')}+
+                          {customersCount.toLocaleString('en-IN')}
                         </span>{' '}
-                        happy customers
+                        customer accounts
                       </div>
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(100, suppliersCount).toLocaleString('en-IN')}
+                          {suppliersCount.toLocaleString('en-IN')}
                         </span>{' '}
                         active suppliers
                       </div>
@@ -2743,7 +2657,7 @@ export default function HomePage() {
                           className="hero-stat-val"
                           style={{ textShadow: `0 0 22px ${s.glow}60` }}
                         >
-                          <CountUp target={parseFloat(s.value)} suffix={s.suffix} isDecimal={s.value.includes('.')} />
+                          {s.value}{s.suffix}
                         </div>
                         <div className="hero-stat-lbl">{s.label}</div>
                       </motion.div>
@@ -2759,10 +2673,10 @@ export default function HomePage() {
                     </div>
                     <ul className="space-y-2.5">
                       {[
-                        '20L water-can delivery with availability checked for your address',
-                        'Verified suppliers & background-checked plumbers',
-                        'Emergency delivery in under 2 hours (select areas)',
-                        'Hindi + English support · Cash + UPI payments',
+                        '20L water-can delivery with address availability checks',
+                        'Plumbing and water-system service requests',
+                        'Current pricing and order total shown before confirmation',
+                        'Cash + UPI options where available',
                       ].map((item, i) => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/72">
                           <span className="text-sky-400 mt-0.5 flex-shrink-0 text-xs">◆</span>
@@ -2785,7 +2699,7 @@ export default function HomePage() {
 
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Wave */}
           <div className="relative z-10"><WaveDivider color="#f8fafc" /></div>
@@ -2964,7 +2878,7 @@ export default function HomePage() {
               initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }}>
               <span className="aw-badge aw-badge-dk">Social Proof</span>
               <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Trusted by customers</h2>
-              <p className="text-slate-500 mt-2 text-sm">Real experiences from people across UP &amp; Delhi.</p>
+              <p className="text-slate-500 mt-2 text-sm">Customer feedback and service updates.</p>
             </motion.div>
           </div>
           <div className="space-y-4">
