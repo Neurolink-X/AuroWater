@@ -83,7 +83,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     ...publicPages.map((path) =>
       page(path, {
-        lastModified: CONTENT_UPDATED,
+        lastModified: path === '/services' || path === '/pricing' ? SITE_UPDATED : CONTENT_UPDATED,
         changeFrequency: path === '/contact' ? 'monthly' : 'weekly',
         priority:
           path === '/services'
