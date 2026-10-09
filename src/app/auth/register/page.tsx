@@ -350,8 +350,6 @@ export default function RegisterPage() {
 
     toast.success('Welcome to AuroTap!');
 
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
     router.replace(destination);
   };
 
