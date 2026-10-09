@@ -15,6 +15,14 @@ import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/utils/supabase/client';
 
+function googleProviderError(error: unknown, action: 'sign in' | 'sign up') {
+  const raw = error instanceof Error ? error.message : '';
+  if (/unsupported provider|provider.*not enabled|validation_failed/i.test(raw)) {
+    return 'Google authentication is not enabled for this Supabase project yet. Enable Google in Supabase Dashboard → Authentication → Sign In / Providers, add the Google OAuth Client ID and Client Secret, and save the provider settings.';
+  }
+  return raw || `Google ${action} could not be started. Please try again.`;
+}
+
 const SERVICE_CITIES = [
   'Kanpur',
   'Gorakhpur',
@@ -375,7 +383,7 @@ export default function RegisterPage() {
       });
       if (error) throw error;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Google sign-up could not be started. Please try again.';
+      const message = googleProviderError(error, 'sign up');
       setError(message);
       toast.error(message);
       setGoogleLoading(false);
