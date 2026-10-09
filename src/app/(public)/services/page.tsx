@@ -32,39 +32,39 @@ const SERVICES: Service[] = [
   {
     key: 'water_can',
     category: 'Water',
-    title: 'RO Water Can',
-    tag: 'Most Ordered',
+    title: '20L Water Can Delivery',
+    tag: 'Water supply',
     fromPrice: 39,
     unit: '/ can',
     desc: 'Sealed 20L drinking-water cans from local suppliers. Confirm the supplier and final price before booking.',
     accent: '#1D6FC4',
     accentLight: '#EFF6FF',
-    includes: ['20L sealed cans', 'Available delivery slots', 'Recurring delivery options'],
+    includes: ['20L can options', 'Address serviceability check', 'Recurring delivery options'],
     badge: 'From ₹39',
   },
   {
     key: 'water_tanker',
     category: 'Water',
     title: 'Water Tanker Delivery',
-    tag: 'Bulk Orders',
+    tag: 'Bulk service',
     fromPrice: 299,
-    unit: '/ delivery',
-    desc: 'Fresh tanker delivery with reliable scheduling for homes, offices, and events.',
+    unit: 'starting estimate',
+    desc: 'Request bulk water delivery for homes, offices and sites. Volume, access, availability and final price are confirmed before booking.',
     accent: '#0284C7',
     accentLight: '#F0F9FF',
-    includes: ['Priority slot confirmation', 'Clean delivery protocols', 'Live tracking updates'],
+    includes: ['Volume options', 'Address and access check', 'Quote confirmed before booking'],
   },
   {
     key: 'ro_service',
     category: 'Plumbing',
     title: 'RO Service & Repair',
-    tag: 'Filter Experts',
+    tag: 'Repair & care',
     fromPrice: 349,
-    unit: '/ visit',
-    desc: 'Filter change, AMC options, and repairs. Fast diagnostics with fair pricing.',
+    unit: 'starting estimate',
+    desc: 'Request purifier diagnostics, filter service or repair. Replacement parts and extra work are quoted separately.',
     accent: '#0369A1',
     accentLight: '#E0F2FE',
-    includes: ['Filter replacement', 'One-time repairs', 'AMC-friendly service'],
+    includes: ['Service request details', 'Filter / repair options', 'Parts quoted separately'],
   },
   {
     key: 'plumbing',
@@ -84,7 +84,7 @@ const SERVICES: Service[] = [
     title: 'Borewell Services',
     tag: 'Deep Work',
     fromPrice: 499,
-    unit: '/ service',
+    unit: 'starting estimate',
     desc: 'Boring, installation, and repairs. Dependable scheduling, transparent options.',
     accent: '#1D4ED8',
     accentLight: '#EEF2FF',
@@ -94,13 +94,13 @@ const SERVICES: Service[] = [
     key: 'motor_pump',
     category: 'Electrical',
     title: 'Motor Pump Repair',
-    tag: 'Certified',
+    tag: 'Pump service',
     fromPrice: 299,
     unit: '/ visit',
-    desc: 'Submersible & motor pump servicing with transparent pricing and quick turnaround.',
+    desc: 'Request inspection or repair for motors and submersible pumps. Final scope depends on diagnosis and parts.',
     accent: '#2563EB',
     accentLight: '#EFF6FF',
-    includes: ['Motor servicing', 'Pump repair', 'System health check'],
+    includes: ['Issue details', 'Inspection request', 'Repair scope confirmed'],
   },
   {
     key: 'tank_cleaning',
@@ -108,11 +108,11 @@ const SERVICES: Service[] = [
     title: 'Water Tank Cleaning',
     tag: 'Hygienic',
     fromPrice: 599,
-    unit: '/ tank',
-    desc: 'Hygienic tank sanitation & disinfection. Safer water for your daily needs.',
+    unit: 'starting estimate',
+    desc: 'Request water-tank cleaning. Tank size, access, cleaning scope and the final price are confirmed before work begins.',
     accent: '#075985',
     accentLight: '#F0F9FF',
-    includes: ['Deep clean & sanitization', 'Disinfection spray', 'After-care guidance'],
+    includes: ['Tank details', 'Cleaning scope confirmed', 'After-care guidance where applicable'],
   },
 ];
 
@@ -703,8 +703,8 @@ export default function ServicesPage() {
           </div>
 
           {/* Labour and professional discovery CTA */}
-          <section aria-labelledby="sv-find-help" style={{ marginTop: 36, borderRadius: 24, padding: 'clamp(24px, 4vw, 42px)', background: 'linear-gradient(120deg, #ECFDF5, #EFF6FF)', border: '1px solid #D1FAE5', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, minWidth: 0 }}>
+          <section aria-labelledby="sv-find-help" style={{ marginTop: 36, borderRadius: 24, padding: 'clamp(24px, 4vw, 42px)', background: 'linear-gradient(120deg, #ECFDF5, #EFF6FF)', border: '1px solid #D1FAE5', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, minWidth: 0, flex: '1 1 540px' }}>
               <Image src="/illustrations/home-technician.svg" alt="Home-service professional illustration" width={160} height={105} loading="lazy" sizes="160px" style={{ width: 140, height: 'auto', flexShrink: 0 }} />
               <div>
                 <p style={{ margin: '0 0 6px', color: '#047857', fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase' }}>Need a helping hand?</p>
@@ -712,7 +712,7 @@ export default function ServicesPage() {
                 <p style={{ margin: '10px 0 0', color: '#475569', lineHeight: 1.65, maxWidth: 660 }}>Tell us what needs fixing—from leaking taps and RO issues to motor pumps. We’ll show the booking steps and confirm local availability before the job is accepted.</p>
               </div>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, flex: '0 1 280px' }}>
               <button type="button" onClick={() => router.push('/book?service=plumbing')} className="sv-banner-btn">Find a Plumber <IconArrow /></button>
               <button type="button" onClick={() => router.push('/book?service=ro_service')} className="sv-pill">RO / Pump Service</button>
             </div>
