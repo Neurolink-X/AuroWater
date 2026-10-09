@@ -65,11 +65,11 @@ export async function ensureProfileForUser(
     if (existing) {
       // Patch only missing/changed identity fields; preserve role, status,
       // activation flags and an already verified phone number.
-      const patch: Record<string, unknown> = {
+      const patch: Partial<Pick<ProfileRow, 'email' | 'full_name' | 'phone' | 'avatar_url' | 'city'>> & { updated_at: string } = {
         email: user.email ?? existing.email ?? '',
         updated_at: new Date().toISOString(),
       };
-      if (!existing.full_name && fullName) patch.full_name = fullName;
+      if ((!existing.full_name || existing.full_name === 'User') && fullName) patch.full_name = fullName;
       if (!existing.phone && metadataPhone) patch.phone = metadataPhone;
       if (!existing.avatar_url && avatarUrl) patch.avatar_url = avatarUrl;
       if (!existing.city && city) patch.city = city;
