@@ -144,9 +144,9 @@ const bodySchema = z
 
     phone: z.string().optional().transform((value) => {
       if (value === undefined) return undefined;
-      const digits = value.replace(/\\D/g, '');
+      const digits = value.replace(/\D/g, '');
       return digits || null;
-    }).refine((value) => value === undefined || value === null || /^[6-9]\\d{9}$/.test(value), {
+    }).refine((value) => value === undefined || value === null || /^[6-9]\d{9}$/.test(value), {
       message: 'Enter a valid 10-digit Indian mobile number',
     }),
 
