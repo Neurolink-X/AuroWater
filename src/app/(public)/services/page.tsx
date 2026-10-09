@@ -155,7 +155,7 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
     ? `Normal RO ₹${normalCanPrice} / 20L or Chilled RO ₹${chilledCanPrice} / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.`
     : s.desc;
 
-  const illustration = s.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
+  const illustration = s.key === 'water_can' ? 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg'
     : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
     : s.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
     : s.key === 'motor_pump' || s.key === 'ro_service' ? '/illustrations/pump-service.svg'
@@ -170,7 +170,8 @@ function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service
     >
       {/* Lightweight original local SVG; no third-party image request. */}
       <div className="sv-card-illustration">
-        <Image src={illustration} alt={`${s.title} illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+        <Image src={illustration} alt={s.key === 'water_can' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+        {s.key === 'water_can' && <p className="px-3 py-1 text-[9px] text-slate-500">Photo: FacetsOfNonStickPans · <a className="underline" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></p>}
       </div>
       <div className="sv-card-stripe" style={{ background: hovered ? s.accent : '#E8F0FE' }} />
 
