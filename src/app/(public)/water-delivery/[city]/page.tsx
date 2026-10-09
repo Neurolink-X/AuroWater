@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import type { Metadata } from 'next';
 import ServicePrice from '@/components/services/ServicePrice';
 
@@ -34,7 +35,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ city: string }> }): Promise<Metadata> {
   const { city: rawCity } = await params;
-  if (!(rawCity in CITY_PAGES)) return { title: 'Water Delivery | AuroTap', robots: { index: false, follow: false } };
+  if (!Object.prototype.hasOwnProperty.call(CITY_PAGES, rawCity)) return { title: 'Water Delivery | AuroTap', robots: { index: false, follow: false } };
   const city = CITY_PAGES[rawCity as CitySlug];
   const url = `/water-delivery/${rawCity}`;
   return {
@@ -62,7 +63,7 @@ export async function generateMetadata({ params }: { params: Promise<{ city: str
 
 export default async function WaterDeliveryCityPage({ params }: { params: Promise<{ city: string }> }) {
   const { city: rawCity } = await params;
-  if (!(rawCity in CITY_PAGES)) {
+  if (!Object.prototype.hasOwnProperty.call(CITY_PAGES, rawCity)) {
     const { notFound } = await import('next/navigation');
     notFound();
   }
@@ -99,7 +100,19 @@ export default async function WaterDeliveryCityPage({ params }: { params: Promis
               <Link href="/pricing" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-bold text-white hover:bg-white/10">View water prices</Link>
             </div>
           </div>
-          <div className="rounded-3xl border border-white/10 bg-white/[.06] p-6 shadow-2xl sm:p-8">
+          <div className="rounded-3xl border border-white/10 bg-white/[.06] p-4 shadow-2xl sm:p-6">
+            <figure className="mb-5 overflow-hidden rounded-2xl">
+              <Image
+                src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
+                alt="20-litre reusable drinking water jars and household water purification equipment"
+                width={960}
+                height={960}
+                loading="lazy"
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                className="h-48 w-full object-cover sm:h-56"
+              />
+              <figcaption className="bg-black/20 px-3 py-2 text-[10px] text-slate-300/80">Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></figcaption>
+            </figure>
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/15 text-2xl" aria-hidden="true">💧</span>
               <div>
