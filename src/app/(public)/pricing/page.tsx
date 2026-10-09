@@ -1491,7 +1491,7 @@ export default function PricingPage() {
               </svg>
               {settings.market_can_price > settings.default_can_price ? `${Math.round(((settings.market_can_price - settings.default_can_price) / settings.market_can_price) * 100)}% lower vs reference` : 'Transparent per-can price'}
             </span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', textDecoration: 'line-through' }}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>
               Reference set in admin: ₹{settings.market_can_price} / can
             </span>
           </div>
