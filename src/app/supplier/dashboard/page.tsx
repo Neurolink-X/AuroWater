@@ -444,7 +444,12 @@ function OrderCard({
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>{Icon.phone(12)}</span>
-            {order.customer_name} · {order.customer_phone}
+            <span>{order.customer_name} · </span>
+            {order.customer_phone && order.customer_phone !== '—' ? (
+              <a href={`tel:${order.customer_phone.replace(/[^\\d+]/g, '')}`} style={{ color: '#6EE7B7', textDecoration: 'underline', textUnderlineOffset: 3 }} aria-label={`Call customer ${order.customer_name}`}>
+                {order.customer_phone}
+              </a>
+            ) : <span>Phone not provided</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
             <span style={{ marginTop: 1, flexShrink: 0, color: 'rgba(255,255,255,0.3)' }}>{Icon.map(11)}</span>
