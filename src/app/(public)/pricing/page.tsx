@@ -1105,7 +1105,7 @@ export default function PricingPage() {
       tagline: 'For offices, shops and high-volume households.',
       badge: 'Popular',
       badgeColor: 'amber',
-      pricePerDelivery: deliveryTotal(officeQuantity),
+      pricePerDelivery: deliveryTotal(officeQuantity, 'one_time'),
       unitPrice: settings.bulk_can_price,
       cansPerDelivery: officeQuantity,
       perCan: `₹${settings.bulk_can_price}/can (no separate water handling fee) before any legally applicable tax`,
