@@ -109,11 +109,11 @@ export interface UseSettingsReturn {
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
-  default_can_price:      12,
-  subscription_can_price: 10,
-  bulk_can_price:         9,
+  default_can_price:      39,
+  subscription_can_price: 37,
+  bulk_can_price:         35,
   bulk_threshold:         50,
-  market_can_price:       20,
+  market_can_price:       50,
   service_base_prices: {
     water_tanker:  299,
     ro_service:    199,
