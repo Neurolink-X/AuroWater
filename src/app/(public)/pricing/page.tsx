@@ -1059,12 +1059,13 @@ export default function PricingPage() {
   const [showCompare, setShowCompare] = useState(false);
   const { settings } = useSettings();
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
-    const unit = quantity >= settings.bulk_threshold
-      ? settings.bulk_can_price
-      : orderType === 'one_time' ? settings.default_can_price : settings.subscription_can_price;
-    // Match the current booking/server checkout calculation (no GST line is
-    // currently charged by the order API). Update only when tax handling is
-    // explicitly enabled in both checkout and server pricing.
+    const unit = orderType === 'subscription'
+      ? settings.subscription_can_price
+      : quantity >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
+        ? settings.bulk_can_price
+        : settings.default_can_price;
+    // Matches booking/API: water-can orders have no separate handling fee and
+    // subscription price is independent of one-time bulk thresholds.
     return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
@@ -1075,7 +1076,7 @@ export default function PricingPage() {
     { q: 'Can I mix can delivery and other services?', a: 'Yes! Book tanker delivery, RO service, or plumbing alongside your can subscription — all from one account.' },
     { q: 'What payment methods are accepted?', a: 'Recurring water deliveries currently support cash or UPI payment per delivery. Other payment options are shown only when available in the booking flow.' },
     { q: 'Can I pause or cancel recurring deliveries?', a: 'You can pause, resume or cancel future deliveries from your subscriptions page. Orders already in progress may not be cancellable.' },
-    { q: 'Are taxes and order fees included?', a: 'The final total is shown before you confirm. Water-can orders currently have no separate handling fee; tax treatment should be configured before launch if legally applicable.' },
+    { q: 'Are taxes and order fees included?', a: 'The final payable total is shown before you confirm. Water-can orders currently have no separate handling fee. Any legally applicable tax treatment must be verified for the supplier and service before it is advertised as included.' },
     { q: 'Where is AuroWater available?', a: 'Live service zones currently cover eligible areas of Kanpur, Lucknow and Gorakhpur. Availability is confirmed from your delivery address; other areas may be added later.' },
     { q: 'How do I change a recurring plan?', a: 'Pause or cancel the existing schedule and create a new booking with the quantity and frequency you need.' },
   ], []);
@@ -1281,7 +1282,7 @@ export default function PricingPage() {
 
             {/* hero value props */}
             <div style={{ display:'flex',flexWrap:'wrap',gap:12,marginTop:28 }}>
-              {[`₹${settings.subscription_can_price}/can on recurring deliveries`, `Bulk rate ₹${settings.bulk_can_price}/can from ${settings.bulk_threshold} cans`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
+              {[`₹${settings.subscription_can_price}/can on recurring deliveries`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
                 <div key={t} style={{ display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,0.09)',borderRadius:999,padding:'7px 14px',border:'1px solid rgba(255,255,255,0.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#34D399" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   <span style={{ fontSize:13,color:'rgba(255,255,255,0.85)',fontWeight:600 }}>{t}</span>
@@ -1510,7 +1511,7 @@ export default function PricingPage() {
             [
               { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
               { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
-              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Configured bulk rate', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
+              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: settings.bulk_can_price < settings.default_can_price ? 'Volume discount' : 'Same as regular rate until a volume discount is configured', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
             <div
