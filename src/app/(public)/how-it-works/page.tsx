@@ -100,10 +100,10 @@ const FAQ = [
 ];
 
 const TRUST_STATS = [
-  { value: '3,200+', label: 'Jobs completed', icon: '✦' },
-  { value: '4.8★',   label: 'Average rating',  icon: '◈' },
-  { value: '13',     label: 'Cities covered',  icon: '⬡' },
-  { value: '<3hr',   label: 'Avg response',    icon: '⚡' },
+  { value: '7', label: 'Service categories', icon: '✦' },
+  { value: '3', label: 'Live service zones', icon: '◈' },
+  { value: 'UPI', label: 'Pay per delivery', icon: '⬡' },
+  { value: '0', label: 'Automatic debits', icon: '⚡' },
 ];
 
 /* ─────────────────────────────────────────────
