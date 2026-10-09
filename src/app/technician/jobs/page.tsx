@@ -233,6 +233,10 @@ export default function TechnicianJobs() {
     setError('');
 
     try {
+      if (action === 'complete') {
+        router.push(`/technician/job/${String(jobId)}`);
+        return;
+      }
       await updateJobStatus(jobId, action);
       await loadJobs();
     } catch (err: unknown) {
