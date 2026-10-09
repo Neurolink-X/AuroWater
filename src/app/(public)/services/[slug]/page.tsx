@@ -33,7 +33,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   water_tanker: {
     key: 'water_tanker', title: 'Water Tanker Delivery', eyebrow: 'Bulk water supply',
     description: 'Request bulk water delivery for homes, apartments, offices, construction sites and events. Availability depends on your delivery location and capacity needs.',
-    startingPrice: '₹299–₹799', unit: 'per tanker (indicative)', icon: '🚚', accent: '#0284c7',
+    startingPrice: '₹299–₹799', unit: 'starting estimate; volume and access affect the quote', icon: '🚚', accent: '#0284c7',
     benefits: ['Share the volume you need', 'Confirm delivery access and location', 'See available options before confirming', 'Keep booking details in one account'],
     process: ['Choose tanker service and volume', 'Provide delivery address and timing', 'Confirm the available quote and booking'],
     faqs: [{ question: 'Is every tanker size available everywhere?', answer: 'No. Available volume and delivery options depend on the location and supplier.' }],
@@ -41,7 +41,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   ro_service: {
     key: 'ro_service', title: 'RO Service & Repair', eyebrow: 'Water purifier care',
     description: 'Request water-purifier diagnostics, filter service or repairs. The technician can assess the unit and confirm any parts or additional work before proceeding.',
-    startingPrice: '₹349', unit: 'per visit (indicative)', icon: '🛠️', accent: '#0369a1',
+    startingPrice: '₹349', unit: 'starting estimate; parts may cost extra', icon: '🛠️', accent: '#0369a1',
     benefits: ['Describe your purifier issue', 'Request diagnostics and filter service', 'Confirm repair scope before work', 'Keep service history with your account'],
     process: ['Choose the RO issue or service type', 'Select address and a suitable slot', 'Review the visit details and confirm'],
     faqs: [{ question: 'Are filters included in the starting rate?', answer: 'Replacement parts may cost extra. Confirm the itemised estimate before approving repairs.' }],
@@ -65,7 +65,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   motor_pump: {
     key: 'motor_pump', title: 'Motor & Submersible Pump Repair', eyebrow: 'Water pump support',
     description: 'Request inspection or repair for household motors and submersible pumps. Final work and parts depend on the diagnosis.',
-    startingPrice: '₹299', unit: 'per visit (indicative)', icon: '⚙️', accent: '#2563eb',
+    startingPrice: '₹299', unit: 'starting estimate; parts may cost extra', icon: '⚙️', accent: '#2563eb',
     benefits: ['Describe the motor or pump symptoms', 'Request a diagnostic visit', 'Confirm parts and repair charges before work', 'Keep the service request accessible in your account'],
     process: ['Select the pump problem', 'Share address and preferred timing', 'Review the visit details and confirm'],
     faqs: [{ question: 'Are spare parts included?', answer: 'Parts are generally quoted separately after diagnosis. Confirm any warranty terms before approving work.' }],
@@ -73,7 +73,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   tank_cleaning: {
     key: 'tank_cleaning', title: 'Water Tank Cleaning', eyebrow: 'Tank hygiene',
     description: 'Request cleaning and sanitation for household or commercial water tanks. Confirm tank size, access and the service scope before booking.',
-    startingPrice: '₹599', unit: 'per tank (indicative)', icon: '🪣', accent: '#075985',
+    startingPrice: '₹599', unit: 'starting estimate; tank size affects the quote', icon: '🪣', accent: '#075985',
     benefits: ['Specify tank type and approximate capacity', 'Arrange an appropriate service slot', 'Confirm the cleaning scope before work', 'Keep booking information in your account'],
     process: ['Share tank type and capacity', 'Choose address and available timing', 'Confirm scope and final price'],
     faqs: [{ question: 'Does price depend on tank size?', answer: 'It can. Confirm the final rate for your tank capacity and access requirements before confirming.' }],
