@@ -1815,9 +1815,10 @@ export default function Header() {
     }
     clearSession();
     setSigningOut(false);
-    router.replace('/');
-    router.refresh();
-  }, [signingOut, router]);
+    // Force a full document navigation so protected UI and cached client state
+    // cannot remain visible after sign-out.
+    window.location.replace('/');
+  }, [signingOut]);
 
   const initial = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase();
 
