@@ -268,8 +268,16 @@ if (!serviceability.serviceable) {
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
     const defPrice = Number(flat.default_can_price);
+    const chilledPrice = Number(flat.chilled_can_price);
     const bulkPrice = Number(flat.bulk_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
+    const isChilled = str(body.sub_option_key) === 'chilled_ro';
+
+    // Chilled RO is a separate one-time product: it uses its own configured
+    // price and must never inherit the Normal RO subscription/bulk rate.
+    if (isChilled && isSubscription) {
+      return jsonErr('Chilled RO is available for one-time orders only.', 400);
+    }
 
     const maxOneTime = Math.max(1, Math.floor(Number(flat.max_cans_per_order)) || 50);
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
@@ -300,8 +308,9 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
-    waterUnitPrice =
-      qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
+    waterUnitPrice = isChilled
+      ? (Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
+      : qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
         ? bulkPrice
         : isSubscription && Number.isFinite(subPrice) && subPrice > 0
           ? subPrice
