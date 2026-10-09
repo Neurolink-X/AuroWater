@@ -1,7 +1,7 @@
 // 'use client';
 
 // import Link from 'next/link';
-// import { usePathname, useRouter } from 'next/navigation';
+// import { usePathname } from 'next/navigation';
 // import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 // import { clearSession, useAuth } from '@/hooks/useAuth';
 // import { authLogout, getToken } from '@/lib/api-client';
@@ -226,8 +226,7 @@
 
 // export default function Header() {
 //   const pathname = usePathname();
-//   const router = useRouter();
-//   const { user, role, isLoggedIn, hydrated } = useAuth();
+// //   const { user, role, isLoggedIn, hydrated } = useAuth();
 
 //   const [scrolled, setScrolled] = useState(false);
 //   const [mobileOpen, setMobileOpen] = useState(false);
@@ -1181,7 +1180,7 @@ const SERVICES = [
   { key: 'tank_cleaning', label: 'Tank cleaning', hint: 'Safe, hygienic', icon: '✨' },
 ] as const;
 
-const bookHref = (key: string) => `/book?service=${encodeURIComponent(key)}`;
+const serviceHref = (key: string) => `/services/${encodeURIComponent(key)}`;
 
 const ORDER_LABEL: Record<string, string> = {
   PENDING: 'Finding supplier',
