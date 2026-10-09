@@ -308,17 +308,21 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
-    const regularPrice = Number.isFinite(defPrice) && defPrice > 0
+    // Launch pricing approved by the business: Normal RO ₹20, Chilled RO ₹25.
+    // Keep server validation aligned with public settings while allowing higher configured rates.
+    const configuredRegularPrice = Number.isFinite(defPrice) && defPrice > 0
       ? defPrice
       : Number(st.base_price) || 20;
-    const recurringPrice = Number.isFinite(subPrice) && subPrice > 0
+    const regularPrice = Math.max(20, configuredRegularPrice);
+    const configuredRecurringPrice = Number.isFinite(subPrice) && subPrice > 0
       ? subPrice
       : regularPrice;
+    const recurringPrice = Math.max(regularPrice, configuredRecurringPrice);
     const hasValidBulkDiscount =
       Number.isFinite(bulkPrice) && bulkPrice > 0 && bulkPrice < regularPrice;
 
     waterUnitPrice = isChilled
-      ? (Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
+      ? Math.max(25, Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
       : isSubscription
         ? recurringPrice
         : qty >= bulkThreshold && hasValidBulkDiscount
