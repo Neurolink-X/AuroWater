@@ -991,19 +991,19 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 // ─── Compare table ────────────────────────────────────────────────────────────
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
-    { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, business: 'Quote' },
-    { feature: 'Order handling fee', payg: `₹${settings.convenience_fee}/order`, starter: `₹${settings.convenience_fee}/delivery`, pro: `₹${settings.convenience_fee}/delivery`, business: 'Confirmed in quote' },
-    { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', business: 'Custom' },
-    { feature: 'Bulk rate threshold', payg: '—', starter: '—', pro: '—', business: `${Math.max(50, settings.bulk_threshold)}+ cans` },
-    { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', business: 'By agreement' },
-    { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', business: 'Confirmed before order' },
-    { feature: 'Automatic debit', payg: 'No', starter: 'No', pro: 'No', business: 'No unless separately agreed' },
+    { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.bulk_can_price}`, business: 'Quote' },
+    { feature: 'Order handling fee', payg: `₹${settings.convenience_fee}/order`, starter: `₹${settings.convenience_fee}/delivery`, pro: `₹${settings.convenience_fee}/delivery`, office: `₹${settings.convenience_fee}/delivery`, business: 'Confirmed in quote' },
+    { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
+    { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
+    { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', office: 'Cash / UPI per delivery', business: 'Confirmed before order' },
+    { feature: 'Automatic debit', payg: 'No', starter: 'No', pro: 'No', office: 'No', business: 'Only if separately agreed' },
+    { feature: 'Service availability', payg: 'Address checked', starter: 'Address checked', pro: 'Address checked', office: 'Capacity checked', business: 'Confirmed in quote' },
   ];
-  const cols = ['Feature', 'Pay-as-go', 'Starter', 'Pro', 'Business'];
+  const cols = ['Feature', 'Pay as you go', 'Home Starter', 'Family', 'Bulk Delivery', 'Business / Society'];
 
   return (
     <div style={{ overflowX: 'auto', borderRadius: 18, border: '1.5px solid #E5E7EB', background: '#fff' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 560 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
         <thead>
           <tr style={{ background: '#F9FAFB' }}>
             {cols.map((c, i) => (
@@ -1026,7 +1026,7 @@ function CompareTable({ settings }: { settings: PlatformSettings }) {
           {rows.map((row, ri) => (
             <tr key={row.feature} style={{ background: ri % 2 === 0 ? '#fff' : '#F9FAFB' }}>
               <td style={{ padding: '13px 18px', fontWeight: 600, color: '#374151', borderBottom: '1px solid #F3F4F6' }}>{row.feature}</td>
-              {[row.payg, row.starter, row.pro, row.business].map((val, ci) => (
+              {[row.payg, row.starter, row.pro, row.office, row.business].map((val, ci) => (
                 <td key={ci} style={{
                   padding: '13px 18px',
                   textAlign: 'center',
