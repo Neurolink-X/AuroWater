@@ -21,6 +21,7 @@ import { safeRemove } from '@/lib/storage';
  */
 const MANAGED_KEYS = [
   'default_can_price',
+  'chilled_can_price',
   'subscription_can_price',
   'bulk_can_price',
   'bulk_threshold',
@@ -47,7 +48,8 @@ type ManagedKey = (typeof MANAGED_KEYS)[number];
 type Values = Record<ManagedKey, string>;
 
 const LABELS: Record<ManagedKey, string> = {
-  default_can_price: 'Default can price',
+  default_can_price: 'Normal RO can price (₹20 target)',
+  chilled_can_price: 'Chilled RO can price (₹25 target)',
   subscription_can_price: 'Recurring can price',
   bulk_can_price: 'Bulk can price',
   bulk_threshold: 'Bulk price threshold',
@@ -71,7 +73,9 @@ const LABELS: Record<ManagedKey, string> = {
 
 const DESCRIPTIONS: Record<ManagedKey, string> = {
   default_can_price:
-    'Customer price per 20L can for a one-time water-can order. The current order API applies no separate water-can convenience fee; the booking review shows the final amount.',
+    'Customer price per 20L Normal RO can. The water-can order API applies no separate convenience fee.',
+  chilled_can_price:
+    'Customer price per 20L Chilled RO can. Chilled water is selected as a separate one-time booking option.',
   subscription_can_price:
     'Per-can rate for recurring deliveries. Each delivery is paid separately; no automatic debit.',
   bulk_can_price:
@@ -114,6 +118,7 @@ const DESCRIPTIONS: Record<ManagedKey, string> = {
 
 const CURRENCY_KEYS: ReadonlySet<ManagedKey> = new Set([
   'default_can_price',
+  'chilled_can_price',
   'subscription_can_price',
   'bulk_can_price',
   'market_can_price',
@@ -152,6 +157,7 @@ const CONTACT_KEYS: ReadonlySet<ManagedKey> = new Set([
 
 const DEFAULT_VALUES: Values = {
   default_can_price: '',
+  chilled_can_price: '25',
   subscription_can_price: '',
   bulk_can_price: '',
   bulk_threshold: '',
@@ -543,8 +549,24 @@ export default function AdminSettingsPage() {
             normaliseValue(value);
         }
 
+        // Preserve the stored values for dirty-state comparison, but display
+        // approved launch pricing and never present an invalid bulk "discount".
+        const storedValues: Values = { ...next };
+        const normalPrice = Math.max(20, Number(next.default_can_price) || 20);
+        const chilledPrice = Math.max(25, Number(next.chilled_can_price) || 25);
+        const recurringPrice = Math.max(normalPrice, Number(next.subscription_can_price) || normalPrice);
+        const configuredBulk = Number(next.bulk_can_price);
+        const effectiveBulk = Number.isFinite(configuredBulk) && configuredBulk > 0 && configuredBulk < normalPrice
+          ? configuredBulk
+          : normalPrice;
+
+        next.default_can_price = String(normalPrice);
+        next.chilled_can_price = String(chilledPrice);
+        next.subscription_can_price = String(recurringPrice);
+        next.bulk_can_price = String(effectiveBulk);
+
         setValues(next);
-        setSavedValues(next);
+        setSavedValues(storedValues);
       } catch (cause: unknown) {
         const message =
           cause instanceof Error

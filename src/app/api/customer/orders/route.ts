@@ -268,8 +268,16 @@ if (!serviceability.serviceable) {
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
     const defPrice = Number(flat.default_can_price);
+    const chilledPrice = Number(flat.chilled_can_price);
     const bulkPrice = Number(flat.bulk_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
+    const isChilled = str(body.sub_option_key) === 'chilled_ro';
+
+    // Chilled RO is a separate one-time product: it uses its own configured
+    // price and must never inherit the Normal RO subscription/bulk rate.
+    if (isChilled && isSubscription) {
+      return jsonErr('Chilled RO is available for one-time orders only.', 400);
+    }
 
     const maxOneTime = Math.max(1, Math.floor(Number(flat.max_cans_per_order)) || 50);
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
@@ -300,14 +308,26 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
-    waterUnitPrice =
-      qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
-        ? bulkPrice
-        : isSubscription && Number.isFinite(subPrice) && subPrice > 0
-          ? subPrice
-          : Number.isFinite(defPrice) && defPrice > 0
-            ? defPrice
-            : Number(st.base_price) || 39;
+    // Launch pricing approved by the business: Normal RO ₹20, Chilled RO ₹25.
+    // Keep server validation aligned with public settings while allowing higher configured rates.
+    const configuredRegularPrice = Number.isFinite(defPrice) && defPrice > 0
+      ? defPrice
+      : Number(st.base_price) || 20;
+    const regularPrice = Math.max(20, configuredRegularPrice);
+    const configuredRecurringPrice = Number.isFinite(subPrice) && subPrice > 0
+      ? subPrice
+      : regularPrice;
+    const recurringPrice = Math.max(regularPrice, configuredRecurringPrice);
+    const hasValidBulkDiscount =
+      Number.isFinite(bulkPrice) && bulkPrice > 0 && bulkPrice < regularPrice;
+
+    waterUnitPrice = isChilled
+      ? Math.max(25, Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
+      : isSubscription
+        ? recurringPrice
+        : qty >= bulkThreshold && hasValidBulkDiscount
+          ? bulkPrice
+          : regularPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
@@ -392,6 +412,7 @@ if (!serviceability.serviceable) {
     str(body.notes),
     str(body.time_slot) ? `Slot: ${str(body.time_slot)}` : null,
     str(body.sub_option_key) ? `Option: ${str(body.sub_option_key)}` : null,
+    service_type_key === 'water_can' ? `Water: ${str(body.sub_option_key) === 'chilled_ro' ? 'Chilled RO' : 'Normal RO'}` : null,
     str(body.can_order_type) ? `Type: ${str(body.can_order_type)}` : null,
     str(body.can_frequency) ? `Frequency: ${str(body.can_frequency)}` : null,
   ].filter(Boolean);
@@ -410,6 +431,9 @@ if (!serviceability.serviceable) {
       .in('status', ['PENDING', 'ASSIGNED'])
       .gte('created_at', new Date(Date.now() - 20_000).toISOString());
     if (scheduledAt) dq = dq.eq('scheduled_at', scheduledAt);
+    if (isWater && qty !== null && waterUnitPrice !== null) {
+      dq = dq.eq('can_count', qty).eq('can_price_per_unit', waterUnitPrice);
+    }
     const { data: dup } = await dq.order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (dup) return jsonOk(withCompat(dup), 200);
   }

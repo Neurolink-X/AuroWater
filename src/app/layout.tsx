@@ -16,7 +16,7 @@ import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistratio
 
 const APP_URL = getSiteUrl();
 const APP_NAME =
-  process.env.NEXT_PUBLIC_APP_NAME?.trim() || 'AuroWater';
+  process.env.NEXT_PUBLIC_APP_NAME?.trim() || 'AuroTap';
 
 const OG_IMAGE = {
   url: `${APP_URL}/og-image.png`,
@@ -85,9 +85,9 @@ export const metadata: Metadata = {
 
     apple: [
       {
-        url: '/splash-logo.svg',
-        type: 'image/svg+xml',
-        sizes: '400x400',
+        url: '/icons/icon-512x512.png',
+        type: 'image/png',
+        sizes: '512x512',
       },
     ],
 
@@ -111,7 +111,7 @@ export const metadata: Metadata = {
 
     startupImage: [
       {
-        url: '/splash-logo.svg',
+        url: '/icons/icon-512x512.png',
       },
     ],
   },
@@ -134,22 +134,25 @@ export const metadata: Metadata = {
 
   keywords: [
     'AuroWater',
-    'water delivery Kanpur',
-    'water can delivery Kanpur',
-    'water delivery Lucknow',
-    'water can delivery Lucknow',
-    'water delivery Gorakhpur',
-    'water can delivery Gorakhpur',
+    '20 litre water can delivery Kanpur',
+    'water can home delivery Kanpur',
+    'water delivery near me Kanpur',
+    '20 litre water can delivery Lucknow',
+    'water can home delivery Lucknow',
+    '20 litre water can delivery Gorakhpur',
+    'water can home delivery Gorakhpur',
     'water tanker Kanpur',
-    'plumber Kanpur',
-    'plumber service Kanpur',
     'plumber near me Kanpur',
+    'plumbing services Kanpur',
+    'plumber service Lucknow',
+    'water tanker service Kanpur',
+    'water tanker booking Lucknow',
+    'RO water purifier repair Kanpur',
+    'RO service near me',
     'borewell service Kanpur',
-    'borewell drilling Kanpur',
-    'submersible pump Kanpur',
-    'motor repair Kanpur',
-    'RO service Kanpur',
-    'tank cleaning Kanpur',
+    'submersible pump repair Kanpur',
+    'motor pump repair Lucknow',
+    'water tank cleaning Kanpur',
     'home services Kanpur',
   ],
 

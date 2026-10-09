@@ -85,6 +85,11 @@ const DRAFT_KEY = 'aw_booking_draft_v2';
 const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
+// Approved launch prices for 20L RO cans.
+const NORMAL_RO_CAN_PRICE = 20;
+const CHILLED_RO_CAN_PRICE = 25;
+const SUBSCRIPTION_RO_CAN_PRICE = 20;
+const BULK_RO_CAN_PRICE = 20;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -99,7 +104,7 @@ function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
 }
 
 const SERVICE_LIST = [
-  { key: 'water_can',     emoji: '💧', title: 'Water cans'    },
+  { key: 'water_can',     emoji: '💧', title: 'Normal / Chilled RO'    },
   { key: 'water_tanker',  emoji: '🚚', title: 'Water tanker'  },
   { key: 'ro_service',    emoji: '🔧', title: 'RO service'    },
   { key: 'plumbing',      emoji: '🛠️', title: 'Plumbing'      },
@@ -143,7 +148,7 @@ type AddressRow = {
 function emptyDraft(): BookingDraft {
   const slot = nextFutureSlot();
   return {
-    serviceKey: 'water_can', subOptionKey: 'standard',
+    serviceKey: 'water_can', subOptionKey: 'normal_ro',
     canQuantity: 1, canOrderType: 'one_time', canFrequency: 'weekly',
     scheduledDate: slot.date, slotId: slot.slotId,
     timeSlot: '', startTime: slot.startTime, endTime: slot.endTime,
@@ -190,12 +195,13 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
       maxCansFor(draft),
       Math.max(1, draft.canQuantity ?? 1)
     );
-    const per =
-      qty >= settings.bulk_threshold
-        ? settings.bulk_can_price
-        : draft.canOrderType === 'subscription'
-          ? settings.subscription_can_price
-          : settings.default_can_price;
+    const per = draft.subOptionKey === 'chilled_ro'
+      ? CHILLED_RO_CAN_PRICE
+      : draft.canOrderType === 'subscription'
+        ? SUBSCRIPTION_RO_CAN_PRICE
+        : qty >= settings.bulk_threshold
+          ? BULK_RO_CAN_PRICE
+          : NORMAL_RO_CAN_PRICE;
     return Math.round(qty * per);
   }
   const base = settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
@@ -204,6 +210,11 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
 
 function serviceLabel(key: string): string {
   return SERVICE_LIST.find((s) => s.key === key)?.title ?? key;
+}
+
+function selectedServiceLabel(draft: BookingDraft): string {
+  if (draft.serviceKey === 'water_can') return draft.subOptionKey === 'chilled_ro' ? 'Chilled RO Water' : 'Normal RO Water';
+  return serviceLabel(draft.serviceKey);
 }
 
 function formatAddressCard(a: AddressRow): string {
@@ -357,6 +368,11 @@ export default function BookingWizard() {
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
       base.serviceKey = serviceParam;
+      if (serviceParam === 'water_can') {
+        const waterParam = searchParams?.get('water');
+        if (waterParam === 'chilled') { base.subOptionKey = 'chilled_ro'; base.canOrderType = 'one_time'; }
+        else if (waterParam === 'normal') { base.subOptionKey = 'normal_ro'; }
+      }
       const planCounts: Record<string, number> = { starter: 10, pro: 20, office: 50 };
       const plan = searchParams?.get('plan') ?? '';
       const frequencyParam = searchParams?.get('frequency') ?? searchParams?.get('billing') ?? '';
@@ -435,7 +451,7 @@ export default function BookingWizard() {
   useEffect(() => {
     setDraft((d) => {
       switch (d.serviceKey) {
-        case 'water_can':    return { ...d, subOptionKey: d.subOptionKey || 'standard' };
+        case 'water_can':    return { ...d, subOptionKey: ['normal_ro', 'chilled_ro'].includes(d.subOptionKey) ? d.subOptionKey : 'normal_ro', canOrderType: d.subOptionKey === 'chilled_ro' ? 'one_time' : d.canOrderType };
         case 'ro_service':   return ['service', 'filter_change', 'amc', 'new_installation'].includes(d.subOptionKey) ? d : { ...d, subOptionKey: 'service' };
         case 'plumbing':     return ['pipe_leak', 'tap', 'drainage', 'new_fitting', 'other'].includes(d.subOptionKey) ? d : { ...d, subOptionKey: 'pipe_leak' };
         case 'water_tanker': return ['500', '1000', '2000', 'custom'].includes(d.subOptionKey) ? d : { ...d, subOptionKey: '500' };
@@ -529,16 +545,17 @@ export default function BookingWizard() {
   }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
 
   const fromPrice = useCallback((key: string) => {
-    if (key === 'water_can') return settings.default_can_price;
+    if (key === 'water_can') return NORMAL_RO_CAN_PRICE;
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
-  const perCan =
-    (draft.canQuantity ?? 1) >= settings.bulk_threshold
-      ? settings.bulk_can_price
-      : draft.canOrderType === 'subscription'
-        ? settings.subscription_can_price
-        : settings.default_can_price;
+  const perCan = draft.subOptionKey === 'chilled_ro'
+    ? CHILLED_RO_CAN_PRICE
+    : draft.canOrderType === 'subscription'
+      ? SUBSCRIPTION_RO_CAN_PRICE
+      : (draft.canQuantity ?? 1) >= settings.bulk_threshold
+        ? BULK_RO_CAN_PRICE
+        : NORMAL_RO_CAN_PRICE;
 
   const isSubscription =
     draft.serviceKey === 'water_can' &&
@@ -648,7 +665,7 @@ export default function BookingWizard() {
           lat,
           lng,
           area:    result.area || d.newAddress?.area || '',
-          city:    matchedCity ?? d.newAddress?.city ?? LIVE_CITIES[0] ?? '',
+          city:    matchedCity ?? result.city ?? d.newAddress?.city ?? '',
           pincode: result.pincode || d.newAddress?.pincode || '',
         },
       }));
@@ -922,6 +939,20 @@ export default function BookingWizard() {
 
             {draft.serviceKey === 'water_can' && (
               <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Water type">
+                  <button type="button" aria-pressed={draft.subOptionKey !== 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'normal_ro' }))} className={optionBtn(draft.subOptionKey !== 'chilled_ro')}>
+                    <span className="block text-sm font-extrabold">Everyday Normal RO</span>
+                    <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(NORMAL_RO_CAN_PRICE)} / 20L</span>
+                    <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
+                    <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
+                  </button>
+                  <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
+                    <span className="block text-sm font-extrabold">Chilled RO Water</span>
+                    <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(CHILLED_RO_CAN_PRICE)} / 20L</span>
+                    <span className="mt-1 block text-xs text-slate-500">For parties, weddings &amp; events</span>
+                    <span className="mt-1 block text-[11px] text-slate-500">Chilled &amp; delivered</span>
+                  </button>
+                </div>
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <span className="text-sm font-medium text-slate-700">Quantity (cans)</span>
@@ -968,19 +999,21 @@ export default function BookingWizard() {
                   >
                     <span className="block text-sm font-extrabold">One-time</span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(settings.default_can_price)} per can
+                      {inr(draft.subOptionKey === 'chilled_ro' ? CHILLED_RO_CAN_PRICE : NORMAL_RO_CAN_PRICE)} per can
                     </span>
                     <span className="mt-1 block text-[11px] text-slate-400">
-                      {inr(settings.bulk_can_price)} per can from {settings.bulk_threshold} cans
+                      {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(BULK_RO_CAN_PRICE)} per can from ${settings.bulk_threshold} cans`}
                     </span>
                   </button>
 
                   <button
                     type="button"
+                    disabled={draft.subOptionKey === 'chilled_ro'}
                     aria-pressed={draft.canOrderType === 'subscription'}
                     onClick={() =>
                       setDraft((d) => ({
                         ...d,
+                        subOptionKey: 'normal_ro',
                         canOrderType: 'subscription',
                         canFrequency: d.canFrequency ?? 'weekly',
                         paymentMethod:
@@ -989,19 +1022,20 @@ export default function BookingWizard() {
                             : d.paymentMethod,
                       }))
                     }
-                    className={optionBtn(draft.canOrderType === 'subscription')}
+                    className={`${optionBtn(draft.canOrderType === 'subscription')} disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-sm font-extrabold">Subscription</span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
                         {(draft.canQuantity ?? 1) >= settings.bulk_threshold
                           ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-                          : `Save ${inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can`}
+                          : `Subscription ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
                       {inr(settings.subscription_can_price)} per can · recurring
                     </span>
+                    {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
                     <span className="mt-1 block text-[11px] text-slate-400">
                       Pay per delivery · no automatic debit
                     </span>
@@ -1094,7 +1128,7 @@ export default function BookingWizard() {
                 <span className="text-slate-600">Estimated base</span>
                 <span className="font-bold text-slate-900">{inr(baseAmount)}</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">Platform fees are added at checkout.</p>
+              <p className="text-xs text-slate-500 mt-1">Water-can orders have no separate handling fee. Review the complete payable total before confirming.</p>
             </div>
 
             <div className="flex justify-between gap-3">
@@ -1344,7 +1378,7 @@ export default function BookingWizard() {
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-3 text-sm">
               {[
-                ['Service', `${serviceLabel(draft.serviceKey)}${draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''}`],
+                ['Service', `${selectedServiceLabel(draft)}${draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''}`],
                 ['Address', selectedAddress ? formatAddressCard(selectedAddress) : '—'],
                 ['Window',  windowText],
                 ...(isSubscription
@@ -1442,7 +1476,7 @@ export default function BookingWizard() {
               #{orderNo}
             </div>
             <div className="text-slate-600 space-y-1 text-sm">
-              <p>{serviceLabel(draft.serviceKey)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
+              <p>{selectedServiceLabel(draft)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
               <p>Window: <span className="font-semibold text-slate-900">{windowText}</span></p>
               <p>{supplierSearching ? 'Finding the nearest supplier…' : 'Supplier assigned. Tracking updates automatically.'}</p>
             </div>

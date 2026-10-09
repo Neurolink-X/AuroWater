@@ -1819,21 +1819,16 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import React, {
   useEffect,
   useState,
-  useRef,
   useCallback,
   useMemo,
 } from 'react';
 import {
   motion,
-  useScroll,
-  useTransform,
-  useInView,
   AnimatePresence,
-  useMotionValue,
-  useSpring,
 } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 
@@ -1859,33 +1854,33 @@ interface ServiceItem {
 ═══════════════════════════════════════════════════ */
 const SERVICES: ServiceItem[] = [
   {
-    icon: '💧', title: 'Water Delivery', badge: 'Most Popular',
-    body: '20L water-can delivery with transparent pricing. Check serviceability and the current total before booking.',
-    cta: 'Order Now', href: '/book',
-    features: ['Real-time tracking', 'Always free delivery', 'Cash + UPI'],
+    icon: '💧', title: 'Normal RO Water', badge: 'Everyday Essential',
+    body: 'Normal RO ₹20 / 20L or Chilled RO ₹25 / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.',
+    cta: 'Order Water', href: '/book?service=water_can',
+    features: ['20L can', 'Clear total before confirmation', 'Address availability checked'],
     accent: '#0ea5e9', accentBg: 'rgba(14,165,233,0.13)',
   },
   {
-    icon: '🔧', title: 'Plumber Service', badge: 'Verified Pros',
-    body: 'Fitting, boring, repair & pump installation by verified, background-checked local plumbers.',
-    cta: 'Book Now', href: '/book',
-    features: ['Background checked', 'Fixed pricing', 'Same-day service'],
+    icon: '🔧', title: 'Plumber Service', badge: 'Water Problem?',
+    body: 'Get help with leaking taps, plumbing repairs, fittings and supported water-system jobs through the existing booking flow.',
+    cta: 'Find a Plumber', href: '/book?service=plumbing',
+    features: ['Clear pricing before confirmation', 'Describe your problem', 'Availability checked for your area'],
     accent: '#6366f1', accentBg: 'rgba(99,102,241,0.13)',
   },
   {
-    icon: '🚚', title: 'Bulk & Events', badge: 'Enterprise',
-    body: 'Weddings, offices, construction, schools — cans, tankers & plumber teams on demand.',
-    cta: 'Get Quote', href: '/contact',
-    features: ['Custom volume', 'On-site team', 'Priority support'],
+    icon: '🚚', title: 'Event & Office Water', badge: 'Bulk Enquiries',
+    body: 'Planning water for a wedding, party or office? Share your quantity, schedule and location to confirm available options.',
+    cta: 'Request a Quote', href: '/contact',
+    features: ['Normal or chilled requirements', 'Quantity-based enquiry', 'Availability confirmed before booking'],
     accent: '#10b981', accentBg: 'rgba(16,185,129,0.13)',
   },
 ];
 
 const STATS = [
-  { value: '500', suffix: '+', label: 'Daily Deliveries', icon: '💧', glow: '#0ea5e9' },
-  { value: '50',  suffix: '+', label: 'Expert Plumbers',  icon: '🔧', glow: '#6366f1' },
-  { value: '20',  suffix: '+', label: 'Suppliers',        icon: '🚛', glow: '#10b981' },
-  { value: '4.8', suffix: '',  label: 'Star Rating',      icon: '⭐', glow: '#f59e0b' },
+  { value: '20L', suffix: '', label: 'Water can size', icon: '💧', glow: '#0ea5e9' },
+  { value: '3', suffix: '', label: 'Configured service cities', icon: '📍', glow: '#6366f1' },
+  { value: '2', suffix: '', label: 'Water options', icon: '🚰', glow: '#10b981' },
+  { value: 'Flexible', suffix: '', label: 'One-time & recurring options where available', icon: '✓', glow: '#f59e0b' },
 ] as const;
 
 const ROLES = [
@@ -2049,34 +2044,7 @@ const RisingDrop = React.memo(function RisingDrop({
 });
 RisingDrop.displayName = 'RisingDrop';
 
-const CountUp = React.memo(function CountUp({
-  target, suffix, isDecimal,
-}: { target: number; suffix: string; isDecimal: boolean }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: '-40px' });
-  const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    if (!isInView) return;
-    let frame = 0;
-    const totalFrames = 72;
-    const tick = () => {
-      frame++;
-      const eased = 1 - Math.pow(1 - frame / totalFrames, 3);
-      setCount(eased * target);
-      if (frame < totalFrames) requestAnimationFrame(tick);
-      else setCount(target);
-    };
-    requestAnimationFrame(tick);
-  }, [isInView, target]);
-
-  return (
-    <span ref={ref}>
-      {isDecimal ? count.toFixed(1) : Math.floor(count)}{suffix}
-    </span>
-  );
-});
-CountUp.displayName = 'CountUp';
 
 const ReviewCard = React.memo(function ReviewCard({
   r,
@@ -2122,26 +2090,6 @@ export default function HomePage() {
   const [customersCount, setCustomersCount] = useState(0);
   const [suppliersTarget, setSuppliersTarget] = useState<number | null>(null);
   const [suppliersCount, setSuppliersCount] = useState(0);
-
-  const heroRef = useRef<HTMLElement>(null);
-
-  /* ── Parallax ── */
-  const { scrollYProgress } = useScroll({
-    target: heroRef, offset: ['start start', 'end start'],
-  });
-  const heroY       = useTransform(scrollYProgress, [0, 1], ['0%', '28%']);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.75], [1, 0]);
-
-  /* ── Custom cursor ── */
-  const cursorX = useMotionValue(-100);
-  const cursorY = useMotionValue(-100);
-  const springX = useSpring(cursorX, { stiffness: 500, damping: 38 });
-  const springY = useSpring(cursorY, { stiffness: 500, damping: 38 });
-  useEffect(() => {
-    const move = (e: MouseEvent) => { cursorX.set(e.clientX - 12); cursorY.set(e.clientY - 12); };
-    window.addEventListener('mousemove', move);
-    return () => window.removeEventListener('mousemove', move);
-  }, [cursorX, cursorY]);
 
   /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
   useEffect(() => {
@@ -2285,13 +2233,6 @@ export default function HomePage() {
   /* ══════════════════════════ RENDER ══════════════════════════ */
   return (
     <>
-      {/* Decorative cursor (pointer devices only) */}
-      <motion.div
-        className="aw-cursor"
-        style={{ x: springX, y: springY }}
-        aria-hidden="true"
-      />
-
       {/* ── GLOBAL CSS ── */}
       <style>{`
         /* Fonts load from root layout <link> — avoid duplicate @import */
@@ -2591,39 +2532,13 @@ export default function HomePage() {
       <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--navy)' }}>
 
         {/* ═══════════════════════════════ HERO ═══════════════════════════════ */}
-        <section ref={heroRef} className="aw-hero-bg hero-section relative min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
+        <section className="aw-hero-bg hero-section relative min-h-screen flex flex-col overflow-x-hidden overflow-y-visible">
 
           {/* Grid texture */}
           <div className="absolute inset-0 pointer-events-none aw-grid-dots" style={{ opacity: .028 }} aria-hidden="true" />
 
-          {/* Ambient orbs */}
-          <HeroGlowOrbs />
-
-          {/* Rising drops */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-            {DROPS_CONFIG.map((d, i) => <RisingDrop key={i} {...d} />)}
-          </div>
-
-          {/* Ripple ring — top right */}
-          <div className="absolute top-16 right-8 sm:right-16 w-52 h-52 pointer-events-none hidden sm:flex items-center justify-center" aria-hidden="true">
-            {[1,2,3].map(i => (
-              <div key={i} className="aw-ring absolute rounded-full border-2 border-sky-400/20"
-                style={{ width: i*60, height: i*60 }} />
-            ))}
-            <span className="aw-float relative z-10 text-5xl select-none">💧</span>
-          </div>
-
-          {/* Ripple ring — bottom left */}
-          <div className="absolute bottom-28 left-8 sm:left-16 w-32 h-32 pointer-events-none hidden md:flex items-center justify-center opacity-55" aria-hidden="true">
-            {[1,2].map(i => (
-              <div key={i} className="aw-ring absolute rounded-full border border-teal-400/18"
-                style={{ width: i*48, height: i*48, animationDelay: `${i*.7}s` }} />
-            ))}
-            <span className="aw-float relative z-10 text-3xl select-none" style={{ animationDelay: '1s' }}>🔧</span>
-          </div>
-
           {/* ── Content ── */}
-          <motion.div className="relative z-10 flex-1 flex items-center" style={{ y: heroY, opacity: heroOpacity }}>
+          <div className="relative z-10 flex-1 flex items-center">
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 sm:py-24 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-[1.15fr,1fr] gap-12 xl:gap-16 items-center">
 
@@ -2643,7 +2558,7 @@ export default function HomePage() {
                     className="hero-eyebrow"
                   >
                     <span className="aw-live shrink-0" aria-hidden="true" />
-                    Now live in Delhi &amp; UP
+                    Now serving eligible areas of Kanpur, Lucknow &amp; Gorakhpur
                   </motion.div>
 
                   <motion.p
@@ -2673,14 +2588,14 @@ export default function HomePage() {
                     transition={{ delay: 0.22 }}
                     className="hero-sub mb-9 max-w-lg"
                   >
-                    Book RO service, water cans, plumbing &amp; more — verified pros, upfront prices, same-day slots.
-                    On-demand delivery for students, families, offices &amp; events in one simple app.
+                    Order everyday RO water or find a plumber for leaks, fittings and supported water-system problems.
+                    Event and office water enquiries are available too — all through one simple platform.
                   </motion.p>
 
                   {/* CTAs */}
                   <motion.div className="flex flex-wrap gap-3 mb-9"
                     initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:.3 }}>
-                    <Link href="/book?service=water_tanker" className="aw-btn px-7 py-3.5 text-sm sm:text-base shadow-xl">
+                    <Link href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base shadow-xl">
                       💧 Order Water Now
                     </Link>
                     <Link href="/book?service=plumbing" className="aw-btn-ol px-7 py-3.5 text-sm sm:text-base">
@@ -2691,7 +2606,7 @@ export default function HomePage() {
                   {/* Trust pills */}
                   <motion.div className="flex flex-wrap gap-2"
                     initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:.42 }}>
-                    {['Cash + UPI','Hindi & English','2hr Emergency','Free Delivery'].map(tag => (
+                    {['Cash + UPI','Hindi & English','Clear order totals','Local availability'].map(tag => (
                       <span key={tag} className="rounded-full border border-sky-500/20 bg-sky-500/8 text-sky-300/80 text-xs font-medium px-3 py-1">
                         ✦ {tag}
                       </span>
@@ -2707,19 +2622,19 @@ export default function HomePage() {
                     <div className="flex flex-wrap gap-x-5 gap-y-1">
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(2000, deliveredCount).toLocaleString('en-IN')}+
+                          {deliveredCount.toLocaleString('en-IN')}
                         </span>{' '}
-                        cans delivered in Delhi & UP
+                        completed orders
                       </div>
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(500 , customersCount).toLocaleString('en-IN')}+
+                          {customersCount.toLocaleString('en-IN')}
                         </span>{' '}
-                        happy customers
+                        customer accounts
                       </div>
                       <div>
                         <span className="text-white font-extrabold">
-                          {Math.max(100, suppliersCount).toLocaleString('en-IN')}
+                          {suppliersCount.toLocaleString('en-IN')}
                         </span>{' '}
                         active suppliers
                       </div>
@@ -2732,21 +2647,35 @@ export default function HomePage() {
                   initial={{ opacity:0, x:36 }} animate={{ opacity:1, x:0 }}
                   transition={{ delay:.18, duration:.75, ease:[.22,1,.36,1] }}>
 
-                  {/* Stats */}
+                  {/* Real water-service photography; attribution is kept visible. */}
+                  <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
+                    <Image
+                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
+                      alt="Reusable 20-litre water jars and household water purification equipment in India"
+                      width={960}
+                      height={960}
+                      priority
+                      sizes="(max-width: 1024px) 100vw, 42vw"
+                      className="h-56 w-full object-cover sm:h-72"
+                    />
+                    <figcaption className="px-3 py-2 text-[10px] leading-4 text-slate-300/80">
+                      Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a>
+                    </figcaption>
+                  </figure>
+
+                  {/* Factual product/service information, not inflated social proof. */}
                   <div className="grid grid-cols-2 gap-3">
-                    {STATS.map((s, i) => (
-                      <motion.div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
-                        initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }}
-                        transition={{ delay:.32+i*.07 }}>
-                        <div className="text-2xl mb-2 drop-shadow-[0_0_10px_rgba(96,165,250,0.5)]">{s.icon}</div>
+                    {STATS.map((s) => (
+                      <div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
+                        <div className="text-2xl mb-2">{s.icon}</div>
                         <div
                           className="hero-stat-val"
                           style={{ textShadow: `0 0 22px ${s.glow}60` }}
                         >
-                          <CountUp target={parseFloat(s.value)} suffix={s.suffix} isDecimal={s.value.includes('.')} />
+                          {s.value}{s.suffix}
                         </div>
                         <div className="hero-stat-lbl">{s.label}</div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
@@ -2759,10 +2688,10 @@ export default function HomePage() {
                     </div>
                     <ul className="space-y-2.5">
                       {[
-                        '20L water-can delivery with availability checked for your address',
-                        'Verified suppliers & background-checked plumbers',
-                        'Emergency delivery in under 2 hours (select areas)',
-                        'Hindi + English support · Cash + UPI payments',
+                        '20L water-can delivery with address availability checks',
+                        'Plumbing and water-system service requests',
+                        'Current pricing and order total shown before confirmation',
+                        'Cash + UPI options where available',
                       ].map((item, i) => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/72">
                           <span className="text-sky-400 mt-0.5 flex-shrink-0 text-xs">◆</span>
@@ -2785,7 +2714,7 @@ export default function HomePage() {
 
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Wave */}
           <div className="relative z-10"><WaveDivider color="#f8fafc" /></div>
@@ -2853,7 +2782,7 @@ export default function HomePage() {
             <motion.div className="text-center mb-12"
               initial={{ opacity:0, y:20 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }}>
               <span className="aw-badge">What We Offer</span>
-              <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">Services for every water need</h2>
+              <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">Water first. Plumbing when you need it.</h2>
             </motion.div>
 
             <div className="flex justify-center gap-2 flex-wrap mb-10">
@@ -2964,7 +2893,7 @@ export default function HomePage() {
               initial={{ opacity:0, y:16 }} whileInView={{ opacity:1, y:0 }} viewport={{ once:true }}>
               <span className="aw-badge aw-badge-dk">Social Proof</span>
               <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Trusted by customers</h2>
-              <p className="text-slate-500 mt-2 text-sm">Real experiences from people across UP &amp; Delhi.</p>
+              <p className="text-slate-500 mt-2 text-sm">Customer feedback and service updates.</p>
             </motion.div>
           </div>
           <div className="space-y-4">

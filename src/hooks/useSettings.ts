@@ -42,6 +42,7 @@ export interface CommissionRates {
 /** Everything needed to price any order */
 export interface PricingConfig {
   default_can_price:      number;  // ₹ pay-as-go
+  chilled_can_price:       number;  // ₹ chilled 20L can
   subscription_can_price: number;  // ₹ subscription rate
   bulk_can_price:         number;  // ₹ bulk rate (≥ bulk_threshold cans)
   bulk_threshold:         number;  // minimum qty for bulk pricing
@@ -109,11 +110,12 @@ export interface UseSettingsReturn {
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
-  default_can_price:      39,
-  subscription_can_price: 37,
-  bulk_can_price:         35,
+  default_can_price:      20,
+  chilled_can_price:      25,
+  subscription_can_price: 20,
+  bulk_can_price:         20,
   bulk_threshold:         50,
-  market_can_price:       50,
+  market_can_price:       20,
   service_base_prices: {
     water_tanker:  299,
     ro_service:    349,
@@ -220,11 +222,24 @@ export function mergeSettings(
   if (!commissions.supplier)   commissions.supplier   = DEFAULT_SETTINGS.commissions.supplier;
 
   const gstRate = toRate(raw.gst_rate) || DEFAULT_SETTINGS.gst_rate;
+  // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25 per 20L.
+  // Legacy database values below these launch prices must not leak into the UI.
+  const defaultCanPrice = Math.max(20, safePositive(raw.default_can_price, DEFAULT_SETTINGS.default_can_price));
+  const chilledCanPrice = Math.max(25, safePositive(raw.chilled_can_price, DEFAULT_SETTINGS.chilled_can_price));
+  const configuredSubscriptionCanPrice = safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price);
+  const effectiveSubscriptionCanPrice = Math.max(defaultCanPrice, configuredSubscriptionCanPrice);
+  const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
+  // A bulk rate must be lower than the one-time rate to qualify as a discount.
+  // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.
+  const effectiveBulkCanPrice = configuredBulkCanPrice < defaultCanPrice
+    ? configuredBulkCanPrice
+    : defaultCanPrice;
 
   return {
-    default_can_price:      safePositive(raw.default_can_price,      DEFAULT_SETTINGS.default_can_price),
-    subscription_can_price: safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price),
-    bulk_can_price:         safePositive(raw.bulk_can_price,         DEFAULT_SETTINGS.bulk_can_price),
+    default_can_price:      defaultCanPrice,
+    chilled_can_price:      safePositive(raw.chilled_can_price,       DEFAULT_SETTINGS.chilled_can_price),
+    subscription_can_price: effectiveSubscriptionCanPrice,
+    bulk_can_price:         effectiveBulkCanPrice,
     bulk_threshold:         safePositive(raw.bulk_threshold,         DEFAULT_SETTINGS.bulk_threshold),
     market_can_price:       safePositive(raw.market_can_price,       DEFAULT_SETTINGS.market_can_price),
     convenience_fee:        safePositive(raw.convenience_fee,        DEFAULT_SETTINGS.convenience_fee),
@@ -543,7 +558,9 @@ export function canPriceForQty(
   qty: number,
   s: Pick<PlatformSettings, 'default_can_price' | 'bulk_can_price' | 'bulk_threshold'>
 ): number {
-  return qty >= s.bulk_threshold ? s.bulk_can_price : s.default_can_price;
+  return qty >= s.bulk_threshold && s.bulk_can_price < s.default_can_price
+    ? s.bulk_can_price
+    : s.default_can_price;
 }
 
 /**
@@ -557,7 +574,7 @@ export function settingsToApiPayload(
   const out: Record<string, string | number> = {};
 
   const numeric: (keyof PricingConfig)[] = [
-    'default_can_price', 'subscription_can_price', 'bulk_can_price',
+    'default_can_price', 'chilled_can_price', 'subscription_can_price', 'bulk_can_price',
     'bulk_threshold', 'market_can_price', 'convenience_fee', 'emergency_surcharge',
   ];
   for (const k of numeric) {

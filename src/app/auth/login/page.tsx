@@ -199,7 +199,6 @@ function LoginPageInner() {
     useState(false);
 
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const [err, setErr] =
     useState<string | null>(null);
@@ -259,30 +258,6 @@ function LoginPageInner() {
     };
   }
 
-  async function onGoogle() {
-    if (googleLoading || loading) return;
-    setErr(null);
-    setGoogleLoading(true);
-    try {
-      const supabase = createClient();
-      const origin = window.location.origin;
-      const returnTo = safeReturnTo(searchParams.get('returnTo')) ?? '/customer/home';
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(returnTo)}`,
-          queryParams: { prompt: 'select_account' },
-        },
-      });
-      if (error) throw error;
-      // Supabase navigates to Google. Keep the busy state while redirecting.
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Google sign-in could not be started. Please try again.';
-      setErr(message);
-      toast.error(message);
-      setGoogleLoading(false);
-    }
-  }
 
   async function onSubmit(
     event: React.FormEvent<HTMLFormElement>
@@ -810,20 +785,6 @@ function LoginPageInner() {
                         Sign in
                         <ArrowRight className="h-5 w-5" />
                       </>
-                    )}
-                  </button>
-
-                  {/* Google sign-in */}
-                  <button
-                    type="button"
-                    onClick={() => { void onGoogle(); }}
-                    disabled={loading || googleLoading}
-                    className="mt-3 flex h-[52px] w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-blue-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {googleLoading ? (
-                      <><Spinner /> Connecting to Google…</>
-                    ) : (
-                      <><span aria-hidden="true" className="text-base font-black text-blue-600">G</span> Continue with Google</>
                     )}
                   </button>
 

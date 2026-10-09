@@ -755,49 +755,6 @@ function Pill({ children, color = 'green' }: { children: React.ReactNode; color?
   );
 }
 
-// ─── Can savings calculator ───────────────────────────────────────────────────
-function SavingsCalc({ marketPrice, ourPrice }: { marketPrice: number; ourPrice: number }) {
-  const [cans, setCans] = useState(20);
-  const retail = marketPrice;
-  const saving = (retail - ourPrice) * cans;
-  const yearly = saving * 12;
-
-  return (
-    <div style={{ background: 'linear-gradient(135deg,#0C4A6E,#0369A1)', borderRadius: 20, padding: '28px 28px 24px', color: '#fff', marginTop: 28 }}>
-      <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: '#BAE6FD' }}>Comparison uses the reference price configured by AuroWater, not a verified live market average. Update the reference only after local price research.</p>
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: '#7DD3FC', marginBottom: 6 }}>SAVINGS CALCULATOR</div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: '#E0F2FE', marginBottom: 16 }}>
-        How much do you spend on water cans?
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
-        <input
-          type="range" min={5} max={100} step={1} value={cans}
-          onChange={e => setCans(Number(e.target.value))}
-          style={{ flex: 1, accentColor: '#38BDF8', height: 4 }}
-        />
-        <div style={{ minWidth: 80, textAlign: 'right' }}>
-          <span style={{ fontSize: 22, fontWeight: 900, color: '#38BDF8' }}>{cans}</span>
-          <span style={{ fontSize: 13, color: '#7DD3FC', marginLeft: 4 }}>cans/mo</span>
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
-        <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Configured reference price</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#FCA5A5' }}>₹{retail * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
-        </div>
-        <div style={{ background: 'rgba(56,189,248,0.15)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(56,189,248,0.3)' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>AuroWater price</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#38BDF8' }}>₹{ourPrice * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
-        </div>
-      </div>
-      <div style={{ marginTop: 14, background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: '#6EE7B7', fontWeight: 600 }}>Estimated annual difference vs configured reference</span>
-        <span style={{ fontSize: 22, fontWeight: 900, color: '#34D399' }}>₹{yearly.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Subscription card ────────────────────────────────────────────────────────
 type SubPlan = {
   id: string;
@@ -815,12 +772,9 @@ type SubPlan = {
   highlight?: boolean;
 };
 
-function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequency: BillingCycle; marketPrice: number; onCta: () => void }) {
+function SubCard({ plan, frequency, onCta }: { plan: SubPlan; frequency: BillingCycle; onCta: () => void }) {
   const [hovered, setHovered] = useState(false);
   const price = plan.pricePerDelivery;
-  const savingsPercent = plan.unitPrice !== null && marketPrice > plan.unitPrice
-    ? Math.round(((marketPrice - plan.unitPrice) / marketPrice) * 100)
-    : 0;
 
   const ctaStyles: Record<string, React.CSSProperties> = {
     primary: {
@@ -905,12 +859,7 @@ function SubCard({ plan, frequency, marketPrice, onCta }: { plan: SubPlan; frequ
           <div style={{ marginTop: 6, fontSize: 13, color: plan.highlight ? '#6EE7B7' : '#059669', fontWeight: 700 }}>
             {plan.perCan}
           </div>
-          {plan.unitPrice !== null && savingsPercent > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginTop: 7 }} aria-label={`Indicative saving of ${savingsPercent} percent against a local reference price`}>
-              <span style={{ fontSize: 11, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Configured reference ₹{marketPrice}/can</span>
-              <Pill color="green">{savingsPercent}% lower vs reference*</Pill>
-            </div>
-          ) : null}
+          <div style={{ marginTop: 7, fontSize: 11, fontWeight: 700, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>Delivery included · No separate water handling fee</div>
           {typeof plan.cansPerDelivery === 'number' && (
             <div style={{ marginTop: 3, fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.45)' : '#9CA3AF' }}>
               {plan.id === 'pay-per-can' ? 'Example total for 1 can' : `Up to ${plan.cansPerDelivery} cans per delivery`}
@@ -1059,12 +1008,13 @@ export default function PricingPage() {
   const [showCompare, setShowCompare] = useState(false);
   const { settings } = useSettings();
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
-    const unit = quantity >= settings.bulk_threshold
-      ? settings.bulk_can_price
-      : orderType === 'one_time' ? settings.default_can_price : settings.subscription_can_price;
-    // Match the current booking/server checkout calculation (no GST line is
-    // currently charged by the order API). Update only when tax handling is
-    // explicitly enabled in both checkout and server pricing.
+    const unit = orderType === 'subscription'
+      ? settings.subscription_can_price
+      : quantity >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
+        ? settings.bulk_can_price
+        : settings.default_can_price;
+    // Matches booking/API: water-can orders have no separate handling fee and
+    // subscription price is independent of one-time bulk thresholds.
     return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
@@ -1075,7 +1025,7 @@ export default function PricingPage() {
     { q: 'Can I mix can delivery and other services?', a: 'Yes! Book tanker delivery, RO service, or plumbing alongside your can subscription — all from one account.' },
     { q: 'What payment methods are accepted?', a: 'Recurring water deliveries currently support cash or UPI payment per delivery. Other payment options are shown only when available in the booking flow.' },
     { q: 'Can I pause or cancel recurring deliveries?', a: 'You can pause, resume or cancel future deliveries from your subscriptions page. Orders already in progress may not be cancellable.' },
-    { q: 'Are taxes and order fees included?', a: 'The final total is shown before you confirm. Water-can orders currently have no separate handling fee; tax treatment should be configured before launch if legally applicable.' },
+    { q: 'Are taxes and order fees included?', a: 'The final payable total is shown before you confirm. Water-can orders currently have no separate handling fee. Any legally applicable tax treatment must be verified for the supplier and service before it is advertised as included.' },
     { q: 'Where is AuroWater available?', a: 'Live service zones currently cover eligible areas of Kanpur, Lucknow and Gorakhpur. Availability is confirmed from your delivery address; other areas may be added later.' },
     { q: 'How do I change a recurring plan?', a: 'Pause or cancel the existing schedule and create a new booking with the quantity and frequency you need.' },
   ], []);
@@ -1155,7 +1105,7 @@ export default function PricingPage() {
       tagline: 'For offices, shops and high-volume households.',
       badge: 'Popular',
       badgeColor: 'amber',
-      pricePerDelivery: deliveryTotal(officeQuantity),
+      pricePerDelivery: deliveryTotal(officeQuantity, 'one_time'),
       unitPrice: settings.bulk_can_price,
       cansPerDelivery: officeQuantity,
       perCan: `₹${settings.bulk_can_price}/can (no separate water handling fee) before any legally applicable tax`,
@@ -1276,12 +1226,16 @@ export default function PricingPage() {
   </span>
 </h1>
             <p style={{ margin:'18px 0 0',fontSize:17,color:'rgba(255,255,255,0.65)',maxWidth:480,lineHeight:1.65 }}>
-              Clear water-can and home-service pricing. Review the per-can rate and final total before you confirm.
+              Normal RO ₹{settings.default_can_price} and Chilled RO ₹{settings.chilled_can_price} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
             </p>
+            <div style={{ display:'flex',flexWrap:'wrap',gap:10,marginTop:18 }}>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ border:0,borderRadius:999,padding:'12px 18px',background:'#06B6D4',color:'#082F49',fontWeight:800,cursor:'pointer' }}>Order Normal RO</button>
+              <button type="button" onClick={() => router.push('/book?service=plumbing')} style={{ border:'1px solid rgba(255,255,255,.35)',borderRadius:999,padding:'12px 18px',background:'rgba(255,255,255,.1)',color:'#fff',fontWeight:800,cursor:'pointer' }}>Find a Plumber</button>
+            </div>
 
             {/* hero value props */}
             <div style={{ display:'flex',flexWrap:'wrap',gap:12,marginTop:28 }}>
-              {[`₹${settings.subscription_can_price}/can on recurring deliveries`, `Bulk rate ₹${settings.bulk_can_price}/can from ${settings.bulk_threshold} cans`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
+              {[`₹${settings.subscription_can_price}/can on recurring deliveries`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
                 <div key={t} style={{ display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,0.09)',borderRadius:999,padding:'7px 14px',border:'1px solid rgba(255,255,255,0.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#34D399" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   <span style={{ fontSize:13,color:'rgba(255,255,255,0.85)',fontWeight:600 }}>{t}</span>
@@ -1483,17 +1437,8 @@ export default function PricingPage() {
             <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>/ can · one-time</span>
           </div>
 
-          {/* Savings */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
-            <span className="pc-save-pill">
-              <svg width={11} height={11} viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 1l1.8 4h4.2l-3.4 2.6 1.3 4L8 9.2l-3.9 2.4 1.3-4L2 5h4.2z" fill="#CA8A04" />
-              </svg>
-              {settings.market_can_price > settings.default_can_price ? `${Math.round(((settings.market_can_price - settings.default_can_price) / settings.market_can_price) * 100)}% lower vs reference` : 'Transparent per-can price'}
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF' }}>
-              Reference set in admin: ₹{settings.market_can_price} / can
-            </span>
+            <span className="pc-save-pill">Delivery included · No separate water delivery fee</span>
           </div>
         </div>
       </div>
@@ -1509,8 +1454,8 @@ export default function PricingPage() {
           {(
             [
               { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
-              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: true },
-              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Configured bulk rate', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
+              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
+              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: settings.bulk_can_price < settings.default_can_price ? 'Volume discount' : 'Same as regular rate until a volume discount is configured', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
             <div
@@ -1558,6 +1503,30 @@ export default function PricingPage() {
   </div>
 </div>
 
+        {/* Water product prices — kept separate from subscription plan pricing. */}
+        <section aria-labelledby="water-products-title" style={{ maxWidth:1160, margin:'0 auto', padding:'34px 24px 0' }}>
+          <div style={{ marginBottom:18 }}>
+            <h2 id="water-products-title" style={{ margin:0, fontSize:'clamp(1.35rem,3vw,1.8rem)', fontWeight:900, color:'#0F172A' }}>Choose your water</h2>
+            <p style={{ margin:'6px 0 0', color:'#64748B', fontSize:14 }}>Straightforward pricing for everyday use or events.</p>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:16 }}>
+            <article style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:18, padding:22 }}>
+              <p style={{ margin:0, color:'#047857', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>Everyday essential</p>
+              <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Normal RO Water</h3>
+              <p style={{ margin:'8px 0 0', color:'#047857', fontSize:30, fontWeight:900 }}>₹{settings.default_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>For daily home and office drinking-water needs. Delivery included in the displayed water-can price.</p>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#047857', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Normal RO</button>
+            </article>
+            <article style={{ background:'#fff', border:'1px solid #BAE6FD', borderRadius:18, padding:22 }}>
+              <p style={{ margin:0, color:'#0369A1', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>For events & gatherings</p>
+              <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Chilled RO Water</h3>
+              <p style={{ margin:'8px 0 0', color:'#0369A1', fontSize:30, fontWeight:900 }}>₹{settings.chilled_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>Chilled and delivered for weddings, parties, functions and office gatherings.</p>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=chilled')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#0369A1', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Chilled Water</button>
+            </article>
+          </div>
+        </section>
+
         {/* ── MAIN CONTENT ── */}
         <div style={{ maxWidth:1160,margin:'0 auto',padding:'52px 24px 80px' }}>
 
@@ -1599,13 +1568,12 @@ export default function PricingPage() {
           <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:22 }}>
             {activePlans.map(plan => (
               <div key={plan.id} className="plan-card">
-                <SubCard plan={plan} frequency={billing} marketPrice={settings.market_can_price} onCta={() => handlePlanCta(plan)} />
+                <SubCard plan={plan} frequency={billing} onCta={() => handlePlanCta(plan)} />
               </div>
             ))}
           </div>
 
           <p style={{ margin: '12px 0 0', fontSize: 11, lineHeight: 1.6, color: '#64748B' }}>
-            *Reference prices are manually configured estimates, not a verified market average. Savings are illustrative and depend on comparable can size, brand, deposit/exchange and locality. Confirm your address and final total before ordering.
           </p>
 
           {/* Compare table toggle */}
@@ -1626,16 +1594,10 @@ export default function PricingPage() {
             </div>
           )}
 
-          {/* ── Savings Calculator ── */}
-          <div style={{ marginTop:60 }}>
-            <div style={{ display:'flex',flexWrap:'wrap',gap:10,alignItems:'center',marginBottom:4 }}>
-              <h2 style={{ margin:0,fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>See your savings</h2>
-              <Pill color="blue">Interactive</Pill>
-            </div>
-            <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Adjust monthly usage to compare AuroWater’s current price with the configured reference. Results are estimates, not a guaranteed saving.</p>
-            <div style={{ maxWidth:580 }}>
-              <SavingsCalc marketPrice={settings.market_can_price} ourPrice={settings.default_can_price} />
-            </div>
+          {/* Honest value proposition: no unverified competitor-price claims. */}
+          <div style={{ marginTop:60, border:'1px solid #D1FAE5', background:'linear-gradient(135deg,#F0FDF4,#F0FDFA)', borderRadius:20, padding:24 }}>
+            <h2 style={{ margin:0,fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#064E3B',letterSpacing:'-0.5px' }}>A simpler way to manage water delivery</h2>
+            <p style={{ margin:'8px 0 0',fontSize:14,lineHeight:1.7,color:'#475569' }}>Choose one-time delivery when you need it, or schedule recurring deliveries for convenience. There is no automatic debit. The price shown for each delivery is reviewed before you confirm, and you can pause or cancel future schedules.</p>
           </div>
 
           {/* ── Other home services pricing ── */}

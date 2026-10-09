@@ -61,6 +61,13 @@ export const SETTINGS_SCHEMA: Record<
     label: 'Default can price (₹)',
   },
 
+  chilled_can_price: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Chilled 20L can price (₹)',
+  },
+
   subscription_can_price: {
     type: 'number',
     min: 1,

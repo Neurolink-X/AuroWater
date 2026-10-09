@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'AuroTap – Fresh Water Delivery in UP',
     short_name: 'AuroTap',
     description:
-      'Book fresh drinking water delivery in Delhi & UP. Gorakhpur, Kanpur and Lucknow. Track orders, earn loyalty points and pay easily.',
+      'Order 20L water cans and request plumbing, RO purifier repair, pump service and water tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur.',
     lang: 'en-IN',
     dir: 'ltr',
 
@@ -17,8 +17,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display_override: ['standalone', 'minimal-ui'],
     orientation: 'portrait-primary',
 
-    background_color: '#0A1628',
-    theme_color: '#06B6D4',
+    background_color: '#071A2B',
+    theme_color: '#087EBD',
 
     categories: ['shopping', 'lifestyle', 'utilities', 'business'],
     prefer_related_applications: false,

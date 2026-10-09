@@ -32,15 +32,15 @@ const SERVICES: Service[] = [
   {
     key: 'water_can',
     category: 'Water',
-    title: '20L Water Can Delivery',
+    title: 'Normal & Chilled RO Water',
     tag: 'Water supply',
-    fromPrice: 39,
-    unit: '/ can',
-    desc: 'Sealed 20L drinking-water cans from local suppliers. Confirm the supplier and final price before booking.',
+    fromPrice: 20,
+    unit: '/ 20L can',
+    desc: 'Choose everyday Normal RO Water for ₹20 per 20L can or chilled water for ₹25 per 20L can. Delivery availability and final total are confirmed before booking.',
     accent: '#1D6FC4',
     accentLight: '#EFF6FF',
-    includes: ['20L can options', 'Address serviceability check', 'Recurring delivery options'],
-    badge: 'From ₹39',
+    includes: ['Normal RO ₹20 / 20L', 'Chilled RO ₹25 / 20L', 'Delivery availability checked'], 
+    badge: 'Normal ₹20 · Chilled ₹25',
   },
   {
     key: 'water_tanker',
@@ -146,14 +146,20 @@ const IconDroplet = () => (
 /* ─────────────────────────────────────────────
    SERVICE CARD
 ───────────────────────────────────────────── */
-function ServiceCard({ s, index }: { s: Service; index: number }) {
+function ServiceCard({ s, index, normalCanPrice, chilledCanPrice }: { s: Service; index: number; normalCanPrice: number; chilledCanPrice: number }) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
+  const displayPrice = s.key === 'water_can' ? normalCanPrice : s.fromPrice;
+  const displayUnit = s.key === 'water_can' ? '/ 20L can' : s.unit;
+  const displayDescription = s.key === 'water_can'
+    ? `Normal RO ₹${normalCanPrice} / 20L or Chilled RO ₹${chilledCanPrice} / 20L. Choose everyday drinking water or chilled water for gatherings; confirm availability before booking.`
+    : s.desc;
 
   const illustration = s.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
     : s.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
+    : s.key === 'ro_service' || s.key === 'motor_pump' ? '/illustrations/pump-service.svg'
     : s.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
-    : s.key === 'motor_pump' || s.key === 'ro_service' ? '/illustrations/pump-service.svg'
+    : s.key === 'plumbing' ? '/illustrations/plumber-repair.svg'
     : '/illustrations/home-technician.svg';
 
   return (
@@ -165,8 +171,15 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
     >
       {/* Lightweight original local SVG; no third-party image request. */}
       <div className="sv-card-illustration">
-        <Image src={illustration} alt={`${s.title} illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+        <Image src={illustration} alt={s.key === 'plumbing' ? 'Plumber at work repairing household plumbing' : s.key === 'water_can' || s.key === 'ro_service' ? '20 litre reusable water jars and household water purification equipment in India' : `${s.title} service illustration`} width={640} height={420} loading="lazy" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
       </div>
+      {s.key === 'water_can' && (
+        <div className="flex flex-wrap gap-2 px-4 pt-3" aria-label="20 litre water prices">
+          <span className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-extrabold text-cyan-900">Normal RO ₹{normalCanPrice}/20L</span>
+          <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-extrabold text-sky-900">Chilled RO ₹{chilledCanPrice}/20L</span>
+          <span className="w-full text-[11px] text-slate-500">Delivery included · No separate water delivery fee</span>
+        </div>
+      )}
       <div className="sv-card-stripe" style={{ background: hovered ? s.accent : '#E8F0FE' }} />
 
       {/* Category tag */}
@@ -198,14 +211,14 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
           <div className="sv-card-price-wrap">
             <div className="sv-card-from">From</div>
             <div className="sv-card-price" style={{ color: s.accent }}>
-              ₹{s.fromPrice.toLocaleString('en-IN')}
+              ₹{displayPrice.toLocaleString('en-IN')}
             </div>
-            <div className="sv-card-unit">{s.unit}</div>
+            <div className="sv-card-unit">{displayUnit}</div>
           </div>
         </div>
 
         {/* Description */}
-        <p className="sv-card-desc">{s.desc}</p>
+        <p className="sv-card-desc">{displayDescription}</p>
 
         {/* Divider */}
         <div className="sv-card-divider" />
@@ -641,7 +654,7 @@ export default function ServicesPage() {
             </h1>
 
             <p className="sv-hero-sub">
-              Need a plumber, RO technician, pump repair or water delivery? Explore services in one place. Availability and the final price are confirmed before you book.
+              Order Normal RO Water for ₹{settings.default_can_price} or Chilled RO Water for ₹{settings.chilled_can_price} per 20L can, or book a plumber, RO technician, pump repair or tank-cleaning professional. Check availability and review the total before confirming.
             </p>
 
             <div className="sv-hero-stats">
@@ -651,6 +664,15 @@ export default function ServicesPage() {
                   {s}
                 </div>
               ))}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button type="button" onClick={() => router.push('/book?service=water_can')} className="rounded-full bg-cyan-500 px-5 py-3 text-sm font-extrabold text-white shadow-lg shadow-cyan-950/20 transition hover:bg-cyan-400">
+                Order 20L Water
+              </button>
+              <button type="button" onClick={() => router.push('/book?service=plumbing')} className="rounded-full border border-white/30 bg-white/10 px-5 py-3 text-sm font-extrabold text-white backdrop-blur transition hover:bg-white/20">
+                Find a Plumber
+              </button>
             </div>
           </div>
 
@@ -699,7 +721,7 @@ export default function ServicesPage() {
           {/* Cards grid */}
           <div className="sv-grid">
             {filtered.map((s, i) => (
-              <ServiceCard key={s.key} s={s} index={i} />
+              <ServiceCard key={s.key} s={s} index={i} normalCanPrice={settings.default_can_price} chilledCanPrice={settings.chilled_can_price} />
             ))}
           </div>
 
