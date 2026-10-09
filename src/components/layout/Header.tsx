@@ -1814,9 +1814,9 @@ export default function Header() {
       /* session may already be gone */
     }
     clearSession();
-    setSigningOut(false);
-    router.replace('/');
-    router.refresh();
+    clearSession();
+    // A hard navigation clears any stale App Router/PWA view after sign-out.
+    window.location.replace('/');
   }, [signingOut, router]);
 
   const initial = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase();
