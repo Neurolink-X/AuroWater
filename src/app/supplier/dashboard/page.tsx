@@ -638,7 +638,7 @@ export default function SupplierDashboardPage() {
       const flat: Order[] = rows.map((row) => {
         const snapshot = row.address_snapshot ?? {};
         const noteText = String(row.note ?? row.notes ?? '');
-        const slotMatch = noteText.match(/(?:^|\\|\\s*)Slot:\\s*([^|]+)/i);
+        const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
         const snapshotAddress = [
           snapshot.house_flat,
           snapshot.area,
