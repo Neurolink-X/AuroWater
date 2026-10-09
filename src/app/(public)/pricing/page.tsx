@@ -763,7 +763,7 @@ function SavingsCalc({ marketPrice, ourPrice }: { marketPrice: number; ourPrice:
 
   return (
     <div style={{ background: 'linear-gradient(135deg,#0C4A6E,#0369A1)', borderRadius: 20, padding: '28px 28px 24px', color: '#fff', marginTop: 28 }}>
-      <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: '#BAE6FD' }}>Illustrative comparison only. Actual local prices vary by supplier, area and jar-exchange terms.</p>
+      <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: '#BAE6FD' }}>Comparison uses the reference price configured by AuroWater, not a verified live market average. Update the reference only after local price research.</p>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', color: '#7DD3FC', marginBottom: 6 }}>SAVINGS CALCULATOR</div>
       <div style={{ fontSize: 15, fontWeight: 600, color: '#E0F2FE', marginBottom: 16 }}>
         How much do you spend on water cans?
@@ -781,16 +781,16 @@ function SavingsCalc({ marketPrice, ourPrice }: { marketPrice: number; ourPrice:
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
         <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Illustrative local reference</div>
+          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Configured reference price</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#FCA5A5' }}>₹{retail * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
         </div>
         <div style={{ background: 'rgba(56,189,248,0.15)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(56,189,248,0.3)' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>AuroWater can price</div>
+          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>AuroWater price</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#38BDF8' }}>₹{ourPrice * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
         </div>
       </div>
       <div style={{ marginTop: 14, background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, color: '#6EE7B7', fontWeight: 600 }}>Illustrative yearly difference</span>
+        <span style={{ fontSize: 13, color: '#6EE7B7', fontWeight: 600 }}>Estimated annual difference vs configured reference</span>
         <span style={{ fontSize: 22, fontWeight: 900, color: '#34D399' }}>₹{yearly.toLocaleString()}</span>
       </div>
     </div>
@@ -997,7 +997,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
     { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.bulk_can_price}`, business: 'Quote' },
-    { feature: 'Separate water handling fee', payg: 'None', starter: 'None', pro: 'None', office: 'None', business: 'Confirmed in quote' },
+    { feature: 'Separate water handling fee', payg: 'None for water cans', starter: 'None for water cans', pro: 'None for water cans', office: 'None for water cans', business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
     { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', office: 'Cash / UPI per delivery', business: 'Confirmed before order' },
@@ -1474,14 +1474,14 @@ export default function PricingPage() {
         <div>
           {/* Label + badge */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2, flexWrap: 'wrap' as const }}>
-            <span className="pc-label">20L Sealed Can</span>
-            <span className="pc-badge">BIS Certified</span>
+            <span className="pc-label">20L Water Can</span>
+            <span className="pc-badge">Price shown before booking</span>
           </div>
 
           {/* Price */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, margin: '4px 0 6px', flexWrap: 'wrap' as const }}>
-            <span className="pc-price-main">₹12</span>
-            <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>– ₹15 / can</span>
+            <span className="pc-price-main">₹{settings.default_can_price}</span>
+            <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>/ can · one-time</span>
           </div>
 
           {/* Savings */}
@@ -1490,10 +1490,10 @@ export default function PricingPage() {
               <svg width={11} height={11} viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M8 1l1.8 4h4.2l-3.4 2.6 1.3 4L8 9.2l-3.9 2.4 1.3-4L2 5h4.2z" fill="#CA8A04" />
               </svg>
-              Save 30–40%
+              {settings.market_can_price > settings.default_can_price ? `${Math.round(((settings.market_can_price - settings.default_can_price) / settings.market_can_price) * 100)}% lower vs reference` : 'Transparent per-can price'}
             </span>
             <span style={{ fontSize: 11, fontWeight: 500, color: '#9CA3AF', textDecoration: 'line-through' }}>
-              Market ₹18–22
+              Configured reference ₹{settings.market_can_price} / can
             </span>
           </div>
         </div>
@@ -1510,8 +1510,8 @@ export default function PricingPage() {
           {(
             [
               { label: 'Pay‑as‑go',    sublabel: 'No commitment', price: '₹10–12', bg: '#F8FAFF', border: '1px solid #DBEAFE',    tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
-              { label: 'Subscription', sublabel: 'Most popular',  price: '₹10',    bg: '#F0FDF9', border: '1.5px solid #0D9B6C',  tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: true  },
-              { label: 'Bulk 50+',     sublabel: 'Best per-unit', price: '₹9–11',  bg: '#FFFBEB', border: '1px solid #FDE68A',    tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
+              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: true },
+              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Configured bulk rate', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
             <div
@@ -1606,7 +1606,7 @@ export default function PricingPage() {
           </div>
 
           <p style={{ margin: '12px 0 0', fontSize: 11, lineHeight: 1.6, color: '#64748B' }}>
-            *Reference prices are indicative and vary by supplier, area, brand and empty-jar exchange. Confirm your address and final total before ordering.
+            *Reference prices are manually configured estimates, not a verified market average. Savings are illustrative and depend on comparable can size, brand, deposit/exchange and locality. Confirm your address and final total before ordering.
           </p>
 
           {/* Compare table toggle */}
@@ -1633,7 +1633,7 @@ export default function PricingPage() {
               <h2 style={{ margin:0,fontSize:'clamp(1.3rem,3vw,2rem)',fontWeight:900,color:'#111827',letterSpacing:'-0.5px' }}>See your savings</h2>
               <Pill color="blue">Interactive</Pill>
             </div>
-            <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Drag the slider to match your usage and see exactly how much you save.</p>
+            <p style={{ margin:'6px 0 0',fontSize:14,color:'#6B7280' }}>Adjust monthly usage to compare AuroWater’s current price with the configured reference. Results are estimates, not a guaranteed saving.</p>
             <div style={{ maxWidth:580 }}>
               <SavingsCalc marketPrice={settings.market_can_price} ourPrice={settings.default_can_price} />
             </div>
@@ -1711,9 +1711,9 @@ export default function PricingPage() {
           <div style={{ marginTop:44,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:14 }}>
             {[
               { icon:'🔒',title:'No hidden charges',sub:'Full breakdown shown at checkout.' },
-              { icon:'↩️',title:'Free cancellation',sub:'Up to 2 hours before delivery.' },
-              { icon:'📋',title:'GST invoices',sub:'Available on Pro & Business plans.' },
-              { icon:'💬',title:'WhatsApp support',sub:'Get answers in under 10 minutes.' },
+              { icon:'↩️',title:'Manage future deliveries',sub:'Pause or cancel future deliveries where supported.' },
+              { icon:'📋',title:'Tax documents',sub:'Ask support to confirm the documentation available for your order.' },
+              { icon:'💬',title:'WhatsApp support',sub:'Contact support for order and service questions.' },
             ].map(t => (
               <div key={t.title} style={{ background:'#fff',borderRadius:14,border:'1.5px solid #F3F4F6',padding:'16px 18px',display:'flex',gap:12,alignItems:'flex-start' }}>
                 <span style={{ fontSize:20,flexShrink:0 }}>{t.icon}</span>
