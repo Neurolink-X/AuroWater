@@ -296,11 +296,11 @@ export default function ServicesPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        /* Use system fallbacks; keep the page independent of third-party font requests. */
 
         /* ── Base ── */
-        .sv-page { font-family: 'DM Sans', sans-serif; min-height: 100vh; background: #F0F4FF; }
-        .sv-syne { font-family: 'Syne', sans-serif; }
+        .sv-page { font-family: 'DM Sans', system-ui, sans-serif; min-height: 100vh; background: #F0F4FF; }
+        .sv-syne { font-family: 'Syne', 'Arial', sans-serif; }
 
         /* ══ HERO ══════════════════════════════════════════ */
         .sv-hero {
@@ -381,7 +381,7 @@ export default function ServicesPage() {
           animation: fadeSlide 0.6s ease both;
         }
         .sv-hero-title {
-          font-family: 'Syne', sans-serif; font-weight: 900;
+          font-family: 'Syne', system-ui, sans-serif; font-weight: 900;
           font-size: clamp(2.2rem, 5vw, 3.8rem);
           color: #fff; letter-spacing: -2px; line-height: 1.0;
           margin: 0 0 14px;
@@ -635,12 +635,12 @@ export default function ServicesPage() {
             </div>
 
             <h1 className="sv-hero-title">
-              Every water service<br />
-              <span>you'll ever need.</span>
+              Water delivery, repairs &amp;<br />
+              <span>home-service professionals.</span>
             </h1>
 
             <p className="sv-hero-sub">
-              Explore water delivery and home water services. Availability and final pricing are confirmed for your address before booking.
+              Need a plumber, RO technician, pump repair or water delivery? Explore services in one place. Availability and the final price are confirmed before you book.
             </p>
 
             <div className="sv-hero-stats">
@@ -702,7 +702,23 @@ export default function ServicesPage() {
             ))}
           </div>
 
-          {/* CTA Banner */}
+          {/* Labour and professional discovery CTA */}
+          <section aria-labelledby="sv-find-help" style={{ marginTop: 36, borderRadius: 24, padding: 'clamp(24px, 4vw, 42px)', background: 'linear-gradient(120deg, #ECFDF5, #EFF6FF)', border: '1px solid #D1FAE5', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, minWidth: 0 }}>
+              <Image src="/illustrations/home-technician.svg" alt="Home-service professional illustration" width={160} height={105} loading="lazy" sizes="160px" style={{ width: 140, height: 'auto', flexShrink: 0 }} />
+              <div>
+                <p style={{ margin: '0 0 6px', color: '#047857', fontSize: 11, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase' }}>Need a helping hand?</p>
+                <h2 id="sv-find-help" style={{ margin: 0, color: '#0F172A', fontSize: 'clamp(1.25rem, 2.7vw, 2rem)', lineHeight: 1.2, fontWeight: 900 }}>Find a plumber or home-service professional</h2>
+                <p style={{ margin: '10px 0 0', color: '#475569', lineHeight: 1.65, maxWidth: 660 }}>Tell us what needs fixing—from leaking taps and RO issues to motor pumps. We’ll show the booking steps and confirm local availability before the job is accepted.</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <button type="button" onClick={() => router.push('/book?service=plumbing')} className="sv-banner-btn">Find a Plumber <IconArrow /></button>
+              <button type="button" onClick={() => router.push('/book?service=ro_service')} className="sv-pill">RO / Pump Service</button>
+            </div>
+          </section>
+
+          {/* Pricing CTA Banner */}
           <div className="sv-banner">
             <div className="sv-banner-orb" />
             <div className="sv-banner-content">
