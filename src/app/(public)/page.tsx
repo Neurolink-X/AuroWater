@@ -183,7 +183,7 @@
 //                   Why AuroWater
 //                 </h2>
 //                 <ul className="mt-4 space-y-3 text-sm text-cyan-50/90">
-//                   <li>• Water cans at ₹10–15 with real-time availability.</li>
+//                   <li>• 20L water-can delivery with availability checked for your address.</li>
 //                   <li>• Verified suppliers & plumbers from your local area.</li>
 //                   <li>• Cash + UPI · Hindi + English support.</li>
 //                   <li>• Emergency delivery in under 2 hours (select areas).</li>
@@ -418,7 +418,7 @@
 //               {
 //               icon: '💧',
 //               title: 'Water Delivery',
-//               body: 'Daily cans ₹10–15 · Always free doorstep delivery · Perfect for hostels, families, and offices.',
+//               body: '20L water-can delivery with transparent pricing. Check serviceability and the current total before booking.',
 //               cta: 'Order Now',
 //               href: '/book?service=water_tanker',
 //               },
@@ -897,7 +897,7 @@
 //   const services = [
 //     {
 //       icon: '💧', title: 'Water Delivery',
-//       body: 'Daily cans ₹10–15 · Free doorstep delivery · Perfect for hostels, families & offices.',
+//       body: '20L water-can delivery with transparent pricing. Check serviceability and the current total before booking.',
 //       cta: 'Order Now', href: '/book?service=water_tanker',
 //       badge: 'Most Popular',
 //       features: ['Real-time tracking', 'Free delivery', 'Cash + UPI'],
@@ -1234,7 +1234,7 @@
 //                   </div>
 //                   <ul className="space-y-2.5">
 //                     {[
-//                       'Water cans at ₹10–15 with real-time availability',
+//                       '20L water-can delivery with availability checked for your address',
 //                       'Verified local suppliers & background-checked plumbers',
 //                       'Emergency delivery in under 2 hours (select areas)',
 //                       'Hindi + English support · Cash + UPI payments',
@@ -1271,7 +1271,7 @@
 //       ═══════════════════════════════════════════════════ */}
 //       <section className="bg-slate-50 py-5 border-b border-slate-100">
 //         <div className="max-w-5xl mx-auto px-5 flex flex-wrap justify-center gap-x-8 gap-y-2 text-xs sm:text-sm text-slate-600 font-semibold">
-//           {['✅ Verified Suppliers', '🚀 Free Delivery Always', '💳 Cash + UPI', '🗣️ Hindi & English', '⚡ 2hr Emergency Response', '🔒 Phone Verified'].map(b => (
+//           {['💧 Water delivery + home services', '💳 Cash + UPI per delivery', '📍 3 live service zones', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access'].map(b => (
 //             <span key={b} className="flex items-center gap-1">{b}</span>
 //           ))}
 //         </div>
@@ -1860,7 +1860,7 @@ interface ServiceItem {
 const SERVICES: ServiceItem[] = [
   {
     icon: '💧', title: 'Water Delivery', badge: 'Most Popular',
-    body: 'Daily cans ₹10–15 · Free doorstep delivery · Perfect for hostels, families & offices.',
+    body: '20L water-can delivery with transparent pricing. Check serviceability and the current total before booking.',
     cta: 'Order Now', href: '/book',
     features: ['Real-time tracking', 'Always free delivery', 'Cash + UPI'],
     accent: '#0ea5e9', accentBg: 'rgba(14,165,233,0.13)',
@@ -1920,8 +1920,8 @@ const WHY_CARDS = [
 ] as const;
 
 const TRUST_BADGES = [
-  '✅ Verified Suppliers', '🚀 Free Delivery Always', '💳 Cash + UPI',
-  '🗣️ Hindi & English', '⚡ 2hr Emergency', '🔒 Phone Verified',
+  '💧 Water delivery + home services', '💳 Cash + UPI per delivery',
+  '📍 3 live service zones', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access',
 ] as const;
 
 const SERVE_ITEMS = [
@@ -2759,7 +2759,7 @@ export default function HomePage() {
                     </div>
                     <ul className="space-y-2.5">
                       {[
-                        'Water cans at ₹10–15 with real-time availability',
+                        '20L water-can delivery with availability checked for your address',
                         'Verified suppliers & background-checked plumbers',
                         'Emergency delivery in under 2 hours (select areas)',
                         'Hindi + English support · Cash + UPI payments',
