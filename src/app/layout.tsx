@@ -178,7 +178,7 @@ export const metadata: Metadata = {
       'AuroWater | 20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
 
     description:
-      'Book reliable water delivery and home services with AuroWater in Kanpur & NCR.',
+      'Book 20L water-can delivery, water tanker service, RO repair, plumbing, borewell, pump repair and tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur.',
 
     images: [OG_IMAGE],
   },
@@ -192,7 +192,7 @@ export const metadata: Metadata = {
       'AuroWater | 20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
 
     description:
-      'Book reliable water delivery and home services with AuroWater in Kanpur.',
+      'Check water-can delivery availability and transparent home-service pricing in eligible areas of Kanpur, Lucknow and Gorakhpur.',
 
     images: [OG_IMAGE.url],
   },
