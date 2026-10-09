@@ -61,6 +61,41 @@ export const SETTINGS_SCHEMA: Record<
     label: 'Default can price (₹)',
   },
 
+  subscription_can_price: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Recurring can price (₹)',
+  },
+
+  bulk_can_price: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Bulk can price (₹)',
+  },
+
+  bulk_threshold: {
+    type: 'number',
+    min: 1,
+    max: 500,
+    label: 'Bulk price threshold (cans)',
+  },
+
+  market_can_price: {
+    type: 'number',
+    min: 1,
+    max: 1000,
+    label: 'Reference market price (₹)',
+  },
+
+  convenience_fee: {
+    type: 'number',
+    min: 0,
+    max: 500,
+    label: 'Order handling fee (₹)',
+  },
+
   min_can_price: {
     type: 'number',
     min: 1,
