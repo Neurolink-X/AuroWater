@@ -1509,7 +1509,7 @@ export default function PricingPage() {
           {(
             [
               { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
-              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: true },
+              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
               { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Configured bulk rate', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
@@ -1557,6 +1557,30 @@ export default function PricingPage() {
 
   </div>
 </div>
+
+        {/* Water product prices — kept separate from subscription plan pricing. */}
+        <section aria-labelledby="water-products-title" style={{ maxWidth:1160, margin:'0 auto', padding:'34px 24px 0' }}>
+          <div style={{ marginBottom:18 }}>
+            <h2 id="water-products-title" style={{ margin:0, fontSize:'clamp(1.35rem,3vw,1.8rem)', fontWeight:900, color:'#0F172A' }}>Choose your water</h2>
+            <p style={{ margin:'6px 0 0', color:'#64748B', fontSize:14 }}>Straightforward pricing for everyday use or events.</p>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(250px,1fr))', gap:16 }}>
+            <article style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:18, padding:22 }}>
+              <p style={{ margin:0, color:'#047857', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>Everyday essential</p>
+              <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Normal RO Water</h3>
+              <p style={{ margin:'8px 0 0', color:'#047857', fontSize:30, fontWeight:900 }}>₹{settings.default_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>For daily home and office drinking-water needs. Delivery included in the displayed water-can price.</p>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#047857', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Normal RO</button>
+            </article>
+            <article style={{ background:'#fff', border:'1px solid #BAE6FD', borderRadius:18, padding:22 }}>
+              <p style={{ margin:0, color:'#0369A1', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>For events & gatherings</p>
+              <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Chilled RO Water</h3>
+              <p style={{ margin:'8px 0 0', color:'#0369A1', fontSize:30, fontWeight:900 }}>₹{settings.chilled_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>Chilled and delivered for weddings, parties, functions and office gatherings.</p>
+              <button type="button" onClick={() => router.push('/book?service=water_can&water=chilled')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#0369A1', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Chilled Water</button>
+            </article>
+          </div>
+        </section>
 
         {/* ── MAIN CONTENT ── */}
         <div style={{ maxWidth:1160,margin:'0 auto',padding:'52px 24px 80px' }}>
