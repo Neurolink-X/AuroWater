@@ -222,7 +222,12 @@ export function mergeSettings(
   if (!commissions.supplier)   commissions.supplier   = DEFAULT_SETTINGS.commissions.supplier;
 
   const gstRate = toRate(raw.gst_rate) || DEFAULT_SETTINGS.gst_rate;
-  const defaultCanPrice = safePositive(raw.default_can_price, DEFAULT_SETTINGS.default_can_price);
+  // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25 per 20L.
+  // Legacy database values below these launch prices must not leak into the UI.
+  const defaultCanPrice = Math.max(20, safePositive(raw.default_can_price, DEFAULT_SETTINGS.default_can_price));
+  const chilledCanPrice = Math.max(25, safePositive(raw.chilled_can_price, DEFAULT_SETTINGS.chilled_can_price));
+  const configuredSubscriptionCanPrice = safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price);
+  const effectiveSubscriptionCanPrice = Math.max(defaultCanPrice, configuredSubscriptionCanPrice);
   const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
   // A bulk rate must be lower than the one-time rate to qualify as a discount.
   // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.
@@ -233,7 +238,7 @@ export function mergeSettings(
   return {
     default_can_price:      defaultCanPrice,
     chilled_can_price:      safePositive(raw.chilled_can_price,       DEFAULT_SETTINGS.chilled_can_price),
-    subscription_can_price: safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price),
+    subscription_can_price: effectiveSubscriptionCanPrice,
     bulk_can_price:         effectiveBulkCanPrice,
     bulk_threshold:         safePositive(raw.bulk_threshold,         DEFAULT_SETTINGS.bulk_threshold),
     market_can_price:       safePositive(raw.market_can_price,       DEFAULT_SETTINGS.market_can_price),
