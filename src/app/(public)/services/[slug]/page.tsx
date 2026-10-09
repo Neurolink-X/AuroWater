@@ -21,13 +21,14 @@ type ServiceDetail = {
 const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   water_can: {
     key: 'water_can', title: '20L Water Can Delivery', eyebrow: 'Daily drinking water',
-    description: 'Order sealed drinking-water cans for home or workplace with clear pricing and delivery details before you confirm.',
-    startingPrice: '₹39', unit: 'per 20L can (indicative)', icon: '💧', accent: '#0284c7',
-    benefits: ['Order when you need it; no subscription required', 'Choose your delivery address and available slot', 'Review the final amount before confirming', 'Track your order from your account'],
-    process: ['Choose your quantity', 'Confirm address and available slot', 'Review price and place your order'],
+    description: 'Order a 20-litre drinking water can for home, shops or offices in eligible areas of Kanpur, Lucknow and Gorakhpur. Choose Normal RO for everyday use or Chilled RO for gatherings; check address serviceability and the current total before confirming.',
+    startingPrice: '₹20', unit: 'per 20L Normal RO can; Chilled RO priced separately', icon: '💧', accent: '#0284c7',
+    benefits: ['Normal RO and Chilled RO options', 'One-time orders and Normal RO recurring delivery', 'Address and delivery-slot availability checked', 'Review current unit price and order total before confirming'],
+    process: ['Choose Normal RO or Chilled RO and quantity', 'Confirm your address and available delivery slot', 'Review the final total and place your order'],
     faqs: [
-      { question: 'Can I order without a subscription?', answer: 'Yes. Choose a one-time booking in the booking flow when available.' },
-      { question: 'When is the final price shown?', answer: 'The booking flow should show the applicable price and charges before you confirm.' },
+      { question: 'How much does a 20L water can cost?', answer: 'The current configured Normal RO and Chilled RO rates are shown on the pricing page and in booking. Check the final total for your address before placing an order.' },
+      { question: 'Can I order chilled water on a recurring schedule?', answer: 'Chilled RO is currently a one-time booking option. Recurring delivery is available for Normal RO where supported.' },
+      { question: 'Where is delivery available?', answer: 'AuroWater currently serves eligible areas of Kanpur, Lucknow and Gorakhpur. Availability is checked against your delivery address.' },
     ],
   },
   water_tanker: {
@@ -157,8 +158,19 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
               <Image src={illustration} alt={`${service.title} illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
               <div className="p-7">
-              <p className="text-sm font-semibold text-slate-300">Current indicative starting price</p>
-              <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
+              <p className="text-sm font-semibold text-slate-300">Current configured price</p>
+              {service.key === 'water_can' ? (
+                <div className="space-y-4">
+                  <div>
+                    <p className="mt-2 text-sm font-bold text-slate-200">Normal RO · Everyday use</p>
+                    <ServicePrice serviceKey="water_can" fallback="₹20" unit="per 20L can" />
+                  </div>
+                  <div className="border-t border-white/10 pt-4">
+                    <p className="text-sm font-bold text-slate-200">Chilled RO · Events & gatherings</p>
+                    <ServicePrice serviceKey="chilled_water" fallback="₹25" unit="per 20L can · one-time booking" />
+                  </div>
+                </div>
+              ) : <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />}
               </div>
             </aside>
           </div>
