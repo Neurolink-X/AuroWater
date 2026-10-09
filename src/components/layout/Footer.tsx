@@ -229,9 +229,9 @@ const SOCIAL = [
 ];
 
 const TRUST_BADGES = [
-  { value: '3,200+', label: 'Jobs done' },
-  { value: '4.8★',   label: 'Avg rating' },
-  { value: '13',     label: 'Cities' },
+  { value: '7', label: 'Service categories' },
+  { value: '3', label: 'Live service zones' },
+  { value: 'UPI', label: 'Pay per delivery' },
 ];
 
 /* ─────────────────────────────────────────────

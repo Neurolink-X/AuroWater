@@ -955,19 +955,30 @@ export default function CustomerAccountPage() {
     const name = fullName.trim();
     const selectedCity = city.trim();
     const normalizedPhone = phoneInput.replace(/\D/g, '');
+    const phoneIsRequired = needsPhoneCompletion && !originalPhone;
 
-    if (name.length < 2) {
+    // A phone-only completion must not be blocked because a legacy profile has
+    // no city. Validate optional fields only when the user supplies/changes them.
+    if (name.length > 0 && name.length < 2) {
       nextErrors.full_name = 'Enter at least 2 characters.';
     } else if (name.length > NAME_MAX) {
       nextErrors.full_name = `Name must be ${NAME_MAX} characters or fewer.`;
+    } else if (!name && originalName.length > 0) {
+      nextErrors.full_name = 'Full name cannot be empty.';
     }
 
-    if (selectedCity.length < 2) {
-      nextErrors.city = 'Select your city.';
+    if (selectedCity.length > 0 && selectedCity.length < 2) {
+      nextErrors.city = 'Select a valid city.';
+    } else if (!selectedCity && originalCity.length > 0) {
+      nextErrors.city = 'City cannot be empty.';
     }
 
-    if (normalizedPhone && !/^[6-9]\d{9}$/.test(normalizedPhone)) {
+    if (phoneIsRequired && !normalizedPhone) {
+      nextErrors.phone = 'Enter your mobile number to finish account setup.';
+    } else if (normalizedPhone && !/^[6-9]\d{9}$/.test(normalizedPhone)) {
       nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
+    } else if (!normalizedPhone && originalPhone) {
+      nextErrors.phone = 'Enter a valid mobile number or keep the saved number.';
     }
 
     setFormErrors(nextErrors);
@@ -1019,9 +1030,9 @@ export default function CustomerAccountPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          full_name: fullName.trim(),
-          city: city.trim(),
-          phone: phoneInput.trim(),
+          ...(fullName.trim() ? { full_name: fullName.trim() } : {}),
+          ...(city.trim() ? { city: city.trim() } : {}),
+          ...(phoneInput.replace(/\D/g, '') ? { phone: phoneInput.replace(/\D/g, '') } : {}),
           settings: nextSettings,
         }),
       });
@@ -1042,9 +1053,9 @@ export default function CustomerAccountPage() {
         json.data ??
         ({
           ...profile,
-          full_name: fullName.trim(),
-          city: city.trim(),
-          phone: phoneInput.trim(),
+          full_name: fullName.trim() || profile?.full_name || '',
+          city: city.trim() || profile?.city || '',
+          phone: phoneInput.replace(/\D/g, '') || profile?.phone || null,
           settings: nextSettings,
         } as ProfilePayload);
 

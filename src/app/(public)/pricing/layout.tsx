@@ -1,8 +1,8 @@
 import { pageMeta } from '@/lib/seo';
 
 export const metadata = pageMeta(
-  'Water Can Subscription Plans | ₹10–₹12/can | AuroWater',
-  'Simple water can plans from ₹10–₹12 per can with same-day delivery in UP.',
+  'Water Delivery Pricing & Recurring Plans | AuroWater',
+  'Compare one-time and recurring 20L water-can delivery and home water-service prices in Kanpur, Lucknow and Gorakhpur. See the order fee and final total before confirming.',
   '/pricing'
 );
 

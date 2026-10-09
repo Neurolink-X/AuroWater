@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import ServicePrice from '@/components/services/ServicePrice';
 
 type ServiceDetail = {
   key: string;
@@ -20,7 +22,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   water_can: {
     key: 'water_can', title: '20L Water Can Delivery', eyebrow: 'Daily drinking water',
     description: 'Order sealed drinking-water cans for home or workplace with clear pricing and delivery details before you confirm.',
-    startingPrice: '₹10', unit: 'per can (indicative)', icon: '💧', accent: '#0284c7',
+    startingPrice: '₹39', unit: 'per 20L can (indicative)', icon: '💧', accent: '#0284c7',
     benefits: ['Order when you need it; no subscription required', 'Choose your delivery address and available slot', 'Review the final amount before confirming', 'Track your order from your account'],
     process: ['Choose your quantity', 'Confirm address and available slot', 'Review price and place your order'],
     faqs: [
@@ -31,7 +33,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   water_tanker: {
     key: 'water_tanker', title: 'Water Tanker Delivery', eyebrow: 'Bulk water supply',
     description: 'Request bulk water delivery for homes, apartments, offices, construction sites and events. Availability depends on your delivery location and capacity needs.',
-    startingPrice: '₹299–₹799', unit: 'per tanker (indicative)', icon: '🚚', accent: '#0284c7',
+    startingPrice: '₹299–₹799', unit: 'starting estimate; volume and access affect the quote', icon: '🚚', accent: '#0284c7',
     benefits: ['Share the volume you need', 'Confirm delivery access and location', 'See available options before confirming', 'Keep booking details in one account'],
     process: ['Choose tanker service and volume', 'Provide delivery address and timing', 'Confirm the available quote and booking'],
     faqs: [{ question: 'Is every tanker size available everywhere?', answer: 'No. Available volume and delivery options depend on the location and supplier.' }],
@@ -39,7 +41,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   ro_service: {
     key: 'ro_service', title: 'RO Service & Repair', eyebrow: 'Water purifier care',
     description: 'Request water-purifier diagnostics, filter service or repairs. The technician can assess the unit and confirm any parts or additional work before proceeding.',
-    startingPrice: '₹349', unit: 'per visit (indicative)', icon: '🛠️', accent: '#0369a1',
+    startingPrice: '₹349', unit: 'starting estimate; parts may cost extra', icon: '🛠️', accent: '#0369a1',
     benefits: ['Describe your purifier issue', 'Request diagnostics and filter service', 'Confirm repair scope before work', 'Keep service history with your account'],
     process: ['Choose the RO issue or service type', 'Select address and a suitable slot', 'Review the visit details and confirm'],
     faqs: [{ question: 'Are filters included in the starting rate?', answer: 'Replacement parts may cost extra. Confirm the itemised estimate before approving repairs.' }],
@@ -63,7 +65,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   motor_pump: {
     key: 'motor_pump', title: 'Motor & Submersible Pump Repair', eyebrow: 'Water pump support',
     description: 'Request inspection or repair for household motors and submersible pumps. Final work and parts depend on the diagnosis.',
-    startingPrice: '₹299', unit: 'per visit (indicative)', icon: '⚙️', accent: '#2563eb',
+    startingPrice: '₹299', unit: 'starting estimate; parts may cost extra', icon: '⚙️', accent: '#2563eb',
     benefits: ['Describe the motor or pump symptoms', 'Request a diagnostic visit', 'Confirm parts and repair charges before work', 'Keep the service request accessible in your account'],
     process: ['Select the pump problem', 'Share address and preferred timing', 'Review the visit details and confirm'],
     faqs: [{ question: 'Are spare parts included?', answer: 'Parts are generally quoted separately after diagnosis. Confirm any warranty terms before approving work.' }],
@@ -71,7 +73,7 @@ const SERVICE_DETAILS: Record<string, ServiceDetail> = {
   tank_cleaning: {
     key: 'tank_cleaning', title: 'Water Tank Cleaning', eyebrow: 'Tank hygiene',
     description: 'Request cleaning and sanitation for household or commercial water tanks. Confirm tank size, access and the service scope before booking.',
-    startingPrice: '₹599', unit: 'per tank (indicative)', icon: '🪣', accent: '#075985',
+    startingPrice: '₹599', unit: 'starting estimate; tank size affects the quote', icon: '🪣', accent: '#075985',
     benefits: ['Specify tank type and approximate capacity', 'Arrange an appropriate service slot', 'Confirm the cleaning scope before work', 'Keep booking information in your account'],
     process: ['Share tank type and capacity', 'Choose address and available timing', 'Confirm scope and final price'],
     faqs: [{ question: 'Does price depend on tank size?', answer: 'It can. Confirm the final rate for your tank capacity and access requirements before confirming.' }],
@@ -87,9 +89,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const service = SERVICE_DETAILS[slug];
   if (!service) return { title: 'Service not found | AuroWater' };
   return {
-    title: `${service.title} in Kanpur and nearby cities | AuroWater`,
+    title: `${service.title} in Kanpur, Lucknow & Gorakhpur | AuroWater`,
     description: service.description,
     alternates: { canonical: `/services/${service.key}` },
+    keywords: [service.title, `${service.title} near me`, `${service.title} Kanpur`, `${service.title} Lucknow`, `${service.title} Gorakhpur`, 'AuroWater'],
+    openGraph: { title: `${service.title} | AuroWater`, description: service.description, url: `/services/${service.key}`, type: 'website' },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -99,9 +104,35 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   if (!service) notFound();
 
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
+  const illustration = service.key === 'water_can' ? '/illustrations/water-can-delivery.svg'
+    : service.key === 'water_tanker' ? '/illustrations/water-tanker.svg'
+    : service.key === 'tank_cleaning' ? '/illustrations/tank-cleaning.svg'
+    : service.key === 'motor_pump' || service.key === 'ro_service' ? '/illustrations/pump-service.svg'
+    : '/illustrations/home-technician.svg';
+  const serviceSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    name: service.title,
+    description: service.description,
+    serviceType: service.title,
+    provider: { '@type': 'Organization', name: 'AuroWater', url: 'https://aurotap.in/' },
+    areaServed: ['Kanpur', 'Lucknow', 'Gorakhpur'].map((name) => ({ '@type': 'City', name, containedInPlace: { '@type': 'State', name: 'Uttar Pradesh' } })),
+    url: `https://aurotap.in/services/${service.key}`,
+  };
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: service.faqs.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: { '@type': 'Answer', text: faq.answer },
+    })),
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
       <section className="relative overflow-hidden bg-slate-950 px-5 py-16 text-white sm:py-24">
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full opacity-20 blur-3xl" style={{ background: service.accent }} />
         <div className="relative mx-auto max-w-6xl">
@@ -123,11 +154,12 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                 <Link href="/pricing" className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 px-6 py-3 font-semibold text-white transition hover:bg-white/10">View pricing</Link>
               </div>
             </div>
-            <aside className="rounded-3xl border border-white/10 bg-white/[0.06] p-7 shadow-2xl backdrop-blur">
-              <p className="text-sm font-semibold text-slate-300">Indicative starting price</p>
-              <p className="mt-2 text-4xl font-black">{service.startingPrice}</p>
-              <p className="mt-1 text-sm text-slate-400">{service.unit}</p>
-              <p className="mt-5 border-t border-white/10 pt-4 text-sm leading-6 text-slate-300">Your address, service scope and availability can affect the final quote. Review the applicable amount in the booking flow before confirming.</p>
+            <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.06] shadow-2xl backdrop-blur">
+              <Image src={illustration} alt={`${service.title} illustration`} width={640} height={420} priority className="block h-auto w-full" sizes="(max-width: 768px) 100vw, 40vw" />
+              <div className="p-7">
+              <p className="text-sm font-semibold text-slate-300">Current indicative starting price</p>
+              <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
+              </div>
             </aside>
           </div>
         </div>
@@ -137,7 +169,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <div className="max-w-2xl">
           <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: service.accent }}>Designed around your needs</p>
           <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">A clearer way to arrange {service.title.toLowerCase()}</h2>
-          <p className="mt-4 leading-7 text-slate-600">Get the key details in one place and confirm the work only after reviewing the booking information.</p>
+          <p className="mt-4 leading-7 text-slate-600">Find the service, understand the typical scope and confirm availability and the final quote before work begins.</p>
         </div>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {service.benefits.map((benefit, index) => (

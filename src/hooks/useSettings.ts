@@ -45,7 +45,7 @@ export interface PricingConfig {
   subscription_can_price: number;  // ₹ subscription rate
   bulk_can_price:         number;  // ₹ bulk rate (≥ bulk_threshold cans)
   bulk_threshold:         number;  // minimum qty for bulk pricing
-  market_can_price:       number;  // competitor price for savings display
+  market_can_price:       number;  // admin-configured illustrative reference for savings display
   service_base_prices:    Record<ServiceKey, number>;
   convenience_fee:        number;  // flat ₹ per order
   emergency_surcharge:    number;  // flat ₹ for emergency orders
@@ -96,8 +96,8 @@ export interface UseSettingsReturn {
   /** WhatsApp deep-link for primary phone, or null */
   whatsappHref:   string | null;
   /** Full order cost breakdown */
-  calcOrderTotal: (basePrice: number, isEmergency?: boolean) => OrderBreakdown;
-  /** Savings % vs market_can_price */
+  calcOrderTotal: (basePrice: number, isEmergency?: boolean, serviceKey?: string) => OrderBreakdown;
+  /** Illustrative percentage difference vs the admin-configured reference price */
   savingsPct:     (pricePerCan: number) => number;
   /** Display-formatted GST rate, e.g. "18%" */
   gstLabel:       string;
@@ -109,18 +109,18 @@ export interface UseSettingsReturn {
 
 export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
-  default_can_price:      12,
-  subscription_can_price: 10,
-  bulk_can_price:         9,
+  default_can_price:      39,
+  subscription_can_price: 37,
+  bulk_can_price:         35,
   bulk_threshold:         50,
-  market_can_price:       20,
+  market_can_price:       50,
   service_base_prices: {
     water_tanker:  299,
-    ro_service:    199,
+    ro_service:    349,
     plumbing:      149,
     borewell:      499,
-    motor_pump:    249,
-    tank_cleaning: 349,
+    motor_pump:    299,
+    tank_cleaning: 599,
   },
   convenience_fee:     29,
   emergency_surcharge: 199,
@@ -413,9 +413,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
 
   /* ── Price calculator ── */
   const calcOrderTotal = React.useCallback(
-    (basePrice: number, isEmergency = false): OrderBreakdown => {
+    (basePrice: number, isEmergency = false, serviceKey?: string): OrderBreakdown => {
       const base        = Math.round(Math.max(0, basePrice));
-      const convenience = Math.round(settings.convenience_fee);
+      // The server order API intentionally applies no separate convenience fee
+      // to water-can orders. Keep the client breakdown aligned with that rule.
+      const convenience = serviceKey === 'water_can' ? 0 : Math.round(settings.convenience_fee);
       const emergency   = isEmergency ? Math.round(settings.emergency_surcharge) : 0;
       const subtotal    = base + convenience + emergency;
       const gst         = Math.round(subtotal * settings.gst_rate);
@@ -427,7 +429,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
     [settings.convenience_fee, settings.emergency_surcharge, settings.gst_rate, settings.commissions.supplier]
   );
 
-  /* ── Savings % vs market price ── */
+  /* ── Illustrative difference vs configured reference price ── */
   const savingsPct = React.useCallback(
     (pricePerCan: number): number => {
       const market = settings.market_can_price;

@@ -191,10 +191,10 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
       Math.max(1, draft.canQuantity ?? 1)
     );
     const per =
-      draft.canOrderType === 'subscription'
-        ? settings.subscription_can_price
-        : qty >= settings.bulk_threshold
-          ? settings.bulk_can_price
+      qty >= settings.bulk_threshold
+        ? settings.bulk_can_price
+        : draft.canOrderType === 'subscription'
+          ? settings.subscription_can_price
           : settings.default_can_price;
     return Math.round(qty * per);
   }
@@ -357,13 +357,14 @@ export default function BookingWizard() {
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
       base.serviceKey = serviceParam;
-      const planCounts: Record<string, number> = { starter: 30, pro: 60, office: 120 };
-      const plan    = searchParams?.get('plan') ?? '';
-      const billing = searchParams?.get('billing');
+      const planCounts: Record<string, number> = { starter: 10, pro: 20, office: 50 };
+      const plan = searchParams?.get('plan') ?? '';
+      const frequencyParam = searchParams?.get('frequency') ?? searchParams?.get('billing') ?? '';
+      const allowedFrequencies = ['daily', 'alternate', 'weekly', 'biweekly', 'monthly'];
       if (serviceParam === 'water_can' && planCounts[plan]) {
-        base.canQuantity  = planCounts[plan];
+        base.canQuantity = planCounts[plan];
         base.canOrderType = 'subscription';
-        base.canFrequency = billing === 'yearly' ? 'monthly' : base.canFrequency ?? 'weekly';
+        base.canFrequency = allowedFrequencies.includes(frequencyParam) ? frequencyParam : 'weekly';
       }
     }
     const cansParam = parseInt(searchParams?.get('cans') ?? '', 10);
@@ -523,9 +524,9 @@ export default function BookingWizard() {
 
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
   const breakdown  = useMemo(() => {
-    const raw = calcOrderTotal(baseAmount, draft.isEmergency);
+    const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
     return { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
-  }, [calcOrderTotal, baseAmount, draft.isEmergency]);
+  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
 
   const fromPrice = useCallback((key: string) => {
     if (key === 'water_can') return settings.default_can_price;
@@ -533,10 +534,10 @@ export default function BookingWizard() {
   }, [settings]);
 
   const perCan =
-    draft.canOrderType === 'subscription'
-      ? settings.subscription_can_price
-      : (draft.canQuantity ?? 1) >= settings.bulk_threshold
-        ? settings.bulk_can_price
+    (draft.canQuantity ?? 1) >= settings.bulk_threshold
+      ? settings.bulk_can_price
+      : draft.canOrderType === 'subscription'
+        ? settings.subscription_can_price
         : settings.default_can_price;
 
   const isSubscription =
@@ -993,7 +994,9 @@ export default function BookingWizard() {
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-sm font-extrabold">Subscription</span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
-                        Save {inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can
+                        {(draft.canQuantity ?? 1) >= settings.bulk_threshold
+                          ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
+                          : `Save ${inr(Math.max(0, settings.default_can_price - settings.subscription_can_price))}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
@@ -1040,7 +1043,7 @@ export default function BookingWizard() {
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
                   <span className="text-xs font-semibold text-slate-500">Price for this delivery</span>
                   <span className="text-sm font-extrabold text-slate-900">
-                    {inr(perCan)} × {draft.canQuantity ?? 1}
+                    {inr(perCan)} × {draft.canQuantity ?? 1} = {inr(perCan * (draft.canQuantity ?? 1))}
                   </span>
                 </div>
               </div>
@@ -1425,7 +1428,7 @@ export default function BookingWizard() {
         {view === 5 && (
           <div className="fixed left-0 right-0 bottom-3 z-40 px-4 pointer-events-none">
             <div className="mx-auto max-w-3xl rounded-xl border border-blue-200 bg-blue-50 text-blue-800 px-4 py-3 text-xs font-semibold">
-              🛡 AuroWater Guarantee: Delivered in 45 mins or next order FREE. 100% refund if we cancel.
+              🛡 Delivery slots depend on your address and local provider availability. Review the full order total before confirming.
             </div>
           </div>
         )}

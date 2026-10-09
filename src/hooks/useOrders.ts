@@ -172,7 +172,7 @@ export const SERVICE_META: Record<
   water_can: {
     label:       'Water Can Supply',
     emoji:       '🪣',
-    description: 'RO-purified BIS-certified 20L sealed water cans. Pay-as-go or subscription.',
+    description: 'Sealed 20L drinking-water can delivery. Confirm supplier details, availability and final price before booking.',
     unit:        'per can',
   },
   water_tanker: {

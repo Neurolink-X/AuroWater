@@ -120,7 +120,7 @@ export const metadata: Metadata = {
 
   title: {
     default:
-      'AuroWater | Water Delivery & Home Services in Kanpur',
+      'AuroWater | 20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
 
     template: `%s | ${APP_NAME}`,
   },
@@ -128,7 +128,7 @@ export const metadata: Metadata = {
   /* ── Description ─────────────────────────────────────────────────────── */
 
   description:
-    'Book water delivery, water cans, plumbers, borewell services, pump repair, RO service and other home services with AuroWater in Kanpur & NCR.',
+    'Book 20L water-can delivery, water tanker service, RO repair, plumbing, borewell, motor-pump repair and tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur.',
 
   /* ── Keywords ────────────────────────────────────────────────────────── */
 
@@ -136,6 +136,10 @@ export const metadata: Metadata = {
     'AuroWater',
     'water delivery Kanpur',
     'water can delivery Kanpur',
+    'water delivery Lucknow',
+    'water can delivery Lucknow',
+    'water delivery Gorakhpur',
+    'water can delivery Gorakhpur',
     'water tanker Kanpur',
     'plumber Kanpur',
     'plumber service Kanpur',
@@ -171,10 +175,10 @@ export const metadata: Metadata = {
     siteName: APP_NAME,
 
     title:
-      'AuroWater | Water Delivery & Home Services in Kanpur',
+      'AuroWater | 20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
 
     description:
-      'Book reliable water delivery and home services with AuroWater in Kanpur & NCR.',
+      'Book 20L water-can delivery, water tanker service, RO repair, plumbing, borewell, pump repair and tank cleaning in eligible areas of Kanpur, Lucknow and Gorakhpur.',
 
     images: [OG_IMAGE],
   },
@@ -185,10 +189,10 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
 
     title:
-      'AuroWater | Water Delivery & Home Services in Kanpur',
+      'AuroWater | 20L Water Can Delivery & Home Water Services in Kanpur, Lucknow & Gorakhpur',
 
     description:
-      'Book reliable water delivery and home services with AuroWater in Kanpur.',
+      'Check water-can delivery availability and transparent home-service pricing in eligible areas of Kanpur, Lucknow and Gorakhpur.',
 
     images: [OG_IMAGE.url],
   },

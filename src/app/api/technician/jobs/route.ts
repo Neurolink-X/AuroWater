@@ -9,6 +9,7 @@ import {
   requireRole,
   requireSupabaseAuth,
 } from '@/lib/api/supabase-request';
+import { enrichTechnicianOrders } from '@/lib/api/technician-order-view';
 
 export const runtime = 'nodejs';
 
@@ -120,14 +121,30 @@ export async function GET(req: NextRequest) {
     })
     .range(
       offset,
-      offset + limit - 1,
+      offset + ((status && ['PENDING', 'ACCEPTED'].includes(status.toUpperCase())) ? MAX_LIMIT : limit) - 1,
     );
 
   if (status) {
-    query = query.eq(
-      'status',
-      status,
-    );
+    switch (status.toUpperCase()) {
+      case 'PENDING':
+      case 'ACCEPTED':
+        // The accept RPC records state in technician_job_dispatch, not always
+        // on orders.accepted_at. Filter after secure enrichment below.
+        query = query.eq('status', 'ASSIGNED');
+        break;
+      case 'ON_THE_WAY':
+      case 'WORKING':
+        query = query.eq('status', 'IN_PROGRESS');
+        break;
+      case 'COMPLETED':
+        query = query.eq('status', 'COMPLETED');
+        break;
+      case 'REJECTED':
+        query = query.eq('status', 'CANCELLED');
+        break;
+      default:
+        query = query.eq('status', status.toUpperCase());
+    }
   }
 
   const {
@@ -150,22 +167,23 @@ export async function GET(req: NextRequest) {
 
   const total = count ?? 0;
 
-  const safeRows = (data ?? []).map((row) => {
-    const safe = { ...row } as Record<string, unknown>;
-    delete safe.service_otp_hash;
-    return safe;
-  });
+  let safeRows: Record<string, unknown>[];
+  try {
+    safeRows = await enrichTechnicianOrders(
+      (data ?? []) as unknown as Record<string, unknown>[],
+    );
+  } catch (enrichmentError) {
+    console.error('[technician-orders] customer contact enrichment failed:', enrichmentError);
+    return jsonErr('Unable to load job contact details right now', 502);
+  }
 
-  return jsonOk({
-    data: safeRows,
-    total,
-    page,
-    limit,
-    totalPages:
-      total === 0
-        ? 0
-        : Math.ceil(
-            total / limit,
-          ),
-  });
+  // This API is consumed as an array by the technician dashboard.
+  // Filter normalized statuses after enrichment so dispatch acceptance state is honored.
+  const normalizedRows = status
+    ? safeRows.filter((row) => String(row.status ?? '').toUpperCase() === status.toUpperCase())
+    : safeRows;
+  void total;
+  void page;
+  void limit;
+  return jsonOk(normalizedRows);
 }

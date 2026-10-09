@@ -21,6 +21,11 @@ import { safeRemove } from '@/lib/storage';
  */
 const MANAGED_KEYS = [
   'default_can_price',
+  'subscription_can_price',
+  'bulk_can_price',
+  'bulk_threshold',
+  'market_can_price',
+  'convenience_fee',
   'min_can_price',
   'max_can_price',
   'platform_fee',
@@ -43,6 +48,11 @@ type Values = Record<ManagedKey, string>;
 
 const LABELS: Record<ManagedKey, string> = {
   default_can_price: 'Default can price',
+  subscription_can_price: 'Recurring can price',
+  bulk_can_price: 'Bulk can price',
+  bulk_threshold: 'Bulk price threshold',
+  market_can_price: 'Illustrative reference price (not verified market average)',
+  convenience_fee: 'Order handling fee',
   min_can_price: 'Minimum can price',
   max_can_price: 'Maximum can price',
   platform_fee: 'Platform fee',
@@ -61,7 +71,17 @@ const LABELS: Record<ManagedKey, string> = {
 
 const DESCRIPTIONS: Record<ManagedKey, string> = {
   default_can_price:
-    'Default customer price for one water can.',
+    'Customer price per 20L can for a one-time water-can order. The current order API applies no separate water-can convenience fee; the booking review shows the final amount.',
+  subscription_can_price:
+    'Per-can rate for recurring deliveries. Each delivery is paid separately; no automatic debit.',
+  bulk_can_price:
+    'Per-can rate for orders that meet the bulk threshold.',
+  bulk_threshold:
+    'Minimum can quantity required to apply the bulk rate.',
+  market_can_price:
+    'Manually configured comparison reference for illustrative savings only. Research comparable local prices before setting it; do not present it as a verified market average or MRP.',
+  convenience_fee:
+    'Flat fee for eligible non-water-can bookings. The water-can order API currently applies no separate convenience fee.',
   min_can_price:
     'Lowest allowed water-can price.',
   max_can_price:
@@ -94,6 +114,10 @@ const DESCRIPTIONS: Record<ManagedKey, string> = {
 
 const CURRENCY_KEYS: ReadonlySet<ManagedKey> = new Set([
   'default_can_price',
+  'subscription_can_price',
+  'bulk_can_price',
+  'market_can_price',
+  'convenience_fee',
   'min_can_price',
   'max_can_price',
   'platform_fee',
@@ -107,6 +131,7 @@ const PERCENTAGE_KEYS: ReadonlySet<ManagedKey> = new Set([
 ]);
 
 const INTEGER_KEYS: ReadonlySet<ManagedKey> = new Set([
+  'bulk_threshold',
   'max_cans_per_order',
 ]);
 
@@ -127,6 +152,11 @@ const CONTACT_KEYS: ReadonlySet<ManagedKey> = new Set([
 
 const DEFAULT_VALUES: Values = {
   default_can_price: '',
+  subscription_can_price: '',
+  bulk_can_price: '',
+  bulk_threshold: '',
+  market_can_price: '',
+  convenience_fee: '',
   min_can_price: '',
   max_can_price: '',
   platform_fee: '',

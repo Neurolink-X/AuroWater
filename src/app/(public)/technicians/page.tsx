@@ -331,10 +331,7 @@ const GRADIENT_PAIRS: [string, string][] = [
   ['#D97706', '#78350F'],
 ];
 
-const UP_CITIES = [
-  'Kanpur', 'Gorakhpur', 'Lucknow', 'Varanasi', 'Prayagraj',
-  'Agra', 'Meerut', 'Bareilly', 'Aligarh', 'Mathura', 'Delhi', 'Noida', 'Ghaziabad',
-] as const;
+const UP_CITIES = ['Kanpur', 'Gorakhpur', 'Lucknow'] as const;
 
 const SKILL_ICONS: Record<string, string> = {
   'Plumbing': '🔧',
@@ -904,7 +901,7 @@ export default function TechniciansPage() {
                   <span style={{ color: '#34D399' }}>Water Technicians</span>
                 </h1>
                 <p style={{ margin: '16px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.65)', maxWidth: 460, lineHeight: 1.6 }}>
-                  Verified professionals across Uttar Pradesh. Filter by city and skill, then book in seconds.
+                  Browse professionals listed for currently supported service zones. Profiles and availability are loaded from the service directory.
                 </p>
               </div>
 
@@ -953,8 +950,8 @@ export default function TechniciansPage() {
               {[
                 { label: 'Active Technicians', value: techs.length },
                 { label: 'Cities Covered', value: UP_CITIES.length },
-                { label: 'Jobs Completed', value: '1,200+' },
-                { label: 'Avg. Rating', value: '4.8★' },
+                { label: 'Service Categories', value: '6' },
+                { label: 'Service Zones', value: String(UP_CITIES.length) },
               ].map((stat) => (
                 <div key={stat.label} style={{ minWidth: 120 }}>
                   <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', letterSpacing: '-0.5px' }}>{stat.value}</div>

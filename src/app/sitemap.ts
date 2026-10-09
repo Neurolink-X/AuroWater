@@ -15,6 +15,16 @@ const BASE_URL = getSiteUrl().replace(/\/+$/, '');
  * - useful to a real customer
  * - not a thin duplicate of another page
  */
+const serviceDetailPages = [
+  '/services/water_can',
+  '/services/water_tanker',
+  '/services/ro_service',
+  '/services/plumbing',
+  '/services/borewell',
+  '/services/motor_pump',
+  '/services/tank_cleaning',
+] as const;
+
 const publicPages = [
   '/services',
   '/pricing',
@@ -38,7 +48,7 @@ const publicPages = [
  * Replace these with the real dates when your pages/content
  * were last materially updated.
  */
-const SITE_UPDATED = new Date('2026-10-06T00:00:00+05:30');
+const SITE_UPDATED = new Date('2026-10-09T00:00:00+05:30');
 
 const CONTENT_UPDATED = new Date('2026-10-06T00:00:00+05:30');
 
@@ -73,7 +83,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     ...publicPages.map((path) =>
       page(path, {
-        lastModified: CONTENT_UPDATED,
+        lastModified: path === '/services' || path === '/pricing' ? SITE_UPDATED : CONTENT_UPDATED,
         changeFrequency: path === '/contact' ? 'monthly' : 'weekly',
         priority:
           path === '/services'
@@ -85,7 +95,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ),
   ];
 
-  return [
-    ...corePages,
-  ];
+  const detailPages: MetadataRoute.Sitemap = serviceDetailPages.map((path) =>
+    page(path, { lastModified: SITE_UPDATED, changeFrequency: 'monthly', priority: 0.8 }),
+  );
+
+  return [...corePages, ...detailPages];
 }

@@ -12,8 +12,14 @@ const CACHE = {
 
 function defaultPayload(): Record<string, unknown> {
   return {
-    default_can_price: 12,
-    subscription_can_price: 10,
+    default_can_price: 39,
+    subscription_can_price: 37,
+    bulk_can_price: 35,
+    bulk_threshold: 50,
+    market_can_price: 50,
+    convenience_fee: 29,
+    gst_rate: 0.18,
+    service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, borewell: 499, motor_pump: 299, tank_cleaning: 599 },
     can_price_small: 1000,
     can_price_large: 1200,
     delivery_fee: 0,

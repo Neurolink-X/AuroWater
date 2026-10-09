@@ -880,6 +880,44 @@ export type SupplierDispatchSettings = {
   base_lng: number | null;
 };
 
+export type SupplierApiOrder = {
+  id: string;
+  order_number?: string | null;
+  booking_id?: string | null;
+  status: string;
+  created_at: string;
+  updated_at?: string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  customer_city?: string | null;
+  service_type?: string | null;
+  service_type_key?: string | null;
+  service_type_label?: string | null;
+  service_type_id?: number | null;
+  total_amount?: number | string | null;
+  final_amount?: number | string | null;
+  amount?: number | string | null;
+  can_count?: number | null;
+  can_quantity?: number | null;
+  cans_count?: number | null;
+  address?: string | null;
+  address_line?: string | null;
+  address_snapshot?: Record<string, unknown> | null;
+  city?: string | null;
+  scheduled_at?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  time_slot?: string | null;
+  scheduled_slot?: string | null;
+  note?: string | null;
+  notes?: string | null;
+  accepted_at?: string | null;
+  assigned_at?: string | null;
+  payment_method?: string | null;
+  payment_status?: string | null;
+};
+
 export async function supplierSettingsGet(): Promise<SupplierDispatchSettings | null> {
   return apiFetchAuth<SupplierDispatchSettings | null>('/supplier/settings');
 }
@@ -912,9 +950,9 @@ export async function supplierStockUpdate(body: {
 
 
 
-export async function supplierOrdersList(params?: { status?: string }): Promise<ApiOrder[]> {
+export async function supplierOrdersList(params?: { status?: string }): Promise<SupplierApiOrder[]> {
   const q = params?.status ? `?status=${encodeURIComponent(params.status)}` : '';
-  return apiFetchAuth<ApiOrder[]>(`/supplier/orders${q}`);
+  return apiFetchAuth<SupplierApiOrder[]>(`/supplier/orders${q}`);
 }
 
 export async function supplierOrderAccept(id: string): Promise<{ accepted: boolean }> {
@@ -1171,18 +1209,32 @@ export async function getTechnicianJobDetail(jobId: string | number): Promise<un
 export async function updateJobStatus(
   job_id: string | number,
   action: string,
-  _notes?: string
+  _notes?: string,
+  verification?: {
+    otp?: string;
+    payment_confirmed?: boolean;
+    payment_reference?: string;
+  }
 ): Promise<unknown> {
   void _notes;
   const a = (action ?? '').toLowerCase();
-  let status = 'IN_PROGRESS';
+
+  if (a.includes('accept')) {
+    return apiFetchAuth(`/technician/jobs/${String(job_id)}/accept`, {
+      method: 'PUT',
+    });
+  }
+
+  let status = '';
   if (a.includes('complete')) status = 'COMPLETED';
   else if (a.includes('cancel')) status = 'CANCELLED';
-  else if (a.includes('accept') || a.includes('start')) status = 'IN_PROGRESS';
+  else if (a.includes('start') || a.includes('on_the_way') || a.includes('working')) status = 'IN_PROGRESS';
 
-  return apiFetchAuth(`/technician/jobs/${String(job_id)}/status`, {
+  if (!status) throw new ApiError('Unsupported technician job action', 400);
+
+  return apiFetchAuth(`/technician/jobs/${String(job_id)}`, {
     method: 'PUT',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, ...(verification ?? {}) }),
   });
 }
 

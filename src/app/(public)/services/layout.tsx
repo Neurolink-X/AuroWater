@@ -2,7 +2,7 @@ import { pageMeta } from '@/lib/seo';
 
 export const metadata = pageMeta(
   'Water Delivery & Home Services | AuroWater',
-  'Explore AuroWater water delivery, water tanker, RO service, plumbing, borewell, motor pump and water tank cleaning services in Uttar Pradesh.',
+  'Explore 20L water-can delivery, water tanker service, RO repair, plumbing, borewell, motor-pump repair and tank cleaning in supported areas of Kanpur, Lucknow and Gorakhpur.',
   '/services'
 );
 

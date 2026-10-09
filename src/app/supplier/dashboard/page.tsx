@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import {
   supplierOrderAccept,
   supplierOrderUpdateStatus,
+  supplierOrdersList,
   supplierStockGet,
   supplierStockUpdate,
   supplierSettingsGet,
@@ -443,7 +444,12 @@ function OrderCard({
         <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>{Icon.phone(12)}</span>
-            {order.customer_name} · {order.customer_phone}
+            <span>{order.customer_name} · </span>
+            {order.customer_phone && order.customer_phone !== '—' ? (
+              <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} style={{ color: '#6EE7B7', textDecoration: 'underline', textUnderlineOffset: 3 }} aria-label={`Call customer ${order.customer_name}`}>
+                {order.customer_phone}
+              </a>
+            ) : <span>Phone not provided</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
             <span style={{ marginTop: 1, flexShrink: 0, color: 'rgba(255,255,255,0.3)' }}>{Icon.map(11)}</span>
@@ -627,60 +633,58 @@ export default function SupplierDashboardPage() {
     setupRealtime(data.id);
   };
 
-  const fetchOrders = async (supplierId: string) => {
+  const fetchOrders = async (_supplierId?: string) => {
     setLoadingOrders(true);
 
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(
-          `id, booking_id, service_type, status, amount, cans_count,
-           scheduled_date, scheduled_slot, notes, created_at, accepted_at,
-           payment_method, payment_status,
-           address_line:delivery_address, city,
-           customer_name:customers!orders_customer_id_fkey(full_name),
-           customer_phone:customers!orders_customer_id_fkey(phone)`
-        )
-        .eq('supplier_id', supplierId)
-        .order('created_at', { ascending: false })
-        .limit(100);
+      // Use the role-protected API instead of querying legacy "customers"
+      // relations and columns that are not part of the current profiles/orders schema.
+      const rows = await supplierOrdersList();
+      const flat: Order[] = rows.map((row) => {
+        const snapshot = row.address_snapshot ?? {};
+        const noteText = String(row.note ?? row.notes ?? '');
+        const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
+        const snapshotAddress = [
+          snapshot.house_flat,
+          snapshot.area,
+          snapshot.landmark,
+          snapshot.city,
+          snapshot.pincode,
+        ].map((part) => String(part ?? '').trim()).filter(Boolean).join(', ');
+        const scheduledValue = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? '';
+        const scheduledDate = row.scheduled_date
+          ? String(row.scheduled_date)
+          : scheduledValue
+            ? new Date(String(scheduledValue)).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+            : '';
 
-      if (error) {
-        console.error('[supplier] orders load failed:', error);
-        toast.error('Failed to load orders.');
-        setOrders([]);
-        return;
-      }
-
-      const flat: Order[] = (data ?? []).map((row: Record<string, unknown>) => ({
-        id: String(row.id ?? ''),
-        booking_id: String(row.booking_id ?? ''),
-        service_type: String(row.service_type ?? 'Service'),
-        status: normalizeOrderStatus(row.status),
-        amount: Number(row.amount ?? 0),
-        cans_count:
-          row.cans_count === null || row.cans_count === undefined
+        return {
+          id: String(row.id ?? ''),
+          booking_id: String(row.order_number ?? row.booking_id ?? row.id ?? ''),
+          service_type: String(row.service_type_label ?? row.service_type ?? row.service_type_key ?? row.service_type_id ?? 'Service'),
+          status: normalizeOrderStatus(row.status),
+          amount: Number(row.final_amount ?? row.total_amount ?? row.amount ?? 0),
+          cans_count: row.can_count == null && row.can_quantity == null && row.cans_count == null
             ? null
-            : Number(row.cans_count),
-        scheduled_date: String(row.scheduled_date ?? ''),
-        scheduled_slot: String(row.scheduled_slot ?? ''),
-        notes: row.notes as string | null,
-        created_at: String(row.created_at ?? ''),
-        accepted_at: row.accepted_at as string | null,
-        payment_method: row.payment_method as string | null,
-        payment_status: row.payment_status as string | null,
-        address_line: String(row.address_line ?? ''),
-        city: String(row.city ?? ''),
-        customer_name:
-          (row.customer_name as { full_name?: string } | null)?.full_name ?? '—',
-        customer_phone:
-          (row.customer_phone as { phone?: string } | null)?.phone ?? '—',
-      }));
+            : Number(row.can_count ?? row.can_quantity ?? row.cans_count),
+          scheduled_date: scheduledDate,
+          scheduled_slot: String(row.time_slot ?? row.scheduled_slot ?? slotMatch?.[1]?.trim() ?? ''),
+          notes: row.note ?? row.notes ?? null,
+          created_at: String(row.created_at ?? ''),
+          accepted_at: row.accepted_at ?? row.assigned_at ?? null,
+          payment_method: row.payment_method ?? null,
+          payment_status: row.payment_status ?? null,
+          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
+          city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
+          customer_name: String(row.customer_name ?? '—'),
+          customer_phone: String(row.customer_phone ?? '—'),
+        };
+      });
 
       setOrders(flat);
     } catch (error) {
-      console.error('[supplier] unexpected orders load failure:', error);
-      toast.error('Unable to load supplier orders right now.');
+      console.error('[supplier] orders load failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to load orders.');
       setOrders([]);
     } finally {
       setLoadingOrders(false);

@@ -93,10 +93,10 @@ function SectionPill({ children }: { children: React.ReactNode }) {
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function AboutPage() {
   const stats = useMemo(() => [
-    { label: 'Bookings Completed', value: 2400, suffix: '+', icon: '💧', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
-    { label: 'Verified Technicians', value: 180, suffix: '+', icon: '👷', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
-    { label: 'Cities in UP', value: 35, suffix: '', icon: '📍', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
-    { label: 'Average Rating', value: 4.8, suffix: '★', icon: '⭐', format: (n: number) => n.toFixed(1) },
+    { label: 'Service categories', value: 7, suffix: '', icon: '💧', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
+    { label: 'Live service zones', value: 3, suffix: '', icon: '📍', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
+    { label: 'Payment options', value: 2, suffix: '', icon: '💳', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
+    { label: 'Automatic subscription debits', value: 0, suffix: '', icon: '🔒', format: (n: number) => Math.floor(n).toLocaleString('en-IN') },
   ], []);
 
   const c1 = useCountUp(stats[0].value, 1600);
@@ -106,31 +106,22 @@ export default function AboutPage() {
   const counts = [c1, c2, c3, c4];
 
   const team = useMemo(() => [
-    { name: 'Arjun Chaurasiya', role: 'Founder & CEO', initials: 'AC', bio: 'Passionate about making essential services accessible to every household across UP.' },
-    { name: 'Arjun Chauhan', role: 'Head of Operations', initials: 'AH', bio: 'Ensures every delivery and service call meets AuroWater\'s quality promise.' },
-    { name: 'Vikram Singh', role: 'Lead Technician Network', initials: 'VS', bio: 'Built and manages our 180+ verified technician community across 35 cities.' },
+    { name: 'Arjun Chaurasiya', role: 'Founder', initials: 'AC', bio: 'Building a local-first water delivery and home water-services platform with transparent pricing and dependable service workflows.' },
   ], []);
 
-  const cities = [
-    'Delhi', 'Noida', 'Ghaziabad','Kanpur', 'Gorakhpur', 'Lucknow', 'Varanasi', 'Prayagraj',
-    'Agra', 'Meerut', 'Bareilly', 'Aligarh', 'Mathura',
-    
-  ];
+  const cities = ['Kanpur', 'Lucknow', 'Gorakhpur'];
 
   const values = [
     { icon: '🤝', title: 'Transparency', desc: 'Full price shown before you confirm. No hidden charges, no surprise fees — ever.' },
-    { icon: '⚡', title: 'Speed', desc: 'Same-day slots in most cities. Emergency response when you need it most.' },
-    { icon: '🛡️', title: 'Verified Quality', desc: 'Every technician is ID-verified and rated before their first job on our platform.' },
+    { icon: '⚡', title: 'Local availability', desc: 'Delivery and service slots depend on your address and local supplier or technician capacity.' },
+    { icon: '🛡️', title: 'Responsible onboarding', desc: 'Professional accounts can require identity, skill and operational checks before activation.' },
     { icon: '💧', title: 'Water-first', desc: 'We exist solely for water services. Not a generic marketplace — deep expertise only.' },
-    { icon: '📞', title: 'Real Support', desc: 'WhatsApp-first support. A real person responds, not a bot, within minutes.' },
+    { icon: '📞', title: 'Support', desc: 'Contact support using the published WhatsApp, phone and email channels. Response times can vary.' },
     { icon: '🌱', title: 'Community', desc: 'We create livelihoods for local technicians while serving local households.' },
   ];
 
   const milestones = [
-    { year: '2023', event: 'AuroWater founded in Kanpur — first 10 tanker deliveries' },
-    { year: '2024', event: 'Expanded to 15 cities · Launched RO & plumbing verticals' },
-    { year: '2025', event: '1,000+ bookings · 80 verified technicians onboarded' },
-    { year: '2026', event: '35 cities · 2,400+ bookings · Can subscription launched' },
+    { year: 'NOW', event: 'Focused on reliable local serviceability, clear pricing and recurring water delivery in supported areas.' },
   ];
 
   return (
@@ -360,7 +351,7 @@ export default function AboutPage() {
               <div style={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', background: '#0D9B6C', opacity: 0.08, pointerEvents: 'none' }} />
               <SectionPill>OUR JOURNEY</SectionPill>
               <h2 className="clash" style={{ margin: '0 0 24px', fontSize: 'clamp(1.4rem,3vw,2rem)', fontWeight: 700, color: '#fff', letterSpacing: '-0.8px', lineHeight: 1.2 }}>
-                From Kanpur to<br />35 cities.
+                Built for<br />local reliability.
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                 {milestones.map((m, i) => (
@@ -420,16 +411,20 @@ export default function AboutPage() {
           <div style={{ marginBottom: 28 }}>
             <SectionPill>CUSTOMER TRUST</SectionPill>
             <h2 className="clash" style={{ margin: '0 0 6px', fontSize: 'clamp(1.5rem,4vw,2.4rem)', fontWeight: 700, color: '#0F172A', letterSpacing: '-1px' }}>
-              Real stories, real people
+              Customer reviews
             </h2>
             <p style={{ margin: 0, fontSize: 14, color: '#9CA3AF', fontWeight: 500 }}>
-              Verified reviews from AuroWater customers across UP.
+              Only verified customer reviews should be published here. Reviews will appear after they are connected to completed orders.
             </p>
           </div>
 
           <SectionWrapper>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 18 }}>
-              {TRUST_REVIEWS.map((r) => (
+              {TRUST_REVIEWS.length === 0 ? (
+                <p style={{ gridColumn: '1 / -1', margin: 0, padding: 24, borderRadius: 16, background: '#F8FAFC', color: '#64748B', fontSize: 14, lineHeight: 1.7 }}>
+                  Verified customer feedback will be shown here when linked to completed orders. AuroWater does not publish unverified testimonials.
+                </p>
+              ) : TRUST_REVIEWS.map((r) => (
                 <div
                   key={`${r.name}-${r.date}`}
                   className="review-card"
@@ -529,9 +524,9 @@ export default function AboutPage() {
               <SectionPill>SERVICE COVERAGE</SectionPill>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
                 <h2 className="clash" style={{ margin: 0, fontSize: 'clamp(1.4rem,3.5vw,2rem)', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.8px' }}>
-                  35 cities & growing across UP
+                  Serving eligible areas in Kanpur, Lucknow & Gorakhpur
                 </h2>
-                <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 600 }}>New cities added regularly</span>
+                <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 600 }}>Other areas can join the waitlist</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {cities.map((c) => (
@@ -549,8 +544,8 @@ export default function AboutPage() {
                     {c}
                   </span>
                 ))}
-                <span style={{ padding: '8px 16px', borderRadius: 999, border: '1.5px dashed #E5E7EB', background: '#F9FAFB', color: '#9CA3AF', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  + 22 more
+                <span style={{ padding: '8px 16px', borderRadius: 999, border: '1.5px dashed #E5E7EB', background: '#F9FAFB', color: '#64748B', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  Other areas: waitlist
                 </span>
               </div>
             </div>

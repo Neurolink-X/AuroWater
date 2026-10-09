@@ -83,7 +83,7 @@ const STEPS = [
     step: '04', icon: <IconShield />, color: '#059669', light: '#ECFDF5',
     title: 'We handle everything',
     desc: 'A verified pro arrives on time. Track your booking live in the dashboard. Pay on completion — zero surprises.',
-    detail: 'Rated 4.8★ across 3,000+ jobs',
+    detail: 'Ratings appear when verified customer reviews are available',
   },
 ];
 
@@ -91,8 +91,8 @@ const TECH_STEPS = ['Sign up for free', 'Upload ID & skills', 'Pass verification
 const SUPPLIER_STEPS = ['Get your AuroTap ID', 'Receive direct orders', 'Manage delivery fleet', 'Grow your water business'];
 
 const FAQ = [
-  { q: 'How fast is delivery?', a: 'Most cities have same-day slots. For water cans, we target delivery within 3 hours. Emergency options depend on technician availability in your area.' },
-  { q: 'What areas do you serve?', a: 'We operate across 13 UP cities including Kanpur, Lucknow, Varanasi, Gorakhpur, Prayagraj, Agra, Meerut and more. Enter your pincode to check availability.' },
+  { q: 'How fast is delivery?', a: 'Available delivery slots are shown after your address is checked. Delivery time depends on local supplier and technician availability.' },
+  { q: 'What areas do you serve?', a: 'We currently serve eligible areas of Kanpur, Lucknow and Gorakhpur. Enter your delivery address to check availability; other locations can join the waitlist.' },
   { q: 'How do I track my booking?', a: 'After booking confirmation, visit "Dashboard" to see a live status timeline — Pending → Assigned → En Route → Completed.' },
   { q: 'Can I reschedule or cancel?', a: 'Pending bookings can be rescheduled anytime. Accepted jobs can be adjusted up to 2 hours before the slot. Contact support for urgent changes.' },
   { q: 'How are technicians verified?', a: 'Every technician goes through a 3-step process: ID verification, skill assessment, and an onboarding call. Only verified pros receive job requests.' },
@@ -100,10 +100,10 @@ const FAQ = [
 ];
 
 const TRUST_STATS = [
-  { value: '3,200+', label: 'Jobs completed', icon: '✦' },
-  { value: '4.8★',   label: 'Average rating',  icon: '◈' },
-  { value: '13',     label: 'Cities covered',  icon: '⬡' },
-  { value: '<3hr',   label: 'Avg response',    icon: '⚡' },
+  { value: '7', label: 'Service categories', icon: '✦' },
+  { value: '3', label: 'Live service zones', icon: '◈' },
+  { value: 'UPI', label: 'Pay per delivery', icon: '⬡' },
+  { value: '0', label: 'Automatic debits', icon: '⚡' },
 ];
 
 /* ─────────────────────────────────────────────
@@ -754,13 +754,13 @@ export default function HowItWorksPage() {
             <div className="hiw-cta-content">
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 16, background: 'rgba(96,165,250,0.12)', border: '1px solid rgba(96,165,250,0.25)', padding: '5px 14px', borderRadius: 99 }}>
                 {[1,2,3,4,5].map((i) => <IconStar key={i} />)}
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#93C5FD', marginLeft: 4 }}>4.8 from 3,200+ bookings</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#93C5FD', marginLeft: 4 }}>Availability confirmed before booking</span>
               </div>
               <h3 className="hiw-cta-title">
                 Ready to get started?<br />
                 <span>Book in under 60 seconds.</span>
               </h3>
-              <p className="hiw-cta-sub">Verified pros · Upfront pricing · Same-day slots available</p>
+              <p className="hiw-cta-sub">Local service zones · Upfront pricing · Availability confirmed before booking</p>
               <div className="hiw-cta-btns">
                 <button type="button" className="hiw-cta-btn-primary" onClick={() => router.push('/book')}>
                   <IconDroplet size={16} />

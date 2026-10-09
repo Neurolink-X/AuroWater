@@ -249,9 +249,11 @@ if (!serviceability.serviceable) {
   const flat = settingsResult.map;
 
   // ── Pricing ──
-  const gstRate = 0; // GST is not charged
-  const convenience = Number(flat.convenience_fee ?? 29);
-  const emergencyFee = Number(flat.emergency_surcharge ?? 30);
+  // The booking UI currently does not charge GST. Keep server validation in
+  // sync until tax registration/configuration is explicitly enabled.
+  const gstRate = 0;
+  const convenience = service_type_key === 'water_can' ? 0 : Number(flat.convenience_fee ?? 29);
+  const emergencyFee = Number(flat.emergency_surcharge ?? 199);
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
@@ -299,19 +301,34 @@ if (!serviceability.serviceable) {
     qty = Math.max(1, requested);
 
     waterUnitPrice =
-      isSubscription && Number.isFinite(subPrice) && subPrice > 0
-        ? subPrice
-        : !isSubscription && qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
-          ? bulkPrice
-          : Number.isFinite(defPrice)
+      qty >= bulkThreshold && Number.isFinite(bulkPrice) && bulkPrice > 0
+        ? bulkPrice
+        : isSubscription && Number.isFinite(subPrice) && subPrice > 0
+          ? subPrice
+          : Number.isFinite(defPrice) && defPrice > 0
             ? defPrice
-            : Number(st.base_price) || 12;
+            : Number(st.base_price) || 39;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
   } else {
-    base_amount = Number(body.base_amount ?? 0);
-    if (!Number.isFinite(base_amount) || base_amount < 0) base_amount = Number(st.base_price);
+    // Never trust a client-supplied base amount. Resolve the canonical service
+    // rate from server settings, then apply only known option adjustments.
+    const configuredPrice = Number(flat[service_type_key + '_price']);
+    const serviceBase = Number.isFinite(configuredPrice) && configuredPrice > 0
+      ? configuredPrice
+      : Number(st.base_price) || 0;
+    const optionKey = str(body.sub_option_key) ?? '';
+    const optionDeltas: Record<string, Record<string, number>> = {
+      ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
+      plumbing: { pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 },
+      water_tanker: { '500': 0, '1000': 50, '2000': 120, custom: 80 },
+    };
+    const allowedOptions = optionDeltas[service_type_key];
+    if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
+      return jsonErr('Invalid service option. Please choose an available option.', 400);
+    }
+    base_amount = round2(serviceBase + (allowedOptions?.[optionKey] ?? 0));
   }
 
   const clientTotal = Number(body.total_amount);

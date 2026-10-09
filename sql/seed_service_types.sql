@@ -5,7 +5,7 @@
 INSERT INTO public.service_types
   (key, name, description, base_price, unit, is_active, sort_order)
 VALUES
-  ('water_can', '20L Water Can Delivery', 'Sealed drinking-water can delivery to your address', 10.00, 'per can', true, 10),
+  ('water_can', '20L Water Can Delivery', 'Sealed 20L drinking-water can delivery; confirm supplier and quality details before ordering', 39.00, 'per can', true, 10),
   ('water_tanker', 'Water Tanker Delivery', 'Bulk water tanker delivery; final quote depends on capacity and location', 299.00, 'per tanker', true, 20),
   ('ro_service', 'RO Service & Repair', 'Water purifier diagnostics, filter service and repairs', 349.00, 'per visit', true, 30),
   ('plumbing', 'Plumbing Services', 'Household plumbing repairs, fittings and leak support', 149.00, 'per visit', true, 40),

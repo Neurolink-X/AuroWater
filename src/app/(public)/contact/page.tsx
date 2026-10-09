@@ -902,7 +902,7 @@ export default function ContactPage() {
           <div style={{ position: 'relative', zIndex: 2 }}>
             <div className="ct-hero-eyebrow">
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#34D399', display: 'inline-block' }} />
-              We reply within 24 hours
+              Contact our support team
             </div>
 
             <h1 className="ct-hero-title">
@@ -916,9 +916,9 @@ export default function ContactPage() {
 
             <div className="ct-hero-stats">
               {[
-                '24hr response guarantee',
                 'WhatsApp support',
-                '13 cities covered',
+                'Call and email support',
+                '3 live service zones',
               ].map((s) => (
                 <div key={s} className="ct-stat-chip">
                   <span className="ct-stat-chip-dot" />
