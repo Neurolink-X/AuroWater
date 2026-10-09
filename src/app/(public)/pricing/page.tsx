@@ -787,11 +787,11 @@ function SavingsCalc({ marketPrice, ourPrice }: { marketPrice: number; ourPrice:
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 16 }}>
         <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Market price</div>
+          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>Illustrative local reference</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#FCA5A5' }}>₹{retail * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
         </div>
         <div style={{ background: 'rgba(56,189,248,0.15)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(56,189,248,0.3)' }}>
-          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>With AuroWater</div>
+          <div style={{ fontSize: 11, color: '#7DD3FC', fontWeight: 600, marginBottom: 4 }}>AuroWater can price</div>
           <div style={{ fontSize: 20, fontWeight: 900, color: '#38BDF8' }}>₹{ourPrice * cans}<span style={{ fontSize: 12, fontWeight: 500 }}>/mo</span></div>
         </div>
       </div>
@@ -1057,8 +1057,10 @@ export default function PricingPage() {
     const unit = quantity >= settings.bulk_threshold
       ? settings.bulk_can_price
       : orderType === 'one_time' ? settings.default_can_price : settings.subscription_can_price;
-    const subtotal = quantity * unit + settings.convenience_fee;
-    return subtotal + Math.round(subtotal * settings.gst_rate);
+    // Match the current booking/server checkout calculation (no GST line is
+    // currently charged by the order API). Update only when tax handling is
+    // explicitly enabled in both checkout and server pricing.
+    return quantity * unit + (orderType === 'one_time' || quantity > 0 ? 0 : settings.convenience_fee);
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 
@@ -1080,7 +1082,7 @@ export default function PricingPage() {
       tagline: 'No commitment. Order only when needed.',
       pricePerDelivery: deliveryTotal(1, 'one_time'),
       cansPerDelivery: 1,
-      perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee + applicable tax`,
+      perCan: `₹${settings.default_can_price}/can + ₹${settings.convenience_fee} order fee before any legally applicable tax`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
