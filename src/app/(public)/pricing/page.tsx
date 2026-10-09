@@ -226,7 +226,7 @@
 //             </div>
 
 //             <h1 className="syne" style={{ margin: 0, fontSize: 'clamp(2rem,6.5vw,4.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-2px', lineHeight: 1.05, maxWidth: 680 }}>
-//               Pure water at your door.
+//               20L water cans, delivered.
 //               <br />
 //               <span style={{ color: '#34D399' }}>20L cans from ₹{settings.default_can_price}.</span>
 //             </h1>
@@ -1251,19 +1251,6 @@ export default function PricingPage() {
               <span style={{ fontSize:12,fontWeight:700,color:'#6EE7B7',letterSpacing:'0.07em' }}>SERVING KANPUR, LUCKNOW & GORAKHPUR</span>
             </div>
 
-           {/* Eyebrow pill */}
-<div style={{
-  display: 'inline-flex', alignItems: 'center', gap: 8,
-  padding: '5px 14px', borderRadius: 999,
-  border: '1px solid rgba(52,211,153,0.3)',
-  marginBottom: 20,
-}}>
-  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34D399', display: 'inline-block' }} />
-  <span style={{ fontSize: 11, fontWeight: 600, color: '#6ee7b7', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-    Serving Kanpur, Lucknow & Gorakhpur
-  </span>
-</div>
-
 {/* Main headline — ALL IN ONE H1 */}
 <h1 className="syne" style={{
   margin: '0 0 20px',
@@ -1283,7 +1270,7 @@ export default function PricingPage() {
   <span style={{ display: 'block', height: 1, background: 'rgba(255,255,255,0.1)', maxWidth: 360, margin: '18px 0' }} />
 
   <span style={{ display: 'block', fontSize: 'clamp(1.5rem, 2.8vw, 2.6rem)', color: '#fff', letterSpacing: '-1px' }}>
-    Clean Water at{' '}
+    Recurring delivery at{' '}
     <span style={{ color: '#34D399' }}>₹{settings.subscription_can_price} / Can.</span>{' '}
     <span style={{ color: 'rgba(255,255,255,0.62)' }}>Final rate shown before booking.</span>
   </span>
