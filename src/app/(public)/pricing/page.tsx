@@ -986,7 +986,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
     { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.bulk_can_price}`, business: 'Quote' },
-    { feature: 'Order handling fee', payg: `No separate water handling fee`, starter: `No separate water handling fee`, pro: `No separate water handling fee`, office: `No separate water handling fee`, business: 'Confirmed in quote' },
+    { feature: 'Separate water handling fee', payg: 'None', starter: 'None', pro: 'None', office: 'None', business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
     { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', office: 'Cash / UPI per delivery', business: 'Confirmed before order' },
@@ -1059,12 +1059,12 @@ export default function PricingPage() {
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 
   const faq: FaqItem[] = useMemo(() => [
-    { q: 'What is the minimum order for can delivery?', a: 'You can order one 20L can on a pay-as-you-go basis. The applicable per-can rate and order fee are shown before you confirm.' },
+    { q: 'What is the minimum order for can delivery?', a: 'You can order one 20L can on a pay-as-you-go basis. The current per-can rate and final total are shown before you confirm; water-can orders have no separate handling fee.' },
     { q: 'How does recurring delivery work?', a: 'Choose the number of cans per delivery and a weekly or monthly schedule. Each delivery is charged separately by cash or UPI; there is no automatic debit. You can pause or cancel future deliveries.' },
     { q: 'Can I mix can delivery and other services?', a: 'Yes! Book tanker delivery, RO service, or plumbing alongside your can subscription — all from one account.' },
     { q: 'What payment methods are accepted?', a: 'Recurring water deliveries currently support cash or UPI payment per delivery. Other payment options are shown only when available in the booking flow.' },
     { q: 'Can I pause or cancel recurring deliveries?', a: 'You can pause, resume or cancel future deliveries from your subscriptions page. Orders already in progress may not be cancellable.' },
-    { q: 'Are taxes and order fees included?', a: 'The booking screen shows the applicable per-can price, order fee and total before you confirm. Ask support if your business needs a tax invoice.' },
+    { q: 'Are taxes and order fees included?', a: 'The final total is shown before you confirm. Water-can orders currently have no separate handling fee; tax treatment should be configured before launch if legally applicable.' },
     { q: 'Where is AuroWater available?', a: 'Live service zones currently cover eligible areas of Kanpur, Lucknow and Gorakhpur. Availability is confirmed from your delivery address; other areas may be added later.' },
     { q: 'How do I change a recurring plan?', a: 'Pause or cancel the existing schedule and create a new booking with the quantity and frequency you need.' },
   ], []);
@@ -1261,7 +1261,7 @@ export default function PricingPage() {
   </span>
 </h1>
             <p style={{ margin:'18px 0 0',fontSize:17,color:'rgba(255,255,255,0.65)',maxWidth:480,lineHeight:1.65 }}>
-              Clear water-can and home-service pricing. Review the applicable per-can rate, order fee and total before you confirm.
+              Clear water-can and home-service pricing. Review the per-can rate and final total before you confirm.
             </p>
 
             {/* hero value props */}
