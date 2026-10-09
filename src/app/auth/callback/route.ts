@@ -176,6 +176,7 @@ setAll(cookies: CookieToSet[]) {
   }
 
   let role: string;
+  let profilePhone: string | null = null;
 
   try {
     const profile = await ensureProfileForUser(user);
@@ -189,6 +190,7 @@ setAll(cookies: CookieToSet[]) {
     }
 
     role = profile.role;
+    profilePhone = profile.phone ?? null;
   } catch (error) {
     console.error(
       '[auth/callback] Profile setup failed:',
@@ -198,7 +200,13 @@ setAll(cookies: CookieToSet[]) {
     return redirect('/auth/login?error=profile_setup_failed');
   }
 
-  const response = redirect(nextPath);
+  // Google does not reliably provide a phone number. Route customers with
+  // missing contact details to the existing account page, where they can add it.
+  const destination =
+    role === 'customer' && !profilePhone
+      ? '/customer/account?complete=phone'
+      : nextPath;
+  const response = redirect(destination);
 
   // Compatibility cookies only; never use these to authorize requests.
   response.cookies.set('aw_session', '1', {

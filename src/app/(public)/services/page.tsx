@@ -57,7 +57,7 @@ const SERVICES: Service[] = [
     category: 'Plumbing',
     title: 'RO Service & Repair',
     tag: 'Filter Experts',
-    fromPrice: 199,
+    fromPrice: 349,
     unit: '/ visit',
     desc: 'Filter change, AMC options, and repairs. Fast diagnostics with fair pricing.',
     accent: '#0369A1',
@@ -93,7 +93,7 @@ const SERVICES: Service[] = [
     category: 'Electrical',
     title: 'Motor Pump Repair',
     tag: 'Certified',
-    fromPrice: 249,
+    fromPrice: 299,
     unit: '/ visit',
     desc: 'Submersible & motor pump servicing with transparent pricing and quick turnaround.',
     accent: '#2563EB',
@@ -105,7 +105,7 @@ const SERVICES: Service[] = [
     category: 'Cleaning',
     title: 'Water Tank Cleaning',
     tag: 'Hygienic',
-    fromPrice: 349,
+    fromPrice: 599,
     unit: '/ tank',
     desc: 'Hygienic tank sanitation & disinfection. Safer water for your daily needs.',
     accent: '#075985',
@@ -211,6 +211,22 @@ function ServiceCard({ s, index }: { s: Service; index: number }) {
             ))}
           </ul>
         </div>
+
+        {/* Service details and booking are separate actions. */}
+        <button
+          type="button"
+          onClick={() => router.push(`/services/${s.key}`)}
+          className="sv-cta"
+          style={{
+            marginBottom: 8,
+            background: 'white',
+            border: `1.5px solid ${s.accent}55`,
+            color: s.accent,
+          }}
+        >
+          <span>View details</span>
+          <IconArrow />
+        </button>
 
         {/* CTA */}
         <button

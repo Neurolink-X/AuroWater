@@ -142,6 +142,14 @@ const bodySchema = z
     city:
       citySchema.optional(),
 
+    phone: z.string().optional().transform((value) => {
+      if (value === undefined) return undefined;
+      const digits = value.replace(/\D/g, '');
+      return digits || null;
+    }).refine((value) => value === undefined || value === null || /^[6-9]\d{9}$/.test(value), {
+      message: 'Enter a valid 10-digit Indian mobile number',
+    }),
+
     settings:
       settingsSchema.optional(),
   })
@@ -538,6 +546,28 @@ async function update(
   ) {
     patch.city =
       parsed.data.city;
+  }
+
+  if (parsed.data.phone !== undefined) {
+    const nextPhone = parsed.data.phone;
+    if (typeof nextPhone === 'string') {
+      const { data: existingPhone, error: phoneLookupError } = await admin
+        .from('profiles')
+        .select('id')
+        .eq('phone', nextPhone)
+        .neq('id', userId)
+        .limit(1)
+        .maybeSingle();
+
+      if (phoneLookupError) {
+        console.error('[customer/profile] phone uniqueness check failed:', phoneLookupError.message);
+        return jsonErr('Could not verify this mobile number. Please try again.', 500);
+      }
+      if (existingPhone) {
+        return jsonErr('This mobile number is already associated with another account.', 409);
+      }
+    }
+    patch.phone = nextPhone;
   }
 
   /* ----------------------------- Settings ----------------------------- */

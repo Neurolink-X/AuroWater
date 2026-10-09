@@ -305,61 +305,7 @@ const {
    * Repair missing profile.
    */
   if (!resolved) {
-    try {
-      const {
-        data: inserted,
-        error: insertError,
-      } = await userSb
-        .from('profiles')
-        .insert({
-          id: data.session.user.id,
-          email:
-            data.session.user.email ??
-            email,
-          full_name:
-            (
-              data.session.user
-                .user_metadata
-                ?.full_name as
-                | string
-                | undefined
-            ) ??
-            (
-              data.session.user
-                .user_metadata
-                ?.name as
-                | string
-                | undefined
-            ) ??
-            '',
-          role: 'customer',
-          status: 'active',
-        })
-        .select(
-          PROFILE_SELECT,
-        )
-        .maybeSingle();
-
-      if (
-        !insertError &&
-        inserted
-      ) {
-        resolved =
-          inserted as ProfileRow;
-      }
-    } catch (error) {
-      console.error(
-        '[auth/login] profile creation failed:',
-        error,
-      );
-    }
-  }
-
-  if (!resolved) {
-    resolved =
-      await ensureProfileForUser(
-        data.session.user,
-      );
+    resolved = await ensureProfileForUser(data.session.user);
   }
 
   /*

@@ -71,6 +71,7 @@ type ApiEnvelope<T> = {
 type FormErrors = {
   full_name?: string;
   city?: string;
+  phone?: string;
 };
 
 type Toast = { kind: 'success' | 'error' | 'info'; text: string };
@@ -83,10 +84,6 @@ const SUPPORT_PHONE = '+919889305803';
 
 const WHATSAPP_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
   'Hi AuroTap! I need help with my account.'
-)}`;
-
-const CHANGE_CONTACT_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
-  'Hi AuroTap, I would like to update my login email or mobile number.'
 )}`;
 
 const DELETE_REQUEST_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
@@ -771,6 +768,7 @@ export default function CustomerAccountPage() {
 
   const [fullName, setFullName] = useState('');
   const [city, setCity] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
@@ -778,11 +776,18 @@ export default function CustomerAccountPage() {
   const [showPhone, setShowPhone] = useState(false);
   const [copied, setCopied] = useState<'phone' | 'email' | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [needsPhoneCompletion, setNeedsPhoneCompletion] = useState(false);
 
   const toastTimer = useRef<number | null>(null);
   const copyTimer = useRef<number | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setNeedsPhoneCompletion(new URLSearchParams(window.location.search).get('complete') === 'phone');
+    }
+  }, []);
 
   const ready = hydrated && isLoggedIn && isCustomer;
 
@@ -876,6 +881,7 @@ export default function CustomerAccountPage() {
 
         setFullName(nextProfile?.full_name?.trim() ?? '');
         setCity(nextProfile?.city?.trim() ?? '');
+        setPhoneInput(nextProfile?.phone?.trim() || session?.phone?.trim() || '');
         setNotificationsEnabled(getNotificationPreference(nextProfile?.settings));
         setSaveError(null);
       } catch (cause) {
@@ -885,7 +891,7 @@ export default function CustomerAccountPage() {
         setRefreshing(false);
       }
     },
-    [hydrated, isLoggedIn, isCustomer, pathname, router]
+    [hydrated, isLoggedIn, isCustomer, pathname, router, session?.phone]
   );
 
   useEffect(() => {
@@ -895,11 +901,13 @@ export default function CustomerAccountPage() {
   /* ── Form state ──────────────────────────────────────────────────── */
   const originalName = profile?.full_name?.trim() ?? '';
   const originalCity = profile?.city?.trim() ?? '';
+  const originalPhone = profile?.phone?.trim() || session?.phone?.trim() || '';
   const originalNotifications = getNotificationPreference(profile?.settings);
 
   const hasChanges =
     fullName.trim() !== originalName ||
     city.trim() !== originalCity ||
+    phoneInput.replace(/\D/g, '') !== originalPhone.replace(/\D/g, '') ||
     notificationsEnabled !== originalNotifications;
 
   const initials = useMemo(
@@ -908,7 +916,7 @@ export default function CustomerAccountPage() {
   );
 
   const email = session?.email?.trim() ?? '';
-  const phone = profile?.phone?.trim() ?? session?.phone?.trim() ?? '';
+  const phone = profile?.phone?.trim() || session?.phone?.trim() || '';
 
   const memberSince = formatMemberSince(stats?.member_since ?? profile?.created_at);
 
@@ -946,6 +954,7 @@ export default function CustomerAccountPage() {
 
     const name = fullName.trim();
     const selectedCity = city.trim();
+    const normalizedPhone = phoneInput.replace(/\D/g, '');
 
     if (name.length < 2) {
       nextErrors.full_name = 'Enter at least 2 characters.';
@@ -955,6 +964,10 @@ export default function CustomerAccountPage() {
 
     if (selectedCity.length < 2) {
       nextErrors.city = 'Select your city.';
+    }
+
+    if (normalizedPhone && !/^[6-9]\d{9}$/.test(normalizedPhone)) {
+      nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.';
     }
 
     setFormErrors(nextErrors);
@@ -1008,6 +1021,7 @@ export default function CustomerAccountPage() {
         body: JSON.stringify({
           full_name: fullName.trim(),
           city: city.trim(),
+          phone: phoneInput.trim(),
           settings: nextSettings,
         }),
       });
@@ -1030,13 +1044,16 @@ export default function CustomerAccountPage() {
           ...profile,
           full_name: fullName.trim(),
           city: city.trim(),
+          phone: phoneInput.trim(),
           settings: nextSettings,
         } as ProfilePayload);
 
       setProfile(savedProfile);
+      if (savedProfile.phone) setNeedsPhoneCompletion(false);
 
       updateSession({
         name: savedProfile.full_name ?? session?.name ?? '',
+        phone: savedProfile.phone ?? '',
       });
 
       setFormErrors({});
@@ -1056,6 +1073,7 @@ export default function CustomerAccountPage() {
   const handleDiscard = () => {
     setFullName(originalName);
     setCity(originalCity);
+    setPhoneInput(originalPhone);
     setNotificationsEnabled(originalNotifications);
     setFormErrors({});
     setSaveError(null);
@@ -1266,6 +1284,16 @@ export default function CustomerAccountPage() {
             </div>
           ) : null}
 
+          {needsPhoneCompletion && !phone ? (
+            <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950" role="status">
+              <p className="font-black">Add your mobile number to finish setting up your account</p>
+              <p className="mt-1 text-sm leading-6">Google sign-in does not reliably share a phone number. Enter your 10-digit Indian mobile number under Profile details and save it so delivery updates can reach you.</p>
+              <button type="button" onClick={handleEditProfile} className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-900 px-4 py-2 text-sm font-bold text-white hover:bg-amber-800">
+                Add mobile number
+              </button>
+            </section>
+          ) : null}
+
           {/* Activity */}
           <section className="mt-6 sm:mt-8" aria-labelledby="account-activity">
             <SectionTitle
@@ -1430,6 +1458,43 @@ export default function CustomerAccountPage() {
                         ) : null}
                       </div>
 
+                      <div>
+                        <label htmlFor="customer-phone" className="text-sm font-bold text-slate-700">
+                          Mobile number
+                        </label>
+                        <input
+                          id="customer-phone"
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="tel-national"
+                          maxLength={16}
+                          value={phoneInput}
+                          onChange={(event) => {
+                            setPhoneInput(event.target.value);
+                            setFormErrors((current) => ({ ...current, phone: undefined }));
+                            setSaveError(null);
+                          }}
+                          className={[
+                            inputBase,
+                            formErrors.phone
+                              ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-50'
+                              : 'border-slate-200 focus:border-sky-400 focus:ring-sky-50',
+                          ].join(' ')}
+                          placeholder="Enter your 10-digit mobile number"
+                          aria-invalid={Boolean(formErrors.phone)}
+                          aria-describedby={formErrors.phone ? 'customer-phone-error' : 'customer-phone-hint'}
+                        />
+                        {formErrors.phone ? (
+                          <p id="customer-phone-error" className="mt-1.5 text-xs font-bold text-rose-600" role="alert">
+                            {formErrors.phone}
+                          </p>
+                        ) : (
+                          <p id="customer-phone-hint" className="mt-1.5 text-xs text-slate-500">
+                            Used for delivery coordination. Save a valid Indian mobile number.
+                          </p>
+                        )}
+                      </div>
+
                       <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                         <div className="flex items-center justify-between gap-4">
                           <div className="min-w-0">
@@ -1516,16 +1581,7 @@ export default function CustomerAccountPage() {
                       />
 
                       <p className="px-5 pb-4 pt-1 text-xs leading-5 text-slate-500 sm:px-6">
-                        Your login email and number are protected.{' '}
-                        <a
-                          href={CHANGE_CONTACT_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-bold text-sky-700 hover:underline"
-                        >
-                          Ask support to change them
-                        </a>
-                        .
+                        You can update your mobile number in Profile details. Your login email remains read-only for account security.
                       </p>
                     </div>
                   </div>

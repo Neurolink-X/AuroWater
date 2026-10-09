@@ -1626,8 +1626,9 @@ export default function PricingPage() {
                 { key:'ro_service', emoji:'💧',name:'RO Service',price:'₹349',unit:'per visit',note:'Filter change + sanitization.', tag:'New' },
                 { key:'tank_cleaning', emoji:'🪣',name:'Tank Cleaning',price:'₹599',unit:'per tank',note:'Certified hygienic cleaning.', tag:'' },
               ].map(s => (
-                <div key={s.key} style={{ background:'#fff',borderRadius:16,border:'1.5px solid #E5E7EB',padding:'18px 20px',display:'flex',flexDirection:'column',gap:10,transition:'all 0.2s',cursor:'pointer' }}
-                  onClick={() => router.push(`/book?service=${s.key}`)}
+                <div key={s.key} role="link" tabIndex={0} aria-label={`View details for ${s.name}`} style={{ background:'#fff',borderRadius:16,border:'1.5px solid #E5E7EB',padding:'18px 20px',display:'flex',flexDirection:'column',gap:10,transition:'all 0.2s',cursor:'pointer' }}
+                  onClick={() => router.push(`/services/${s.key}`)}
+                  onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); router.push(`/services/${s.key}`); } }}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor='#0D9B6C'; (e.currentTarget as HTMLDivElement).style.boxShadow='0 6px 20px rgba(13,155,108,0.1)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor='#E5E7EB'; (e.currentTarget as HTMLDivElement).style.boxShadow='none'; }}
                 >
