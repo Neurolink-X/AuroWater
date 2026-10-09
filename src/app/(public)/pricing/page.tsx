@@ -1260,7 +1260,7 @@ export default function PricingPage() {
   maxWidth: 640,
 }}>
   <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#fff' }}>
-    Pure water at your door.
+    20L water cans, delivered.
   </span>
   <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#34D399' }}>
     20L cans from ₹{settings.default_can_price}.
