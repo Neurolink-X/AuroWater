@@ -1880,7 +1880,7 @@ const STATS = [
   { value: '20L', suffix: '', label: 'Water can size', icon: '💧', glow: '#0ea5e9' },
   { value: '3', suffix: '', label: 'Configured service cities', icon: '📍', glow: '#6366f1' },
   { value: '2', suffix: '', label: 'Water options', icon: '🚰', glow: '#10b981' },
-  { value: '₹20', suffix: '', label: 'Normal RO price per can', icon: '₹', glow: '#f59e0b' },
+  { value: 'Flexible', suffix: '', label: 'One-time & recurring options where available', icon: '✓', glow: '#f59e0b' },
 ] as const;
 
 const ROLES = [
@@ -2665,10 +2665,8 @@ export default function HomePage() {
 
                   {/* Factual product/service information, not inflated social proof. */}
                   <div className="grid grid-cols-2 gap-3">
-                    {STATS.map((s, i) => (
-                      <div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 backdrop-blur-md shadow-[0_8px_32px_rgba(0,0,0,0.2)]"
-                        initial={{ opacity:0, y:18 }} animate={{ opacity:1, y:0 }}
-                        >
+                    {STATS.map((s) => (
+                      <div key={s.label} className="rounded-2xl border border-white/15 bg-white/[0.09] px-5 py-4 shadow-[0_8px_32px_rgba(0,0,0,0.2)]">
                         <div className="text-2xl mb-2">{s.icon}</div>
                         <div
                           className="hero-stat-val"
