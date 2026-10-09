@@ -9,10 +9,10 @@ import React, {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { authLogout } from '@/lib/api-client';
 import { clearSession } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import {
+  authLogout,
   supplierOrderAccept,
   supplierOrderUpdateStatus,
   supplierStockGet,
