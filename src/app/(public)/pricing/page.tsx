@@ -2,7 +2,7 @@
 
 // import React, { useMemo, useState } from 'react';
 // import { useRouter } from 'next/navigation';
-import { useSettings } from '@/hooks/useSettings';
+import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 
 // type PricingTab = 'individual' | 'business';
 // type CanPlan = 'starter' | 'popular' | 'family';
@@ -908,6 +908,11 @@ function SubCard({ plan, frequency, onCta }: { plan: SubPlan; frequency: Billing
               {plan.id === 'pay-per-can' ? 'Example total for 1 can' : `Up to ${plan.cansPerDelivery} cans per delivery`}
             </div>
           )}
+          {plan.id !== 'pay-per-can' && plan.id !== 'business' ? (
+            <div style={{ marginTop: 4, fontSize: 12, color: plan.highlight ? '#A7F3D0' : '#64748B' }}>
+              Schedule: {frequency === 'weekly' ? 'weekly' : 'monthly'} · pay per delivery
+            </div>
+          ) : null}
         </div>
 
         {/* features */}
@@ -981,15 +986,15 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 }
 
 // ─── Compare table ────────────────────────────────────────────────────────────
-function CompareTable() {
+function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
-    { feature: 'Price per can', payg: '₹10–12', starter: '₹12', pro: '₹11', business: '₹9–10' },
-    { feature: 'Min. order', payg: '1 can', starter: '10 cans', pro: '20 cans', business: 'Custom' },
-    { feature: 'Same-day delivery', payg: '✓', starter: '✓', pro: 'Priority', business: 'Dedicated' },
-    { feature: 'Subscription discount', payg: '—', starter: '10%', pro: '20%', business: '30%+' },
-    { feature: 'Scheduled deliveries', payg: '—', starter: '✓', pro: '✓', business: '✓' },
-    { feature: 'GST invoice', payg: '—', starter: '—', pro: '✓', business: '✓' },
-    { feature: 'Dedicated manager', payg: '—', starter: '—', pro: '—', business: '✓' },
+    { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, business: 'Quote' },
+    { feature: 'Order handling fee', payg: `₹${settings.convenience_fee}/order`, starter: `₹${settings.convenience_fee}/delivery`, pro: `₹${settings.convenience_fee}/delivery`, business: 'Confirmed in quote' },
+    { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', business: 'Custom' },
+    { feature: 'Bulk rate threshold', payg: '—', starter: '—', pro: '—', business: `${Math.max(50, settings.bulk_threshold)}+ cans` },
+    { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', business: 'By agreement' },
+    { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', business: 'Confirmed before order' },
+    { feature: 'Automatic debit', payg: 'No', starter: 'No', pro: 'No', business: 'No unless separately agreed' },
   ];
   const cols = ['Feature', 'Pay-as-go', 'Starter', 'Pro', 'Business'];
 
@@ -1042,7 +1047,7 @@ function CompareTable() {
 export default function PricingPage() {
   const router = useRouter();
   const [tab, setTab] = useState<PricingTab>('individual');
-  const [billing, setBilling] = useState<BillingCycle>('monthly');
+  const [billing, setBilling] = useState<BillingCycle>('weekly');
   const [showCompare, setShowCompare] = useState(false);
 
   const faq: FaqItem[] = useMemo(() => [
@@ -1171,7 +1176,7 @@ export default function PricingPage() {
 
   const handlePlanCta = (plan: SubPlan) => {
     if (plan.id === 'business' || plan.id === 'pay-per-can') {
-      if (plan.id === 'business') window.open(WHATSAPP, '_blank');
+      if (plan.id === 'business') window.open(WHATSAPP, '_blank', 'noopener,noreferrer');
       else router.push('/book?service=water_can');
     } else {
       router.push(`/book?service=water_can&plan=${plan.id}&frequency=${billing}`);
@@ -1557,11 +1562,11 @@ export default function PricingPage() {
                 ))}
               </div>
 
-              {/* Billing cycle toggle */}
+              {/* Delivery frequency toggle */}
               <div className="billing-toggle" style={{ display:'flex',alignItems:'center',gap:8,background:'#F9FAFB',borderRadius:999,padding:'5px 8px',border:'1.5px solid #E5E7EB' }} aria-label="Delivery frequency">
                 <button type="button" onClick={() => setBilling('weekly')} style={{ padding:'5px 14px',borderRadius:999,fontWeight:700,fontSize:12,border:'none',cursor:'pointer',background:billing==='weekly'?'#fff':'transparent',color:billing==='weekly'?'#111827':'#9CA3AF',boxShadow:billing==='weekly'?'0 1px 4px rgba(0,0,0,0.08)':'none' }}>Weekly</button>
                 <button type="button" onClick={() => setBilling('monthly')} style={{ padding:'5px 14px',borderRadius:999,fontWeight:700,fontSize:12,border:'none',cursor:'pointer',background:billing==='monthly'?'#fff':'transparent',color:billing==='monthly'?'#111827':'#9CA3AF',boxShadow:billing==='monthly'?'0 1px 4px rgba(0,0,0,0.08)':'none',display:'flex',alignItems:'center',gap:5 }}>
-                  Yearly <Pill color="green">Save 15%</Pill>
+                  Monthly
                 </button>
               </div>
             </div>
@@ -1590,7 +1595,7 @@ export default function PricingPage() {
 
           {showCompare && (
             <div style={{ marginTop:22, animation:'fadeUp 0.3s ease both' }}>
-              <CompareTable />
+              <CompareTable settings={settings} />
             </div>
           )}
 
