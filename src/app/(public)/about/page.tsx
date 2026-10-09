@@ -529,9 +529,9 @@ export default function AboutPage() {
               <SectionPill>SERVICE COVERAGE</SectionPill>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
                 <h2 className="clash" style={{ margin: 0, fontSize: 'clamp(1.4rem,3.5vw,2rem)', fontWeight: 700, color: '#0F172A', letterSpacing: '-0.8px' }}>
-                  35 cities & growing across UP
+                  Serving eligible areas in Kanpur, Lucknow & Gorakhpur
                 </h2>
-                <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 600 }}>New cities added regularly</span>
+                <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 600 }}>Other areas can join the waitlist</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {cities.map((c) => (
