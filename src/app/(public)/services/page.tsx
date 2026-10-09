@@ -286,6 +286,7 @@ export default function ServicesPage() {
   const filtered = useMemo(
     () => filter === 'All' ? currentServices : currentServices.filter((s) => s.category === filter),
     [filter, currentServices],
+  );
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 60);
