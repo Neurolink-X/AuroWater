@@ -3,6 +3,8 @@ import { z } from 'zod';
 
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
+import { dispatchOrder } from '@/lib/dispatch';
 
 const settingsSchema = z.object({
   is_online: z.boolean().optional(),
@@ -56,6 +58,37 @@ export async function PUT(req: NextRequest) {
     .select('*')
     .single();
   if (error) return jsonErr(error.message, 502);
+
+  // When a supplier comes online, retry recent unassigned water orders.
+  // This recovers orders that were created while every eligible supplier was offline.
+  if (parsed.data.is_online === true) {
+    try {
+      const service = createServiceClient();
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: waitingOrders, error: waitingError } = await service
+        .from('orders')
+        .select('id')
+        .eq('status', 'PENDING')
+        .is('supplier_id', null)
+        .eq('service_type', 'water_can')
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: true })
+        .limit(25);
+
+      if (waitingError) {
+        console.error('[supplier/settings] pending-order recovery query failed:', waitingError.message);
+      } else {
+        for (const order of waitingOrders ?? []) {
+          // Dispatch performs eligibility, service-radius, active-load and stock checks.
+          await dispatchOrder(String(order.id));
+        }
+      }
+    } catch (dispatchError) {
+      // Do not fail the supplier's availability toggle because recovery is best-effort.
+      console.error('[supplier/settings] pending-order recovery failed:', dispatchError);
+    }
+  }
+
   return jsonOk(data);
 }
 
