@@ -39,11 +39,19 @@ Scope: source inspection of the current `main` branch. This is a static audit; n
 - Technician jobs API enforces technician role and rejects accounts that are not active/approved.
 - Technician order enrichment helper and dispatch migration exist.
 
-### Gaps / risks requiring verification
-- The inspected `src/app/technician/dashboard/page.tsx` content appears heavily commented out at its beginning. Confirm whether the live route renders the intended current dashboard or a placeholder/empty page; do not replace it without inspecting the full route and current UI.
-- Verify job accept/start/complete actions are persisted through APIs and not only localStorage.
+### Gaps found and actions taken on the isolated PR branch
+- `src/app/technician/dashboard/page.tsx` is large and starts with a commented-out legacy implementation, but a live `TechnicianDashboardPage` export exists later in the file. Do not treat the route as empty based only on the file prefix.
+- `src/app/technician/jobs/page.tsx` loads jobs through the API client but previously had no periodic refresh. Added a 10-second visible-tab refresh fallback with overlap protection. This is a resilience fallback, not proof of instant Realtime delivery.
+- The Jobs page linked to `/technician/profile`, but no `src/app/technician/profile/page.tsx` exists on this branch. Changed that link to the existing technician dashboard rather than leave a dead route. Profile remains a dashboard section/tab, not a standalone page.
+- The dashboard's `receiveRating` generated a random rating locally, and `requestPayout` generated a fake payout request in component state and showed success without a verified payout API. Replaced both with honest messaging; payout requests are not reported as submitted and ratings are not fabricated.
+- Technician job GET route scopes records by the authenticated technician ID. The legacy `/api/technician/jobs/[id]/status` endpoint intentionally returns 410; status changes must use the guarded job workflow at `/api/technician/jobs/[id]`. Test the UI/API contract so clients do not call the disabled endpoint.
+
+### Technician verification still required
+- Test booking → eligible technician dispatch → job appears → accept/start → OTP/payment-guarded completion → customer status update.
+- Verify technician scheduled date/time/time-zone interpretation and that the technician queue receives service bookings rather than water-can delivery orders.
 - Verify verification documents use private storage, signed access, upload limits, and admin-only review.
-- Verify technicians cannot view jobs assigned to other technicians or see unnecessary customer data.
+- Verify online/offline availability updates dispatch eligibility, and technicians cannot view jobs assigned to other technicians or unnecessary customer data.
+- Technician dashboard has internal tabs (Overview, Job Queue, My Jobs, Earnings, Availability, Profile, Documents); separate `/technician/profile`, `/technician/schedule`, and `/technician/earnings` pages were not found at the expected routes. Avoid claiming these standalone pages exist until navigation is implemented and verified.
 
 ## Cross-role release gates
 - Run `npm run lint`, `npm run test:regression`, and `npm run build` against the PR head.
