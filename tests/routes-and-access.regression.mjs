@@ -40,4 +40,22 @@ assert.doesNotMatch(proxySource, /['"]\/supplier\/['"]/);
 assert.match(proxySource, /prefix:\s*'\/supplier'/);
 assert.match(proxySource, /pathname === g\.prefix \|\| pathname\.startsWith\(`\$\{g\.prefix\}\/`\)/);
 
-console.log(`Route/access regression checks passed (${byRoute.size} page routes).`);
+// Pricing integrity guards: the customer API must validate and persist its own total,
+ // and public water-can pricing must match the API's launch rates.
+const orderApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
+assert.match(orderApi, /totalsMatch\(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0\.5\)/);
+assert.match(orderApi, /const total = computeExpectedTotal\(base_amount, convenience, emergency_charge, gstRate\)\.total/);
+// Ignore legacy commented-out code when checking the active route implementation.
+const activeOrderApi = orderApi
+  .split('\n')
+  .filter((line) => !line.trim().startsWith('//'))
+  .join('\n');
+assert.doesNotMatch(activeOrderApi, /const total = round2\(clientTotal\)/);
+
+const pricingPage = readFileSync(join(root, 'src', 'app', '(public)', 'pricing', 'page.tsx'), 'utf8');
+assert.match(pricingPage, /const NORMAL_RO_PRICE = 20/);
+assert.match(pricingPage, /const CHILLED_RO_PRICE = 25/);
+assert.match(pricingPage, /const RECURRING_RO_PRICE = 18/);
+assert.match(pricingPage, /price: 'Quote required'/);
+
+console.log(`Route/access and pricing integrity regression checks passed (${byRoute.size} page routes).`);

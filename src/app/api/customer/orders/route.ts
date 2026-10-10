@@ -252,8 +252,8 @@ if (!serviceability.serviceable) {
   // The booking UI currently does not charge GST. Keep server validation in
   // sync until tax registration/configuration is explicitly enabled.
   const gstRate = 0;
-  const convenience = service_type_key === 'water_can' ? 0 : Number(flat.convenience_fee ?? 29);
-  const emergencyFee = Number(flat.emergency_surcharge ?? 199);
+  const convenience = service_type_key === 'water_can' ? 0 : Number(flat.convenience_fee ?? 10);
+  const emergencyFee = Number(flat.emergency_surcharge ?? 30);
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
@@ -349,7 +349,7 @@ if (!serviceability.serviceable) {
   const clientTotal = Number(body.total_amount);
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
-  if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 3)) {
+  if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0.5)) {
     const expected = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
     console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
     return jsonErr('Price validation failed — totals do not match platform rates', 400);
@@ -412,7 +412,8 @@ if (!serviceability.serviceable) {
     str(body.can_frequency) ? `Frequency: ${str(body.can_frequency)}` : null,
   ].filter(Boolean);
 
-  const total = round2(clientTotal);
+  // Persist the server-calculated amount, never the client-provided total.
+  const total = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate).total;
 
   // Double-submit guard: an identical order in the last 20 seconds returns the existing one.
   {
