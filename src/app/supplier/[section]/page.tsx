@@ -87,6 +87,14 @@ export default function SupplierSectionPage() {
         <p>{String(o.service_type_label??o.service_type??'Water/service order')}</p><p>{String(o.customer_name??'Customer')} · {String(o.customer_phone??'Phone unavailable')}</p>
         <p>{String(o.address_line??o.address??'Address on order')} · {String(o.city??o.customer_city??'')}</p>
         <p>{String(o.scheduled_date??o.scheduled_at??'Schedule pending')} {String(o.time_slot??o.scheduled_slot??'')}</p><strong>{money(o.final_amount??o.total_amount??o.amount)}</strong>
+        <div style={{...row,justifyContent:'flex-start',marginTop:16}}>
+          {['ASSIGNED','PENDING'].includes(String(o.status??'').toUpperCase()) && <>
+            <button style={button} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/accept`,'PUT',{})}>Accept order</button>
+            <button style={secondaryButton} disabled={busy} onClick={()=>{if(window.confirm('Decline this order? It may be offered to another supplier.'))void send(`/api/supplier/orders/${String(o.id)}/reject`,'PUT',{reason:'Supplier declined'});}}>Decline</button>
+          </>}
+          {String(o.status??'').toUpperCase()==='ASSIGNED' && <button style={secondaryButton} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/status`,'PUT',{status:'IN_PROGRESS'})}>Start delivery</button>}
+          {String(o.status??'').toUpperCase()==='IN_PROGRESS' && <button style={button} disabled={busy} onClick={()=>{if(window.confirm('Mark this order as completed?'))void send(`/api/supplier/orders/${String(o.id)}/status`,'PUT',{status:'COMPLETED'});}}>Complete order</button>}
+        </div>
       </article>)}
     </section>}
     {section==='inventory' && <section style={grid}>
@@ -119,15 +127,16 @@ export default function SupplierSectionPage() {
 
 function Metric({label,value}:{label:string;value:string}){return <article style={card}><div style={eyebrow}>{label}</div><div style={{fontSize:30,fontWeight:850,marginTop:14}}>{value}</div></article>}
 function Empty({title,text}:{title:string;text:string}){return <article style={{...card,gridColumn:'1/-1',textAlign:'center',padding:38}}><div style={{fontSize:22,fontWeight:800}}>{title}</div><p style={sub}>{text}</p><Link href="/supplier/settings" style={link}>Open dispatch settings →</Link></article>}
-const shell:CSSProperties={minHeight:'70vh',background:'#08111b',color:'#f1f5f9',padding:'clamp(20px,4vw,56px)',fontFamily:'Arial,sans-serif'};
+const shell:CSSProperties={minHeight:'80vh',background:'radial-gradient(ellipse at 12% 0%,rgba(13,148,136,.12),transparent 35%),linear-gradient(180deg,#07111c 0%,#08131f 100%)',color:'#f1f5f9',padding:'clamp(20px,4vw,56px)',fontFamily:'Inter,ui-sans-serif,system-ui,sans-serif'};
 const eyebrow:CSSProperties={color:'#5eead4',fontWeight:800,fontSize:12,letterSpacing:2,textTransform:'uppercase'};
 const heading:CSSProperties={fontSize:'clamp(30px,4vw,44px)',fontWeight:850,letterSpacing:-1,margin:'12px 0'};
 const sub:CSSProperties={color:'#9aa9b8',lineHeight:1.7,maxWidth:850};
 const grid:CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,280px),1fr))',gap:16};
-const card:CSSProperties={background:'#0d1925',border:'1px solid #233544',borderRadius:18,padding:22,minWidth:0};
+const card:CSSProperties={background:'linear-gradient(145deg,rgba(17,34,49,.98),rgba(9,22,34,.98))',border:'1px solid rgba(125,211,252,.16)',borderRadius:20,padding:24,minWidth:0,boxShadow:'0 16px 40px rgba(0,0,0,.14)'};
 const row:CSSProperties={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'};
 const badge:CSSProperties={fontSize:11,fontWeight:800,color:'#5eead4',background:'#123c3a',borderRadius:999,padding:'6px 10px'};
-const button:CSSProperties={background:'#07966c',color:'#fff',fontWeight:800,border:0,borderRadius:10,padding:'11px 15px',cursor:'pointer'};
+const button:CSSProperties={background:'linear-gradient(135deg,#10b981,#059669)',color:'#fff',fontWeight:800,border:0,borderRadius:11,padding:'12px 16px',cursor:'pointer',boxShadow:'0 8px 22px rgba(5,150,105,.16)'};
+const secondaryButton:CSSProperties={background:'#102130',color:'#dbeafe',fontWeight:750,border:'1px solid #315066',borderRadius:11,padding:'11px 15px',cursor:'pointer'};
 const link:CSSProperties={display:'inline-block',color:'#7dd3fc',textDecoration:'none',fontWeight:750,border:'1px solid #24516a',borderRadius:10,padding:'10px 14px'};
 const input:CSSProperties={display:'block',width:'100%',boxSizing:'border-box',background:'#07111b',border:'1px solid #2b4050',borderRadius:10,color:'#f8fafc',padding:12,marginTop:8};
 const label:CSSProperties={display:'block',fontSize:13,color:'#cbd5e1',margin:'14px 0',fontWeight:700};
