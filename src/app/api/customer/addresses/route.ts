@@ -97,6 +97,7 @@ if (!requireRole(auth.ctx, 'customer')) {
     .from('addresses')
     .select('*')
     .eq('customer_id', auth.ctx.profile.id)
+    .eq('is_archived', false)
     .order('created_at', { ascending: false });
 
   if (error) {
