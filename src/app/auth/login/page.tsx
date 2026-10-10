@@ -325,15 +325,23 @@ function LoginPageInner() {
         sanitized?.startsWith('/book?') ||
         sanitized?.startsWith('/book#');
 
-      const destination =
-        isBookRoute && role !== 'customer'
-          ? dashboardFor(role)
-          : sanitized ||
-            (role === 'customer'
-              ? '/customer/home'
-              : dashboardFor(role));
+      // const destination =
+      //   isBookRoute && role !== 'customer'
+      //     ? dashboardFor(role)
+      //     : sanitized ||
+      //       (role === 'customer'
+      //         ? '/customer/home'
+      //         : dashboardFor(role));
 
-      router.replace(destination);
+      // router.replace(destination);
+
+      const destination =
+  role === 'customer'
+    ? '/'
+    : (isBookRoute ? dashboardFor(role) : sanitized || dashboardFor(role));
+
+router.replace(destination);
+      
     } catch (error: unknown) {
       let message =
         'Login failed. Please try again.';
