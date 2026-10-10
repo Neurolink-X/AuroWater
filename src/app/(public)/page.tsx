@@ -1911,7 +1911,7 @@ const STATS = [
   },
   { 
     value: 'Flexible', 
-    suffix: 'Plans', 
+    suffix: '', 
     label: 'Adaptive Service Models', 
     sublabel: 'One-time delivery or automated subscriptions',
     icon: '⚡', 
@@ -2570,11 +2570,11 @@ export default function HomePage() {
 
                   <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="AuroTap service highlights">
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-xl font-black text-white">Only ₹20</div>
+                      <div className="text-xl font-black text-white"> ₹20</div>
                       <div className="mt-1 text-xs text-slate-300">Normal RO · 20L can</div>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-xl font-black text-white">Only ₹25</div>
+                      <div className="text-xl font-black text-white"> ₹25</div>
                       <div className="mt-1 text-xs text-slate-300">Chilled RO · 20L can</div>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -2648,7 +2648,7 @@ export default function HomePage() {
              <figure className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-md">
     <div className="relative aspect-[16/10] w-full overflow-hidden">
       <Image
-        src="/Mentinence.png"
+        src="/Mentinence Image.png"
         alt="All Water Services"
         fill
         sizes="(max-width: 768px) 100vw, 50vw"
