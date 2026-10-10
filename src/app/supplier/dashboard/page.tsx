@@ -4,7 +4,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -19,6 +18,7 @@ import {
   supplierSettingsGet,
   supplierSettingsUpdate,
 } from '@/lib/api-client';
+import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -583,7 +583,6 @@ export default function SupplierDashboardPage() {
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
 
-  const realtimeRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -650,7 +649,6 @@ export default function SupplierDashboardPage() {
     await fetchOrders(normalized.id);
     await fetchEarnings(normalized.id);
     buildStats(normalized);
-    setupRealtime(normalized.id);
   };
 
   const fetchOrders = async (_supplierId?: string) => {
@@ -924,70 +922,20 @@ export default function SupplierDashboardPage() {
     });
   }, [orders, earnings, profile]);
 
-  // ── Realtime subscription ───────────────────────────────────────────────────
-  const setupRealtime = useCallback((supplierId: string) => {
-    if (realtimeRef.current) supabase.removeChannel(realtimeRef.current);
+  // ── Realtime (debounced, polls only when websocket is down) ─────────────────
+  const { status: realtimeStatus } = useSupplierRealtime({
+    supplierId: profile?.id,
+    onOrdersChange: async () => {
+      if (!profile?.id) return;
+      await Promise.all([fetchOrders(profile.id), fetchEarnings(profile.id)]);
+    },
+    onNotification: (row) => {
+      const notif = row as unknown as Notification;
+      setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
+      toast.info(notif.title, { description: notif.body });
+    },
+  });
 
-    const ch = supabase
-      .channel(`supplier-${supplierId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `supplier_id=eq.${supplierId}`,
-        },
-        async () => {
-          await Promise.all([fetchOrders(supplierId), fetchEarnings(supplierId)]);
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${supplierId}`,
-        },
-        async (payload) => {
-          const notif = payload.new as Notification;
-          setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
-          toast.info(notif.title, { description: notif.body });
-        }
-      )
-      .subscribe();
-
-    realtimeRef.current = ch;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase]);
-
-  // Cleanup realtime on unmount
-  useEffect(() => {
-    return () => {
-      if (realtimeRef.current) supabase.removeChannel(realtimeRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Poll as a resilient fallback when Supabase Realtime publication or websocket
-  // connectivity is unavailable. Realtime remains the primary instant-update path.
-  useEffect(() => {
-    if (!profile?.id) return;
-    const refresh = () => {
-      void Promise.all([fetchOrders(profile.id), fetchEarnings(profile.id)]);
-    };
-    const timer = window.setInterval(refresh, 10_000);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.id]);
 
   // ── Protected supplier workflow actions ─────────────────────────────────────
   const handleAcceptOrder = useCallback(async (orderId: string) => {
@@ -1139,8 +1087,8 @@ export default function SupplierDashboardPage() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700;800;900&display=swap');
-        .sdash * { box-sizing: border-box; font-family: 'Lexend', sans-serif; }
+        .sdash * { box-sizing: border-box; font-family: inherit; }
+        .sdash { font-family: var(--font-lexend), system-ui, sans-serif; }
         @keyframes auro-shimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
@@ -1572,7 +1520,12 @@ export default function SupplierDashboardPage() {
               </div>
 
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>
-                {tab === 'active' ? 'Live updates via Supabase Realtime' : `${historyOrders.length} completed orders`}
+                {tab === 'active' ? (
+                  <span role="status" aria-live="polite" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: realtimeStatus === 'live' ? '#10B981' : realtimeStatus === 'connecting' ? '#F59E0B' : '#F87171', boxShadow: realtimeStatus === 'live' ? '0 0 8px #10B981' : 'none' }} />
+                    {realtimeStatus === 'live' ? 'Live · instant updates' : realtimeStatus === 'connecting' ? 'Connecting…' : 'Reconnecting · refreshing every 10s'}
+                  </span>
+                ) : `${historyOrders.length} completed orders`}
               </div>
             </div>
 
