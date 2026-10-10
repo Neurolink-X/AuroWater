@@ -841,7 +841,7 @@ export default function HomePage() {
   <figure className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-md">
     <div className="relative aspect-[16/10] w-full overflow-hidden">
       <Image
-        src="/Mentinence image.png"
+        src="/mentinence image.png"
         alt="All Water Services"
         fill
         sizes="(max-width: 768px) 100vw, 33vw"
