@@ -2477,7 +2477,7 @@ export default function HomePage() {
                     className="hero-eyebrow"
                   >
                     <span className="aw-live shrink-0" aria-hidden="true" />
-                    Now serving eligible areas of Kanpur, Lucknow &amp; Gorakhpur
+                    Now serving eligible areas of Kanpur, Lucknow , Gorakhpur &amp; NCR
                   </motion.div>
 
                   <motion.p
