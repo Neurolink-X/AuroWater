@@ -126,8 +126,13 @@ export default function AddressesPage() {
       await api.customer.addresses.delete(id);
       toast.success('Address deleted.');
       await reload();
-    } catch {
-      toast.error('Could not delete address.');
+    } catch (e: unknown) {
+      // Surface the API's actionable message (for example ADDRESS_IN_USE)
+      // instead of hiding every server response behind a generic toast.
+      const message = e instanceof Error && e.message.trim()
+        ? e.message
+        : 'Could not delete address. Please try again.';
+      toast.error(message);
     }
   };
 
