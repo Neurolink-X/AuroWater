@@ -712,20 +712,30 @@ export default function SupplierDashboardPage() {
   };
 
   const fetchEarnings = async (supplierId: string) => {
+    // Earnings are derived from the canonical orders table in production.
+    // Do not query the legacy supplier_earnings table (it is not deployed).
     const { data, error } = await supabase
-      .from('supplier_earnings')
-      .select('*')
+      .from('orders')
+      .select('id, supplier_payout, status, created_at')
       .eq('supplier_id', supplierId)
+      .in('status', ['COMPLETED', 'completed', 'DELIVERED', 'delivered'])
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) {
-      console.error('[supplier] earnings load failed:', error);
+      console.error('[supplier] earnings load failed:', error.message);
       setEarnings([]);
       return;
     }
 
-    setEarnings((data as EarningRow[]) ?? []);
+    setEarnings((data ?? []).map((row) => ({
+      id: String(row.id),
+      order_id: String(row.id),
+      amount: Number(row.supplier_payout ?? 0),
+      status: 'pending' as const,
+      paid_at: null,
+      created_at: String(row.created_at ?? ''),
+    })));
   };
 
   const fetchDispatchSettings = async () => {
@@ -929,7 +939,7 @@ export default function SupplierDashboardPage() {
           filter: `supplier_id=eq.${supplierId}`,
         },
         async () => {
-          await fetchOrders(supplierId);
+          await Promise.all([fetchOrders(supplierId), fetchEarnings(supplierId)]);
         }
       )
       .on(
@@ -938,6 +948,7 @@ export default function SupplierDashboardPage() {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
+          filter: `user_id=eq.${supplierId}`,
         },
         async (payload) => {
           const notif = payload.new as Notification;
