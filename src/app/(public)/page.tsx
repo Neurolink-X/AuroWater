@@ -2554,7 +2554,7 @@ export default function HomePage() {
                   transition={{ delay:.18, duration:.75, ease:[.22,1,.36,1] }}>
 
                   {/* Real water-service photography; attribution is kept visible. */}
-                  <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
+                  {/* <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
                     <Image
                       src="https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1600&q=85"
                       alt="Water dispenser in a clean setting"
@@ -2574,7 +2574,35 @@ export default function HomePage() {
     className="h-56 w-full object-cover sm:h-72"
   />
                     
-                  </figure>
+                  </figure> */}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+  {/* Left Column: Text or other content */}
+  <div className="flex flex-col gap-4">
+    {/* Your text content here */}
+  </div>
+
+  {/* Right Column: Featured Image with clean presentation */}
+  <motion.div 
+    className="flex flex-col gap-4"
+    initial={{ opacity: 0, x: 36 }} 
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ delay: 0.18, duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+  >
+    <figure className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-md transition-all duration-300 hover:border-white/20">
+      <div className="relative aspect-[16/10] w-full overflow-hidden">
+        <Image
+          src="/Friendly Kitchen Water Service Team.png"
+          alt="Friendly Kitchen Water Service Team"
+          fill
+          priority
+          sizes="(max-width: 1024px) 100vw, 42vw"
+          className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+        />
+      </div>
+    </figure>
+  </motion.div>
+</div>
 
                   {/* Factual product/service information, not inflated social proof. */}
                   <div className="grid grid-cols-2 gap-3">
