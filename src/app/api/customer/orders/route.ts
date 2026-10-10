@@ -267,9 +267,6 @@ if (!serviceability.serviceable) {
 
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
-    const defPrice = Number(flat.default_can_price);
-    const chilledPrice = Number(flat.chilled_can_price);
-    const bulkPrice = Number(flat.bulk_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
@@ -308,26 +305,18 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
-    // Launch pricing approved by the business: Normal RO ₹20, Chilled RO ₹25.
-    // Keep server validation aligned with public settings while allowing higher configured rates.
-    const configuredRegularPrice = Number.isFinite(defPrice) && defPrice > 0
-      ? defPrice
-      : Number(st.base_price) || 20;
-    const regularPrice = Math.max(20, configuredRegularPrice);
-    const configuredRecurringPrice = Number.isFinite(subPrice) && subPrice > 0
-      ? subPrice
-      : regularPrice;
-    const recurringPrice = Math.max(regularPrice, configuredRecurringPrice);
-    const hasValidBulkDiscount =
-      Number.isFinite(bulkPrice) && bulkPrice > 0 && bulkPrice < regularPrice;
-
+    // Approved launch prices: Normal RO ₹20, Chilled RO ₹25, subscription ₹18.
+    // Stale legacy settings must not cause client/server total mismatches.
+    const regularPrice = 20;
+    const configuredRecurringPrice = Number.isFinite(subPrice) && subPrice > 0 ? subPrice : 18;
+    const recurringPrice = configuredRecurringPrice < regularPrice
+      ? Math.min(configuredRecurringPrice, 18)
+      : 18;
     waterUnitPrice = isChilled
-      ? Math.max(25, Number.isFinite(chilledPrice) && chilledPrice > 0 ? chilledPrice : 25)
+      ? 25
       : isSubscription
         ? recurringPrice
-        : qty >= bulkThreshold && hasValidBulkDiscount
-          ? bulkPrice
-          : regularPrice;
+        : regularPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
@@ -335,9 +324,15 @@ if (!serviceability.serviceable) {
     // Never trust a client-supplied base amount. Resolve the canonical service
     // rate from server settings, then apply only known option adjustments.
     const configuredPrice = Number(flat[service_type_key + '_price']);
-    const serviceBase = Number.isFinite(configuredPrice) && configuredPrice > 0
-      ? configuredPrice
-      : Number(st.base_price) || 0;
+    const plumberType = str(body.plumber_type) ?? 'labour';
+    if (service_type_key === 'plumbing' && !['labour', 'mistri'].includes(plumberType)) {
+      return jsonErr('Choose a valid plumber charge type.', 400);
+    }
+    const serviceBase = service_type_key === 'plumbing'
+      ? (plumberType === 'mistri' ? 900 : 149)
+      : Number.isFinite(configuredPrice) && configuredPrice > 0
+        ? configuredPrice
+        : Number(st.base_price) || 0;
     const optionKey = str(body.sub_option_key) ?? '';
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },

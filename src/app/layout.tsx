@@ -102,7 +102,6 @@ export const metadata: Metadata = {
 
   /* ── PWA ─────────────────────────────────────────────────────────────── */
 
-  manifest: '/manifest.webmanifest',
 
   appleWebApp: {
     capable: true,
@@ -373,6 +372,8 @@ export default function RootLayout({
           }}
         /> */}
         
+        {/* Relative URL keeps the PWA manifest on the current origin. */}
+        <link rel="manifest" href="/manifest.webmanifest" />
       </head>
 
       <body
