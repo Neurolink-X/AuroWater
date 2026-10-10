@@ -95,6 +95,7 @@ export interface BookingDraft {
 }
 
 const DRAFT_KEY = 'aw_booking_draft_v2';
+const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'guest'}`;
 const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
@@ -657,16 +658,17 @@ export default function BookingWizard() {
     let restored: Partial<BookingDraft> | null = null;
     let restoredStep = 1;
     try {
-      const raw = safeSessionGet(DRAFT_KEY);
+      const draftKey = bookingDraftKey(session?.userId ?? session?.aurotapId ?? null);
+      const raw = safeSessionGet(draftKey);
       if (raw) {
         const parsed = JSON.parse(raw) as { draft?: unknown; step?: number };
         const s = Number(parsed?.step);
         if (parsed?.draft && typeof parsed.draft === 'object' && s >= 1 && s <= MAX_FORM_STEP) {
           restored = sanitizeDraft(parsed.draft);
           restoredStep = Math.floor(s);
-        } else { safeSessionRemove(DRAFT_KEY); }
+        } else { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); }
       }
-    } catch { try { safeSessionRemove(DRAFT_KEY); } catch { /* */ } }
+    } catch { try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ } }
 
     const fresh = emptyDraft();
     const base: BookingDraft = {
@@ -726,12 +728,14 @@ export default function BookingWizard() {
 
     setDraft(base); setStep(start); setFurthest(start); setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Re-hydrate whenever the authenticated identity changes; drafts are never shared between accounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.userId, session?.aurotapId, session?.loggedIn]);
 
   useEffect(() => {
     if (!hydrated || createdOrder) return;
-    try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP) })); } catch { /* quota */ }
-  }, [draft, step, hydrated, createdOrder]);
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP) })); } catch { /* quota */ }
+  }, [draft, step, hydrated, createdOrder, session?.userId, session?.aurotapId]);
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
@@ -916,7 +920,7 @@ export default function BookingWizard() {
   };
 
   const goLoginForCheckout = () => {
-    try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 3 })); } catch { /* */ }
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 3 })); } catch { /* */ }
     router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-3')}`);
   };
 
@@ -1115,7 +1119,7 @@ export default function BookingWizard() {
   const prevStep = () => goTo(view - 1);
 
   const resetWizard = useCallback(() => {
-    try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
+    try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
     submitLock.current = false;
     geoReq.current += 1;
     setCreatedOrder(null); setSubmitError(null);
@@ -1196,14 +1200,14 @@ export default function BookingWizard() {
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
         plumber_type: draft.serviceKey === 'plumbing' ? (draft.plumberType ?? 'labour') : undefined,
       });
-      try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
+      try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
       toast.success('Booking confirmed! 🎉');
     } catch (e) {
       submitLock.current = false;
       if (e instanceof ApiError && e.status === 401) {
-        try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 5 })); } catch { /* */ }
+        try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 5 })); } catch { /* */ }
         router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-5')}`);
         return;
       }
