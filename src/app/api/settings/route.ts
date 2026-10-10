@@ -18,7 +18,7 @@ function defaultPayload(): Record<string, unknown> {
     bulk_can_price: 20,
     bulk_threshold: 50,
     market_can_price: 20,
-    convenience_fee: 29,
+    convenience_fee: 10,
     gst_rate: 0.18,
     service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, borewell: 499, motor_pump: 299, tank_cleaning: 599 },
     can_price_small: 1000,
