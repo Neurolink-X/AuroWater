@@ -1883,6 +1883,7 @@ const SERVICES: ServiceItem[] = [
 //   { value: 'Flexible', suffix: '', label: 'One-time & recurring options where available', icon: '✓', glow: '#f59e0b' },
 // ] as const;
 
+// Place this near the top of your file (e.g., above your default export component)
 const STATS = [
   { 
     value: '20L', 
@@ -1890,15 +1891,15 @@ const STATS = [
     label: 'Standard Hydration Capacity', 
     sublabel: 'Sealed & hygienic mineral water cans',
     icon: '💧', 
-    glow: '#0ea5e9' 
+    glow: 'from-sky-500/20 to-transparent' 
   },
   { 
     value: '9+', 
     suffix: 'Cities', 
-    label: 'Nationals Standard Excellence', 
+    label: 'National Standard Excellence', 
     sublabel: 'Trusted and recognized operations worldwide',
     icon: '🌐', 
-    glow: '#6366f1' 
+    glow: 'from-indigo-500/20 to-transparent' 
   },
   { 
     value: '2', 
@@ -1906,7 +1907,7 @@ const STATS = [
     label: 'Custom Temperature Options', 
     sublabel: 'Normal RO & Chilled refreshing supply',
     icon: '🚰', 
-    glow: '#10b981' 
+    glow: 'from-emerald-500/20 to-transparent' 
   },
   { 
     value: 'Flexible', 
@@ -1914,7 +1915,7 @@ const STATS = [
     label: 'Adaptive Service Models', 
     sublabel: 'One-time delivery or automated subscriptions',
     icon: '⚡', 
-    glow: '#f59e0b' 
+    glow: 'from-amber-500/20 to-transparent' 
   },
 ] as const;
 
@@ -2640,7 +2641,22 @@ export default function HomePage() {
       />
     </div>
     <figcaption className="p-4 text-xs text-slate-300/80">
-      Our Friendly Service Team
+      Our Experience Service Team
+    </figcaption>
+  </figure>
+
+             <figure className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl backdrop-blur-md">
+    <div className="relative aspect-[16/10] w-full overflow-hidden">
+      <Image
+        src="/Mentinence.png"
+        alt="All Water Services"
+        fill
+        sizes="(max-width: 768px) 100vw, 50vw"
+        className="object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+      />
+    </div>
+    <figcaption className="p-4 text-xs text-slate-300/80">
+      Our Professionl Service Team
     </figcaption>
   </figure>
 </div>
@@ -2686,7 +2702,7 @@ export default function HomePage() {
                   {/* Audience tags */}
                   <motion.div className="flex flex-wrap gap-2"
                     initial={{ opacity:0 }} animate={{ opacity:1 }} transition={{ delay:.64 }}>
-                    {['👨‍🎓 Students & PG','🏠 Families','🏢 Offices , Restorents','🎪For All Types Of Events'].map(tag => (
+                    {['👨‍🎓 Students & PG','🏠 Families','🏢 Offices , Restorents','🎪 For All Types Of Events'].map(tag => (
                       <span key={tag} className="rounded-full border border-sky-400/24 bg-sky-400/7 px-3 py-1 text-xs font-medium text-sky-200">
                         {tag}
                       </span>
