@@ -45,7 +45,12 @@ assert.match(proxySource, /pathname === g\.prefix \|\| pathname\.startsWith\(`\$
 const orderApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
 assert.match(orderApi, /totalsMatch\(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0\.5\)/);
 assert.match(orderApi, /const total = computeExpectedTotal\(base_amount, convenience, emergency_charge, gstRate\)\.total/);
-// Ignore legacy commented-out code when checking the active route implementation.\nconst activeOrderApi = orderApi.split('\\n').filter((line) => !line.trim().startsWith('//')).join('\\n');\nassert.doesNotMatch(activeOrderApi, /const total = round2\\(clientTotal\\)/);
+// Ignore legacy commented-out code when checking the active route implementation.
+const activeOrderApi = orderApi
+  .split('\n')
+  .filter((line) => !line.trim().startsWith('//'))
+  .join('\n');
+assert.doesNotMatch(activeOrderApi, /const total = round2\(clientTotal\)/);
 
 const pricingPage = readFileSync(join(root, 'src', 'app', '(public)', 'pricing', 'page.tsx'), 'utf8');
 assert.match(pricingPage, /const NORMAL_RO_PRICE = 20/);
