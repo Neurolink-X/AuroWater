@@ -453,7 +453,7 @@ export async function GET() {
      * Role, active-state and status filters remain mandatory in the fallback.
      */
     const optionalColumnMissing =
-      Boolean(error) &&
+      error !== null &&
       (error.code === '42703' || error.code === 'PGRST204') &&
       /vehicle_type|verification_status|availability_status|rating|completed_jobs/i.test(error.message);
 
