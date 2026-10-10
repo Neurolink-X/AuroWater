@@ -91,7 +91,32 @@ export async function PUT(req: NextRequest) {
     error = result.error;
   }
 
-  if (error) return jsonErr(error.message ?? 'Stock update failed', 409);
+  if (error) {
+    const message = error.message ?? 'Stock update failed';
+    const normalized = message.toUpperCase();
+
+    // RPC validation conflicts are actionable client errors; unexpected
+    // database failures must not be misreported as stock conflicts.
+    if (normalized.includes('STOCK_BELOW_RESERVED')) {
+      return jsonErr(
+        'Stock cannot be reduced below the quantity already reserved for customer orders. Refresh inventory and try a smaller adjustment.',
+        409,
+        'STOCK_BELOW_RESERVED',
+      );
+    }
+    if (normalized.includes('INVALID_STOCK') || normalized.includes('INVALID_STOCK_ADJUSTMENT')) {
+      return jsonErr('Enter a valid non-negative stock quantity or adjustment.', 422, 'INVALID_STOCK');
+    }
+    if (normalized.includes('FORBIDDEN')) {
+      return jsonErr('You are not allowed to update this supplier inventory.', 403, 'FORBIDDEN');
+    }
+
+    console.error('[supplier/stock] update failed:', {
+      code: (error as { code?: string }).code,
+      message,
+    });
+    return jsonErr('Inventory could not be updated right now. Please retry.', 502, 'STOCK_UPDATE_FAILED');
+  }
 
   // Low stock alert notification (best-effort, never blocks response).
   try {

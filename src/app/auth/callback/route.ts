@@ -19,7 +19,7 @@ function getSafeNextPath(
   const defaultPath =
     type === 'recovery'
       ? '/auth/update-password'
-      : '/customer/home';
+      : '/';
 
   if (!value) return defaultPath;
 

@@ -165,11 +165,31 @@ export async function DELETE(
     // An address can be referenced by an active subscription or another
     // order-related record. Never bypass those foreign keys or delete history.
     if (error.code === '23503') {
-      return jsonErr(
-        'This address is linked to an order or subscription and cannot be deleted. Set another address as default or contact support.',
-        409,
-        'ADDRESS_IN_USE',
-      );
+      // Preserve order/subscription history while allowing the customer to
+      // remove this address from their active address book. Requires the
+      // is_archived column from sql/015_address_archive.sql.
+      const { data: archived, error: archiveError } = await auth.ctx.supabase
+        .from('addresses')
+        .update({ is_archived: true, is_default: false })
+        .eq('id', id)
+        .eq('customer_id', auth.ctx.profile.id)
+        .select('id')
+        .maybeSingle();
+
+      if (archiveError) {
+        console.error('[addresses:DELETE:archive]', {
+          code: archiveError.code,
+          message: archiveError.message,
+        });
+        return jsonErr(
+          'Address history is protected, but address archiving is not yet configured. Please try again after the service update.',
+          503,
+          'ADDRESS_ARCHIVE_NOT_CONFIGURED',
+        );
+      }
+
+      if (!archived) return jsonErr('Address not found', 404);
+      return jsonOk({ deleted: true as const, archived: true as const });
     }
 
     return jsonErr('Unable to delete this address right now. Please try again.', 500);
