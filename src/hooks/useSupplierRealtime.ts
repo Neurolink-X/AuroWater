@@ -20,14 +20,15 @@ type Options = {
 /**
  * Production realtime hook for the supplier dashboard.
  *
- * Improvements over the inline setup:
  *  - single channel, always cleaned up (no leaks on supplier change)
- *  - debounced refetch (burst of updates = one network call)
- *  - polling runs ONLY when the websocket is down (saves ~6 req/min per supplier)
+ *  - debounced refetch (a burst of updates = one network call)
+ *  - polling runs ONLY while the websocket is down
  *  - refetches immediately on tab focus / network regain
  *  - exposes `status` so the UI can show a Live / Reconnecting badge
  *
- * Callbacks are held in refs so the channel is NOT torn down on every render.
+ * Callbacks are kept in refs that are updated inside an effect (never during
+ * render), so the channel is NOT torn down on every render and the React
+ * Compiler "refs during render" lint rule is satisfied.
  */
 export function useSupplierRealtime({
   supplierId,
@@ -37,14 +38,19 @@ export function useSupplierRealtime({
   debounceMs = 400,
 }: Options): { status: RealtimeStatus; refresh: () => void } {
   const [status, setStatus] = useState<RealtimeStatus>('connecting');
-  const supabaseRef = useRef(createClient());
+  // Lazy initialiser: the client is created once, not on every render.
+  const [supabase] = useState(() => createClient());
 
   const ordersCb = useRef(onOrdersChange);
   const notifCb = useRef(onNotification);
-  ordersCb.current = onOrdersChange;
-  notifCb.current = onNotification;
-
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keep latest callbacks available to the channel without resubscribing.
+  // Declared BEFORE the subscription effect so it always runs first.
+  useEffect(() => {
+    ordersCb.current = onOrdersChange;
+    notifCb.current = onNotification;
+  });
 
   const refresh = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -56,8 +62,6 @@ export function useSupplierRealtime({
   // Realtime channel
   useEffect(() => {
     if (!supplierId) return;
-    const supabase = supabaseRef.current;
-    setStatus('connecting');
 
     const channel = supabase
       .channel(`supplier-live-${supplierId}`)
@@ -81,10 +85,11 @@ export function useSupplierRealtime({
       });
 
     return () => {
-      if (timer.current) clearTimeout(timer.current);
+      const pending = timer.current;
+      if (pending) clearTimeout(pending);
       void supabase.removeChannel(channel);
     };
-  }, [supplierId, refresh]);
+  }, [supabase, supplierId, refresh]);
 
   // Fallback polling only while offline
   useEffect(() => {
