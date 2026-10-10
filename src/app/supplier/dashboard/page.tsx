@@ -777,12 +777,12 @@ export default function SupplierDashboardPage() {
     };
 
     setProfile(normalized);
-    await fetchOrders(normalized.id);
+    await fetchOrders();
     await fetchEarnings(normalized.id);
     buildStats(normalized);
   };
 
-  const fetchOrders = async (_supplierId?: string) => {
+  const fetchOrders = async () => {
     setLoadingOrders(true);
 
     try {
@@ -1074,7 +1074,7 @@ export default function SupplierDashboardPage() {
     supplierId: profile?.id,
     onOrdersChange: async () => {
       if (!profile?.id) return;
-      await Promise.all([fetchOrders(profile.id), fetchEarnings(profile.id)]);
+      await Promise.all([fetchOrders(), fetchEarnings(profile.id)]);
     },
     onNotification: (row) => {
       const notif = row as unknown as Notification;
@@ -1099,7 +1099,7 @@ export default function SupplierDashboardPage() {
       toast.success('Order accepted. You can now start delivery.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Unable to accept this order.');
-      if (profile?.id) await fetchOrders(profile.id);
+      if (profile?.id) await fetchOrders();
     } finally {
       setUpdatingOrder(null);
     }
@@ -1146,7 +1146,7 @@ export default function SupplierDashboardPage() {
         );
 
         if (profile?.id) {
-          await fetchOrders(profile.id);
+          await fetchOrders();
         }
 
         return true;
