@@ -1149,18 +1149,46 @@ export default function BookingWizard() {
     if (!/^[0-9]{6}$/.test(na.pincode.trim())) { toast.error('Pincode must be exactly 6 digits.'); return; }
     setSavingAddress(true);
     try {
-      // Geocode manually entered addresses before saving; water orders need valid coordinates.
+      // Keep precise GPS coordinates only while the detected area/city/pincode remain unchanged.
+      // If the customer edits the address manually (or has no fresh GPS result), resolve the
+      // typed address again so stale coordinates can never be saved for a different address.
+      const sameAsDetected =
+        Boolean(detectedLocation) &&
+        (na.area.trim().toLowerCase() === String(detectedLocation?.area ?? '').trim().toLowerCase()) &&
+        (na.city.trim().toLowerCase() === String(detectedLocation?.city ?? '').trim().toLowerCase()) &&
+        (na.pincode.trim() === String(detectedLocation?.pincode ?? '').trim());
+      const hasValidCoords =
+        typeof na.lat === 'number' && typeof na.lng === 'number' &&
+        Number.isFinite(na.lat) && Number.isFinite(na.lng) &&
+        na.lat >= -90 && na.lat <= 90 && na.lng >= -180 && na.lng <= 180;
       let lat = na.lat;
       let lng = na.lng;
-      if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      if (!hasValidCoords || !sameAsDetected) {
         setLocationStep('geocoding');
         try {
-          const resolved = await forwardGeocodeAddress({ house_flat: na.house_flat.trim(), area: na.area.trim(), city: na.city.trim(), pincode: na.pincode.trim() });
+          const resolved = await forwardGeocodeAddress({
+            house_flat: na.house_flat.trim(),
+            area: na.area.trim(),
+            city: na.city.trim(),
+            pincode: na.pincode.trim(),
+          });
           lat = resolved.lat;
           lng = resolved.lng;
-          setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, lat, lng, area: resolved.area || d.newAddress?.area || '', city: resolved.city || d.newAddress?.city || '', pincode: resolved.pincode || d.newAddress?.pincode || '' } }));
+          setDraft((d) => ({
+            ...d,
+            newAddress: {
+              ...d.newAddress,
+              lat,
+              lng,
+              area: resolved.area || d.newAddress?.area || '',
+              city: resolved.city || d.newAddress?.city || '',
+              pincode: resolved.pincode || d.newAddress?.pincode || '',
+            },
+          }));
         } catch (error) {
-          const message = error instanceof ApiError ? error.message : 'We could not verify this address on the map. Check the details or try Detect my location again.';
+          const message = error instanceof ApiError
+            ? error.message
+            : 'We could not verify this address on the map. Check your house/flat, area, city and pincode, or detect your location again.';
           setLocationStep('error');
           setLocationError(message);
           toast.error(message);
