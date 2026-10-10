@@ -823,8 +823,33 @@ export default function SupplierDashboardPage() {
           accepted_at: row.accepted_at ?? row.assigned_at ?? null,
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
-          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
-          city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
+          address_line: String(
+            row.address_text ??
+            row.address_line ??
+            row.address ??
+            (row.delivery_address && typeof row.delivery_address === 'object'
+              ? [
+                  (row.delivery_address as Record<string, unknown>).house_flat,
+                  (row.delivery_address as Record<string, unknown>).area,
+                  (row.delivery_address as Record<string, unknown>).landmark,
+                  (row.delivery_address as Record<string, unknown>).city,
+                  (row.delivery_address as Record<string, unknown>).state,
+                  (row.delivery_address as Record<string, unknown>).pincode,
+                ].filter((part) => typeof part === 'string' && part.trim()).join(', ')
+              : '') ||
+            snapshot.formatted_address ??
+            snapshot.full_address ??
+            snapshotAddress
+          ),
+          city: String(
+            row.customer_city ??
+            (row.delivery_address && typeof row.delivery_address === 'object'
+              ? (row.delivery_address as Record<string, unknown>).city
+              : null) ??
+            snapshot.city ??
+            row.city ??
+            ''
+          ),
           customer_name: String(row.customer_name ?? '—'),
           customer_phone: String(row.customer_phone ?? '—'),
         };
