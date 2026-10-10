@@ -54,6 +54,7 @@ const ROUTES = {
 export interface BookingDraft {
   serviceKey: string;
   subOptionKey: string;
+  plumberType?: 'labour' | 'mistri';
   canQuantity?: number;
   canOrderType?: 'one_time' | 'subscription';
   canFrequency?: string;
@@ -91,7 +92,7 @@ const CHILLED_RO_CAN_PRICE = 25;
 const SUBSCRIPTION_RO_CAN_PRICE = 18;
 const BULK_RO_CAN_PRICE = 20;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
-const SCOPE_SERVICES = ['borewell', 'motor_pump', 'tank_cleaning'];
+const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
 const MSG_DENIED =
   'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, then try again — or type your address below.';
@@ -148,7 +149,7 @@ type AddressRow = {
 function emptyDraft(): BookingDraft {
   const slot = nextFutureSlot();
   return {
-    serviceKey: 'water_can', subOptionKey: 'normal_ro',
+    serviceKey: 'water_can', subOptionKey: 'normal_ro', plumberType: 'labour',
     canQuantity: 1, canOrderType: 'one_time', canFrequency: 'weekly',
     scheduledDate: slot.date, slotId: slot.slotId,
     timeSlot: '', startTime: slot.startTime, endTime: slot.endTime,
@@ -168,6 +169,7 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   const out: Partial<BookingDraft> = {};
   if (typeof r.serviceKey === 'string' && SERVICE_LIST.some((s) => s.key === r.serviceKey)) out.serviceKey = r.serviceKey;
   if (typeof r.subOptionKey === 'string') out.subOptionKey = r.subOptionKey;
+  if (r.plumberType === 'labour' || r.plumberType === 'mistri') out.plumberType = r.plumberType;
   const q = Number(r.canQuantity);
   if (Number.isFinite(q) && q >= 1) out.canQuantity = Math.min(MAX_CANS_SUBSCRIPTION, Math.floor(q));
   if (r.canOrderType === 'one_time' || r.canOrderType === 'subscription') out.canOrderType = r.canOrderType;
@@ -204,7 +206,9 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
           : NORMAL_RO_CAN_PRICE;
     return Math.round(qty * per);
   }
-  const base = settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
+  const base = draft.serviceKey === 'plumbing'
+    ? (draft.plumberType === 'mistri' ? 900 : 149)
+    : settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
   return Math.round(base + subOptionDelta(draft.serviceKey, draft.subOptionKey));
 }
 
@@ -840,6 +844,7 @@ export default function BookingWizard() {
         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
+        plumber_type: draft.serviceKey === 'plumbing' ? (draft.plumberType ?? 'labour') : undefined,
       });
       try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
@@ -1094,12 +1099,25 @@ export default function BookingWizard() {
             )}
 
             {draft.serviceKey === 'plumbing' && (
+              <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
+                {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹900 starting']] as const).map(([type, label, price]) => (
+                  <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
+                    onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
+                    className={`${optionBtn((draft.plumberType ?? 'labour') === type)} text-left`}>
+                    <span className="block font-bold">{label}</span>
+                    <span className="mt-1 block text-sm">{price}</span>
+                    <span className="mt-1 block text-xs text-slate-500">Final quote depends on scope and materials.</span>
+                  </button>
+                ))}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[['pipe_leak','Pipe leak'],['tap','Tap repair'],['drainage','Drainage'],['new_fitting','New fitting'],['other','Other']].map(([k,l]) => (
                   <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
                     onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
                     className={`${optionBtn(draft.subOptionKey === k)} text-left`}>{l}</button>
                 ))}
+              </div>
               </div>
             )}
 
