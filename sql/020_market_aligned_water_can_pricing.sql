@@ -32,7 +32,7 @@ WHERE key = 'service_base_prices'
   AND value LIKE '%"tank_cleaning":349%';
 
 UPDATE public.service_types
-SET base_price = 39,
+SET base_price = 20,
     description = 'Sealed 20L drinking-water can; confirm supplier and quality details before ordering'
 WHERE key = 'water_can' AND base_price IN (10, 12, 39);
 
