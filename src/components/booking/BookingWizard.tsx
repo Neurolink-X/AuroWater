@@ -1406,22 +1406,22 @@ export default function BookingWizard() {
             <p className="text-xs text-slate-500 mt-1">Review the complete payable total before confirming your booking.</p>
           </div>
 
-    /* {/* Plumbing Sub-Options with clear extra pricing tags */}
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      {[
-        ['pipe_leak', 'Pipe leak', 'Standard repair', 0],
-        ['tap', 'Tap repair', 'Standard repair', 0],
-        ['drainage', 'Drainage', 'Includes clearing tools', 0],
-        ['new_fitting', 'New fitting', 'Specialized hardware setup', 99],
-        ['other', 'Other', 'Custom scope', 0]
-      ].map(([k, l, desc, extra]) => (
-        <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
-          onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-          className={`${optionBtn(draft.subOptionKey === k)} text-left flex flex-col justify-between`}>
-          <div>
-            <span className="font-bold block">{l}</span>
-            <span className="text-xs text-slate-500 block mt-0.5">{desc}</span>
-          </div> */
+   
+    // <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    //   {[
+    //     ['pipe_leak', 'Pipe leak', 'Standard repair', 0],
+    //     ['tap', 'Tap repair', 'Standard repair', 0],
+    //     ['drainage', 'Drainage', 'Includes clearing tools', 0],
+    //     ['new_fitting', 'New fitting', 'Specialized hardware setup', 99],
+    //     ['other', 'Other', 'Custom scope', 0]
+    //   ].map(([k, l, desc, extra]) => (
+    //     <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
+    //       onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
+    //       className={`${optionBtn(draft.subOptionKey === k)} text-left flex flex-col justify-between`}>
+    //       <div>
+    //         <span className="font-bold block">{l}</span>
+    //         <span className="text-xs text-slate-500 block mt-0.5">{desc}</span>
+    //       </div>
           {/* Plumbing Sub-Options with clear extra pricing tags */}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
   {[
