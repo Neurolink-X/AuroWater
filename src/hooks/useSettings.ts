@@ -112,7 +112,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
   default_can_price:      20,
   chilled_can_price:      25,
-  subscription_can_price: 20,
+  subscription_can_price: 18,
   bulk_can_price:         20,
   bulk_threshold:         50,
   market_can_price:       20,
@@ -124,8 +124,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     motor_pump:    299,
     tank_cleaning: 599,
   },
-  convenience_fee:     29,
-  emergency_surcharge: 199,
+  convenience_fee:     10,
+  emergency_surcharge: 30,
   gst_rate:            0.18,
   commissions: {
     bulk:       0.08,
