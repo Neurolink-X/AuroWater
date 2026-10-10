@@ -824,9 +824,9 @@ export default function SupplierDashboardPage() {
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
           address_line: String(
-            row.address_text ??
-            row.address_line ??
-            row.address ??
+            row.address_text ||
+            row.address_line ||
+            row.address ||
             (row.delivery_address && typeof row.delivery_address === 'object'
               ? [
                   (row.delivery_address as Record<string, unknown>).house_flat,
@@ -837,17 +837,17 @@ export default function SupplierDashboardPage() {
                   (row.delivery_address as Record<string, unknown>).pincode,
                 ].filter((part) => typeof part === 'string' && part.trim()).join(', ')
               : '') ||
-            snapshot.formatted_address ??
-            snapshot.full_address ??
+            snapshot.formatted_address ||
+            snapshot.full_address ||
             snapshotAddress
           ),
           city: String(
-            row.customer_city ??
+            row.customer_city ||
             (row.delivery_address && typeof row.delivery_address === 'object'
               ? (row.delivery_address as Record<string, unknown>).city
-              : null) ??
-            snapshot.city ??
-            row.city ??
+              : null) ||
+            snapshot.city ||
+            row.city ||
             ''
           ),
           customer_name: String(row.customer_name ?? '—'),
