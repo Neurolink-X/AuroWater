@@ -615,22 +615,41 @@ export default function SupplierDashboardPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchProfile = async (userId: string) => {
+    // Supplier identity is stored in public.profiles in the deployed schema.
     const { data, error } = await supabase
-      .from('supplier_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+      .from('profiles')
+      .select('id, full_name, phone, city, is_active, status, role, tier, created_at')
+      .eq('id', userId)
+      .eq('role', 'supplier')
+      .maybeSingle();
 
     if (error || !data) {
-      toast.error('Could not load supplier profile.');
+      console.error('[supplier] profile load failed:', error?.message ?? 'Supplier profile not found');
+      toast.error('Could not load your supplier account. Contact support if your account was recently approved.');
       return;
     }
 
-    setProfile(data as SupplierProfile);
-    await fetchOrders(data.id);
-    await fetchEarnings(data.id);
-    buildStats(data as SupplierProfile);
-    setupRealtime(data.id);
+    const normalized: SupplierProfile = {
+      id: data.id,
+      user_id: data.id,
+      full_name: data.full_name || 'Supplier',
+      phone: data.phone || '',
+      city: data.city || '',
+      tier: (['bronze', 'silver', 'gold', 'platinum'].includes(data.tier) ? data.tier : 'bronze') as SupplierProfile['tier'],
+      is_active: data.is_active === true && data.status === 'active',
+      is_verified: data.status === 'active',
+      total_deliveries: 0,
+      total_earnings: 0,
+      rating: 0,
+      rating_count: 0,
+      created_at: data.created_at || new Date().toISOString(),
+    };
+
+    setProfile(normalized);
+    await fetchOrders(normalized.id);
+    await fetchEarnings(normalized.id);
+    buildStats(normalized);
+    setupRealtime(normalized.id);
   };
 
   const fetchOrders = async (_supplierId?: string) => {
@@ -835,7 +854,6 @@ export default function SupplierDashboardPage() {
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
-      .eq('role', 'supplier')
       .order('created_at', { ascending: false })
       .limit(20);
 
