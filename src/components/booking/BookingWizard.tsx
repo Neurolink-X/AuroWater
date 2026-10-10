@@ -11,6 +11,8 @@
  *  - Offline guard, unsaved-address guard, focus management between steps
  *  - Premium pass: price-vs-market savings, trust signals, sticky total bar,
  *    FAQ, share-to-WhatsApp, reduced-motion support, Sora + Plus Jakarta Sans
+ *  - Pricing pass: one price table for plumbing / RO service / tanker, every
+ *    extra charge visible, same itemised lines on Step 2 and Step 5
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -103,6 +105,55 @@ const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
 const BULK_RO_CAN_PRICE: number = CAN_PRICES.bulk;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
+
+/* ───────── Service price tables: ONE source of truth ─────────
+ * Edit prices here only. Option cards, price boxes, the review step
+ * and the total all read from these tables, so they can never disagree. */
+
+const PLUMBER_PRICES = {
+  labour: 149,
+  // Old code showed ₹700 on the card but charged ₹900. Put the REAL number here.
+  mistri: 700,
+} as const;
+
+const PLUMBER_LABELS = {
+  labour: 'Labour / minor repair',
+  mistri: 'Mistri / skilled work',
+} as const;
+
+interface ScopeOption {
+  key: string;
+  label: string;
+  desc?: string;
+  /** Extra charge added on top of the base fee. */
+  extra: number;
+  /** true = final price is confirmed after the visit. */
+  quoteAfterVisit?: boolean;
+}
+
+// Extras below match what your code was ALREADY charging.
+// If drainage should really be free, change its extra to 0 here.
+const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
+  ro_service: [
+    { key: 'service', label: 'Routine service', extra: 0 },
+    { key: 'filter_change', label: 'Filter change', extra: 49 },
+    { key: 'amc', label: 'AMC', extra: 149 },
+    { key: 'new_installation', label: 'New installation', extra: 599 },
+  ],
+  plumbing: [
+    { key: 'pipe_leak', label: 'Pipe leak', desc: 'Standard repair', extra: 0 },
+    { key: 'tap', label: 'Tap repair', desc: 'Standard repair', extra: 0 },
+    { key: 'drainage', label: 'Drainage', desc: 'Includes clearing tools', extra: 49 },
+    { key: 'new_fitting', label: 'New fitting', desc: 'Specialized hardware setup', extra: 99 },
+    { key: 'other', label: 'Other', desc: 'Custom scope', extra: 0, quoteAfterVisit: true },
+  ],
+  water_tanker: [
+    { key: '500', label: '500L', extra: 0 },
+    { key: '1000', label: '1000L', extra: 50 },
+    { key: '2000', label: '2000L', extra: 120 },
+    { key: 'custom', label: 'Custom', desc: 'Custom quantity', extra: 80, quoteAfterVisit: true },
+  ],
+};
 
 const MSG_DENIED =
   'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, then try again — or type your address below.';
@@ -291,11 +342,55 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   return out;
 }
 
+function subOptionMeta(serviceKey: string, subOptionKey: string): ScopeOption | undefined {
+  return SCOPE_OPTIONS[serviceKey]?.find((o) => o.key === subOptionKey);
+}
+
 function subOptionDelta(serviceKey: string, subOptionKey: string): number {
-  if (serviceKey === 'ro_service')   return ({ service: 0, filter_change: 49, amc: 149, new_installation: 599 } as Record<string, number>)[subOptionKey] ?? 0;
-  if (serviceKey === 'plumbing')     return ({ pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 } as Record<string, number>)[subOptionKey] ?? 0;
-  if (serviceKey === 'water_tanker') return ({ '500': 0, '1000': 50, '2000': 120, custom: 80 } as Record<string, number>)[subOptionKey] ?? 0;
-  return 0;
+  return subOptionMeta(serviceKey, subOptionKey)?.extra ?? 0;
+}
+
+function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
+  if (draft.serviceKey === 'plumbing') {
+    return PLUMBER_PRICES[draft.plumberType ?? 'labour'];
+  }
+  return settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
+}
+
+export interface PriceLine {
+  label: string;
+  amount: number;
+  /** true = shown as an indented "+ extra" line. */
+  isAddon: boolean;
+}
+
+/** Itemised lines for every non-water-can service. Sum of lines = baseAmount. */
+function getPriceLines(draft: BookingDraft, settings: PlatformSettings): PriceLine[] {
+  const baseLabel =
+    draft.serviceKey === 'plumbing'
+      ? `Base fee · ${PLUMBER_LABELS[draft.plumberType ?? 'labour']}`
+      : 'Base service fee';
+
+  const lines: PriceLine[] = [
+    { label: baseLabel, amount: serviceBaseFee(draft, settings), isAddon: false },
+  ];
+
+  const meta = subOptionMeta(draft.serviceKey, draft.subOptionKey);
+  if (meta && meta.extra > 0) {
+    lines.push({ label: `${meta.label} charge`, amount: meta.extra, isAddon: true });
+  }
+  return lines;
+}
+
+function priceNote(draft: BookingDraft): string {
+  const meta = subOptionMeta(draft.serviceKey, draft.subOptionKey);
+  if (meta?.quoteAfterVisit) {
+    return 'Custom work: the final quote is confirmed after inspection. Materials, if needed, are extra.';
+  }
+  if (draft.serviceKey === 'plumbing') {
+    return 'Starting price. Spare parts and materials, if needed, are extra and shown before work begins.';
+  }
+  return 'Review the complete payable total before confirming your booking.';
 }
 
 function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): number {
@@ -313,10 +408,10 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
           : NORMAL_RO_CAN_PRICE;
     return Math.round(qty * per);
   }
-  const base = draft.serviceKey === 'plumbing'
-    ? (draft.plumberType === 'mistri' ? 900 : 149)
-    : settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
-  return Math.round(base + subOptionDelta(draft.serviceKey, draft.subOptionKey));
+
+  return Math.round(
+    serviceBaseFee(draft, settings) + subOptionDelta(draft.serviceKey, draft.subOptionKey),
+  );
 }
 
 function serviceLabel(key: string): string {
@@ -381,6 +476,109 @@ const optionBtn = (active: boolean) =>
   `rounded-xl border px-4 py-3 text-sm font-semibold text-slate-900 transition-colors ${
     active ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-emerald-200'
   }`;
+
+/* ───────── Option card with a visible extra-price tag ───────── */
+function ScopeCard({
+  option,
+  active,
+  onSelect,
+}: {
+  option: ScopeOption;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onSelect}
+      className={`${optionBtn(active)} flex flex-col justify-between text-left`}
+    >
+      <div>
+        <span className="block font-bold">{option.label}</span>
+        {option.desc && (
+          <span className="mt-0.5 block text-xs text-slate-500">{option.desc}</span>
+        )}
+      </div>
+
+      {option.extra > 0 && (
+        <span className="mt-2 inline-block self-start rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
+          + {inr(option.extra)} extra
+        </span>
+      )}
+
+      {option.quoteAfterVisit && (
+        <span className="mt-2 inline-block self-start rounded-md bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+          Quote after inspection
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ───────── Full price breakdown: nothing hidden ───────── */
+function ServicePriceBox({
+  lines,
+  convenience,
+  emergency,
+  total,
+  note,
+  estimate,
+}: {
+  lines: PriceLine[];
+  convenience: number;
+  emergency: number;
+  total: number;
+  note: string;
+  estimate: boolean;
+}) {
+  return (
+    <div
+      className="space-y-2 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm"
+      aria-live="polite"
+    >
+      {lines.map((l, i) => (
+        <div
+          key={`${l.label}-${i}`}
+          className={`flex justify-between gap-3 ${l.isAddon ? 'text-xs font-medium text-emerald-700' : ''}`}
+        >
+          <span className={l.isAddon ? '' : 'text-slate-600'}>
+            {l.isAddon ? `└ ${l.label}` : l.label}
+          </span>
+          <span className={l.isAddon ? '' : 'font-bold text-slate-900'}>
+            {l.isAddon ? `+ ${inr(l.amount)}` : inr(l.amount)}
+          </span>
+        </div>
+      ))}
+
+      {convenience > 0 && (
+        <div className="flex justify-between gap-3 text-slate-600">
+          <span>Convenience fee</span>
+          <span className="font-semibold text-slate-900">{inr(convenience)}</span>
+        </div>
+      )}
+
+      {emergency > 0 && (
+        <div className="flex justify-between gap-3 text-amber-700">
+          <span>Emergency surcharge</span>
+          <span className="font-semibold">{inr(emergency)}</span>
+        </div>
+      )}
+
+      <hr className="my-1 border-slate-200" />
+
+      <div className="flex justify-between font-extrabold text-slate-900">
+        <span>{estimate ? 'Estimated total' : 'Total'}</span>
+        <span>
+          {estimate ? 'from ' : ''}
+          {inr(total)}
+        </span>
+      </div>
+
+      <p className="mt-1 text-xs text-slate-500">{note}</p>
+    </div>
+  );
+}
 
 export default function BookingWizard() {
   const router       = useRouter();
@@ -574,42 +772,42 @@ export default function BookingWizard() {
     });
   }, [draft.serviceKey]);
 
- const loadAddresses = useCallback(async () => {
-  // Guests can browse the booking flow,
-  // but customer-only APIs must never be called for other roles.
-  if (!session?.loggedIn || session.role !== 'customer') {
-    setAddresses([]);
-    setAddressesLoaded(true);
-    setLoadingAddresses(false);
-    return;
-  }
-
-  setLoadingAddresses(true);
-
-  try {
-    const list = (await customerAddresses()) as AddressRow[];
-
-    setAddresses(Array.isArray(list) ? list : []);
-    setAddressesLoaded(true);
-  } catch (error) {
-    console.error('[BookingWizard] address load failed:', error);
-
-    setAddressesLoaded(true);
-
-    if (
-      error instanceof ApiError &&
-      error.code === 'CUSTOMER_ROLE_REQUIRED'
-    ) {
+  const loadAddresses = useCallback(async () => {
+    // Guests can browse the booking flow,
+    // but customer-only APIs must never be called for other roles.
+    if (!session?.loggedIn || session.role !== 'customer') {
+      setAddresses([]);
+      setAddressesLoaded(true);
+      setLoadingAddresses(false);
       return;
     }
 
-    toast.error(
-      'We couldn’t load your saved addresses. Please try again or add a new address.'
-    );
-  } finally {
-    setLoadingAddresses(false);
-  }
-}, [session?.loggedIn, session?.role]);
+    setLoadingAddresses(true);
+
+    try {
+      const list = (await customerAddresses()) as AddressRow[];
+
+      setAddresses(Array.isArray(list) ? list : []);
+      setAddressesLoaded(true);
+    } catch (error) {
+      console.error('[BookingWizard] address load failed:', error);
+
+      setAddressesLoaded(true);
+
+      if (
+        error instanceof ApiError &&
+        error.code === 'CUSTOMER_ROLE_REQUIRED'
+      ) {
+        return;
+      }
+
+      toast.error(
+        'We couldn’t load your saved addresses. Please try again or add a new address.'
+      );
+    } finally {
+      setLoadingAddresses(false);
+    }
+  }, [session?.loggedIn, session?.role]);
 
   useEffect(() => {
     if (!session?.loggedIn || !draft.addressId || view !== 3) {
@@ -629,19 +827,19 @@ export default function BookingWizard() {
   }, [draft.addressId, draft.serviceKey, session?.loggedIn, view]);
 
   useEffect(() => {
-  if (
-    view >= 3 &&
-    session?.loggedIn &&
-    session.role === 'customer'
-  ) {
-    void loadAddresses();
-  }
-}, [
-  view,
-  session?.loggedIn,
-  session?.role,
-  loadAddresses,
-]);
+    if (
+      view >= 3 &&
+      session?.loggedIn &&
+      session.role === 'customer'
+    ) {
+      void loadAddresses();
+    }
+  }, [
+    view,
+    session?.loggedIn,
+    session?.role,
+    loadAddresses,
+  ]);
 
   useEffect(() => {
     setDraft((d) => {
@@ -658,8 +856,22 @@ export default function BookingWizard() {
     return { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
   }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
 
+  /* Itemised lines (sum = baseAmount) so every screen shows the same numbers */
+  const priceLines = useMemo<PriceLine[]>(
+    () =>
+      draft.serviceKey === 'water_can'
+        ? [{ label: 'Base price', amount: baseAmount, isAddon: false }]
+        : getPriceLines(draft, settings),
+    [draft, settings, baseAmount],
+  );
+
+  const quoteEstimate =
+    draft.serviceKey === 'plumbing' ||
+    !!subOptionMeta(draft.serviceKey, draft.subOptionKey)?.quoteAfterVisit;
+
   const fromPrice = useCallback((key: string) => {
     if (key === 'water_can') return NORMAL_RO_CAN_PRICE;
+    if (key === 'plumbing') return PLUMBER_PRICES.labour;
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
@@ -1028,9 +1240,9 @@ export default function BookingWizard() {
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
             <span aria-hidden>💧</span> {view === 6 ? 'Order confirmed' : 'Book in under a minute'}
           </p>
-          <h1 className="mt-3 text-[1.65rem] leading-tight sm:text-4xl font-extrabold tracking-tight text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
-            {view === 6 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing, tank cleaning & borewell solutions — right at your door.'}
-          </h1>
+          <h2 className="mt-3 text-[1.65rem] leading-tight sm:text-4xl font-extrabold tracking-tight text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
+            {view === 6 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing solutions - right at your door.'}
+          </h2>
           {view < 6 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
               Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · delivery included · pay when it arrives.
@@ -1137,7 +1349,7 @@ export default function BookingWizard() {
 
             {draft.serviceKey === 'water_can' && (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" aria-label="Water type">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Water type">
                   <button type="button" aria-pressed={draft.subOptionKey !== 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'normal_ro' }))} className={optionBtn(draft.subOptionKey !== 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
                     <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(NORMAL_RO_CAN_PRICE)} / 20L</span>
@@ -1169,7 +1381,7 @@ export default function BookingWizard() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2" aria-label="Quick quantity">
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Quick quantity">
                   {QUICK_QTY.filter((n) => n <= maxCansFor(draft)).map((n) => (
                     <button key={n} type="button" aria-pressed={(draft.canQuantity ?? 1) === n}
                       onClick={() => setDraft((d) => ({ ...d, canQuantity: n }))}
@@ -1313,89 +1525,83 @@ export default function BookingWizard() {
             )}
 
             {draft.serviceKey === 'ro_service' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[['service','Routine service'],['filter_change','Filter change'],['amc','AMC'],['new_installation','New installation']].map(([k,l]) => (
-                  <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
-                    onClick={() => setDraft((d) => ({ ...d, subOptionKey: String(k) }))}
-                    className={`${optionBtn(draft.subOptionKey === k)} text-left`}>{l}</button>
+              <div
+                role="group"
+                aria-label="RO service type"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              >
+                {SCOPE_OPTIONS.ro_service.map((o) => (
+                  <ScopeCard
+                    key={o.key}
+                    option={o}
+                    active={draft.subOptionKey === o.key}
+                    onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
+                  />
                 ))}
               </div>
             )}
 
-{draft.serviceKey === 'plumbing' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
-                {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹700 starting']] as const).map(([type, label, price]) => (
-                  <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
-                    onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
-                    className={`${optionBtn((draft.plumberType ?? 'labour') === type)} text-left`}>
-                    <span className="block font-bold">{label}</span>
-                    <span className="mt-1 block text-sm">{price}</span>
-                    <span className="mt-1 block text-xs text-slate-500">Final quote depends on scope and materials.</span>
-                  </button>
-                ))}
-              </div>
+            {draft.serviceKey === 'plumbing' && (
+              <div className="space-y-4">
+                {/* Who is coming */}
+                <div
+                  role="group"
+                  aria-label="Plumber charge type"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                >
+                  {(['labour', 'mistri'] as const).map((type) => {
+                    const active = (draft.plumberType ?? 'labour') === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
+                        className={`${optionBtn(active)} text-left`}
+                      >
+                        <span className="block font-bold">{PLUMBER_LABELS[type]}</span>
+                        <span className="mt-1 block text-sm">
+                          {inr(PLUMBER_PRICES[type])} starting
+                        </span>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          Final quote depends on scope and materials.
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-              {/* Plumbing Sub-Options with clear extra pricing tags */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {([
-                  ['pipe_leak', 'Pipe leak', 'Standard repair', 0],
-                  ['tap', 'Tap repair', 'Standard repair', 0],
-                  ['drainage', 'Drainage', 'Includes clearing tools', 0],
-                  ['new_fitting', 'New fitting', 'Specialized hardware setup', 99],
-                  ['other', 'Other', 'Custom scope', 0]
-                ] as [string, string, string, number][]).map(([k, l, desc, extra]) => (
-                  <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
-                    onClick={() => setDraft((d) => ({ ...d, subOptionKey: String(k) }))}
-                    className={`${optionBtn(draft.subOptionKey === k)} text-left flex flex-col justify-between`}>
-                    <div>
-                      <span className="font-bold block">{l}</span>
-                      <span className="text-xs text-slate-500 block mt-0.5">{desc}</span>
-                    </div>
-                    {Number(extra) > 0 && (
-                      <span className="mt-2 inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 self-start">
-                        + {inr(Number(extra))} extra
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Step 2 Price Box with Itemized Breakdown */}
-          <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm space-y-2">
-            <div className="flex justify-between">
-              <span className="text-slate-600">Base service fee</span>
-              <span className="font-bold text-slate-900">
-                {inr(draft.serviceKey === 'plumbing' ? (draft.plumberType === 'mistri' ? 900 : 149) : settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0)}
-              </span>
-            </div>
-
-            {/* Show extra charge breakdown if applicable */}
-            {draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
-              <div className="flex justify-between text-xs text-emerald-700 font-medium">
-                <span>└ New fitting charge (Specialized hardware)</span>
-                <span>+ {inr(99)}</span>
+                {/* What work is needed */}
+                <div
+                  role="group"
+                  aria-label="Type of plumbing work"
+                  className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+                >
+                  {SCOPE_OPTIONS.plumbing.map((o) => (
+                    <ScopeCard
+                      key={o.key}
+                      option={o}
+                      active={draft.subOptionKey === o.key}
+                      onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
+                    />
+                  ))}
+                </div>
               </div>
             )}
-
-            <hr className="border-slate-200 my-1" />
-            
-            <div className="flex justify-between font-extrabold text-slate-900">
-              <span>Estimated Total</span>
-              <span>{inr(baseAmount)}</span>
-            </div>
-
-            <p className="text-xs text-slate-500 mt-1">Review the complete payable total before confirming your booking.</p>
-          </div>
 
             {draft.serviceKey === 'water_tanker' && (
-              <div className="grid grid-cols-2 gap-3">
-                {[['500','500L'],['1000','1000L'],['2000','2000L'],['custom','Custom']].map(([k,l]) => (
-                  <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
-                    onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-                    className={optionBtn(draft.subOptionKey === k)}>{l}</button>
+              <div
+                role="group"
+                aria-label="Tanker size"
+                className="grid grid-cols-2 gap-3"
+              >
+                {SCOPE_OPTIONS.water_tanker.map((o) => (
+                  <ScopeCard
+                    key={o.key}
+                    option={o}
+                    active={draft.subOptionKey === o.key}
+                    onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
+                  />
                 ))}
               </div>
             )}
@@ -1410,13 +1616,20 @@ export default function BookingWizard() {
               </div>
             )}
 
-            <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-slate-600">Estimated base</span>
-                <span className="font-bold text-slate-900">{inr(baseAmount)}</span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">Water-can orders have no separate handling fee. Review the complete payable total before confirming.</p>
-            </div>
+            {draft.serviceKey === 'water_can' ? (
+              <p className="text-xs text-slate-500">
+                Water-can orders have no separate handling fee. Review the complete payable total before confirming.
+              </p>
+            ) : (
+              <ServicePriceBox
+                lines={priceLines}
+                convenience={breakdown.convenience}
+                emergency={breakdown.emergency}
+                total={breakdown.total}
+                note={priceNote(draft)}
+                estimate={quoteEstimate}
+              />
+            )}
 
             <div className="flex justify-between gap-3">
               <button type="button" onClick={prevStep} className={btnGhost}>Back</button>
@@ -1677,50 +1890,44 @@ export default function BookingWizard() {
                   <span className="font-semibold text-right text-slate-900">{v}</span>
                 </div>
               ))}
-              {/* <hr className="border-slate-200" />
-              <div className="flex justify-between text-slate-900"><span className="text-slate-600">Base price</span><span>{inr(breakdown.base)}</span></div>
-              <div className="flex justify-between text-slate-900"><span className="text-slate-600">Convenience</span><span>{inr(breakdown.convenience)}</span></div>
-              {breakdown.gst > 0 && <div className="flex justify-between text-slate-900"><span className="text-slate-600">GST</span><span>{inr(breakdown.gst)}</span></div>}
-              {draft.isEmergency && <div className="flex justify-between text-amber-700"><span>Emergency</span><span>{inr(breakdown.emergency)}</span></div>}
+
+              <hr className="border-slate-200" />
+
+              {priceLines.map((l, i) => (
+                <div
+                  key={`${l.label}-${i}`}
+                  className={`flex justify-between gap-3 ${l.isAddon ? 'text-xs' : 'text-slate-900'}`}
+                >
+                  <span className={l.isAddon ? 'pl-2 text-slate-500' : 'text-slate-600'}>
+                    {l.isAddon ? `└ ${l.label}` : l.label}
+                  </span>
+                  <span className={l.isAddon ? 'font-semibold text-emerald-700' : ''}>
+                    {l.isAddon ? `+ ${inr(l.amount)}` : inr(l.amount)}
+                  </span>
+                </div>
+              ))}
+
+              <div className="flex justify-between text-slate-900">
+                <span className="text-slate-600">Convenience</span>
+                <span>{inr(breakdown.convenience)}</span>
+              </div>
+              {breakdown.gst > 0 && (
+                <div className="flex justify-between text-slate-900">
+                  <span className="text-slate-600">GST</span>
+                  <span>{inr(breakdown.gst)}</span>
+                </div>
+              )}
+              {draft.isEmergency && (
+                <div className="flex justify-between text-amber-700">
+                  <span>Emergency</span>
+                  <span>{inr(breakdown.emergency)}</span>
+                </div>
+              )}
               <hr className="border-slate-200" />
               <div className="flex justify-between text-base font-extrabold text-emerald-800">
-                <span>TOTAL</span><span>{inr(breakdown.total)}</span>
-              </div> */}
-              <hr className="border-slate-200" />
-<div className="flex justify-between text-slate-900">
-  <span className="text-slate-600">Base price</span>
-  <span>{inr(breakdown.base)}</span>
-</div>
-
-{/* Transparent add-on display in Step 5 */}
-{draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
-  <div className="flex justify-between text-slate-900 text-xs">
-    <span className="text-slate-500 pl-2">└ New fitting charge (Specialized hardware)</span>
-    <span className="text-emerald-700 font-semibold">+ {inr(99)}</span>
-  </div>
-)}
-
-<div className="flex justify-between text-slate-900">
-  <span className="text-slate-600">Convenience</span>
-  <span>{inr(breakdown.convenience)}</span>
-</div>
-{breakdown.gst > 0 && (
-  <div className="flex justify-between text-slate-900">
-    <span className="text-slate-600">GST</span>
-    <span>{inr(breakdown.gst)}</span>
-  </div>
-)}
-{draft.isEmergency && (
-  <div className="flex justify-between text-amber-700">
-    <span>Emergency</span>
-    <span>{inr(breakdown.emergency)}</span>
-  </div>
-)}
-<hr className="border-slate-200" />
-<div className="flex justify-between text-base font-extrabold text-emerald-800">
-  <span>TOTAL</span>
-  <span>{inr(breakdown.total)}</span>
-</div>
+                <span>TOTAL</span>
+                <span>{inr(breakdown.total)}</span>
+              </div>
               {youSave > 0 && (
                 <div className="flex items-center justify-between rounded-xl bg-emerald-600/10 px-3 py-2 text-emerald-800">
                   <span className="text-xs font-bold">🎉 You save vs typical local price ({offPct}% off)</span>
