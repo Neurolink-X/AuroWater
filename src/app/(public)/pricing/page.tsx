@@ -1009,7 +1009,7 @@ export default function PricingPage() {
   const { settings } = useSettings();
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
     const unit = orderType === 'subscription'
-      ? settings.subscription_can_price
+      ? Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))
       : quantity >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
         ? settings.bulk_can_price
         : settings.default_can_price;
@@ -1060,7 +1060,7 @@ export default function PricingPage() {
       pricePerDelivery: deliveryTotal(10),
       unitPrice: settings.subscription_can_price,
       cansPerDelivery: 10,
-      perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -1083,7 +1083,7 @@ export default function PricingPage() {
       pricePerDelivery: deliveryTotal(20),
       unitPrice: settings.subscription_can_price,
       cansPerDelivery: 20,
-      perCan: `₹${settings.subscription_can_price}/can (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -1235,7 +1235,7 @@ export default function PricingPage() {
 
             {/* hero value props */}
             <div style={{ display:'flex',flexWrap:'wrap',gap:12,marginTop:28 }}>
-              {[`₹${settings.subscription_can_price}/can on recurring deliveries`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
+              {[`₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can on recurring deliveries · save 10%`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
                 <div key={t} style={{ display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,0.09)',borderRadius:999,padding:'7px 14px',border:'1px solid rgba(255,255,255,0.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#34D399" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   <span style={{ fontSize:13,color:'rgba(255,255,255,0.85)',fontWeight:600 }}>{t}</span>
@@ -1454,7 +1454,7 @@ export default function PricingPage() {
           {(
             [
               { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
-              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${settings.subscription_can_price}/can`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
+              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10%`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
               { label: `Bulk ${settings.bulk_threshold}+`, sublabel: settings.bulk_can_price < settings.default_can_price ? 'Volume discount' : 'Same as regular rate until a volume discount is configured', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
