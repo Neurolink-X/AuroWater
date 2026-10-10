@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">Friendly AuroTap water and home-service team</title>
+<desc id="desc">Original illustrated banner featuring a friendly woman and man technician in teal and navy uniforms with a water purifier and refillable water can.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eafbf8"/><stop offset="1" stop-color="#c9f0eb"/></linearGradient>
+ <linearGradient id="shirt" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0c3150"/><stop offset="1" stop-color="#126b78"/></linearGradient>
+ <linearGradient id="jug" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#b8f2ff" stop-opacity=".92"/><stop offset=".5" stop-color="#3cbae6" stop-opacity=".72"/><stop offset="1" stop-color="#0876a5" stop-opacity=".85"/></linearGradient>
+</defs>
+<rect width="1600" height="900" rx="38" fill="url(#bg)"/>
+<circle cx="1350" cy="145" r="210" fill="#fff" opacity=".42"/><circle cx="190" cy="760" r="240" fill="#fff" opacity=".35"/>
+<g fill="#4dbaa6" opacity=".45"><path d="M122 190q-48-82-8-132 61 49 8 132z"/><path d="M145 199q20-99 93-109-7 78-93 109z"/><path d="M137 207v-70" fill="none" stroke="#278d7d" stroke-width="7"/></g>
+<rect x="145" y="230" width="1310" height="500" rx="34" fill="#fff" opacity=".58"/>
+<rect x="200" y="285" width="450" height="370" rx="24" fill="#d9f5f0"/>
+<path d="M222 608h404" stroke="#9bd9d1" stroke-width="12" stroke-linecap="round"/>
+<rect x="238" y="370" width="120" height="215" rx="22" fill="#f8ffff" stroke="#b3dce2" stroke-width="8"/>
+<rect x="258" y="405" width="80" height="140" rx="12" fill="#0e293e"/>
+<path d="M282 452q16-28 32 0 0 24-16 31-16-7-16-31z" fill="#26c6da"/><circle cx="298" cy="498" r="5" fill="#6de6f2"/>
+<rect x="385" y="430" width="205" height="155" rx="18" fill="#fff" stroke="#c1e6e4" stroke-width="7"/>
+<path d="M405 463h165M405 490h130M405 517h150" stroke="#b4dfdb" stroke-width="9" stroke-linecap="round"/>
+<!-- friendly woman technician -->
+<path d="M690 690l20-156q6-65 68-75h55q62 10 68 75l20 156z" fill="url(#shirt)"/>
+<path d="M741 464q35 27 70 0l18 31-53 50-53-50z" fill="#f0b58f"/>
+<path d="M731 348q-2-74 67-82 75 5 77 84l-16 61q-22 51-60 51-43 0-62-53z" fill="#e7a47f"/>
+<path d="M725 356q-23-99 57-122 68-16 100 48l-18 61-20-47q-42 12-86-5l-14 65-13 17z" fill="#38272b"/>
+<path d="M747 350q-9 56 18 89M846 348q12 52-14 86" stroke="#38272b" stroke-width="17" stroke-linecap="round" fill="none"/>
+<ellipse cx="769" cy="366" rx="5" ry="7" fill="#243442"/><ellipse cx="823" cy="366" rx="5" ry="7" fill="#243442"/>
+<path d="M781 397q17 17 34 0" fill="none" stroke="#a94e51" stroke-width="6" stroke-linecap="round"/>
+<path d="M733 530l-57 79 22 24 79-69M850 530l47 62-17 22-67-49" fill="none" stroke="#e7a47f" stroke-width="25" stroke-linecap="round"/>
+<rect x="690" y="600" width="180" height="90" rx="12" fill="#0c3150"/><path d="M711 622h138" stroke="#13c4b2" stroke-width="7" stroke-linecap="round"/>
+<path d="M790 490l-16 58 28 24 30-24-15-58" fill="#0b9b8d"/>
+<path d="M794 515q12-19 24 0 0 16-12 23-12-7-12-23z" fill="#c7fff7"/>
+<!-- friendly man technician -->
+<path d="M1000 690l16-168q7-62 70-71h78q62 9 70 71l18 168z" fill="url(#shirt)"/>
+<path d="M1060 455q43 32 83 0l14 37-55 54-56-54z" fill="#d99b73"/>
+<path d="M1040 339q-2-70 73-83 74 6 82 83l-17 63q-20 48-63 48-42 0-62-49z" fill="#d99b73"/>
+<path d="M1036 349q-28-90 43-119 67-26 113 29l9 55-34-35q-45 14-87-4l-21 70z" fill="#2b2427"/>
+<path d="M1060 358l-5 19M1153 358l5 19" stroke="#2b2427" stroke-width="9" stroke-linecap="round"/>
+<ellipse cx="1074" cy="365" rx="5" ry="7" fill="#243442"/><ellipse cx="1136" cy="365" rx="5" ry="7" fill="#243442"/>
+<path d="M1084 398q22 18 42 0" fill="none" stroke="#944d47" stroke-width="6" stroke-linecap="round"/>
+<path d="M1030 531l-45 69 17 23 64-55M1183 529l40 54-15 24-59-44" fill="none" stroke="#d99b73" stroke-width="25" stroke-linecap="round"/>
+<rect x="1034" y="600" width="186" height="90" rx="12" fill="#0c3150"/><path d="M1054 622h145" stroke="#13c4b2" stroke-width="7" stroke-linecap="round"/>
+<path d="M1100 489l-16 62 31 22 30-22-15-62" fill="#0b9b8d"/>
+<path d="M1103 515q12-19 24 0 0 16-12 23-12-7-12-23z" fill="#c7fff7"/>
+<!-- water jug -->
+<path d="M1260 422h100l-9 39q41 30 43 75l8 136q2 29-29 29h-125q-30 0-28-29l8-136q2-45 42-75z" fill="url(#jug)" stroke="#138bb5" stroke-width="8"/>
+<rect x="1280" y="397" width="60" height="40" rx="10" fill="#129dc4"/><rect x="1291" y="382" width="38" height="21" rx="6" fill="#0b779b"/>
+<path d="M1252 530q54 19 140 0M1248 590q58 20 150 0" fill="none" stroke="#e9ffff" stroke-width="9" opacity=".85"/>
+<path d="M1301 512q18-30 36 0 0 25-18 35-18-10-18-35z" fill="#f2ffff" opacity=".9"/>
+<g font-family="Arial, sans-serif" fill="#0b3449"><text x="250" y="325" font-size="24" font-weight="700" letter-spacing="4">AUROTAP SERVICE TEAM</text><text x="250" y="715" font-size="18" font-weight="600" fill="#278d7d">Friendly professionals • Reliable home service</text></g>
+</svg>
