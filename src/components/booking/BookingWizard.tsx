@@ -655,6 +655,7 @@ export default function BookingWizard() {
 
   /* ───────── Hydration ───────── */
   useEffect(() => {
+    setHydrated(false);
     let restored: Partial<BookingDraft> | null = null;
     let restoredStep = 1;
     try {
@@ -1056,7 +1057,7 @@ export default function BookingWizard() {
       const msg =
         e instanceof ApiError
           ? e.message
-          : 'We found your position but could not read the street address. Please type your area and pincode.';
+          : 'Location was detected, but the address lookup timed out. Please enter your house/flat, area, city and 6-digit pincode manually, then save the address. Your GPS coordinates are retained.';
       setLocationError(msg);
       toast.warning(msg);
     }
