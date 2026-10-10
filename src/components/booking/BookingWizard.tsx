@@ -88,7 +88,7 @@ const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
 const NORMAL_RO_CAN_PRICE = 20;
 const CHILLED_RO_CAN_PRICE = 25;
-const SUBSCRIPTION_RO_CAN_PRICE = 20;
+const SUBSCRIPTION_RO_CAN_PRICE = 18;
 const BULK_RO_CAN_PRICE = 20;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['borewell', 'motor_pump', 'tank_cleaning'];
@@ -1029,11 +1029,11 @@ export default function BookingWizard() {
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
                         {(draft.canQuantity ?? 1) >= settings.bulk_threshold
                           ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-                          : `Subscription ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
+                          : `Save 10% · ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(settings.subscription_can_price)} per can · recurring
+                      {inr(SUBSCRIPTION_RO_CAN_PRICE)} per can · Save 10% vs one-time Normal RO
                     </span>
                     {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
                     <span className="mt-1 block text-[11px] text-slate-400">
