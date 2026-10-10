@@ -10,7 +10,7 @@ export function defaultHomeForProfileRole(role: string): string {
   if (role === 'admin') return '/admin/dashboard';
   if (role === 'technician') return '/technician/dashboard';
   if (role === 'supplier') return '/supplier/dashboard';
-  return '/customer/home';
+  return '/';
 }
 
 export function postLoginPath(role: string, returnTo: string | null): string {
