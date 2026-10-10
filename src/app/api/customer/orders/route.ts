@@ -324,9 +324,15 @@ if (!serviceability.serviceable) {
     // Never trust a client-supplied base amount. Resolve the canonical service
     // rate from server settings, then apply only known option adjustments.
     const configuredPrice = Number(flat[service_type_key + '_price']);
-    const serviceBase = Number.isFinite(configuredPrice) && configuredPrice > 0
-      ? configuredPrice
-      : Number(st.base_price) || 0;
+    const plumberType = str(body.plumber_type) ?? 'labour';
+    if (service_type_key === 'plumbing' && !['labour', 'mistri'].includes(plumberType)) {
+      return jsonErr('Choose a valid plumber charge type.', 400);
+    }
+    const serviceBase = service_type_key === 'plumbing'
+      ? (plumberType === 'mistri' ? 900 : 149)
+      : Number.isFinite(configuredPrice) && configuredPrice > 0
+        ? configuredPrice
+        : Number(st.base_price) || 0;
     const optionKey = str(body.sub_option_key) ?? '';
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
