@@ -158,7 +158,7 @@ const CONTACT_KEYS: ReadonlySet<ManagedKey> = new Set([
 const DEFAULT_VALUES: Values = {
   default_can_price: '',
   chilled_can_price: '25',
-  subscription_can_price: '',
+  subscription_can_price: '18',
   bulk_can_price: '',
   bulk_threshold: '',
   market_can_price: '',
@@ -552,13 +552,13 @@ export default function AdminSettingsPage() {
         // Preserve the stored values for dirty-state comparison, but display
         // approved launch pricing and never present an invalid bulk "discount".
         const storedValues: Values = { ...next };
-        const normalPrice = Math.max(20, Number(next.default_can_price) || 20);
-        const chilledPrice = Math.max(25, Number(next.chilled_can_price) || 25);
-        const recurringPrice = Math.max(normalPrice, Number(next.subscription_can_price) || normalPrice);
-        const configuredBulk = Number(next.bulk_can_price);
-        const effectiveBulk = Number.isFinite(configuredBulk) && configuredBulk > 0 && configuredBulk < normalPrice
-          ? configuredBulk
-          : normalPrice;
+        const normalPrice = 20;
+        const chilledPrice = 25;
+        const configuredRecurring = Number(next.subscription_can_price);
+        const recurringPrice = Number.isFinite(configuredRecurring) && configuredRecurring > 0 && configuredRecurring < normalPrice
+          ? Math.min(configuredRecurring, 18)
+          : 18;
+        const effectiveBulk = 20;
 
         next.default_can_price = String(normalPrice);
         next.chilled_can_price = String(chilledPrice);
