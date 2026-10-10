@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
@@ -170,19 +171,42 @@ const STATUS_META: Record<
 const INR = (n: number) =>
   `₹${Math.round(n).toLocaleString('en-IN')}`;
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-IN', {
+const fmtDate = (iso: string) => {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return 'Date TBD';
+  return d.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
+};
 
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-IN', {
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   });
+};
+
+// Today's date (YYYY-MM-DD) in India time, so "today" is right on any device.
+const todayIST = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
+const cleanPhone = (p: string) => p.replace(/[^\d+]/g, '');
+
+const waLink = (phone: string, text: string) => {
+  const digits = phone.replace(/\D/g, '').replace(/^0+/, '');
+  const num = digits.length === 10 ? `91${digits}` : digits;
+  return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
+};
+
+const mapsLink = (addr: string) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+
+const TIER_RANK: SupplierProfile['tier'][] = ['bronze', 'silver', 'gold', 'platinum'];
 
 const normalizeOrderStatus = (status: unknown): OrderStatus => {
   switch (String(status ?? '').toUpperCase()) {
@@ -354,6 +378,59 @@ function StatCard({
   );
 }
 
+// ─── Water-delivery helpers ───────────────────────────────────────────────────
+
+type OrderFilter = 'all' | 'today' | 'cash' | 'accept';
+
+const FILTER_LABELS: Record<OrderFilter, string> = {
+  all: 'All',
+  today: 'Today',
+  cash: 'Cash to collect',
+  accept: 'Needs accept',
+};
+
+const matchesQuery = (o: Order, q: string) =>
+  !q ||
+  [o.customer_name, o.customer_phone, o.booking_id, o.address_line, o.city, o.service_type].some((v) =>
+    String(v ?? '').toLowerCase().includes(q),
+  );
+
+const quickLinkStyle: React.CSSProperties = {
+  flex: '1 1 0',
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  padding: '8px 6px',
+  borderRadius: 10,
+  fontSize: 12,
+  fontWeight: 700,
+  textDecoration: 'none',
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: 'rgba(255,255,255,0.04)',
+  color: '#E2E8F0',
+};
+
+const chip = (color: string, bg: string): React.CSSProperties => ({
+  fontSize: 11,
+  fontWeight: 700,
+  color,
+  background: bg,
+  padding: '4px 10px',
+  borderRadius: 999,
+  whiteSpace: 'nowrap',
+});
+
+function MiniStat({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 14px' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ marginTop: 6, fontSize: 20, fontWeight: 900, color: tone }}>{value}</div>
+    </div>
+  );
+}
+
 // ─── Order card ────────────────────────────────────────────────────────────────
 
 function OrderCard({
@@ -382,6 +459,15 @@ function OrderCard({
 
   const next = nextStatus[order.status];
   const isAssignedAndWaiting = order.status === 'assigned' && !order.accepted_at;
+
+  const today = todayIST();
+  const isActive = ['pending', 'assigned', 'in_progress'].includes(order.status);
+  const hasPhone = !!order.customer_phone && order.customer_phone !== '—';
+  const fullAddress = [order.address_line, order.city].filter(Boolean).join(', ');
+  const isToday = isActive && order.scheduled_date === today;
+  const isOverdue = isActive && !!order.scheduled_date && order.scheduled_date < today;
+  const isPaid = order.payment_status === 'paid';
+  const payMethod = (order.payment_method || 'cash').toUpperCase();
 
   const nextLabel: Record<OrderStatus, string> = {
     pending: '',
@@ -465,12 +551,52 @@ function OrderCard({
           <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
             ⏰ {order.scheduled_slot}
           </span>
-          {order.cans_count && (
+          {order.cans_count != null && order.cans_count > 0 && (
             <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(13,155,108,0.9)', background: 'rgba(13,155,108,0.1)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
               💧 {order.cans_count} can{order.cans_count > 1 ? 's' : ''}
             </span>
           )}
         </div>
+
+        {/* Timing + payment (water delivery essentials) */}
+        {order.status !== 'cancelled' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {isOverdue && <span style={chip('#FCA5A5', 'rgba(248,113,113,0.14)')}>⚠ Overdue</span>}
+            {isToday && <span style={chip('#FCD34D', 'rgba(245,158,11,0.14)')}>● Today</span>}
+            {isPaid ? (
+              <span style={chip('#6EE7B7', 'rgba(16,185,129,0.12)')}>✓ Paid · {payMethod}</span>
+            ) : (
+              <span style={chip('#FBBF24', 'rgba(245,158,11,0.12)')}>💵 Collect {INR(order.amount)} · {payMethod}</span>
+            )}
+          </div>
+        )}
+
+        {/* Quick actions for the delivery partner */}
+        {isActive && (hasPhone || fullAddress) && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {hasPhone && (
+              <a href={`tel:${cleanPhone(order.customer_phone)}`} style={quickLinkStyle} aria-label={`Call ${order.customer_name}`}>
+                📞 Call
+              </a>
+            )}
+            {hasPhone && (
+              <a
+                href={waLink(order.customer_phone, `Hello ${order.customer_name}, this is your AuroTap water supplier about order #${order.booking_id.slice(0, 8).toUpperCase()}${order.scheduled_slot ? ` (${order.scheduled_slot})` : ''}.`)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={quickLinkStyle}
+                aria-label={`WhatsApp ${order.customer_name}`}
+              >
+                💬 WhatsApp
+              </a>
+            )}
+            {fullAddress && (
+              <a href={mapsLink(fullAddress)} target="_blank" rel="noopener noreferrer" style={quickLinkStyle} aria-label="Navigate to delivery address">
+                🧭 Navigate
+              </a>
+            )}
+          </div>
+        )}
 
         {order.notes && (
           <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic', lineHeight: 1.5, borderLeft: '2px solid rgba(255,255,255,0.08)', paddingLeft: 8 }}>
@@ -582,6 +708,11 @@ export default function SupplierDashboardPage() {
   const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<OrderFilter>('all');
+  // Tracks which "assigned, not yet accepted" orders we've already seen,
+  // so a genuinely new assignment can trigger an instant alert.
+  const knownWaitingRef = useRef<Set<string> | null>(null);
 
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
@@ -700,6 +831,22 @@ export default function SupplierDashboardPage() {
       });
 
       setOrders(flat);
+
+      const waiting = flat.filter((o) => o.status === 'assigned' && !o.accepted_at).map((o) => o.id);
+      if (knownWaitingRef.current === null) {
+        knownWaitingRef.current = new Set(waiting);
+      } else {
+        const known = knownWaitingRef.current;
+        const fresh = waiting.filter((id) => !known.has(id));
+        if (fresh.length > 0) {
+          toast.success(
+            fresh.length === 1 ? 'New order assigned to you' : `${fresh.length} new orders assigned to you`,
+            { description: 'Open Active Orders to accept.' },
+          );
+          try { navigator.vibrate?.(200); } catch { /* not supported */ }
+        }
+        knownWaitingRef.current = new Set(waiting);
+      }
     } catch (error) {
       console.error('[supplier] orders load failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to load orders.');
@@ -891,7 +1038,7 @@ export default function SupplierDashboardPage() {
   // Recalculate stats from live order data
   useEffect(() => {
     if (!profile) return;
-    const today = new Intl.DateTimeFormat('en-CA').format(new Date());
+    const today = todayIST();
     const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
 
@@ -1072,13 +1219,78 @@ export default function SupplierDashboardPage() {
     () => orders.filter((o) => ['delivered', 'cancelled'].includes(o.status)),
     [orders]
   );
-  const displayOrders = tab === 'active' ? activeOrders : historyOrders;
+  const q = query.trim().toLowerCase();
+  const todayStr = todayIST();
+
+  const filteredActive = useMemo(
+    () =>
+      activeOrders
+        .filter((o) => {
+          if (!matchesQuery(o, q)) return false;
+          if (filter === 'today') return o.scheduled_date === todayStr;
+          if (filter === 'cash') return o.payment_status !== 'paid';
+          if (filter === 'accept') return o.status === 'assigned' && !o.accepted_at;
+          return true;
+        })
+        .sort((a, b) =>
+          (a.scheduled_date || '9999').localeCompare(b.scheduled_date || '9999') ||
+          a.scheduled_slot.localeCompare(b.scheduled_slot) ||
+          a.created_at.localeCompare(b.created_at),
+        ),
+    [activeOrders, q, filter, todayStr],
+  );
+  const filteredHistory = useMemo(
+    () => historyOrders.filter((o) => matchesQuery(o, q)),
+    [historyOrders, q],
+  );
+  const displayOrders = tab === 'active' ? filteredActive : filteredHistory;
+  const hasFilter = q !== '' || (tab === 'active' && filter !== 'all');
+
+  const route = useMemo(() => {
+    const todays = activeOrders.filter((o) => o.scheduled_date === todayStr);
+    const slots = new Map<string, number>();
+    todays.forEach((o) => {
+      const key = o.scheduled_slot || 'Anytime';
+      slots.set(key, (slots.get(key) ?? 0) + 1);
+    });
+    return {
+      todays: todays.length,
+      overdue: activeOrders.filter((o) => o.scheduled_date && o.scheduled_date < todayStr).length,
+      cans: todays.reduce((sum, o) => sum + (o.cans_count ?? 0), 0),
+      cash: activeOrders.reduce((sum, o) => sum + (o.payment_status === 'paid' ? 0 : o.amount), 0),
+      awaiting: activeOrders.filter((o) => o.status === 'assigned' && !o.accepted_at).length,
+      slots: Array.from(slots.entries()),
+    };
+  }, [activeOrders, todayStr]);
+
+  const freeCans = stock ? Math.max(0, stock.cans_available - stock.reserved_cans) : 0;
+  const lowStock = !!stock && freeCans <= stock.low_stock_alert;
   const unreadCount = notifications.filter((n) => !n.is_read).length;
-  const tier = profile ? TIER_META[profile.tier] : null;
+  const deliveredCount = useMemo(() => orders.filter((o) => o.status === 'delivered').length, [orders]);
+  const deliveries = Math.max(profile?.total_deliveries ?? 0, deliveredCount);
+  const earnedTotal = Math.max(profile?.total_earnings ?? 0, earnings.reduce((sum, e) => sum + e.amount, 0));
+  const derivedTier: SupplierProfile['tier'] =
+    deliveries >= 400 ? 'platinum' : deliveries >= 150 ? 'gold' : deliveries >= 50 ? 'silver' : 'bronze';
+  const effectiveTier: SupplierProfile['tier'] =
+    TIER_RANK.indexOf(derivedTier) > TIER_RANK.indexOf(profile?.tier ?? 'bronze')
+      ? derivedTier
+      : profile?.tier ?? 'bronze';
+  const tier = profile ? TIER_META[effectiveTier] : null;
   const tierProgress =
     profile && tier
-      ? Math.min(100, Math.round((profile.total_deliveries / tier.target) * 100))
+      ? Math.min(100, Math.round((deliveries / tier.target) * 100))
       : 0;
+
+  // Live count in the browser tab title, e.g. "(3) Supplier Dashboard"
+  useEffect(() => {
+    const n = activeOrders.length;
+    document.title = n > 0 ? `(${n}) Supplier Dashboard | AuroTap` : 'Supplier Dashboard | AuroTap';
+  }, [activeOrders.length]);
+
+  const reloadAll = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) await loadAll(session.user.id);
+  };
 
   if (!mounted) return null;
 
@@ -1089,6 +1301,12 @@ export default function SupplierDashboardPage() {
       <style>{`
         .sdash * { box-sizing: border-box; font-family: inherit; }
         .sdash { font-family: var(--font-lexend), system-ui, sans-serif; }
+        .sdash button:focus-visible, .sdash a:focus-visible, .sdash input:focus-visible {
+          outline: 2px solid #34D399; outline-offset: 2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .sdash * { animation: none !important; transition: none !important; }
+        }
         @keyframes auro-shimmer {
           0% { background-position: -200% 0; }
           100% { background-position: 200% 0; }
@@ -1247,11 +1465,23 @@ export default function SupplierDashboardPage() {
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main style={{ maxWidth: 1200, margin: '0 auto', padding: 'clamp(20px,4vw,32px) clamp(16px,4vw,24px) 80px', position: 'relative', zIndex: 1 }}>
 
+          {!loading && !profile && (
+            <div role="alert" style={{ marginBottom: 24, padding: '22px 20px', borderRadius: 16, border: '1.5px solid rgba(248,113,113,0.25)', background: 'rgba(248,113,113,0.06)' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#FCA5A5' }}>Supplier account not found</div>
+              <p style={{ margin: '6px 0 14px', fontSize: 12, lineHeight: 1.6, color: 'rgba(255,255,255,0.55)' }}>
+                We could not load your supplier profile. If your account was recently approved, wait a minute and retry, or contact support.
+              </p>
+              <button type="button" onClick={() => void reloadAll()} style={{ border: 0, borderRadius: 10, padding: '9px 16px', background: '#0D9B6C', color: '#fff', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* Welcome strip */}
           <div style={{ marginBottom: 28, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#0D9B6C', letterSpacing: '0.1em', marginBottom: 6 }}>
-                {loading ? <Skeleton w={120} h={12} /> : `Welcome back, ${profile?.full_name?.split(' ')[0]}`}
+                {loading ? <Skeleton w={120} h={12} /> : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
               </div>
               <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem,4vw,2rem)', fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.6px', lineHeight: 1.1 }}>
                 {loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}
@@ -1278,7 +1508,7 @@ export default function SupplierDashboardPage() {
               <div style={{ background: 'rgba(255,255,255,0.03)', border: `1.5px solid ${tier.color}33`, borderRadius: 14, padding: '14px 18px', minWidth: 220, flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: tier.color }}>🏆 {tier.label} Tier</span>
-                  {profile.tier !== 'platinum' && (
+                  {effectiveTier !== 'platinum' && (
                     <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Next: {tier.next}</span>
                   )}
                 </div>
@@ -1286,8 +1516,8 @@ export default function SupplierDashboardPage() {
                   <div style={{ height: '100%', width: `${tierProgress}%`, background: tier.color, borderRadius: 99, transition: 'width 0.8s ease' }} />
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{profile.total_deliveries} deliveries</span>
-                  {profile.tier !== 'platinum' && (
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{deliveries} deliveries</span>
+                  {effectiveTier !== 'platinum' && (
                     <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{tier.target} needed</span>
                   )}
                 </div>
@@ -1335,20 +1565,56 @@ export default function SupplierDashboardPage() {
             <StatCard
               icon={<>{Icon.star(16)}</>}
               label="Your Rating"
-              value={profile ? `${profile.rating.toFixed(1)} ★` : '—'}
-              sub={`Based on ${profile?.rating_count ?? 0} reviews`}
+              value={profile ? (profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'New') : '—'}
+              sub={profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} reviews` : 'Ratings appear after reviews'}
               accent="#F59E0B"
               loading={loading}
             />
             <StatCard
               icon={Icon.truck(17)}
               label="Total Deliveries"
-              value={profile ? profile.total_deliveries.toLocaleString('en-IN') : '—'}
-              sub={`${INR(profile?.total_earnings ?? 0)} total earned`}
+              value={profile ? deliveries.toLocaleString('en-IN') : '—'}
+              sub={`${INR(earnedTotal)} earned`}
               accent="#0D9B6C"
               loading={loading}
             />
           </div>
+
+          {/* ── TODAY'S ROUTE + ALERTS ─────────────────────────────────── */}
+          {!loading && profile && (
+            <section aria-label="Today's delivery route" style={{ marginBottom: 28 }}>
+              {!dispatchOnline && (
+                <div role="status" style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.08)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#FCD34D' }}>You are offline, so new orders will not be offered to you.</span>
+                  <button type="button" disabled={dispatchSettingsBusy} onClick={() => void toggleDispatchAvailability()} style={{ border: 0, borderRadius: 999, padding: '7px 14px', background: '#0D9B6C', color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Go online
+                  </button>
+                </div>
+              )}
+              {lowStock && stock && (
+                <div role="alert" style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(248,113,113,0.3)', background: 'rgba(248,113,113,0.07)', fontSize: 12, fontWeight: 600, color: '#FCA5A5' }}>
+                  ⚠ Low stock: only {freeCans} free can{freeCans === 1 ? '' : 's'} left (alert level {stock.low_stock_alert}). Restock to keep receiving orders.
+                </div>
+              )}
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#5EEAD4', letterSpacing: '0.08em', marginBottom: 10 }}>TODAY&apos;S ROUTE</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
+                <MiniStat label="Deliveries today" value={String(route.todays)} tone="#F0F4FF" />
+                <MiniStat label="Cans to deliver" value={String(route.cans)} tone="#5EEAD4" />
+                <MiniStat label="Cash to collect" value={INR(route.cash)} tone="#FBBF24" />
+                <MiniStat label="Needs accept" value={String(route.awaiting)} tone={route.awaiting > 0 ? '#7DD3FC' : '#F0F4FF'} />
+                {route.overdue > 0 && <MiniStat label="Overdue" value={String(route.overdue)} tone="#F87171" />}
+              </div>
+              {route.slots.length > 0 && (
+                <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {route.slots.map(([slot, count]) => (
+                    <span key={slot} style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999 }}>
+                      ⏰ {slot} · {count}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── INVENTORY + DISPATCH CONTROLS ─────────────────────────── */}
           <section
@@ -1378,6 +1644,12 @@ export default function SupplierDashboardPage() {
                   <div style={{ marginTop: 4, fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
                     {stock ? `${stock.reserved_cans} reserved · ${Math.max(0, stock.cans_available - stock.reserved_cans)} free before buffer` : 'Loading inventory…'}
                   </div>
+                  {stock && stock.cans_available > 0 && (
+                    <div aria-hidden="true" style={{ marginTop: 10, height: 6, width: 'min(100%, 260px)', borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', display: 'flex' }}>
+                      <div style={{ width: `${Math.min(100, (stock.reserved_cans / stock.cans_available) * 100)}%`, background: '#38BDF8' }} />
+                      <div style={{ flex: 1, background: lowStock ? '#FBBF24' : '#0D9B6C' }} />
+                    </div>
+                  )}
                 </div>
                 <div style={{ minWidth: 210 }}>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1529,6 +1801,29 @@ export default function SupplierDashboardPage() {
               </div>
             </div>
 
+            {/* Search + filters */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, phone, order ID, area…"
+                aria-label="Search orders"
+                style={{ flex: '1 1 220px', minWidth: 0, minHeight: 40, borderRadius: 10, border: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.04)', color: '#F0F4FF', padding: '0 12px', outline: 'none', fontFamily: 'inherit', fontSize: 13 }}
+              />
+              {tab === 'active' && (Object.keys(FILTER_LABELS) as OrderFilter[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  aria-pressed={filter === f}
+                  onClick={() => setFilter(f)}
+                  style={{ minHeight: 36, padding: '0 12px', borderRadius: 999, border: filter === f ? '1px solid rgba(13,155,108,0.7)' : '1px solid rgba(255,255,255,0.10)', background: filter === f ? 'rgba(13,155,108,0.18)' : 'rgba(255,255,255,0.04)', color: filter === f ? '#6EE7B7' : 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  {FILTER_LABELS[f]}
+                </button>
+              ))}
+            </div>
+
             {/* Orders grid */}
             {loadingOrders ? (
               <div className="orders-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 14 }}>
@@ -1545,13 +1840,20 @@ export default function SupplierDashboardPage() {
               <div style={{ textAlign: 'center', padding: '60px 24px', background: 'rgba(255,255,255,0.02)', border: '1.5px dashed rgba(255,255,255,0.08)', borderRadius: 20 }}>
                 <div style={{ fontSize: 36, marginBottom: 12 }}>{tab === 'active' ? '💧' : '📦'}</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: '#F0F4FF', marginBottom: 6 }}>
-                  {tab === 'active' ? 'No active orders right now' : 'No order history yet'}
+                  {hasFilter ? 'No orders match your search' : tab === 'active' ? 'No active orders right now' : 'No order history yet'}
                 </div>
                 <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>
-                  {tab === 'active'
-                    ? 'New orders will appear here automatically when assigned.'
-                    : 'Completed and cancelled orders will show up here.'}
+                  {hasFilter
+                    ? 'Try a different name, phone number or filter.'
+                    : tab === 'active'
+                      ? 'New orders will appear here automatically when assigned.'
+                      : 'Completed and cancelled orders will show up here.'}
                 </div>
+                {hasFilter && (
+                  <button type="button" onClick={() => { setQuery(''); setFilter('all'); }} style={{ marginTop: 14, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '8px 14px', background: 'rgba(255,255,255,0.05)', color: '#F0F4FF', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Clear filters
+                  </button>
+                )}
               </div>
             ) : (
               <div
