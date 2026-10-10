@@ -69,7 +69,7 @@ function dashboardFor(role: string) {
     return '/technician/dashboard';
   }
 
-  return '/customer/home';
+  return '/';
 }
 
 function safeReturnTo(raw: string | null) {
@@ -330,7 +330,7 @@ function LoginPageInner() {
           ? dashboardFor(role)
           : sanitized ||
             (role === 'customer'
-              ? '/customer/home'
+              ? '/'
               : dashboardFor(role));
 
       router.replace(destination);
