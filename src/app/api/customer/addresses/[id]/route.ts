@@ -143,19 +143,38 @@ export async function DELETE(
   }
 
   const { id } = await ctx.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    return jsonErr('Invalid address ID', 400);
+  }
 
   const { data, error } = await auth.ctx.supabase
     .from('addresses')
     .delete()
     .eq('id', id)
-
     .eq('customer_id', auth.ctx.profile.id)
     .select('id');
 
   if (error) {
-    console.error('[addresses:DELETE]', error.message);
-    return jsonErr(error.message, 500);
+    console.error('[addresses:DELETE]', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+
+    // An address can be referenced by an active subscription or another
+    // order-related record. Never bypass those foreign keys or delete history.
+    if (error.code === '23503') {
+      return jsonErr(
+        'This address is linked to an order or subscription and cannot be deleted. Set another address as default or contact support.',
+        409,
+        'ADDRESS_IN_USE',
+      );
+    }
+
+    return jsonErr('Unable to delete this address right now. Please try again.', 500);
   }
+
   if (!data || data.length === 0) {
     return jsonErr('Address not found', 404);
   }

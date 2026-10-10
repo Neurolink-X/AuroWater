@@ -2084,12 +2084,6 @@ export default function HomePage() {
   const [foundingMsg, setFoundingMsg] = useState<string | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [activeSvc, setActiveSvc]     = useState(0);
-  const [deliveredTarget, setDeliveredTarget] = useState<number | null>(null);
-  const [deliveredCount, setDeliveredCount] = useState(0);
-  const [customersTarget, setCustomersTarget] = useState<number | null>(null);
-  const [customersCount, setCustomersCount] = useState(0);
-  const [suppliersTarget, setSuppliersTarget] = useState<number | null>(null);
-  const [suppliersCount, setSuppliersCount] = useState(0);
 
   /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
   useEffect(() => {
@@ -2112,82 +2106,7 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, []);
 
-  /* ── Live counters (public stats) ── */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/stats', { cache: 'force-cache' });
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          completed_orders?: number;
-          total_customers?: number;
-          active_suppliers?: number;
-        };
-        const completed = Math.max(0, Math.floor(Number(json.completed_orders ?? 0)));
-        const customers = Math.max(0, Math.floor(Number(json.total_customers ?? 0)));
-        const suppliers = Math.max(0, Math.floor(Number(json.active_suppliers ?? 0)));
-        if (!cancelled) {
-          setDeliveredTarget(completed);
-          setCustomersTarget(customers);
-          setSuppliersTarget(suppliers);
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (deliveredTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDeliveredCount(Math.round(deliveredTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setDeliveredCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [deliveredTarget]);
-
-  useEffect(() => {
-    if (customersTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setCustomersCount(Math.round(customersTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setCustomersCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [customersTarget]);
-
-  useEffect(() => {
-    if (suppliersTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setSuppliersCount(Math.round(suppliersTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setSuppliersCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [suppliersTarget]);
-
-  const claimed  = useMemo(() => Math.min(founding?.count ?? 73, 100), [founding]);
+  const claimed  = useMemo(() => Math.min(founding?.count ?? 0, 100), [founding]);
   const progress = useMemo(() => (claimed / 100) * 100, [claimed]);
 
   /* ── Doubled review arrays (stable) ── */
@@ -2613,33 +2532,20 @@ export default function HomePage() {
                     ))}
                   </motion.div>
 
-                  <motion.div
-                    className="mt-4 text-sm text-white/70 font-semibold"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.46 }}
-                  >
-                    <div className="flex flex-wrap gap-x-5 gap-y-1">
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {deliveredCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        completed orders
-                      </div>
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {customersCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        customer accounts
-                      </div>
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {suppliersCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        active suppliers
-                      </div>
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="AuroTap service highlights">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-xl font-black text-white">₹20</div>
+                      <div className="mt-1 text-xs text-slate-300">Normal RO · 20L can</div>
                     </div>
-                  </motion.div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-xl font-black text-white">₹25</div>
+                      <div className="mt-1 text-xs text-slate-300">Chilled RO · 20L can</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-sm font-extrabold text-white">3 service cities</div>
+                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur</div>
+                    </div>
+                  </div>
                 </motion.div>
 
                 {/* ── RIGHT ── */}
@@ -2650,16 +2556,16 @@ export default function HomePage() {
                   {/* Real water-service photography; attribution is kept visible. */}
                   <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
                     <Image
-                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
-                      alt="Reusable 20-litre water jars and household water purification equipment in India"
-                      width={960}
-                      height={960}
+                      src="https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1600&q=85"
+                      alt="Water dispenser in a clean setting"
+                      width={1600}
+                      height={1067}
                       priority
                       sizes="(max-width: 1024px) 100vw, 42vw"
                       className="h-56 w-full object-cover sm:h-72"
                     />
                     <figcaption className="px-3 py-2 text-[10px] leading-4 text-slate-300/80">
-                      Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a>
+                      Photo by <a className="underline" href="https://unsplash.com/photos/a-water-dispenser-sitting-on-a-wooden-deck-mdu0FFMyd6k" target="_blank" rel="noreferrer">Ice Family on Unsplash</a> · <a className="underline" href="https://unsplash.com/license" target="_blank" rel="noreferrer">Unsplash License</a>
                     </figcaption>
                   </figure>
 
@@ -2970,13 +2876,19 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mb-2 flex justify-between text-sm font-semibold">
-                  <span className="text-slate-700">{claimed} of 100 spots claimed</span>
-                  <span className="text-sky-600">{100 - claimed} remaining</span>
-                </div>
-                <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden mb-2">
-                  <div className="h-full rounded-full aw-prog transition-[width] duration-700" style={{ width:`${progress}%` }} />
-                </div>
+                {founding ? (
+                  <>
+                    <div className="mb-2 flex justify-between text-sm font-semibold">
+                      <span className="text-slate-700">{claimed} of 100 spots claimed</span>
+                      <span className="text-sky-600">{100 - claimed} remaining</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden mb-2">
+                      <div className="h-full rounded-full aw-prog transition-[width] duration-700" style={{ width:`${progress}%` }} />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 mb-3">Founding membership availability is confirmed when you submit your request.</p>
+                )}
                 <p className="text-xs text-slate-400">We&apos;ll confirm your spot by SMS/WhatsApp within 24 hours.</p>
               </motion.div>
 
