@@ -267,8 +267,6 @@ if (!serviceability.serviceable) {
 
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
-    const defPrice = Number(flat.default_can_price);
-    const chilledPrice = Number(flat.chilled_can_price);
     const bulkPrice = Number(flat.bulk_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
