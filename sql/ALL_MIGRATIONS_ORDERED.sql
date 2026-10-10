@@ -3223,7 +3223,7 @@ WHERE key = 'service_base_prices'
   AND value LIKE '%"tank_cleaning":349%';
 
 UPDATE public.service_types
-SET base_price = 39,
+SET base_price = 20,
     description = 'Sealed 20L drinking-water can; confirm supplier and quality details before ordering'
 WHERE key = 'water_can' AND base_price IN (10, 12);
 
@@ -3243,6 +3243,7 @@ WHERE key = 'tank_cleaning' AND base_price = 349;
 -- overwriting any current admin-managed value.
 INSERT INTO public.settings (key, value) VALUES
   ('default_can_price', '20'),
+  ('chilled_can_price', '25'),
   ('subscription_can_price', '18'),
   ('bulk_can_price', '20'),
   ('bulk_threshold', '50'),
@@ -3260,6 +3261,7 @@ SELECT pg_notify('pgrst', 'reload schema');
 
 -- FILE: sql/022_reconcile_launch_pricing.sql (embedded forward reconciliation)
 UPDATE public.settings SET value = '20' WHERE key = 'default_can_price' AND value IN ('10','12','39');
+INSERT INTO public.settings (key, value) VALUES ('chilled_can_price','25') ON CONFLICT (key) DO NOTHING;
 UPDATE public.settings SET value = '25' WHERE key = 'chilled_can_price' AND value IN ('10','20','37','39');
 UPDATE public.settings SET value = '18' WHERE key = 'subscription_can_price' AND value IN ('10','37','39');
 UPDATE public.settings SET value = '20' WHERE key = 'bulk_can_price' AND value IN ('9','35','39');
