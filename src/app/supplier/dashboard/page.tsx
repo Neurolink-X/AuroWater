@@ -857,18 +857,18 @@ export default function SupplierDashboardPage() {
   };
 
   const fetchEarnings = async (supplierId: string) => {
-    // Earnings are derived from the canonical orders table in production.
-    // Do not query the legacy supplier_earnings table (it is not deployed).
+    // The live orders table has no supplier_payout column. Until the canonical
+    // accrual calculation is verified, show only real payout-ledger records.
     const { data, error } = await supabase
-      .from('orders')
-      .select('id, supplier_payout, status, created_at')
-      .eq('supplier_id', supplierId)
-      .in('status', ['COMPLETED', 'completed', 'DELIVERED', 'delivered'])
+      .from('payouts')
+      .select('id, amount, status, created_at, approved_at')
+      .eq('user_id', supplierId)
+      .eq('role', 'supplier')
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) {
-      console.error('[supplier] earnings load failed:', error.message);
+      console.error('[supplier] payout history load failed:', error.message);
       setEarnings([]);
       return;
     }
@@ -876,9 +876,9 @@ export default function SupplierDashboardPage() {
     setEarnings((data ?? []).map((row) => ({
       id: String(row.id),
       order_id: String(row.id),
-      amount: Number(row.supplier_payout ?? 0),
-      status: 'pending' as const,
-      paid_at: null,
+      amount: Number(row.amount ?? 0),
+      status: ['paid', 'approved', 'completed', 'processed'].includes(String(row.status ?? '').toLowerCase()) ? 'paid' as const : 'pending' as const,
+      paid_at: row.approved_at ? String(row.approved_at) : null,
       created_at: String(row.created_at ?? ''),
     })));
   };
