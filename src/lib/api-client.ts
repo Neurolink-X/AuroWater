@@ -598,6 +598,28 @@ export async function reverseGeocode(
     body: JSON.stringify({ lat, lng }),
   });
 }
+export type ForwardGeocodeResult = {
+  lat: number;
+  lng: number;
+  formattedAddress: string;
+  area: string;
+  city: string;
+  state: string;
+  pincode: string;
+};
+
+export async function forwardGeocodeAddress(body: {
+  house_flat: string;
+  area: string;
+  city: string;
+  pincode: string;
+}): Promise<ForwardGeocodeResult> {
+  return apiFetchAuth<ForwardGeocodeResult>('/geocode/forward', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
 export type NewAddressPayload = {
   label?: string;
   house_flat: string;
