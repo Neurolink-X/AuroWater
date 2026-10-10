@@ -228,7 +228,6 @@ export function mergeSettings(
   const chilledCanPrice = Math.max(25, safePositive(raw.chilled_can_price, DEFAULT_SETTINGS.chilled_can_price));
   const configuredSubscriptionCanPrice = safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price);
   const effectiveSubscriptionCanPrice = Math.max(defaultCanPrice, configuredSubscriptionCanPrice);
-  const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
   // A bulk rate must be lower than the one-time rate to qualify as a discount.
   // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.
   const effectiveBulkCanPrice = configuredBulkCanPrice < defaultCanPrice
