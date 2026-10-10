@@ -30,6 +30,7 @@ import {
   customerAddresses,
   customerServiceability,
   customerOrderCreate,
+  forwardGeocodeAddress,
   reverseGeocode,
   type ApiOrder,
 } from '@/lib/api-client';
@@ -1148,16 +1149,25 @@ export default function BookingWizard() {
     if (!/^[0-9]{6}$/.test(na.pincode.trim())) { toast.error('Pincode must be exactly 6 digits.'); return; }
     setSavingAddress(true);
     try {
-      const payload = {
-        label:      na.label ?? 'Home',
-        house_flat: na.house_flat.trim(),
-        area:       na.area.trim(),
-        city:       na.city.trim(),
-        pincode:    na.pincode.trim(),
-        landmark:   na.landmark?.trim() ?? '',
-        is_default: na.is_default ?? true,
-        ...(typeof na.lat === 'number' && typeof na.lng === 'number' ? { lat: na.lat, lng: na.lng } : {}),
-      };
+      // Geocode manually entered addresses before saving; water orders need valid coordinates.
+      let lat = na.lat;
+      let lng = na.lng;
+      if (typeof lat !== 'number' || typeof lng !== 'number' || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        setLocationStep('geocoding');
+        try {
+          const resolved = await forwardGeocodeAddress({ house_flat: na.house_flat.trim(), area: na.area.trim(), city: na.city.trim(), pincode: na.pincode.trim() });
+          lat = resolved.lat;
+          lng = resolved.lng;
+          setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, lat, lng, area: resolved.area || d.newAddress?.area || '', city: resolved.city || d.newAddress?.city || '', pincode: resolved.pincode || d.newAddress?.pincode || '' } }));
+        } catch (error) {
+          const message = error instanceof ApiError ? error.message : 'We could not verify this address on the map. Check the details or try Detect my location again.';
+          setLocationStep('error');
+          setLocationError(message);
+          toast.error(message);
+          return;
+        }
+      }
+      const payload = { label: na.label ?? 'Home', house_flat: na.house_flat.trim(), area: na.area.trim(), city: na.city.trim(), pincode: na.pincode.trim(), landmark: na.landmark?.trim() ?? '', is_default: na.is_default ?? true, lat, lng };
       const created = (await customerAddressCreate(payload as Parameters<typeof customerAddressCreate>[0])) as AddressRow;
       await loadAddresses();
       setDraft((d) => ({ ...d, addressId: created.id, newAddress: { ...emptyDraft().newAddress } }));
