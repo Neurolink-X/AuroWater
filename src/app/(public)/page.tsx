@@ -2084,12 +2084,6 @@ export default function HomePage() {
   const [foundingMsg, setFoundingMsg] = useState<string | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [activeSvc, setActiveSvc]     = useState(0);
-  const [deliveredTarget, setDeliveredTarget] = useState<number | null>(null);
-  const [deliveredCount, setDeliveredCount] = useState(0);
-  const [customersTarget, setCustomersTarget] = useState<number | null>(null);
-  const [customersCount, setCustomersCount] = useState(0);
-  const [suppliersTarget, setSuppliersTarget] = useState<number | null>(null);
-  const [suppliersCount, setSuppliersCount] = useState(0);
 
   /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
   useEffect(() => {
@@ -2111,81 +2105,6 @@ export default function HomePage() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  /* ── Live counters (public stats) ── */
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/stats', { cache: 'force-cache' });
-        if (!res.ok) return;
-        const json = (await res.json()) as {
-          completed_orders?: number;
-          total_customers?: number;
-          active_suppliers?: number;
-        };
-        const completed = Math.max(0, Math.floor(Number(json.completed_orders ?? 0)));
-        const customers = Math.max(0, Math.floor(Number(json.total_customers ?? 0)));
-        const suppliers = Math.max(0, Math.floor(Number(json.active_suppliers ?? 0)));
-        if (!cancelled) {
-          setDeliveredTarget(completed);
-          setCustomersTarget(customers);
-          setSuppliersTarget(suppliers);
-        }
-      } catch {
-        /* best-effort */
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (deliveredTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDeliveredCount(Math.round(deliveredTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setDeliveredCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [deliveredTarget]);
-
-  useEffect(() => {
-    if (customersTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setCustomersCount(Math.round(customersTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setCustomersCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [customersTarget]);
-
-  useEffect(() => {
-    if (suppliersTarget == null) return;
-    const start = performance.now();
-    const duration = 1500;
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setSuppliersCount(Math.round(suppliersTarget * eased));
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    setSuppliersCount(0);
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [suppliersTarget]);
 
   const claimed  = useMemo(() => Math.min(founding?.count ?? 73, 100), [founding]);
   const progress = useMemo(() => (claimed / 100) * 100, [claimed]);
@@ -2613,33 +2532,20 @@ export default function HomePage() {
                     ))}
                   </motion.div>
 
-                  <motion.div
-                    className="mt-4 text-sm text-white/70 font-semibold"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.46 }}
-                  >
-                    <div className="flex flex-wrap gap-x-5 gap-y-1">
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {deliveredCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        completed orders
-                      </div>
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {customersCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        customer accounts
-                      </div>
-                      <div>
-                        <span className="text-white font-extrabold">
-                          {suppliersCount.toLocaleString('en-IN')}
-                        </span>{' '}
-                        active suppliers
-                      </div>
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="AuroTap service highlights">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-xl font-black text-white">₹20</div>
+                      <div className="mt-1 text-xs text-slate-300">Normal RO · 20L can</div>
                     </div>
-                  </motion.div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-xl font-black text-white">₹25</div>
+                      <div className="mt-1 text-xs text-slate-300">Chilled RO · 20L can</div>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                      <div className="text-sm font-extrabold text-white">3 service cities</div>
+                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur</div>
+                    </div>
+                  </div>
                 </motion.div>
 
                 {/* ── RIGHT ── */}
