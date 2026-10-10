@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -118,18 +119,18 @@ export default function SupplierSectionPage() {
 
 function Metric({label,value}:{label:string;value:string}){return <article style={card}><div style={eyebrow}>{label}</div><div style={{fontSize:30,fontWeight:850,marginTop:14}}>{value}</div></article>}
 function Empty({title,text}:{title:string;text:string}){return <article style={{...card,gridColumn:'1/-1',textAlign:'center',padding:38}}><div style={{fontSize:22,fontWeight:800}}>{title}</div><p style={sub}>{text}</p><Link href="/supplier/settings" style={link}>Open dispatch settings →</Link></article>}
-const shell:React.CSSProperties={minHeight:'70vh',background:'#08111b',color:'#f1f5f9',padding:'clamp(20px,4vw,56px)',fontFamily:'Arial,sans-serif'};
-const eyebrow:React.CSSProperties={color:'#5eead4',fontWeight:800,fontSize:12,letterSpacing:2,textTransform:'uppercase'};
-const heading:React.CSSProperties={fontSize:'clamp(30px,4vw,44px)',fontWeight:850,letterSpacing:-1,margin:'12px 0'};
-const sub:React.CSSProperties={color:'#9aa9b8',lineHeight:1.7,maxWidth:850};
-const grid:React.CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,280px),1fr))',gap:16};
-const card:React.CSSProperties={background:'#0d1925',border:'1px solid #233544',borderRadius:18,padding:22,minWidth:0};
-const row:React.CSSProperties={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'};
-const badge:React.CSSProperties={fontSize:11,fontWeight:800,color:'#5eead4',background:'#123c3a',borderRadius:999,padding:'6px 10px'};
-const button:React.CSSProperties={background:'#07966c',color:'#fff',fontWeight:800,border:0,borderRadius:10,padding:'11px 15px',cursor:'pointer'};
-const link:React.CSSProperties={display:'inline-block',color:'#7dd3fc',textDecoration:'none',fontWeight:750,border:'1px solid #24516a',borderRadius:10,padding:'10px 14px'};
-const input:React.CSSProperties={display:'block',width:'100%',boxSizing:'border-box',background:'#07111b',border:'1px solid #2b4050',borderRadius:10,color:'#f8fafc',padding:12,marginTop:8};
-const label:React.CSSProperties={display:'block',fontSize:13,color:'#cbd5e1',margin:'14px 0',fontWeight:700};
-const errorBox:React.CSSProperties={background:'#431d24',border:'1px solid #9f3345',padding:14,borderRadius:12,marginBottom:16,color:'#fecdd3'};
-const successBox:React.CSSProperties={background:'#123c3a',border:'1px solid #21796b',padding:14,borderRadius:12,marginBottom:16,color:'#99f6e4'};
-const pre:React.CSSProperties={whiteSpace:'pre-wrap',wordBreak:'break-word',color:'#b6c6d5',fontSize:12};
+const shell:CSSProperties={minHeight:'70vh',background:'#08111b',color:'#f1f5f9',padding:'clamp(20px,4vw,56px)',fontFamily:'Arial,sans-serif'};
+const eyebrow:CSSProperties={color:'#5eead4',fontWeight:800,fontSize:12,letterSpacing:2,textTransform:'uppercase'};
+const heading:CSSProperties={fontSize:'clamp(30px,4vw,44px)',fontWeight:850,letterSpacing:-1,margin:'12px 0'};
+const sub:CSSProperties={color:'#9aa9b8',lineHeight:1.7,maxWidth:850};
+const grid:CSSProperties={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,280px),1fr))',gap:16};
+const card:CSSProperties={background:'#0d1925',border:'1px solid #233544',borderRadius:18,padding:22,minWidth:0};
+const row:CSSProperties={display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'};
+const badge:CSSProperties={fontSize:11,fontWeight:800,color:'#5eead4',background:'#123c3a',borderRadius:999,padding:'6px 10px'};
+const button:CSSProperties={background:'#07966c',color:'#fff',fontWeight:800,border:0,borderRadius:10,padding:'11px 15px',cursor:'pointer'};
+const link:CSSProperties={display:'inline-block',color:'#7dd3fc',textDecoration:'none',fontWeight:750,border:'1px solid #24516a',borderRadius:10,padding:'10px 14px'};
+const input:CSSProperties={display:'block',width:'100%',boxSizing:'border-box',background:'#07111b',border:'1px solid #2b4050',borderRadius:10,color:'#f8fafc',padding:12,marginTop:8};
+const label:CSSProperties={display:'block',fontSize:13,color:'#cbd5e1',margin:'14px 0',fontWeight:700};
+const errorBox:CSSProperties={background:'#431d24',border:'1px solid #9f3345',padding:14,borderRadius:12,marginBottom:16,color:'#fecdd3'};
+const successBox:CSSProperties={background:'#123c3a',border:'1px solid #21796b',padding:14,borderRadius:12,marginBottom:16,color:'#99f6e4'};
+const pre:CSSProperties={whiteSpace:'pre-wrap',wordBreak:'break-word',color:'#b6c6d5',fontSize:12};
