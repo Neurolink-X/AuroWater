@@ -2105,20 +2105,13 @@ export default function TechnicianDashboardPage() {
     [fetchTechnicianJobs]
   );
 
-  const receiveRating = useCallback((id: string) => {
-    const r = 4 + Math.floor(Math.random() * 2);
-    setMyJobs((cur) => cur.map((j) => j.id === id ? { ...j, rating: r } : j));
-    toast.success(`Rating: ${r}★`);
+  const receiveRating = useCallback((_id: string) => {
+    toast.info('Ratings are recorded after the customer submits a review.');
   }, []);
 
   const requestPayout = useCallback(() => {
-    if (pendingBalance < 500) { toast.error('Min. ₹500 pending required'); return; }
-    setPayouts((cur) => [
-      { id: `P-${Math.floor(Math.random() * 900 + 100)}`, date: new Date().toLocaleDateString(), jobs: 0, amount: pendingBalance, status: 'Pending' },
-      ...cur.filter((p) => p.status !== 'Pending'),
-    ]);
-    toast.success('Payout request submitted!');
-  }, [pendingBalance]);
+    toast.error('Payout requests are not connected to a verified technician payout API yet. No request was submitted.');
+  }, []);
 
   const submitForVerification = useCallback(() => {
     if (!requiredDocsUploaded(docs)) { toast.error('Upload all required documents first'); return; }
