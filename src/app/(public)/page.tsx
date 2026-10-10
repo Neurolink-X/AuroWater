@@ -2556,16 +2556,16 @@ export default function HomePage() {
                   {/* Real water-service photography; attribution is kept visible. */}
                   <figure className="overflow-hidden rounded-2xl border border-white/15 bg-white/[0.06] shadow-2xl">
                     <Image
-                      src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
-                      alt="Reusable 20-litre water jars and household water purification equipment in India"
-                      width={960}
-                      height={960}
+                      src="https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1600&q=85"
+                      alt="Water dispenser in a clean setting"
+                      width={1600}
+                      height={1067}
                       priority
                       sizes="(max-width: 1024px) 100vw, 42vw"
                       className="h-56 w-full object-cover sm:h-72"
                     />
                     <figcaption className="px-3 py-2 text-[10px] leading-4 text-slate-300/80">
-                      Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a>
+                      Photo by <a className="underline" href="https://unsplash.com/photos/a-water-dispenser-sitting-on-a-wooden-deck-mdu0FFMyd6k" target="_blank" rel="noreferrer">Ice Family on Unsplash</a> · <a className="underline" href="https://unsplash.com/license" target="_blank" rel="noreferrer">Unsplash License</a>
                     </figcaption>
                   </figure>
 
