@@ -691,3 +691,29 @@ export async function POST(req: NextRequest) {
     street: address.street ?? '',
   });
 }
+
+
+// The client uses POST with a JSON body. Keep GET query support for compatibility,
+// and route POST through the same validated/authenticated implementation.
+export async function POST(req: NextRequest) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonErr('Invalid JSON body', 400);
+  }
+  if (!body || typeof body !== 'object') {
+    return jsonErr('lat and lng are required', 400);
+  }
+  const coords = body as Record<string, unknown>;
+  const url = new URL(req.url);
+  if (coords.lat === undefined || coords.lng === undefined) {
+    return jsonErr('lat and lng are required', 400);
+  }
+  url.searchParams.set('lat', String(coords.lat));
+  url.searchParams.set('lng', String(coords.lng));
+  return GET(new NextRequest(url, {
+    method: 'GET',
+    headers: req.headers,
+  }));
+}
