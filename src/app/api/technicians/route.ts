@@ -421,39 +421,53 @@ export async function GET() {
     // card are requested.
     // ----------------------------------------------------------
 
-    const {
-      data,
-      error,
-    } = await supabase
-      .from('profiles')
-      .select(
-        [
-          'id',
-          'full_name',
-          'avatar_url',
-          'role',
-          'is_active',
-          'status',
-          'city',
-          'vehicle_type',
-          'verification_status',
-          'availability_status',
-          'rating',
-          'completed_jobs',
-        ].join(', '),
-      )
-      .eq(
-        'role',
-        OPERATIONAL_ROLES[0],
-      )
-      .eq(
-        'is_active',
-        true,
-      )
-      .eq(
-        'status',
-        'active',
-      );
+    const baseQuery = () =>
+      supabase
+        .from('profiles')
+        .select(
+          [
+            'id',
+            'full_name',
+            'avatar_url',
+            'role',
+            'is_active',
+            'status',
+            'city',
+            'vehicle_type',
+            'verification_status',
+            'availability_status',
+            'rating',
+            'completed_jobs',
+          ].join(', '),
+        )
+        .eq('role', OPERATIONAL_ROLES[0])
+        .eq('is_active', true)
+        .eq('status', 'active');
+
+    let { data, error } = await baseQuery();
+
+    /*
+     * Production databases may be one migration behind the optional
+     * technician-card fields. Retry with the stable profile contract only
+     * when PostgREST explicitly reports one of those optional columns missing.
+     * Role, active-state and status filters remain mandatory in the fallback.
+     */
+    const optionalColumnMissing =
+      Boolean(error) &&
+      (error.code === '42703' || error.code === 'PGRST204') &&
+      /vehicle_type|verification_status|availability_status|rating|completed_jobs/i.test(error.message);
+
+    if (optionalColumnMissing) {
+      const fallback = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, role, is_active, status, city')
+        .eq('role', OPERATIONAL_ROLES[0])
+        .eq('is_active', true)
+        .eq('status', 'active');
+
+      data = fallback.data as typeof data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error(
