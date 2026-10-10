@@ -1322,8 +1322,8 @@ export default function BookingWizard() {
               </div>
             )}
 
-            /* {draft.serviceKey === 'plumbing' && (
-              <div className="space-y-4">
+  {draft.serviceKey === 'plumbing' && (
+            <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
                 {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹700 starting']] as const).map(([type, label, price]) => (
                   <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
@@ -1335,29 +1335,76 @@ export default function BookingWizard() {
                   </button>
                 ))}
               </div>
+
+              {/* Plumbing Sub-Options with clear extra pricing tags */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {[['pipe_leak','Pipe leak'],['tap','Tap repair'],['drainage','Drainage'],['new_fitting','New fitting'],['other','Other']].map(([k,l]) => (
+                {([
+                  ['pipe_leak', 'Pipe leak', 'Standard repair', 0],
+                  ['tap', 'Tap repair', 'Standard repair', 0],
+                  ['drainage', 'Drainage', 'Includes clearing tools', 0],
+                  ['new_fitting', 'New fitting', 'Specialized hardware setup', 99],
+                  ['other', 'Other', 'Custom scope', 0]
+                ] as [string, string, string, number][]).map(([k, l, desc, extra]) => (
                   <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
                     onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
-                    className={`${optionBtn(draft.subOptionKey === k)} text-left`}>{l}</button>
+                    className={`${optionBtn(draft.subOptionKey === k)} text-left flex flex-col justify-between`}>
+                    <div>
+                      <span className="font-bold block">{l}</span>
+                      <span className="text-xs text-slate-500 block mt-0.5">{desc}</span>
+                    </div>
+                    {extra > 0 && (
+                      <span className="mt-2 inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 self-start">
+                        + {inr(extra)} extra
+                      </span>
+                    )}
+                  </button>
                 ))}
               </div>
-              </div>
-            )} */
+            </div>
+          )}
 
-            {draft.serviceKey === 'plumbing' && (
-  <div className="space-y-4">
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
-      {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹700 starting']] as const).map(([type, label, price]) => (
-        <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
-          onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
-          className={`${optionBtn((draft.plumberType ?? 'labour') === type)} text-left`}>
-          <span className="block font-bold">{label}</span>
-          <span className="mt-1 block text-sm">{price}</span>
-          <span className="mt-1 block text-xs text-slate-500">Final quote depends on scope and materials.</span>
-        </button>
-      ))}
-    </div>
+          {/* Step 2 Price Box with Itemized Breakdown */}
+          <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm space-y-2">
+            <div className="flex justify-between">
+              <span className="text-slate-600">Base service fee</span>
+              <span className="font-bold text-slate-900">{inr(draft.serviceKey === 'plumbing' ? (draft.plumberType === 'mistri' ? 900 : 149) : settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0)}</span>
+            </div>
+
+            {/* Show extra charge breakdown if applicable */}
+            {draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
+              <div className="flex justify-between text-xs text-emerald-700 font-medium">
+                <span>└ New fitting charge (Specialized hardware)</span>
+                <span>+ {inr(99)}</span>
+              </div>
+            )}
+
+            <hr className="border-slate-200 my-1" />
+            
+            <div className="flex justify-between font-extrabold text-slate-900">
+              <span>Estimated Total</span>
+              <span>{inr(baseAmount)}</span>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-1">Review the complete payable total before confirming your booking.</p>
+          </div>
+
+            {/* Show extra charge breakdown if applicable */}
+            {draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
+              <div className="flex justify-between text-xs text-emerald-700 font-medium">
+                <span>└ New fitting charge (Specialized hardware)</span>
+                <span>+ {inr(99)}</span>
+              </div>
+            )}
+
+            <hr className="border-slate-200 my-1" />
+            
+            <div className="flex justify-between font-extrabold text-slate-900">
+              <span>Estimated Total</span>
+              <span>{inr(baseAmount)}</span>
+            </div>
+
+            <p className="text-xs text-slate-500 mt-1">Review the complete payable total before confirming your booking.</p>
+          </div>
 
     /* {/* Plumbing Sub-Options with clear extra pricing tags */}
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
