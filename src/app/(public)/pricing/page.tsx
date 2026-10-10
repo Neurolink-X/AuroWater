@@ -228,7 +228,7 @@
 //             <h1 className="syne" style={{ margin: 0, fontSize: 'clamp(2rem,6.5vw,4.2rem)', fontWeight: 900, color: '#fff', letterSpacing: '-2px', lineHeight: 1.05, maxWidth: 680 }}>
 //               Clear water-can pricing.
 //               <br />
-//               <span style={{ color: '#34D399' }}>20L cans from ₹{settings.default_can_price}.</span>
+//               <span style={{ color: '#34D399' }}>20L cans from ₹{NORMAL_RO_PRICE}.</span>
 //             </h1>
 //             <p style={{ margin: '18px 0 0', fontSize: 16, color: 'rgba(255,255,255,0.52)', maxWidth: 460, lineHeight: 1.75 }}>
 //               Subscribe and save. No contracts, no surprises — clean 20L cans delivered on your schedule across UP.
@@ -945,7 +945,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 // ─── Compare table ────────────────────────────────────────────────────────────
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
-    { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.bulk_can_price}`, business: 'Quote' },
+    { feature: 'Per-can rate', payg: `₹${NORMAL_RO_PRICE}`, starter: `₹${RECURRING_RO_PRICE}`, pro: `₹${RECURRING_RO_PRICE}`, office: `₹${NORMAL_RO_PRICE}`, business: 'Quote' },
     { feature: 'Separate water handling fee', payg: 'None for water cans', starter: 'None for water cans', pro: 'None for water cans', office: 'None for water cans', business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
@@ -1007,14 +1007,15 @@ export default function PricingPage() {
   const [billing, setBilling] = useState<BillingCycle>('weekly');
   const [showCompare, setShowCompare] = useState(false);
   const { settings } = useSettings();
+  // Keep public plan totals aligned with the server-authoritative launch
+  // pricing in /api/customer/orders. The API currently fixes Normal RO at ₹20,
+  // Chilled RO at ₹25 and recurring Normal RO at ₹18; legacy/bulk settings must
+  // not make public cards advertise prices the order API will reject.
+  const NORMAL_RO_PRICE = 20;
+  const CHILLED_RO_PRICE = 25;
+  const RECURRING_RO_PRICE = 18;
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
-    const unit = orderType === 'subscription'
-      ? Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))
-      : quantity >= settings.bulk_threshold && settings.bulk_can_price < settings.default_can_price
-        ? settings.bulk_can_price
-        : settings.default_can_price;
-    // Matches booking/API: water-can orders have no separate handling fee and
-    // subscription price is independent of one-time bulk thresholds.
+    const unit = orderType === 'subscription' ? RECURRING_RO_PRICE : NORMAL_RO_PRICE;
     return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
@@ -1036,9 +1037,9 @@ export default function PricingPage() {
       name: 'Pay as you go',
       tagline: 'No commitment. Order only when needed.',
       pricePerDelivery: deliveryTotal(1, 'one_time'),
-      unitPrice: settings.default_can_price,
+      unitPrice: NORMAL_RO_PRICE,
       cansPerDelivery: 1,
-      perCan: `₹${settings.default_can_price}/can (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${NORMAL_RO_PRICE}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
@@ -1058,9 +1059,9 @@ export default function PricingPage() {
       badge: 'Most Popular',
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
-      unitPrice: settings.subscription_can_price,
+      unitPrice: RECURRING_RO_PRICE,
       cansPerDelivery: 10,
-      perCan: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${RECURRING_RO_PRICE}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -1081,9 +1082,9 @@ export default function PricingPage() {
       badge: 'Best Value',
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
-      unitPrice: settings.subscription_can_price,
+      unitPrice: RECURRING_RO_PRICE,
       cansPerDelivery: 20,
-      perCan: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${RECURRING_RO_PRICE}/can · Save 10% vs one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -1213,7 +1214,7 @@ export default function PricingPage() {
     Clear water-can pricing.
   </span>
   <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#34D399' }}>
-    20L cans from ₹{settings.default_can_price}.
+    20L cans from ₹{NORMAL_RO_PRICE}.
   </span>
 
   {/* visual divider inside h1 */}
@@ -1221,12 +1222,12 @@ export default function PricingPage() {
 
   <span style={{ display: 'block', fontSize: 'clamp(1.5rem, 2.8vw, 2.6rem)', color: '#fff', letterSpacing: '-1px' }}>
     Recurring delivery at{' '}
-    <span style={{ color: '#34D399' }}>₹{settings.subscription_can_price} / Can.</span>{' '}
+    <span style={{ color: '#34D399' }}>₹{RECURRING_RO_PRICE} / Can.</span>{' '}
     <span style={{ color: 'rgba(255,255,255,0.62)' }}>Final rate shown before booking.</span>
   </span>
 </h1>
             <p style={{ margin:'18px 0 0',fontSize:17,color:'rgba(255,255,255,0.65)',maxWidth:480,lineHeight:1.65 }}>
-              Normal RO ₹{settings.default_can_price} and Chilled RO ₹{settings.chilled_can_price} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
+              Normal RO ₹{NORMAL_RO_PRICE} and Chilled RO ₹{CHILLED_RO_PRICE} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
             </p>
             <div style={{ display:'flex',flexWrap:'wrap',gap:10,marginTop:18 }}>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ border:0,borderRadius:999,padding:'12px 18px',background:'#06B6D4',color:'#082F49',fontWeight:800,cursor:'pointer' }}>Order Normal RO</button>
@@ -1235,7 +1236,7 @@ export default function PricingPage() {
 
             {/* hero value props */}
             <div style={{ display:'flex',flexWrap:'wrap',gap:12,marginTop:28 }}>
-              {[`₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can on recurring deliveries · save 10%`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
+              {[`₹${RECURRING_RO_PRICE}/can on recurring deliveries · save 10%`, `50+ can volume price: ₹${settings.bulk_can_price}/can`, 'Pause future deliveries', 'Cash or UPI per delivery'].map(t => (
                 <div key={t} style={{ display:'flex',alignItems:'center',gap:7,background:'rgba(255,255,255,0.09)',borderRadius:999,padding:'7px 14px',border:'1px solid rgba(255,255,255,0.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#34D399" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   <span style={{ fontSize:13,color:'rgba(255,255,255,0.85)',fontWeight:600 }}>{t}</span>
@@ -1433,7 +1434,7 @@ export default function PricingPage() {
 
           {/* Price */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, margin: '4px 0 6px', flexWrap: 'wrap' as const }}>
-            <span className="pc-price-main">₹{settings.default_can_price}</span>
+            <span className="pc-price-main">₹{NORMAL_RO_PRICE}</span>
             <span style={{ fontSize: 13, color: '#9CA3AF', fontWeight: 500 }}>/ can · one-time</span>
           </div>
 
@@ -1453,9 +1454,9 @@ export default function PricingPage() {
         <div className="pc-tiers">
           {(
             [
-              { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${settings.default_can_price}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
-              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${Math.min(settings.subscription_can_price, Math.round(settings.default_can_price * 0.9))}/can · Save 10%`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
-              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: settings.bulk_can_price < settings.default_can_price ? 'Volume discount' : 'Same as regular rate until a volume discount is configured', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
+              { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${NORMAL_RO_PRICE}/can`, bg: '#F8FAFF', border: '1px solid #DBEAFE', tc: '#1E3A8A', lc: '#3B82F6', sc: '#93C5FD', best: false },
+              { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${RECURRING_RO_PRICE}/can · Save 10%`, bg: '#F0FDF9', border: '1.5px solid #0D9B6C', tc: '#065F46', lc: '#0D9B6C', sc: '#6EE7B7', best: false },
+              { label: `Bulk ${settings.bulk_threshold}+`, sublabel: settings.bulk_can_price < NORMAL_RO_PRICE ? 'Volume discount' : 'Same as regular rate until a volume discount is configured', price: `₹${settings.bulk_can_price}/can`, bg: '#FFFBEB', border: '1px solid #FDE68A', tc: '#78350F', lc: '#D97706', sc: '#FCD34D', best: false },
             ] as const
           ).map((t) => (
             <div
@@ -1513,14 +1514,14 @@ export default function PricingPage() {
             <article style={{ background:'#fff', border:'1px solid #D1FAE5', borderRadius:18, padding:22 }}>
               <p style={{ margin:0, color:'#047857', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>Everyday essential</p>
               <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Normal RO Water</h3>
-              <p style={{ margin:'8px 0 0', color:'#047857', fontSize:30, fontWeight:900 }}>₹{settings.default_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 0', color:'#047857', fontSize:30, fontWeight:900 }}>₹{NORMAL_RO_PRICE}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
               <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>For daily home and office drinking-water needs. Delivery included in the displayed water-can price.</p>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#047857', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Normal RO</button>
             </article>
             <article style={{ background:'#fff', border:'1px solid #BAE6FD', borderRadius:18, padding:22 }}>
               <p style={{ margin:0, color:'#0369A1', fontSize:11, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase' }}>For events & gatherings</p>
               <h3 style={{ margin:'8px 0 0', color:'#0F172A', fontSize:20, fontWeight:900 }}>Chilled RO Water</h3>
-              <p style={{ margin:'8px 0 0', color:'#0369A1', fontSize:30, fontWeight:900 }}>₹{settings.chilled_can_price}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
+              <p style={{ margin:'8px 0 0', color:'#0369A1', fontSize:30, fontWeight:900 }}>₹{CHILLED_RO_PRICE}<span style={{ fontSize:13, fontWeight:600, color:'#64748B' }}> / 20L can</span></p>
               <p style={{ margin:'8px 0 16px', color:'#64748B', fontSize:13 }}>Chilled and delivered for weddings, parties, functions and office gatherings.</p>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=chilled')} style={{ width:'100%', padding:'12px 16px', borderRadius:11, border:0, background:'#0369A1', color:'#fff', fontWeight:800, cursor:'pointer' }}>Order Chilled Water</button>
             </article>
@@ -1710,7 +1711,7 @@ export default function PricingPage() {
               <div style={{ display:'flex',flexWrap:'wrap',gap:12,justifyContent:'center' }}>
                 <button type="button" onClick={() => router.push('/book?service=water_can')}
                   style={{ background:'#fff',color:'#065F46',fontWeight:800,fontSize:15,padding:'14px 28px',borderRadius:14,border:'none',cursor:'pointer',boxShadow:'0 4px 20px rgba(0,0,0,0.2)' }}>
-                  Order a Can — ₹{settings.default_can_price}
+                  Order a Can — ₹{NORMAL_RO_PRICE}
                 </button>
                 <a href={WHATSAPP} target="_blank" rel="noopener noreferrer"
                   style={{ background:'rgba(255,255,255,0.12)',color:'#fff',fontWeight:700,fontSize:15,padding:'14px 28px',borderRadius:14,border:'1px solid rgba(255,255,255,0.2)',cursor:'pointer',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:8 }}>
