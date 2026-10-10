@@ -14,7 +14,7 @@ function defaultPayload(): Record<string, unknown> {
   return {
     default_can_price: 20,
     chilled_can_price: 25,
-    subscription_can_price: 20,
+    subscription_can_price: 18,
     bulk_can_price: 20,
     bulk_threshold: 50,
     market_can_price: 20,
