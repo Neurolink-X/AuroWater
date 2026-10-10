@@ -970,6 +970,25 @@ export default function SupplierDashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Poll as a resilient fallback when Supabase Realtime publication or websocket
+  // connectivity is unavailable. Realtime remains the primary instant-update path.
+  useEffect(() => {
+    if (!profile?.id) return;
+    const refresh = () => {
+      void Promise.all([fetchOrders(profile.id), fetchEarnings(profile.id)]);
+    };
+    const timer = window.setInterval(refresh, 10_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.id]);
+
   // ── Protected supplier workflow actions ─────────────────────────────────────
   const handleAcceptOrder = useCallback(async (orderId: string) => {
     setUpdatingOrder(orderId);
