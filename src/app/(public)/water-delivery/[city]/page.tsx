@@ -103,15 +103,14 @@ export default async function WaterDeliveryCityPage({ params }: { params: Promis
           <div className="rounded-3xl border border-white/10 bg-white/[.06] p-4 shadow-2xl sm:p-6">
             <figure className="mb-5 overflow-hidden rounded-2xl">
               <Image
-                src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg/960px-Home_water_filters%2C_water_purifiers%2C_and_bottled_water_in_India.jpg"
-                alt="20-litre reusable drinking water jars and household water purification equipment"
-                width={960}
-                height={960}
+                src="/marketing/water-delivery-hero.svg"
+                alt="AuroTap water delivery illustration showing reusable drinking water cans delivered to a home"
+                width={1200}
+                height={900}
                 priority
                 sizes="(max-width: 1024px) 100vw, 40vw"
                 className="h-48 w-full object-cover sm:h-56"
               />
-              <figcaption className="bg-black/20 px-3 py-2 text-[10px] text-slate-300/80">Photo: FacetsOfNonStickPans · <a className="underline" href="https://commons.wikimedia.org/wiki/File:Home_water_filters,_water_purifiers,_and_bottled_water_in_India.jpg" target="_blank" rel="noreferrer">CC BY-SA 4.0</a></figcaption>
             </figure>
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-400/15 text-2xl" aria-hidden="true">💧</span>
