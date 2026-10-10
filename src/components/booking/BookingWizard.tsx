@@ -30,6 +30,7 @@ import {
   customerAddresses,
   customerServiceability,
   customerOrderCreate,
+  forwardGeocodeAddress,
   reverseGeocode,
   type ApiOrder,
 } from '@/lib/api-client';
@@ -95,6 +96,7 @@ export interface BookingDraft {
 }
 
 const DRAFT_KEY = 'aw_booking_draft_v2';
+const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'guest'}`;
 const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
@@ -654,19 +656,21 @@ export default function BookingWizard() {
 
   /* ───────── Hydration ───────── */
   useEffect(() => {
+    setHydrated(false);
     let restored: Partial<BookingDraft> | null = null;
     let restoredStep = 1;
     try {
-      const raw = safeSessionGet(DRAFT_KEY);
+      const draftKey = bookingDraftKey(session?.userId ?? session?.aurotapId ?? null);
+      const raw = safeSessionGet(draftKey);
       if (raw) {
         const parsed = JSON.parse(raw) as { draft?: unknown; step?: number };
         const s = Number(parsed?.step);
         if (parsed?.draft && typeof parsed.draft === 'object' && s >= 1 && s <= MAX_FORM_STEP) {
           restored = sanitizeDraft(parsed.draft);
           restoredStep = Math.floor(s);
-        } else { safeSessionRemove(DRAFT_KEY); }
+        } else { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); }
       }
-    } catch { try { safeSessionRemove(DRAFT_KEY); } catch { /* */ } }
+    } catch { try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ } }
 
     const fresh = emptyDraft();
     const base: BookingDraft = {
@@ -726,12 +730,14 @@ export default function BookingWizard() {
 
     setDraft(base); setStep(start); setFurthest(start); setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Re-hydrate whenever the authenticated identity changes; drafts are never shared between accounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.userId, session?.aurotapId, session?.loggedIn]);
 
   useEffect(() => {
     if (!hydrated || createdOrder) return;
-    try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP) })); } catch { /* quota */ }
-  }, [draft, step, hydrated, createdOrder]);
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP) })); } catch { /* quota */ }
+  }, [draft, step, hydrated, createdOrder, session?.userId, session?.aurotapId]);
 
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
@@ -916,7 +922,7 @@ export default function BookingWizard() {
   };
 
   const goLoginForCheckout = () => {
-    try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 3 })); } catch { /* */ }
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 3 })); } catch { /* */ }
     router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-3')}`);
   };
 
@@ -1052,7 +1058,7 @@ export default function BookingWizard() {
       const msg =
         e instanceof ApiError
           ? e.message
-          : 'We found your position but could not read the street address. Please type your area and pincode.';
+          : 'Location was detected, but the address lookup timed out. Please enter your house/flat, area, city and 6-digit pincode manually, then save the address. Your GPS coordinates are retained.';
       setLocationError(msg);
       toast.warning(msg);
     }
@@ -1115,7 +1121,7 @@ export default function BookingWizard() {
   const prevStep = () => goTo(view - 1);
 
   const resetWizard = useCallback(() => {
-    try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
+    try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
     submitLock.current = false;
     geoReq.current += 1;
     setCreatedOrder(null); setSubmitError(null);
@@ -1143,16 +1149,53 @@ export default function BookingWizard() {
     if (!/^[0-9]{6}$/.test(na.pincode.trim())) { toast.error('Pincode must be exactly 6 digits.'); return; }
     setSavingAddress(true);
     try {
-      const payload = {
-        label:      na.label ?? 'Home',
-        house_flat: na.house_flat.trim(),
-        area:       na.area.trim(),
-        city:       na.city.trim(),
-        pincode:    na.pincode.trim(),
-        landmark:   na.landmark?.trim() ?? '',
-        is_default: na.is_default ?? true,
-        ...(typeof na.lat === 'number' && typeof na.lng === 'number' ? { lat: na.lat, lng: na.lng } : {}),
-      };
+      // Keep precise GPS coordinates only while the detected area/city/pincode remain unchanged.
+      // If the customer edits the address manually (or has no fresh GPS result), resolve the
+      // typed address again so stale coordinates can never be saved for a different address.
+      const sameAsDetected =
+        Boolean(detectedLocation) &&
+        (na.area.trim().toLowerCase() === String(detectedLocation?.area ?? '').trim().toLowerCase()) &&
+        (na.city.trim().toLowerCase() === String(detectedLocation?.city ?? '').trim().toLowerCase()) &&
+        (na.pincode.trim() === String(detectedLocation?.pincode ?? '').trim());
+      const hasValidCoords =
+        typeof na.lat === 'number' && typeof na.lng === 'number' &&
+        Number.isFinite(na.lat) && Number.isFinite(na.lng) &&
+        na.lat >= -90 && na.lat <= 90 && na.lng >= -180 && na.lng <= 180;
+      let lat = na.lat;
+      let lng = na.lng;
+      if (!hasValidCoords || !sameAsDetected) {
+        setLocationStep('geocoding');
+        try {
+          const resolved = await forwardGeocodeAddress({
+            house_flat: na.house_flat.trim(),
+            area: na.area.trim(),
+            city: na.city.trim(),
+            pincode: na.pincode.trim(),
+          });
+          lat = resolved.lat;
+          lng = resolved.lng;
+          setDraft((d) => ({
+            ...d,
+            newAddress: {
+              ...d.newAddress,
+              lat,
+              lng,
+              area: resolved.area || d.newAddress?.area || '',
+              city: resolved.city || d.newAddress?.city || '',
+              pincode: resolved.pincode || d.newAddress?.pincode || '',
+            },
+          }));
+        } catch (error) {
+          const message = error instanceof ApiError
+            ? error.message
+            : 'We could not verify this address on the map. Check your house/flat, area, city and pincode, or detect your location again.';
+          setLocationStep('error');
+          setLocationError(message);
+          toast.error(message);
+          return;
+        }
+      }
+      const payload = { label: na.label ?? 'Home', house_flat: na.house_flat.trim(), area: na.area.trim(), city: na.city.trim(), pincode: na.pincode.trim(), landmark: na.landmark?.trim() ?? '', is_default: na.is_default ?? true, lat, lng };
       const created = (await customerAddressCreate(payload as Parameters<typeof customerAddressCreate>[0])) as AddressRow;
       await loadAddresses();
       setDraft((d) => ({ ...d, addressId: created.id, newAddress: { ...emptyDraft().newAddress } }));
@@ -1196,14 +1239,14 @@ export default function BookingWizard() {
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
         plumber_type: draft.serviceKey === 'plumbing' ? (draft.plumberType ?? 'labour') : undefined,
       });
-      try { safeSessionRemove(DRAFT_KEY); } catch { /* */ }
+      try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
       toast.success('Booking confirmed! 🎉');
     } catch (e) {
       submitLock.current = false;
       if (e instanceof ApiError && e.status === 401) {
-        try { safeSessionSet(DRAFT_KEY, JSON.stringify({ draft, step: 5 })); } catch { /* */ }
+        try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 5 })); } catch { /* */ }
         router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-5')}`);
         return;
       }

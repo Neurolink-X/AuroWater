@@ -823,8 +823,33 @@ export default function SupplierDashboardPage() {
           accepted_at: row.accepted_at ?? row.assigned_at ?? null,
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
-          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
-          city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
+          address_line: String(
+            row.address_text ||
+            row.address_line ||
+            row.address ||
+            (row.delivery_address && typeof row.delivery_address === 'object'
+              ? [
+                  (row.delivery_address as Record<string, unknown>).house_flat,
+                  (row.delivery_address as Record<string, unknown>).area,
+                  (row.delivery_address as Record<string, unknown>).landmark,
+                  (row.delivery_address as Record<string, unknown>).city,
+                  (row.delivery_address as Record<string, unknown>).state,
+                  (row.delivery_address as Record<string, unknown>).pincode,
+                ].filter((part) => typeof part === 'string' && part.trim()).join(', ')
+              : '') ||
+            snapshot.formatted_address ||
+            snapshot.full_address ||
+            snapshotAddress
+          ),
+          city: String(
+            row.customer_city ||
+            (row.delivery_address && typeof row.delivery_address === 'object'
+              ? (row.delivery_address as Record<string, unknown>).city
+              : null) ||
+            snapshot.city ||
+            row.city ||
+            ''
+          ),
           customer_name: String(row.customer_name ?? '—'),
           customer_phone: String(row.customer_phone ?? '—'),
         };
@@ -857,18 +882,18 @@ export default function SupplierDashboardPage() {
   };
 
   const fetchEarnings = async (supplierId: string) => {
-    // Earnings are derived from the canonical orders table in production.
-    // Do not query the legacy supplier_earnings table (it is not deployed).
+    // The live orders table has no supplier_payout column. Until the canonical
+    // accrual calculation is verified, show only real payout-ledger records.
     const { data, error } = await supabase
-      .from('orders')
-      .select('id, supplier_payout, status, created_at')
-      .eq('supplier_id', supplierId)
-      .in('status', ['COMPLETED', 'completed', 'DELIVERED', 'delivered'])
+      .from('payouts')
+      .select('id, amount, status, created_at, approved_at')
+      .eq('user_id', supplierId)
+      .eq('role', 'supplier')
       .order('created_at', { ascending: false })
       .limit(50);
 
     if (error) {
-      console.error('[supplier] earnings load failed:', error.message);
+      console.error('[supplier] payout history load failed:', error.message);
       setEarnings([]);
       return;
     }
@@ -876,9 +901,9 @@ export default function SupplierDashboardPage() {
     setEarnings((data ?? []).map((row) => ({
       id: String(row.id),
       order_id: String(row.id),
-      amount: Number(row.supplier_payout ?? 0),
-      status: 'pending' as const,
-      paid_at: null,
+      amount: Number(row.amount ?? 0),
+      status: ['paid', 'approved', 'completed', 'processed'].includes(String(row.status ?? '').toLowerCase()) ? 'paid' as const : 'pending' as const,
+      paid_at: row.approved_at ? String(row.approved_at) : null,
       created_at: String(row.created_at ?? ''),
     })));
   };
