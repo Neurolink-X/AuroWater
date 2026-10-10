@@ -942,6 +942,11 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
   );
 }
 
+// Launch water-can rates are shared by the page and its comparison table.
+const NORMAL_RO_PRICE = 20;
+const CHILLED_RO_PRICE = 25;
+const RECURRING_RO_PRICE = 18;
+
 // ─── Compare table ────────────────────────────────────────────────────────────
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
@@ -1011,9 +1016,6 @@ export default function PricingPage() {
   // pricing in /api/customer/orders. The API currently fixes Normal RO at ₹20,
   // Chilled RO at ₹25 and recurring Normal RO at ₹18; legacy/bulk settings must
   // not make public cards advertise prices the order API will reject.
-  const NORMAL_RO_PRICE = 20;
-  const CHILLED_RO_PRICE = 25;
-  const RECURRING_RO_PRICE = 18;
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
     const unit = orderType === 'subscription' ? RECURRING_RO_PRICE : NORMAL_RO_PRICE;
     return quantity * unit;
