@@ -133,7 +133,7 @@ const DISPLAY_FONT = 'var(--font-bk-display, var(--font-syne, system-ui, sans-se
 
 /**
  * Optional social proof. Leave empty until you have REAL numbers, e.g.
- *   [{ value: '2,500+', label: 'cans delivered' }, { value: '4.8★', label: 'average rating' }]
+ *   [{ value: '2,500+', label: 'cans delivered' }, { value: '4.9★', label: 'average rating' }]
  */
 const SOCIAL_PROOF: { value: string; label: string }[] = [];
 
@@ -1029,7 +1029,7 @@ export default function BookingWizard() {
             <span aria-hidden>💧</span> {view === 6 ? 'Order confirmed' : 'Book in under a minute'}
           </p>
           <h1 className="mt-3 text-[1.65rem] leading-tight sm:text-4xl font-extrabold tracking-tight text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
-            {view === 6 ? 'Thank you, your booking is confirmed' : 'Pure RO water, fair price, at your door'}
+            {view === 6 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing, tank cleaning & borewell solutions — right at your door.'}
           </h1>
           {view < 6 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
@@ -1322,10 +1322,10 @@ export default function BookingWizard() {
               </div>
             )}
 
-            {draft.serviceKey === 'plumbing' && (
+            /* {draft.serviceKey === 'plumbing' && (
               <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
-                {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹900 starting']] as const).map(([type, label, price]) => (
+                {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹700 starting']] as const).map(([type, label, price]) => (
                   <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
                     onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
                     className={`${optionBtn((draft.plumberType ?? 'labour') === type)} text-left`}>
@@ -1343,7 +1343,73 @@ export default function BookingWizard() {
                 ))}
               </div>
               </div>
-            )}
+            )} */
+
+            {draft.serviceKey === 'plumbing' && (
+  <div className="space-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" aria-label="Plumber charge type">
+      {([['labour', 'Labour / minor repair', '₹149 starting'], ['mistri', 'Mistri / skilled work', '₹700 starting']] as const).map(([type, label, price]) => (
+        <button key={type} type="button" aria-pressed={(draft.plumberType ?? 'labour') === type}
+          onClick={() => setDraft((d) => ({ ...d, plumberType: type }))}
+          className={`${optionBtn((draft.plumberType ?? 'labour') === type)} text-left`}>
+          <span className="block font-bold">{label}</span>
+          <span className="mt-1 block text-sm">{price}</span>
+          <span className="mt-1 block text-xs text-slate-500">Final quote depends on scope and materials.</span>
+        </button>
+      ))}
+    </div>
+
+    {/* Plumbing Sub-Options with clear extra pricing tags */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {[
+        ['pipe_leak', 'Pipe leak', 'Standard repair', 0],
+        ['tap', 'Tap repair', 'Standard repair', 0],
+        ['drainage', 'Drainage', 'Includes clearing tools', 0],
+        ['new_fitting', 'New fitting', 'Specialized hardware setup', 99],
+        ['other', 'Other', 'Custom scope', 0]
+      ].map(([k, l, desc, extra]) => (
+        <button key={k} type="button" aria-pressed={draft.subOptionKey === k}
+          onClick={() => setDraft((d) => ({ ...d, subOptionKey: k }))}
+          className={`${optionBtn(draft.subOptionKey === k)} text-left flex flex-col justify-between`}>
+          <div>
+            <span className="font-bold block">{l}</span>
+            <span className="text-xs text-slate-500 block mt-0.5">{desc}</span>
+          </div>
+          {Number(extra) > 0 && (
+            <span className="mt-2 inline-block rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800 self-start">
+              + {inr(Number(extra))} extra
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  </div>
+)}
+
+{/* Step 2 Price Box with Itemized Breakdown */}
+<div className="rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm space-y-2">
+  <div className="flex justify-between">
+    <span className="text-slate-600">Base service fee</span>
+    <span className="font-bold text-slate-900">{inr(draft.serviceKey === 'plumbing' ? (draft.plumberType === 'mistri' ? 900 : 149) : settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0)}</span>
+  </div>
+
+  {/* Show extra charge breakdown if applicable */}
+  {draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
+    <div className="flex justify-between text-xs text-emerald-700 font-medium">
+      <span>└ New fitting charge (Specialized hardware)</span>
+      <span>+ {inr(99)}</span>
+    </div>
+  )}
+
+  <hr className="border-slate-200 my-1" />
+  
+  <div className="flex justify-between font-extrabold text-slate-900">
+    <span>Estimated Total</span>
+    <span>{inr(baseAmount)}</span>
+  </div>
+
+  <p className="text-xs text-slate-500 mt-1">Review the complete payable total before confirming your booking.</p>
+</div>
 
             {draft.serviceKey === 'water_tanker' && (
               <div className="grid grid-cols-2 gap-3">
@@ -1632,7 +1698,7 @@ export default function BookingWizard() {
                   <span className="font-semibold text-right text-slate-900">{v}</span>
                 </div>
               ))}
-              <hr className="border-slate-200" />
+              {/* <hr className="border-slate-200" />
               <div className="flex justify-between text-slate-900"><span className="text-slate-600">Base price</span><span>{inr(breakdown.base)}</span></div>
               <div className="flex justify-between text-slate-900"><span className="text-slate-600">Convenience</span><span>{inr(breakdown.convenience)}</span></div>
               {breakdown.gst > 0 && <div className="flex justify-between text-slate-900"><span className="text-slate-600">GST</span><span>{inr(breakdown.gst)}</span></div>}
@@ -1640,7 +1706,42 @@ export default function BookingWizard() {
               <hr className="border-slate-200" />
               <div className="flex justify-between text-base font-extrabold text-emerald-800">
                 <span>TOTAL</span><span>{inr(breakdown.total)}</span>
-              </div>
+              </div> */}
+              <hr className="border-slate-200" />
+<div className="flex justify-between text-slate-900">
+  <span className="text-slate-600">Base price</span>
+  <span>{inr(breakdown.base)}</span>
+</div>
+
+{/* Transparent add-on display in Step 5 */}
+{draft.serviceKey === 'plumbing' && draft.subOptionKey === 'new_fitting' && (
+  <div className="flex justify-between text-slate-900 text-xs">
+    <span className="text-slate-500 pl-2">└ New fitting charge (Specialized hardware)</span>
+    <span className="text-emerald-700 font-semibold">+ {inr(99)}</span>
+  </div>
+)}
+
+<div className="flex justify-between text-slate-900">
+  <span className="text-slate-600">Convenience</span>
+  <span>{inr(breakdown.convenience)}</span>
+</div>
+{breakdown.gst > 0 && (
+  <div className="flex justify-between text-slate-900">
+    <span className="text-slate-600">GST</span>
+    <span>{inr(breakdown.gst)}</span>
+  </div>
+)}
+{draft.isEmergency && (
+  <div className="flex justify-between text-amber-700">
+    <span>Emergency</span>
+    <span>{inr(breakdown.emergency)}</span>
+  </div>
+)}
+<hr className="border-slate-200" />
+<div className="flex justify-between text-base font-extrabold text-emerald-800">
+  <span>TOTAL</span>
+  <span>{inr(breakdown.total)}</span>
+</div>
               {youSave > 0 && (
                 <div className="flex items-center justify-between rounded-xl bg-emerald-600/10 px-3 py-2 text-emerald-800">
                   <span className="text-xs font-bold">🎉 You save vs typical local price ({offPct}% off)</span>
