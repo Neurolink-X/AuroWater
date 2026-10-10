@@ -641,3 +641,42 @@ export async function GET(req: NextRequest) {
 //       : [],
 //   });
 // }
+
+/**
+ * Backward-compatible POST handler for booking clients sending { lat, lng }.
+ * The GET handler remains the single source of truth for geocoding and auth.
+ */
+export async function POST(req: NextRequest) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonErr('Invalid JSON body', 400);
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return jsonErr('A JSON object with lat and lng is required', 400);
+  }
+
+  const payload = body as Record<string, unknown>;
+  const lat = typeof payload.lat === 'number' ? payload.lat : Number(payload.lat);
+  const lng = typeof payload.lng === 'number' ? payload.lng : Number(payload.lng);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+      lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return jsonErr('Valid latitude and longitude are required', 400);
+  }
+
+  const url = new URL(req.url);
+  url.searchParams.set('lat', String(lat));
+  url.searchParams.set('lng', String(lng));
+
+  // Forward session/auth headers so the existing server-side checks still apply.
+  const compatibleRequest = new NextRequest(url, {
+    method: 'GET',
+    headers: req.headers,
+  });
+
+  return GET(compatibleRequest);
+}
+
