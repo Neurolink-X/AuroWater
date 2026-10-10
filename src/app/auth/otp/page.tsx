@@ -123,7 +123,7 @@ function OtpPageInner() {
       else if (role === 'admin') router.push('/admin/dashboard');
       else if (role === 'supplier') router.push('/supplier/dashboard');
       else if (role === 'technician') router.push('/technician/dashboard');
-      else router.push('/customer/home');
+      else router.push('/');
     } catch {
       toast.error('Wrong OTP');
     } finally {
