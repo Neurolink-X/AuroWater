@@ -191,25 +191,35 @@ export default function TechnicianJobs() {
     }
 
     setUser(currentUser);
-
     let mounted = true;
+    let inFlight = false;
 
-    const run = async () => {
-      setLoading(true);
-
+    const run = async (showLoader: boolean) => {
+      if (inFlight) return;
+      inFlight = true;
+      if (showLoader) setLoading(true);
       try {
         await loadJobs();
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        inFlight = false;
+        if (mounted && showLoader) setLoading(false);
       }
     };
 
-    run();
+    void run(true);
+    // Resilient refresh fallback; realtime remains optional and server APIs remain authoritative.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void run(false);
+    }, 10000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void run(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       mounted = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [loadJobs]);
 
@@ -334,7 +344,7 @@ export default function TechnicianJobs() {
             </button>
 
             <Link
-              href="/technician/profile"
+              href="/technician/dashboard"
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Profile
