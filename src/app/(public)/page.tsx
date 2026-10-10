@@ -2106,7 +2106,7 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const claimed  = useMemo(() => Math.min(founding?.count ?? 73, 100), [founding]);
+  const claimed  = useMemo(() => Math.min(founding?.count ?? 0, 100), [founding]);
   const progress = useMemo(() => (claimed / 100) * 100, [claimed]);
 
   /* ── Doubled review arrays (stable) ── */
@@ -2876,13 +2876,19 @@ export default function HomePage() {
                     </li>
                   ))}
                 </ul>
-                <div className="mb-2 flex justify-between text-sm font-semibold">
-                  <span className="text-slate-700">{claimed} of 100 spots claimed</span>
-                  <span className="text-sky-600">{100 - claimed} remaining</span>
-                </div>
-                <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden mb-2">
-                  <div className="h-full rounded-full aw-prog transition-[width] duration-700" style={{ width:`${progress}%` }} />
-                </div>
+                {founding ? (
+                  <>
+                    <div className="mb-2 flex justify-between text-sm font-semibold">
+                      <span className="text-slate-700">{claimed} of 100 spots claimed</span>
+                      <span className="text-sky-600">{100 - claimed} remaining</span>
+                    </div>
+                    <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden mb-2">
+                      <div className="h-full rounded-full aw-prog transition-[width] duration-700" style={{ width:`${progress}%` }} />
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-500 mb-3">Founding membership availability is confirmed when you submit your request.</p>
+                )}
                 <p className="text-xs text-slate-400">We&apos;ll confirm your spot by SMS/WhatsApp within 24 hours.</p>
               </motion.div>
 
