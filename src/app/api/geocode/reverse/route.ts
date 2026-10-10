@@ -641,3 +641,53 @@ export async function GET(req: NextRequest) {
 //       : [],
 //   });
 // }
+
+
+/**
+ * Backward-compatible POST contract used by existing booking/location clients.
+ * The canonical handler is GET; keep both verbs supported while clients migrate.
+ */
+export async function POST(req: NextRequest) {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonErr('Invalid JSON body', 400);
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return jsonErr('Invalid request body', 400);
+  }
+
+  const payload = body as Record<string, unknown>;
+  const lat = typeof payload.lat === 'number' ? payload.lat : Number(payload.lat);
+  const lng = typeof payload.lng === 'number' ? payload.lng : Number(payload.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return jsonErr('Valid latitude and longitude are required', 400);
+  }
+
+  const url = new URL(req.url);
+  url.searchParams.set('lat', String(lat));
+  url.searchParams.set('lng', String(lng));
+  const response = await GET(new NextRequest(url, { headers: req.headers }));
+  const result = await response.json().catch(() => null) as
+    | { success?: boolean; data?: { formattedAddress?: string; address?: Record<string, unknown>; location?: { lat?: number; lng?: number } }; error?: string }
+    | null;
+
+  if (!response.ok || !result?.success || !result.data) {
+    return jsonErr(result?.error ?? 'Unable to resolve this location', response.status || 502);
+  }
+
+  const address = result.data.address ?? {};
+  return jsonOk({
+    lat: result.data.location?.lat ?? lat,
+    lng: result.data.location?.lng ?? lng,
+    formattedAddress: result.data.formattedAddress ?? '',
+    area: address.area ?? '',
+    city: address.city ?? '',
+    state: address.state ?? '',
+    pincode: address.pincode ?? '',
+    country: address.country ?? 'India',
+    street: address.street ?? '',
+  });
+}
