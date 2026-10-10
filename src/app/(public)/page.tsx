@@ -1916,13 +1916,13 @@ const WHY_CARDS = [
 
 const TRUST_BADGES = [
   '💧 Water delivery + home services', '💳 Cash + UPI per delivery',
-  '📍 3 live service zones', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access',
+  '📍 3+ live service zones', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access',
 ] as const;
 
 const SERVE_ITEMS = [
   { icon: '👨‍🎓', label: 'Students & PG' }, { icon: '👨‍💼', label: 'Professionals' },
   { icon: '🏠',   label: 'Homeowners' },    { icon: '🏢',   label: 'Offices' },
-  { icon: '🎪',   label: 'Weddings' },      { icon: '🍽️',  label: 'Restaurants' },
+  { icon: '🎪',   label: 'Weddings and Party' },      { icon: '🍽️',  label: 'Restaurants' },
   { icon: '🏗️',  label: 'Construction' },  { icon: '🏫',   label: 'Schools' },
 ] as const;
 
@@ -2564,9 +2564,16 @@ export default function HomePage() {
                       sizes="(max-width: 1024px) 100vw, 42vw"
                       className="h-56 w-full object-cover sm:h-72"
                     />
-                    <figcaption className="px-3 py-2 text-[10px] leading-4 text-slate-300/80">
-                      Photo by <a className="underline" href="https://unsplash.com/photos/a-water-dispenser-sitting-on-a-wooden-deck-mdu0FFMyd6k" target="_blank" rel="noreferrer">Ice Family on Unsplash</a> · <a className="underline" href="https://unsplash.com/license" target="_blank" rel="noreferrer">Unsplash License</a>
-                    </figcaption>
+<Image
+    src="/Friendly Kitchen Water Service Team.png" 
+    alt="Friendly Kitchen Water Service Team"
+    width={1600}
+    height={1067}
+    priority
+    sizes="(max-width: 1024px) 100vw, 42vw"
+    className="h-56 w-full object-cover sm:h-72"
+  />
+                    
                   </figure>
 
                   {/* Factual product/service information, not inflated social proof. */}
