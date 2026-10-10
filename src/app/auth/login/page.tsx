@@ -959,7 +959,7 @@ export default function LoginPage() {
 //   if (role === 'admin') return '/admin/dashboard';
 //   if (role === 'supplier') return '/supplier/dashboard';
 //   if (role === 'technician') return '/technician/dashboard';
-//   return '/customer/home';
+//   return '/';
 // }
 
 // function safeReturnTo(raw: string | null) {
