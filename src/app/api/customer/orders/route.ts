@@ -267,9 +267,6 @@ if (!serviceability.serviceable) {
 
   if (isWater) {
     const subPrice = Number(flat.subscription_can_price);
-    const defPrice = Number(flat.default_can_price);
-    const chilledPrice = Number(flat.chilled_can_price);
-    const bulkPrice = Number(flat.bulk_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
@@ -308,8 +305,6 @@ if (!serviceability.serviceable) {
 
     qty = Math.max(1, requested);
 
-    // Launch pricing approved by the business: Normal RO ₹20, Chilled RO ₹25.
-    // Keep server validation aligned with public settings while allowing higher configured rates.
     // Approved launch prices: Normal RO ₹20, Chilled RO ₹25, subscription ₹18.
     // Stale legacy settings must not cause client/server total mismatches.
     const regularPrice = 20;
@@ -317,16 +312,11 @@ if (!serviceability.serviceable) {
     const recurringPrice = configuredRecurringPrice < regularPrice
       ? Math.min(configuredRecurringPrice, 18)
       : 18;
-    const hasValidBulkDiscount =
-      Number.isFinite(bulkPrice) && bulkPrice > 0 && bulkPrice < regularPrice;
-
     waterUnitPrice = isChilled
       ? 25
       : isSubscription
         ? recurringPrice
-        : qty >= bulkThreshold && hasValidBulkDiscount
-          ? bulkPrice
-          : regularPrice;
+        : regularPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
