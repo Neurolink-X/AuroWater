@@ -329,7 +329,7 @@ if (!serviceability.serviceable) {
       return jsonErr('Choose a valid plumber charge type.', 400);
     }
     const serviceBase = service_type_key === 'plumbing'
-      ? (plumberType === 'mistri' ? 900 : 149)
+      ? (plumberType === 'mistri' ? 700 : 149)
       : Number.isFinite(configuredPrice) && configuredPrice > 0
         ? configuredPrice
         : Number(st.base_price) || 0;
