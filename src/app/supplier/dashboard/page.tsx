@@ -340,6 +340,7 @@ function StatCard({
 }) {
   return (
     <div
+      className="sd-stat"
       style={{
         background: 'rgba(255,255,255,0.03)',
         border: '1.5px solid rgba(255,255,255,0.07)',
@@ -358,8 +359,8 @@ function StatCard({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.03em' }}>{label}</span>
-        <div style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.03em', minWidth: 0 }}>{label}</span>
+        <div className="sd-stat-icon" style={{ width: 34, height: 34, borderRadius: 10, background: `${accent}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: accent }}>
           {icon}
         </div>
       </div>
@@ -370,8 +371,8 @@ function StatCard({
         </>
       ) : (
         <>
-          <div style={{ fontSize: 26, fontWeight: 800, color: '#F0F4FF', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
-          {sub && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', fontWeight: 500 }}>{sub}</div>}
+          <div className="sd-stat-val" style={{ fontSize: 26, fontWeight: 800, color: '#F0F4FF', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
+          {sub && <div className="sd-stat-sub" style={{ fontSize: 12, color: 'rgba(255,255,255,0.38)', fontWeight: 500 }}>{sub}</div>}
         </>
       )}
     </div>
@@ -703,6 +704,7 @@ export default function SupplierDashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersStale, setOrdersStale] = useState(false);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
@@ -788,7 +790,15 @@ export default function SupplierDashboardPage() {
     try {
       // Use the role-protected API instead of querying legacy "customers"
       // relations and columns that are not part of the current profiles/orders schema.
-      const rows = await supplierOrdersList();
+      // One quiet retry: a single gateway hiccup (502/503) should not blank the screen.
+      let rows: Awaited<ReturnType<typeof supplierOrdersList>>;
+      try {
+        rows = await supplierOrdersList();
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        rows = await supplierOrdersList();
+      }
+      setOrdersStale(false);
       const flat: Order[] = rows.map((row) => {
         const snapshot = row.address_snapshot ?? {};
         const noteText = String(row.note ?? row.notes ?? '');
@@ -823,33 +833,8 @@ export default function SupplierDashboardPage() {
           accepted_at: row.accepted_at ?? row.assigned_at ?? null,
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
-          address_line: String(
-            row.address_text ||
-            row.address_line ||
-            row.address ||
-            (row.delivery_address && typeof row.delivery_address === 'object'
-              ? [
-                  (row.delivery_address as Record<string, unknown>).house_flat,
-                  (row.delivery_address as Record<string, unknown>).area,
-                  (row.delivery_address as Record<string, unknown>).landmark,
-                  (row.delivery_address as Record<string, unknown>).city,
-                  (row.delivery_address as Record<string, unknown>).state,
-                  (row.delivery_address as Record<string, unknown>).pincode,
-                ].filter((part) => typeof part === 'string' && part.trim()).join(', ')
-              : '') ||
-            snapshot.formatted_address ||
-            snapshot.full_address ||
-            snapshotAddress
-          ),
-          city: String(
-            row.customer_city ||
-            (row.delivery_address && typeof row.delivery_address === 'object'
-              ? (row.delivery_address as Record<string, unknown>).city
-              : null) ||
-            snapshot.city ||
-            row.city ||
-            ''
-          ),
+          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
+          city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
           customer_name: String(row.customer_name ?? '—'),
           customer_phone: String(row.customer_phone ?? '—'),
         };
@@ -874,36 +859,44 @@ export default function SupplierDashboardPage() {
       }
     } catch (error) {
       console.error('[supplier] orders load failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to load orders.');
-      setOrders([]);
+      // Keep whatever we already showed; just flag it as possibly out of date.
+      setOrdersStale(true);
+      const raw = error instanceof Error ? error.message : '';
+      const friendly = /50[0-4]|bad gateway|unavailable|timeout|fetch/i.test(raw) || !raw
+        ? 'Server is busy. Showing your last loaded orders, retrying automatically.'
+        : raw;
+      toast.error(friendly, { id: 'orders-load-error' });
     } finally {
       setLoadingOrders(false);
     }
   };
 
   const fetchEarnings = async (supplierId: string) => {
-    // The live orders table has no supplier_payout column. Until the canonical
-    // accrual calculation is verified, show only real payout-ledger records.
+    // Earnings are derived from the canonical orders table in production.
+    // Do not query the legacy supplier_earnings table (it is not deployed).
     const { data, error } = await supabase
-      .from('payouts')
-      .select('id, amount, status, created_at, approved_at')
-      .eq('user_id', supplierId)
-      .eq('role', 'supplier')
+      .from('orders')
+      .select('*')
+      .eq('supplier_id', supplierId)
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(200);
 
     if (error) {
-      console.error('[supplier] payout history load failed:', error.message);
+      console.error('[supplier] earnings load failed:', error.message);
       setEarnings([]);
       return;
     }
 
-    setEarnings((data ?? []).map((row) => ({
+    // Filter status on the client: an enum filter with an unknown label makes PostgREST answer 400.
+    const doneRows = (data ?? []).filter((row) =>
+      ['completed', 'delivered'].includes(String(row.status ?? '').toLowerCase()),
+    );
+    setEarnings(doneRows.slice(0, 50).map((row) => ({
       id: String(row.id),
       order_id: String(row.id),
-      amount: Number(row.amount ?? 0),
-      status: ['paid', 'approved', 'completed', 'processed'].includes(String(row.status ?? '').toLowerCase()) ? 'paid' as const : 'pending' as const,
-      paid_at: row.approved_at ? String(row.approved_at) : null,
+      amount: Number(row.supplier_payout ?? 0),
+      status: 'pending' as const,
+      paid_at: null,
       created_at: String(row.created_at ?? ''),
     })));
   };
@@ -1350,9 +1343,43 @@ export default function SupplierDashboardPage() {
         .sdash .order-col > *:nth-child(4) { animation-delay:150ms; }
         .sdash .order-col > *:nth-child(5) { animation-delay:200ms; }
         .sdash .order-col > *:nth-child(n+6) { animation-delay:250ms; }
-        @media(max-width:640px){
-          .sdash .stats-grid { grid-template-columns: 1fr 1fr !important; }
-          .sdash .orders-grid { grid-template-columns: 1fr !important; }
+        .sdash .sd-header { top: 48px !important; }
+        .sdash .sd-hero { position: relative; overflow: hidden; border-radius: 22px; padding: clamp(16px,3.5vw,28px);
+          background: linear-gradient(135deg,rgba(13,155,108,0.20) 0%,rgba(14,116,144,0.14) 55%,rgba(56,189,248,0.06) 100%);
+          border: 1px solid rgba(94,234,212,0.18); }
+        .sdash .sd-hero::after { content:''; position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%;
+          background: radial-gradient(circle,rgba(56,189,248,0.18),transparent 70%); pointer-events:none; }
+        .sdash .stats-grid { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 10px !important; }
+        .sdash .sd-stat { padding: 14px !important; gap: 8px !important; min-width: 0; }
+        .sdash .sd-stat-val { font-size: 20px !important; overflow-wrap: anywhere; }
+        .sdash .sd-stat-icon { width: 28px !important; height: 28px !important; }
+        .sdash .sd-stat-sub { font-size: 11px !important; }
+        .sdash .sd-tier { width: 100% !important; min-width: 0 !important; }
+        .sdash .sd-notif { width: min(300px, calc(100vw - 24px)) !important; right: -86px !important; }
+        .sdash .sd-pill-name { display: none; }
+        .sdash .sd-pill { padding: 4px !important; }
+        .sdash .sd-sub { display: none; }
+        .sdash .sd-earn-row { padding-left: 12px !important; padding-right: 12px !important; column-gap: 6px; }
+        .sdash .orders-grid { grid-template-columns: 1fr !important; }
+        @media (min-width: 560px) {
+          .sdash .sd-pill-name { display: block; }
+          .sdash .sd-pill { padding: 6px 12px !important; }
+          .sdash .sd-sub { display: block; }
+          .sdash .sd-notif { right: 0 !important; }
+          .sdash .sd-earn-row { padding-left: 18px !important; padding-right: 18px !important; }
+        }
+        @media (min-width: 720px) {
+          .sdash .stats-grid { grid-template-columns: repeat(3,minmax(0,1fr)) !important; gap: 14px !important; }
+          .sdash .sd-stat { padding: 18px 20px !important; gap: 12px !important; }
+          .sdash .sd-stat-val { font-size: 24px !important; }
+          .sdash .sd-stat-icon { width: 34px !important; height: 34px !important; }
+          .sdash .sd-tier { width: auto !important; min-width: 240px !important; }
+          .sdash .orders-grid { grid-template-columns: repeat(auto-fill,minmax(300px,1fr)) !important; }
+        }
+        @media (min-width: 1080px) {
+          .sdash .stats-grid { grid-template-columns: repeat(6,minmax(0,1fr)) !important; }
+          .sdash .sd-stat { padding: 16px !important; }
+          .sdash .sd-stat-val { font-size: 22px !important; }
         }
       `}</style>
 
@@ -1370,6 +1397,7 @@ export default function SupplierDashboardPage() {
 
         {/* ── HEADER ─────────────────────────────────────────────────────── */}
         <header
+          className="sd-header"
           style={{
             position: 'sticky',
             top: 0,
@@ -1380,20 +1408,20 @@ export default function SupplierDashboardPage() {
             padding: '0 clamp(16px,4vw,32px)',
           }}
         >
-          <div style={{ maxWidth: 1200, margin: '0 auto', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             {/* Logo + role */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#0D9B6C,#059652)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(13,155,108,0.45)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: 'linear-gradient(135deg,#0D9B6C,#059652)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(13,155,108,0.45)' }}>
                 {Icon.drop(18, '#fff')}
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.3px', lineHeight: 1 }}>AuroTap</div>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#0D9B6C', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Supplier Portal</div>
+                <div className="sd-sub" style={{ fontSize: 10, fontWeight: 600, color: '#0D9B6C', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Supplier Portal</div>
               </div>
             </div>
 
             {/* Right actions */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
               {/* Refresh */}
               <button
                 type="button"
@@ -1429,7 +1457,7 @@ export default function SupplierDashboardPage() {
 
                 {/* Notification dropdown */}
                 {showNotifs && (
-                  <div style={{ position: 'absolute', top: 44, right: 0, width: 300, background: '#0A1220', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.5)', zIndex: 100, overflow: 'hidden' }}>
+                  <div className="sd-notif" style={{ position: 'absolute', top: 44, right: 0, width: 300, background: '#0A1220', border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.5)', zIndex: 100, overflow: 'hidden' }}>
                     <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 12, fontWeight: 800, color: '#F0F4FF', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       Notifications
                       <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{notifications.length} total</span>
@@ -1456,11 +1484,11 @@ export default function SupplierDashboardPage() {
               {loading ? (
                 <Skeleton w={110} h={34} r={10} />
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '6px 12px' }}>
+                <div className="sd-pill" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '6px 12px' }}>
                   <div style={{ width: 26, height: 26, borderRadius: '50%', background: `linear-gradient(135deg,${tier?.color ?? '#0D9B6C'},${tier?.color ?? '#059652'}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#0A1220', flexShrink: 0 }}>
                     {profile?.full_name?.[0]?.toUpperCase() ?? 'S'}
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div className="sd-pill-name" style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#F0F4FF', lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>
                       {profile?.full_name?.split(' ')[0] ?? 'Supplier'}
                     </div>
@@ -1503,12 +1531,20 @@ export default function SupplierDashboardPage() {
           )}
 
           {/* Welcome strip */}
-          <div style={{ marginBottom: 28, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
-            <div>
+          {ordersStale && !loading && (
+            <div role="status" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.08)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#FCD34D' }}>Live data is delayed. Showing your last loaded orders.</span>
+              <button type="button" onClick={() => void fetchOrders()} style={{ border: 0, borderRadius: 999, padding: '6px 14px', background: 'rgba(245,158,11,0.9)', color: '#1F1300', fontWeight: 800, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Retry now
+              </button>
+            </div>
+          )}
+          <div className="sd-hero" style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ position: 'relative', zIndex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#0D9B6C', letterSpacing: '0.1em', marginBottom: 6 }}>
                 {loading ? <Skeleton w={120} h={12} /> : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
               </div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(1.4rem,4vw,2rem)', fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.6px', lineHeight: 1.1 }}>
+              <h1 style={{ margin: 0, fontSize: 'clamp(1.35rem,4.5vw,2rem)', fontWeight: 900, color: '#F0F4FF', letterSpacing: '-0.6px', lineHeight: 1.1 }}>
                 {loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}
               </h1>
               {!loading && profile && (
@@ -1521,16 +1557,25 @@ export default function SupplierDashboardPage() {
                       ✓ Verified
                     </span>
                   )}
-                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)' }}>
                     {profile.city}
                   </span>
+                  <button
+                    type="button"
+                    disabled={dispatchSettingsBusy}
+                    onClick={() => void toggleDispatchAvailability()}
+                    aria-pressed={dispatchOnline}
+                    style={{ border: `1px solid ${dispatchOnline ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.18)'}`, background: dispatchOnline ? 'rgba(16,185,129,0.14)' : 'rgba(255,255,255,0.05)', color: dispatchOnline ? '#6EE7B7' : 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: 800, padding: '3px 12px', borderRadius: 999, cursor: dispatchSettingsBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+                  >
+                    {dispatchOnline ? '● Taking orders' : '○ Offline · tap to go online'}
+                  </button>
                 </div>
               )}
             </div>
 
             {/* Tier progress card */}
             {!loading && profile && tier && (
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: `1.5px solid ${tier.color}33`, borderRadius: 14, padding: '14px 18px', minWidth: 220, flexShrink: 0 }}>
+              <div className="sd-tier" style={{ position: 'relative', zIndex: 1, background: 'rgba(6,12,23,0.55)', border: `1.5px solid ${tier.color}33`, borderRadius: 14, padding: '14px 18px', flexShrink: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <span style={{ fontSize: 12, fontWeight: 700, color: tier.color }}>🏆 {tier.label} Tier</span>
                   {effectiveTier !== 'platinum' && (
@@ -1553,7 +1598,7 @@ export default function SupplierDashboardPage() {
           {/* ── STATS GRID ─────────────────────────────────────────────── */}
           <div
             className="stats-grid"
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 28 }}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10, marginBottom: 24 }}
           >
             <StatCard
               icon={Icon.truck(17)}
@@ -2083,7 +2128,7 @@ export default function SupplierDashboardPage() {
               </h2>
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1.5px solid rgba(255,255,255,0.07)', borderRadius: 16, overflow: 'hidden' }}>
                 {/* Table head */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '12px 18px', background: '#0A1220', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="sd-earn-row" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', padding: '12px 18px', background: '#0A1220', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                   {['Order', 'Amount', 'Status', 'Date'].map((h) => (
                     <div key={h} style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</div>
                   ))}
@@ -2091,7 +2136,8 @@ export default function SupplierDashboardPage() {
                 {earnings.slice(0, 10).map((e, i) => (
                   <div
                     key={e.id}
-                    style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '13px 18px', borderBottom: i < 9 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.15s' }}
+                    className="sd-earn-row"
+                    style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr', alignItems: 'center', padding: '13px 18px', borderBottom: i < 9 ? '1px solid rgba(255,255,255,0.04)' : 'none', transition: 'background 0.15s' }}
                     onMouseEnter={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.025)'; }}
                     onMouseLeave={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                   >
@@ -2102,7 +2148,7 @@ export default function SupplierDashboardPage() {
                         {e.status === 'paid' ? 'Paid' : 'Pending'}
                       </span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                       {e.paid_at ? fmtDate(e.paid_at) : fmtDate(e.created_at)}
                     </div>
                   </div>
