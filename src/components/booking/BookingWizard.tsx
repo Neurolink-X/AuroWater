@@ -158,10 +158,11 @@ const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
 };
 
 const MSG_DENIED =
-  'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, then try again — or type your address below.';
+  'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, or just enter your area and 6-digit pincode below. लोकेशन बंद है, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
 const MSG_TIMEOUT =
-  'Could not get a location fix. Move near a window or open area and retry — or type your address below.';
-const MSG_UNAVAILABLE = 'Your device could not detect its location. Please type your address below.';
+  'GPS could not find you (it often fails indoors). Please enter your area and 6-digit pincode below. GPS डिटेक्ट नहीं हो पाया, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+const MSG_UNAVAILABLE =
+  'Your device could not detect its location. Please enter your area and 6-digit pincode below. कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
 
 function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
   return d.canOrderType === 'subscription' ? MAX_CANS_SUBSCRIPTION : MAX_CANS_ONE_TIME;
@@ -305,6 +306,12 @@ type AddressRow = {
   landmark?: string | null;
   is_default?: boolean | null;
 };
+
+/** Reads the extra `location` field the serviceability API now returns. */
+function readCanOrderWater(result: unknown): boolean | null {
+  const loc = (result as { location?: { can_order_water?: boolean } } | null)?.location;
+  return typeof loc?.can_order_water === 'boolean' ? loc.can_order_water : null;
+}
 
 function emptyDraft(): BookingDraft {
   const slot = nextFutureSlot();
@@ -606,7 +613,8 @@ export default function BookingWizard() {
     zone: { id: string; name: string; city: string } | null;
     message: string; services: string[] | null;
   } | null>(null);
-  const [checkingServiceability, setCheckingServiceability] = useState(false);
+   const [checkingServiceability, setCheckingServiceability] = useState(false);
+  const [locationOk, setLocationOk] = useState<boolean | null>(null);
 
   const [locating, setLocating]         = useState(false);
   const [locationStep, setLocationStep] = useState<'idle' | 'network' | 'gps' | 'geocoding' | 'done' | 'error'>('idle');
@@ -817,14 +825,14 @@ export default function BookingWizard() {
 
   useEffect(() => {
     if (!session?.loggedIn || !draft.addressId || view !== 3) {
-      setServiceability(null); setCheckingServiceability(false); return;
+           setServiceability(null); setLocationOk(null); setCheckingServiceability(false); return;
     }
     let cancelled = false;
     void (async () => {
       setCheckingServiceability(true);
       try {
         const result = await customerServiceability(draft.addressId!, draft.serviceKey);
-        if (!cancelled) setServiceability(result);
+              if (!cancelled) { setServiceability(result); setLocationOk(readCanOrderWater(result)); }
       } catch (e) {
         if (!cancelled) setServiceability({ serviceable: false, status: 'ERROR', zone: null, message: e instanceof ApiError ? e.message : 'Could not check availability.', services: null });
       } finally { if (!cancelled) setCheckingServiceability(false); }
@@ -1106,7 +1114,11 @@ export default function BookingWizard() {
       }
       if (!draft.addressId)     { toast.error('Select or add a delivery address.'); return false; }
       if (checkingServiceability) { toast.error('Checking availability — please wait.'); return false; }
-      if (!serviceability?.serviceable) { toast.error(serviceability?.message ?? 'Address not serviceable.'); return false; }
+           if (!serviceability?.serviceable) { toast.error(serviceability?.message ?? 'Address not serviceable.'); return false; }
+      if (draft.serviceKey === 'water_can' && locationOk === false) {
+        toast.error('We could only find your city, not your area. Tap "Detect my location" or add the address with your exact pincode.');
+        return false;
+      }
       return true;
     }
     if (s === 4) {
@@ -1248,6 +1260,15 @@ export default function BookingWizard() {
       if (e instanceof ApiError && e.status === 401) {
         try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 5 })); } catch { /* */ }
         router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-5')}`);
+        return;
+      }
+            const errCode =
+        (e as { code?: string; details?: { code?: string } } | null)?.code ??
+        (e as { details?: { code?: string } } | null)?.details?.code;
+      if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
+        const m = 'We could not place this address on the map. Please tap "Detect my location", or add the address again with your area and 6-digit pincode.';
+        setSubmitError(m); toast.error(m);
+        goTo(3);
         return;
       }
       const msg = e instanceof ApiError ? e.message : 'Booking failed. Please try again.';
@@ -1761,6 +1782,15 @@ export default function BookingWizard() {
                     )}
                   </div>
                 )}
+
+                                {draft.serviceKey === 'water_can' && locationOk === false && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800" role="alert">
+                    We could only place this address at city level. For water delivery we need your area: tap &quot;Detect my location&quot;
+                    (near a window or outside), or save the address again with your correct 6-digit pincode.
+                  </p>
+                )}
+
+                {/* Add new address */}
 
                 {/* Add new address */}
                 <div ref={addressFormRef} className="border-t border-slate-100 pt-5 space-y-4 scroll-mt-4">
