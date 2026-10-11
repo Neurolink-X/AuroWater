@@ -375,7 +375,7 @@ export default function RootLayout({
         {/* ── Critical brand asset (used by the splash screen) ── */}
         <link
           rel="preload"
-          href="/splash-logo.svg"
+          href="/aurotap-mark.svg"
           as="image"
           type="image/svg+xml"
           fetchPriority="high"
