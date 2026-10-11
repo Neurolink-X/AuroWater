@@ -1,17 +1,39 @@
 {
+  "id": "/",
   "name": "AuroWater",
-  "short_name": "AuroTap",
+  "short_name": "AuroWater",
   "description": "Fresh water delivery in UP — Gorakhpur, Kanpur, Lucknow & NCR",
+  "lang": "en-IN",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
-  "theme_color": "#FFFFFF",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "background_color": "#F8FAFC",
+  "theme_color": "#F8FAFC",
+  "categories": ["shopping", "utilities", "lifestyle"],
+  "prefer_related_applications": false,
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "icons": [
     { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-maskable-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "/icons/icon-maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "description": "Track your water and service orders",
+      "url": "/orders",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Contact Support",
+      "short_name": "Support",
+      "description": "Talk to the AuroWater team",
+      "url": "/contact",
+      "icons": [{ "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }
