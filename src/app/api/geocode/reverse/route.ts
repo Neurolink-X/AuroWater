@@ -102,11 +102,11 @@ function fallbackLocation(lat: number, lng: number, diag: Record<string, string>
 type OsmAddress = Record<string, string | undefined>;
 
 /** Second opinion from OpenStreetMap (no key needed). Used to fill gaps Google leaves, e.g. area or pincode. */
-async function osmReverse(lat: number, lng: number): Promise<{ area: string; city: string; pincode: string; display: string } | null> {
+async function osmReverseAt(lat: number, lng: number, zoom: number): Promise<{ area: string; city: string; pincode: string; display: string } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const params = new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng), zoom: '18', addressdetails: '1', 'accept-language': 'en' });
+    const params = new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng), zoom: String(zoom), addressdetails: '1', 'accept-language': 'en' });
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?${params.toString()}`, {
       headers: { Accept: 'application/json', 'User-Agent': 'AuroTap/1.0 (https://aurotap.in)' },
       signal: controller.signal,
@@ -120,7 +120,8 @@ async function osmReverse(lat: number, lng: number): Promise<{ area: string; cit
       area: a.neighbourhood || a.suburb || a.city_district || a.quarter || a.village || a.hamlet || '',
       city: a.city || a.town || a.state_district || a.county || '',
       pincode: /^\d{6}$/.test(pin) ? pin : '',
-      display: json.display_name ?? '',
+      // OSM postcodes are frequently the nearest/central one, so we never pass them on; display text is stripped of them too.
+      display: (json.display_name ?? '').replace(/,?\s*\b\d{6}\b/g, ''),
     };
   } catch {
     return null;
@@ -147,6 +148,56 @@ function build(
     // Harmless debugging aid: open DevTools → Network → reverse to see why a field is empty.
     diag,
   };
+}
+
+/** Street-level first; if OSM has no named area there, retry at suburb level (zoom 14). */
+async function osmReverse(lat: number, lng: number) {
+  const fine = await osmReverseAt(lat, lng, 18);
+  if (fine && fine.area && fine.pincode) return fine;
+  const coarse = await osmReverseAt(lat, lng, 14);
+  if (!fine) return coarse;
+  if (!coarse) return fine;
+  return { area: fine.area || coarse.area, city: fine.city || coarse.city, pincode: fine.pincode || coarse.pincode, display: fine.display || coarse.display };
+}
+
+function distMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Nearest named locality/colony from OpenStreetMap place nodes. Works where polygons are missing. */
+async function nearestPlaceName(lat: number, lng: number): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const query = `[out:json][timeout:6];node(around:2500,${lat},${lng})[place~"^(suburb|neighbourhood|quarter|village|locality)$"][name];out 30;`;
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'AuroTap/1.0 (https://aurotap.in)' },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!res.ok) return '';
+    const json = (await res.json()) as { elements?: Array<{ lat?: number; lon?: number; tags?: Record<string, string> }> };
+    let best = '';
+    let bestD = Infinity;
+    for (const el of json.elements ?? []) {
+      const name = (el.tags?.['name:en'] || el.tags?.name || '').trim();
+      if (!name || typeof el.lat !== 'number' || typeof el.lon !== 'number') continue;
+      const d = distMeters(lat, lng, el.lat, el.lon);
+      if (d < bestD) { bestD = d; best = name; }
+    }
+    return best;
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const cache = new Map<string, { at: number; value: ReturnType<typeof build> }>();
@@ -177,12 +228,14 @@ async function resolveLocation(lat: number, lng: number) {
   if (!googleOk) {
     const osm = await osmReverse(lat, lng);
     diag.osm = osm ? 'OK' : 'FAILED';
-    if (!osm) return fallbackLocation(lat, lng, diag);
-    const city = osm.city || regionCity(lat, lng);
+    const placeName = osm?.area ? '' : await nearestPlaceName(lat, lng);
+    diag.place = placeName ? 'OK' : osm?.area ? 'SKIPPED' : 'NONE';
+    if (!osm && !placeName) return fallbackLocation(lat, lng, diag);
+    const city = osm?.city || regionCity(lat, lng);
     const value = build({
-      lat, lng, formattedAddress: osm.display, area: osm.area, city,
-      state: city ? 'Uttar Pradesh' : '', pincode: osm.pincode, street: '',
-    }, 'osm', osm.area ? 'area' : 'city', diag);
+      lat, lng, formattedAddress: osm?.display ?? '', area: osm?.area || placeName, city,
+      state: city ? 'Uttar Pradesh' : '', pincode: '', street: '',
+    }, 'osm', osm?.area || placeName ? 'area' : 'city', diag);
     cache.set(key, { at: Date.now(), value });
     return value;
   }
@@ -194,15 +247,16 @@ async function resolveLocation(lat: number, lng: number) {
   const city =
     pickAcross(results, 'long', 'locality', 'postal_town', 'administrative_area_level_2') || regionCity(lat, lng);
   const state = pickAcross(results, 'long', 'administrative_area_level_1') || (city ? 'Uttar Pradesh' : '');
-  let pincode = /^\d{6}$/.test(pickAcross(results, 'short', 'postal_code')) ? pickAcross(results, 'short', 'postal_code') : '';
+  const pincode = /^\d{6}$/.test(pickAcross(results, 'short', 'postal_code')) ? pickAcross(results, 'short', 'postal_code') : '';
   let source: 'google' | 'google+osm' = 'google';
-  if (!area || !pincode) {
+  if (!area) {
     // Google answered but left a gap: fill only the gap from OpenStreetMap.
     const osm = await osmReverse(lat, lng);
     diag.osm = osm ? 'OK' : 'FAILED';
-    if (osm) {
-      if (!area && osm.area) { area = osm.area; source = 'google+osm'; }
-      if (!pincode && osm.pincode) { pincode = osm.pincode; source = 'google+osm'; }
+    if (osm?.area) { area = osm.area; source = 'google+osm'; }
+    if (!area) {
+      const placeName = await nearestPlaceName(lat, lng);
+      if (placeName) { area = placeName; source = 'google+osm'; }
     }
   }
   const street = [pickAcross(results, 'long', 'street_number'), pickAcross(results, 'long', 'route')].filter(Boolean).join(' ');
