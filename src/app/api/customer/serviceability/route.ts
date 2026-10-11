@@ -16,6 +16,9 @@ import {
   resolveServiceability,
 } from '@/lib/zones';
 
+import { resolveAddressLocation } from '@/lib/address-geo.server';
+import { MIN_QUALITY_FOR_WATER } from '@/lib/address-geo';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +43,7 @@ const SERVICEABILITY_ROLES: ProfileRole[] = [
 const MAX_ADDRESS_ID_LENGTH = 100;
 const MAX_SERVICE_KEY_LENGTH = 100;
 const SERVICE_KEY_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(req: NextRequest) {
   // ============================================================
@@ -85,7 +89,7 @@ export async function GET(req: NextRequest) {
     return jsonErr('address_id is required', 400);
   }
 
-  if (addressId.length > MAX_ADDRESS_ID_LENGTH) {
+   if (addressId.length > MAX_ADDRESS_ID_LENGTH || !UUID_PATTERN.test(addressId)) {
     return jsonErr('Invalid address ID', 400);
   }
 
@@ -148,15 +152,28 @@ export async function GET(req: NextRequest) {
   // The browser never decides the final serviceability result.
   // ============================================================
   try {
+      const row = address as Record<string, unknown>;
+    const geo = await resolveAddressLocation(row);
+
     const result = await resolveServiceability(
-      address as Record<string, unknown>,
+      geo.ok ? { ...row, lat: geo.lat, lng: geo.lng } : row,
       service,
     );
 
+    // Tell the booking page how exact the location is, so it can warn
+    // BEFORE the customer reaches the last step.
+    const location = geo.ok
+      ? {
+          source: geo.source,
+          quality: geo.quality,
+          can_order_water: geo.quality >= MIN_QUALITY_FOR_WATER,
+          warning: geo.warning,
+        }
+      : { source: null, quality: 0, can_order_water: false, warning: null };
+
     // Serviceability is user/address-specific. Do not allow
     // intermediary caches to serve one user's result to another.
-    return jsonOk(result);
-  } catch (error) {
+    return jsonOk({ ...result, location }); catch (error) {
     // resolveServiceability is designed not to throw, but this
     // boundary protects the API if a future implementation does.
     console.error(
