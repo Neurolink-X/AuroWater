@@ -8,6 +8,8 @@ import {
   postgrestTableUnavailableUserMessage,
 } from '@/lib/supabase/postgrest-errors';
 import { resolveServiceability } from '@/lib/zones';
+import { resolveAddressLocation, healAddressLocation } from '@/lib/address-geo.server';
+import { MIN_QUALITY_FOR_WATER, isValidCoord } from '@/lib/address-geo';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder, dispatchTechnicianJob } from '@/lib/dispatch';
 import { createServiceClient } from '@/utils/supabase/server';
@@ -218,22 +220,35 @@ export async function POST(req: NextRequest) {
 
   const a = addr as Record<string, unknown>;
 
-const addrLat = toNum(a.lat);
-const addrLng = toNum(a.lng);
-const hasValidCoordinates = Number.isFinite(addrLat) && Number.isFinite(addrLng) && addrLat >= -90 && addrLat <= 90 && addrLng >= -180 && addrLng <= 180;
+  // Best available point: saved GPS/pin first, then the pincode area.
+  const geo = await resolveAddressLocation(a);
 
-if (service_type_key === 'water_can' && !hasValidCoordinates) {
-  return jsonErr('Please save this delivery address with a valid map location before ordering water.', 400, 'DELIVERY_LOCATION_REQUIRED');
-}
+  if (service_type_key === 'water_can' && (!geo.ok || geo.quality < MIN_QUALITY_FOR_WATER)) {
+    return jsonErr(
+      'Please save this delivery address with a valid map location before ordering water.',
+      400,
+      'DELIVERY_LOCATION_REQUIRED'
+    );
+  }
 
-const serviceability = await resolveServiceability(
-  a,
-  service_type_key
-);
+  const addrLat = geo.ok ? geo.lat : NaN;
+  const addrLng = geo.ok ? geo.lng : NaN;
+  const geoSource = geo.ok ? geo.source : null;
 
-if (!serviceability.serviceable) {
-  return jsonErr(serviceability.message, 400);
-}
+  // Zone rules always receive valid coordinates now
+  const serviceability = await resolveServiceability(
+    geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
+    service_type_key
+  );
+
+  if (!serviceability.serviceable) {
+    return jsonErr(serviceability.message, 400);
+  }
+
+  // Self-heal: remember the derived point so this address works everywhere next time
+  if (geo.ok && geo.quality >= MIN_QUALITY_FOR_WATER && !isValidCoord(a.lat, a.lng)) {
+    void healAddressLocation(String(addr.id), customerId, geo);
+  }
   
   // const a = addr as Record<string, unknown>;
   // const addrLat = toNum(a.lat);
@@ -364,9 +379,11 @@ if (!serviceability.serviceable) {
     landmark: a.landmark ?? null,
     city: a.city ?? null,
     state: a.state ?? null,
-    pincode: a.pincode ?? null,
+      pincode: a.pincode ?? null,
     lat: Number.isFinite(addrLat) ? addrLat : null,
     lng: Number.isFinite(addrLng) ? addrLng : null,
+    geo_source: geoSource,
+    location_warning: geo.ok ? geo.warning : null,
   };
 
   const addressText = [a.house_flat ?? a.line1, a.area ?? a.line2, a.landmark, a.city, a.state, a.pincode]
