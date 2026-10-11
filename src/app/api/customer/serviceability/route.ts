@@ -152,7 +152,7 @@ export async function GET(req: NextRequest) {
   // The browser never decides the final serviceability result.
   // ============================================================
   try {
-      const row = address as Record<string, unknown>;
+    const row = address as Record<string, unknown>;
     const geo = await resolveAddressLocation(row);
 
     const result = await resolveServiceability(
@@ -160,8 +160,6 @@ export async function GET(req: NextRequest) {
       service,
     );
 
-    // Tell the booking page how exact the location is, so it can warn
-    // BEFORE the customer reaches the last step.
     const location = geo.ok
       ? {
           source: geo.source,
@@ -171,11 +169,8 @@ export async function GET(req: NextRequest) {
         }
       : { source: null, quality: 0, can_order_water: false, warning: null };
 
-    // Serviceability is user/address-specific. Do not allow
-    // intermediary caches to serve one user's result to another.
-    return jsonOk({ ...result, location }); catch (error) {
-    // resolveServiceability is designed not to throw, but this
-    // boundary protects the API if a future implementation does.
+    return jsonOk({ ...result, location });
+  } catch (error) {
     console.error(
       '[serviceability] unexpected resolution error:',
       error,
