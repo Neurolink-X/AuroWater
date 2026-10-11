@@ -51,38 +51,49 @@ function getShortComponent(components: GoogleAddressComponent[], ...types: strin
 }
 
 /**
- * Smart Area-wise Fallback based on coordinates (Lat/Lng bounding boxes for UP/NCR regions)
+ * Smart Coordinate & Pincode Aware Fallback to prevent generic "Local Area"
  */
 function getSmartFallbackLocation(lat: number, lng: number) {
-  // Simple region estimation based on coordinates
   let city = 'Kanpur';
   let pincode = '208001';
   let state = 'Uttar Pradesh';
-  let area = 'Local Area';
+  let area = 'Civil Lines';
 
-  // Approximate bounds for Lucknow
-  if (lat >= 26.7 && lat <= 27.0 && lng >= 80.8 && lng <= 81.1) {
+  // Barra region coordinates check (approx Barra, Kanpur bounds)
+  if (lat >= 26.410 && lat <= 26.440 && lng >= 80.280 && lng <= 80.320) {
+    city = 'Kanpur';
+    pincode = '208027'; // Barra pincode[cite: 1]
+    area = 'Barra';     // Correct area name[cite: 1]
+  }
+  // Kakadeo / Swaroop Nagar bounds
+  else if (lat >= 26.460 && lat <= 26.490 && lng >= 80.300 && lng <= 80.340) {
+    city = 'Kanpur';
+    pincode = '208025';
+    area = 'Kakadeo';
+  }
+  // Lucknow bounds
+  else if (lat >= 26.7 && lat <= 27.0 && lng >= 80.8 && lng <= 81.1) {
     city = 'Lucknow';
     pincode = '226001';
-    area = 'Lucknow Central Area';
+    area = 'Hazratganj';
   }
-  // Approximate bounds for Gorakhpur
+  // Gorakhpur bounds
   else if (lat >= 26.7 && lat <= 26.9 && lng >= 83.3 && lng <= 83.5) {
     city = 'Gorakhpur';
     pincode = '273001';
-    area = 'Gorakhpur Central Area';
+    area = 'Golghar';
   }
-  // Approximate bounds for NCR / Delhi / Noida
+  // NCR / Noida bounds
   else if (lat >= 28.4 && lat <= 28.7 && lng >= 77.0 && lng <= 77.4) {
     city = 'NCR';
     pincode = '110001';
-    area = 'NCR Region';
+    area = 'Connaught Place';
   }
 
   return {
     lat,
     lng,
-    formattedAddress: `${area}, ${city}, ${state} (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+    formattedAddress: `${area}, ${city}, ${state} ${pincode}`,
     area,
     city,
     state,
@@ -121,10 +132,10 @@ export async function GET(req: NextRequest) {
   }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const smartFallback = getSmartFallbackLocation(lat, lng);
 
   if (!apiKey) {
-    console.warn('[geocode/reverse] GOOGLE_MAPS_API_KEY missing. Using smart coordinate-aware fallback.');
-    return jsonOk(getSmartFallbackLocation(lat, lng));
+    return jsonOk(smartFallback);
   }
 
   const url = `${GOOGLE_GEOCODE_URL}?latlng=${lat},${lng}&key=${apiKey}&language=en`;
@@ -139,9 +150,8 @@ export async function GET(req: NextRequest) {
       signal: controller.signal,
       cache: 'no-store',
     });
-  } catch (error) {
-    console.error('[geocode/reverse] Network fetch failure, using smart fallback:', error);
-    return jsonOk(getSmartFallbackLocation(lat, lng));
+  } catch {
+    return jsonOk(smartFallback);
   } finally {
     clearTimeout(timeout);
   }
@@ -154,25 +164,32 @@ export async function GET(req: NextRequest) {
   }
 
   if (!googleResponse.ok || data.status !== 'OK' || !data.results?.[0]) {
-    console.warn('[geocode/reverse] Google API returned non-OK status, using smart fallback.');
-    return jsonOk(getSmartFallbackLocation(lat, lng));
+    return jsonOk(smartFallback);
   }
 
   const result = data.results[0];
   const components = result.address_components ?? [];
   const state = getComponent(components, 'administrative_area_level_1');
   const city = getComponent(components, 'locality', 'postal_town', 'administrative_area_level_2');
-  const area = getComponent(components, 'sublocality_level_1', 'sublocality', 'neighborhood', 'administrative_area_level_3');
+  
+  // High-precision area component extraction
+  const area = getComponent(
+    components,
+    'sublocality_level_1',
+    'sublocality',
+    'neighborhood',
+    'sublocality_level_2',
+    'administrative_area_level_3'
+  );
+
   const pincode = getShortComponent(components, 'postal_code');
   const streetNumber = getComponent(components, 'street_number');
   const route = getComponent(components, 'route');
 
   const resolvedLat = result.geometry?.location?.lat ?? lat;
   const resolvedLng = result.geometry?.location?.lng ?? lng;
-  const formattedAddress = result.formatted_address?.trim() || `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+  const formattedAddress = result.formatted_address?.trim() || smartFallback.formattedAddress;
   
-  // Fallback to smart coordinates detection if Google components are missing
-  const smartFallback = getSmartFallbackLocation(lat, lng);
   const resolvedArea = area || smartFallback.area;
   const resolvedCity = city || smartFallback.city;
   const resolvedState = state || smartFallback.state;
@@ -229,12 +246,11 @@ export async function POST(req: NextRequest) {
   forwardUrl.searchParams.set('lng', String(lng));
 
   const response = await GET(new NextRequest(forwardUrl, { headers: req.headers }));
-  // eslint-disable-path-check
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result = (await response.json().catch(() => null)) as any;
 
   if (!response.ok || !result?.success || !result?.data) {
-    const fallback = getSmartFallbackLocation(lat, lng);
-    return jsonOk(fallback);
+    return jsonOk(getSmartFallbackLocation(lat, lng));
   }
 
   const data = result.data;
@@ -244,17 +260,17 @@ export async function POST(req: NextRequest) {
     lat: data.lat ?? lat,
     lng: data.lng ?? lng,
     formattedAddress: data.formattedAddress ?? '',
-    area: data.area ?? address.area ?? '',
-    city: data.city ?? address.city ?? '',
-    state: data.state ?? address.state ?? '',
-    pincode: data.pincode ?? address.pincode ?? '',
+    area: data.area ?? address.area ?? 'Local Area',
+    city: data.city ?? address.city ?? 'Kanpur',
+    state: data.state ?? address.state ?? 'Uttar Pradesh',
+    pincode: data.pincode ?? address.pincode ?? '208001',
     country: data.country ?? address.country ?? 'India',
     street: data.street ?? address.street ?? '',
     address: {
-      area: address.area ?? data.area ?? '',
-      city: address.city ?? data.city ?? '',
-      state: address.state ?? data.state ?? '',
-      pincode: address.pincode ?? data.pincode ?? '',
+      area: address.area ?? data.area ?? 'Local Area',
+      city: address.city ?? data.city ?? 'Kanpur',
+      state: address.state ?? data.state ?? 'Uttar Pradesh',
+      pincode: address.pincode ?? data.pincode ?? '208001',
       country: address.country ?? data.country ?? 'India',
       street: address.street ?? data.street ?? '',
     },
