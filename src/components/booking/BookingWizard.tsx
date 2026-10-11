@@ -171,6 +171,43 @@ const GEO_CHECK_M = 150;
 const MSG_UNAVAILABLE =
   'Your device could not detect its location. Please enter your area and 6-digit pincode below. कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
 
+type PostHit = { key: string; name: string; pincode: string; district: string };
+
+/** India Post lookup by area name. Tries "Barra 2" → "Barra" → first word. Never throws. */
+async function fetchPostOffices(query: string, city: string, strictCity: boolean): Promise<PostHit[]> {
+  const q = query.trim();
+  if (q.length < 3) return [];
+  const variants = Array.from(new Set([q, q.replace(/[\s-]*\d+$/, '').trim(), q.split(/\s+/)[0] ?? '']))
+    .filter((v) => v.length >= 3);
+  const cityKey = city.trim().toLowerCase();
+  for (const v of variants) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5_000);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(v)}`, { signal: ctrl.signal });
+      const json = (await res.json()) as Array<{ Status?: string; PostOffice?: Array<{ Name?: string; Pincode?: string; District?: string }> | null }>;
+      const offices = json?.[0]?.Status === 'Success' ? json[0].PostOffice ?? [] : [];
+      const all: PostHit[] = [];
+      const seen = new Set<string>();
+      for (const o of offices) {
+        const name = String(o.Name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim();
+        const pincode = String(o.Pincode ?? '').trim();
+        if (!name || !/^\d{6}$/.test(pincode)) continue;
+        const key = `${name}-${pincode}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        all.push({ key, name, pincode, district: String(o.District ?? '') });
+      }
+      const inCity = cityKey ? all.filter((h) => h.district.toLowerCase().includes(cityKey)) : [];
+      const picked = inCity.length > 0 ? inCity : strictCity ? [] : all;
+      if (picked.length > 0) return picked.slice(0, 8);
+    } catch { /* try next variant */ } finally {
+      clearTimeout(timer);
+    }
+  }
+  return [];
+}
+
 function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
   return d.canOrderType === 'subscription' ? MAX_CANS_SUBSCRIPTION : MAX_CANS_ONE_TIME;
 }
@@ -633,6 +670,9 @@ export default function BookingWizard() {
   } | null>(null);
   const [pinAreas, setPinAreas] = useState<string[]>([]);
   const pinReq = useRef(0);
+  const areaReq = useRef(0);
+  const areaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [areaHits, setAreaHits] = useState<PostHit[]>([]);
 
   const submitLock     = useRef(false);
   const firstScroll    = useRef(true);
@@ -958,6 +998,41 @@ export default function BookingWizard() {
     });
   }, []);
 
+  /** Suggests real area names for a pincode (India Post data). Fails silently, never blocks booking. */
+  const lookupPincode = useCallback(async (pin: string) => {
+    const id = ++pinReq.current;
+    if (pin.length !== 6) { setPinAreas([]); return; }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5_000);
+    try {
+      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: ctrl.signal });
+      const json = (await res.json()) as Array<{ Status?: string; PostOffice?: Array<{ Name?: string }> | null }>;
+      if (id !== pinReq.current) return;
+      const offices = json?.[0]?.Status === 'Success' ? json[0].PostOffice ?? [] : [];
+      const names = Array.from(new Set(
+        offices.map((o) => String(o.Name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
+      )).slice(0, 8);
+      setPinAreas(names);
+    } catch {
+      if (id === pinReq.current) setPinAreas([]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
+
+  /** Type an area ("Barra") and get its real pincode from India Post. This is the accurate path
+   *  when GPS/map data gives no area or a wrong pincode. Fails silently; never blocks booking. */
+  const searchArea = useCallback((text: string, city: string) => {
+    if (areaTimer.current) clearTimeout(areaTimer.current);
+    const q = text.trim();
+    const id = ++areaReq.current;
+    if (q.length < 3) { setAreaHits([]); return; }
+    areaTimer.current = setTimeout(async () => {
+      const hits = await fetchPostOffices(q, city, false);
+      if (id === areaReq.current) setAreaHits(hits);
+    }, 350);
+  }, []);
+
   /* ───────────────────────── Location ─────────────────────────
    * 1. Pre-check permission (instant message if blocked)
    * 2. Network location first (fast on phones), GPS only as fallback
@@ -1070,6 +1145,17 @@ export default function BookingWizard() {
       const matchedCity =
         LIVE_CITIES.find((c) => c.toLowerCase() === (result.city ?? '').trim().toLowerCase()) ?? null;
 
+      // If the map found the area but no reliable pincode, derive it from India Post by area name.
+      // One distinct pincode in the city = auto-fill. Several = show them as tap-to-choose chips.
+      let finalPin = coarse ? '' : (result.pincode || '');
+      if (!coarse && result.area && !finalPin) {
+        const hits = await fetchPostOffices(result.area, matchedCity ?? result.city ?? '', true);
+        if (stale()) return;
+        const pins = Array.from(new Set(hits.map((h) => h.pincode)));
+        if (pins.length === 1) finalPin = pins[0];
+        else if (pins.length > 1) setAreaHits(hits);
+      }
+
       setDraft((d) => ({
         ...d,
         newAddress: {
@@ -1078,17 +1164,19 @@ export default function BookingWizard() {
           lng: coarse ? undefined : lng,
           area:    coarse ? (d.newAddress?.area ?? '') : (result.area || d.newAddress?.area || ''),
           city:    matchedCity ?? result.city ?? d.newAddress?.city ?? '',
-          pincode: coarse ? (d.newAddress?.pincode ?? '') : (result.pincode || d.newAddress?.pincode || ''),
+          pincode: coarse ? (d.newAddress?.pincode ?? '') : (finalPin || d.newAddress?.pincode || ''),
         },
       }));
       setDetectedLocation({
         formattedAddress: result.formattedAddress,
-        city: result.city, area: result.area, pincode: result.pincode,
+        city: result.city, area: result.area, pincode: finalPin || null,
         accuracy: accuracyM,
         coarse,
       });
       setLocationStep('done');
       setLocating(false);
+      // Always offer real area names for the detected pincode, so the area is never left blank.
+      if (!coarse && finalPin) void lookupPincode(finalPin);
 
       if (coarse) {
         toast.warning('Only an approximate location was available. Please enter your pincode and pick your area.');
@@ -1117,29 +1205,7 @@ export default function BookingWizard() {
       setLocationError(msg);
       toast.warning(msg);
     }
-  }, [session?.loggedIn, locating]);
-
-  /** Suggests real area names for a pincode (India Post data). Fails silently, never blocks booking. */
-  const lookupPincode = async (pin: string) => {
-    const id = ++pinReq.current;
-    if (pin.length !== 6) { setPinAreas([]); return; }
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5_000);
-    try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: ctrl.signal });
-      const json = (await res.json()) as Array<{ Status?: string; PostOffice?: Array<{ Name?: string }> | null }>;
-      if (id !== pinReq.current) return;
-      const offices = json?.[0]?.Status === 'Success' ? json[0].PostOffice ?? [] : [];
-      const names = Array.from(new Set(
-        offices.map((o) => String(o.Name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
-      )).slice(0, 8);
-      setPinAreas(names);
-    } catch {
-      if (id === pinReq.current) setPinAreas([]);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  }, [session?.loggedIn, locating, lookupPincode]);
 
   const locationButtonLabel = () => {
     if (locationStep === 'network')   return 'Checking network…';
@@ -1917,6 +1983,11 @@ export default function BookingWizard() {
                           {detectedLocation.formattedAddress && (
                             <p className="text-xs text-emerald-700 mt-1 break-words">{detectedLocation.formattedAddress}</p>
                           )}
+                          {!detectedLocation.pincode && (
+                            <p className="text-xs text-amber-700 mt-1 font-semibold">
+                              We could not read a reliable pincode. Type your area (for example &quot;Barra&quot;) below and tap it to fill the correct pincode.
+                            </p>
+                          )}
                           <p className="text-xs text-emerald-700 mt-1">
                             {detectedLocation.accuracy !== null && detectedLocation.accuracy > GEO_CHECK_M
                               ? <b>Not your area? Please correct the area and pincode below. </b>
@@ -1939,7 +2010,29 @@ export default function BookingWizard() {
 
                     <input className={`sm:col-span-2 ${inputCls}${flashCls}`} placeholder="Area / locality *" aria-label="Area" required
                       value={draft.newAddress?.area ?? ''}
-                      onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: e.target.value } }))} />
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: v } }));
+                        searchArea(v, draft.newAddress?.city ?? '');
+                      }} />
+
+                    {areaHits.length > 0 && (
+                      <div className="sm:col-span-2" role="group" aria-label="Matching areas">
+                        <p className="text-xs font-semibold text-slate-600 mb-1.5">Tap your area to fill the correct pincode</p>
+                        <div className="flex flex-wrap gap-2">
+                          {areaHits.map((h) => (
+                            <button key={h.key} type="button"
+                              onClick={() => {
+                                setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: h.name, pincode: h.pincode } }));
+                                setAreaHits([]); setPinAreas([]);
+                              }}
+                              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
+                              {h.name} · {h.pincode}{h.district && !h.district.toLowerCase().includes((draft.newAddress?.city ?? '').trim().toLowerCase()) ? ` (${h.district})` : ''}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <select className={`${selectCls}${flashCls}`} aria-label="City"
                       value={draft.newAddress?.city ?? LIVE_CITIES[0] ?? ''}
@@ -1965,7 +2058,7 @@ export default function BookingWizard() {
 
                     {pinAreas.length > 0 && (
                       <div className="sm:col-span-2" role="group" aria-label="Areas for this pincode">
-                        <p className="text-xs font-semibold text-slate-600 mb-1.5">Areas for pincode {draft.newAddress?.pincode} · tap yours</p>
+                        <p className="text-xs font-semibold text-slate-600 mb-1.5">Tap your area · pincode {draft.newAddress?.pincode}</p>
                         <div className="flex flex-wrap gap-2">
                           {pinAreas.map((name) => (
                             <button key={name} type="button"
