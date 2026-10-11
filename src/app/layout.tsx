@@ -129,30 +129,6 @@ const OG_IMAGE = {
 
 const SPLASH_ON_WEB = true; // false = installed app only
 
-const SPLASH_BOOT = `(function(){try{
-var d=document.documentElement;
-if(/bot|crawl|spider|slurp|lighthouse|pagespeed|headless/i.test(navigator.userAgent))return;
-var app=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
-if(!app&&!${SPLASH_ON_WEB})return;
-if(sessionStorage.getItem('aw-splash'))return;
-sessionStorage.setItem('aw-splash','1');
-d.setAttribute('data-splash','on');
-}catch(e){}})();`;
-
-const SPLASH_CSS = `
-#aw-splash{display:none;position:fixed;inset:0;z-index:2147483000;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#F8FAFC;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);animation:aw-splash-out .5s cubic-bezier(.4,0,.2,1) 1.1s forwards}
-html[data-splash="on"] #aw-splash{display:flex}
-#aw-splash .aw-splash-stage{position:relative;display:grid;place-items:center;width:200px;height:200px}
-#aw-splash .aw-splash-ring{position:absolute;inset:0;border-radius:50%;border:2px solid #0D9B6C;opacity:0;transform:scale(.4);animation:aw-splash-ring 1.6s cubic-bezier(.16,1,.3,1) infinite}
-#aw-splash .aw-splash-ring:nth-child(2){border-color:#38BDF8;animation-delay:.35s}
-#aw-splash .aw-splash-ring:nth-child(3){animation-delay:.7s}
-#aw-splash .aw-splash-logo{position:relative;width:96px;height:96px;animation:aw-splash-logo .7s cubic-bezier(.16,1,.3,1) both}
-#aw-splash .aw-splash-name{font-family:var(--font-brand),system-ui,sans-serif;font-weight:800;font-size:28px;letter-spacing:-.02em;color:#0F1C18;animation:aw-splash-logo .7s cubic-bezier(.16,1,.3,1) .2s both}
-@keyframes aw-splash-ring{0%{opacity:.55;transform:scale(.4)}100%{opacity:0;transform:scale(1.5)}}
-@keyframes aw-splash-logo{from{opacity:0;transform:translateY(8px) scale(.85)}to{opacity:1;transform:none}}
-@keyframes aw-splash-out{to{opacity:0;visibility:hidden}}
-@media (prefers-reduced-motion:reduce){#aw-splash .aw-splash-ring{animation:none}#aw-splash .aw-splash-logo,#aw-splash .aw-splash-name{animation:none}#aw-splash{animation-duration:.2s;animation-delay:.6s}}
-`;
 
 /*
  * iOS launch images: [CSS width, CSS height, pixel ratio].
@@ -382,9 +358,6 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* ── Splash: decide before first paint, so there is no flash ── */}
-        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT }} />
-        <style dangerouslySetInnerHTML={{ __html: SPLASH_CSS }} />
 
         {/* ── Supabase: open the connection early so the first API call is faster ── */}
         {SUPABASE_ORIGIN ? (
@@ -427,25 +400,6 @@ export default function RootLayout({
         }}
         suppressHydrationWarning
       >
-        {/* ── Splash screen (hidden unless the boot script turned it on) ── */}
-        <div id="aw-splash" aria-hidden="true">
-          <div className="aw-splash-stage">
-            <span className="aw-splash-ring" />
-            <span className="aw-splash-ring" />
-            <span className="aw-splash-ring" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              className="aw-splash-logo"
-              src="/splash-logo.svg"
-              alt=""
-              width={96}
-              height={96}
-              decoding="async"
-              fetchPriority="high"
-            />
-          </div>
-          <span className="aw-splash-name">{APP_NAME}</span>
-        </div>
 
         {/* Scroll reveal: mounted once for the whole site */}
         <ScrollReveal />
