@@ -204,9 +204,11 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
     if (ok) markDecided(id);
   };
 
-  const advance = async (id: string, next: Status, okMessage: string) => {
+  const [refs, setRefs] = useState<Record<string, string>>({}); // UPI transaction references by order id
+
+  const advance = async (id: string, next: Status, okMessage: string, extra: Row = {}) => {
     setOverride((o) => ({ ...o, [id]: next }));
-    const ok = await send(`/api/supplier/orders/${encodeURIComponent(id)}/status`, 'PUT', { status: next.toUpperCase() }, okMessage);
+    const ok = await send(`/api/supplier/orders/${encodeURIComponent(id)}/status`, 'PUT', { status: next.toUpperCase(), ...extra }, okMessage);
     setOverride((o) => { const { [id]: _drop, ...rest } = o; return rest; }); // server data is now the source of truth
     return ok;
   };
@@ -239,7 +241,8 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
             <dl className="sp-dl">
               <dt>Service</dt><dd>{str(o.service_type_label ?? o.service_type, 'Water order')}</dd>
               <dt>Customer</dt><dd>{str(o.customer_name, 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
-              <dt>Address</dt><dd>{[str(o.address_line ?? o.address, 'Address on order'), str(o.city ?? o.customer_city)].filter(Boolean).join(', ')}</dd>
+              <dt>Address</dt><dd>{str(o.address_text ?? o.address_line ?? o.address, 'Address on order')}</dd>
+              <dt>Payment</dt><dd>{norm(o.payment_status) === 'paid' ? 'Paid' : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`}</dd>
               <dt>Slot</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
             </dl>
             <p className="sp-amount">{money(o.final_amount ?? o.total_amount ?? o.amount)}</p>
@@ -255,11 +258,29 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                   Start delivery
                 </button>
               )}
-              {status === 'in_progress' && (
-                <Confirm className="sp-btn sp-btn--amber" confirmText="Tap again to confirm delivery" disabled={busy} onConfirm={() => void advance(id, 'completed', 'Order delivered.')}>
-                  <span className="sp-pulse" aria-hidden /> Complete delivery
-                </Confirm>
-              )}
+              {status === 'in_progress' && (() => {
+                const paid = norm(o.payment_status) === 'paid';
+                const upi = norm(o.payment_method) === 'upi';
+                const ref = (refs[id] ?? '').trim();
+                const amount = money(o.final_amount ?? o.total_amount ?? o.amount);
+                return (
+                  <>
+                    {!paid && upi && (
+                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>UPI transaction reference
+                        <input id={`ref-${id}`} className="sp-input" autoComplete="off" value={refs[id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [id]: e.target.value }))} />
+                      </label>
+                    )}
+                    <Confirm
+                      className="sp-btn sp-btn--amber"
+                      confirmText={paid ? 'Tap again to confirm delivery' : `Tap again: ${amount} received`}
+                      disabled={busy || (!paid && upi && !ref)}
+                      onConfirm={() => void advance(id, 'completed', 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
+                    >
+                      <span className="sp-pulse" aria-hidden /> Complete delivery
+                    </Confirm>
+                  </>
+                );
+              })()}
               {(status === 'completed' || status === 'delivered') && (
                 <button className="sp-btn sp-btn--ghost" disabled>Delivered</button>
               )}
