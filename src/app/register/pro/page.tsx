@@ -159,7 +159,7 @@ function RegisterPro() {
   const kind: Kind = (sp.get('type') ?? '').toLowerCase() === 'technician' ? 'technician' : 'supplier';
   const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/register/pro?type=${kind}`)}`;
 
-  const rows = useMemo(tierRows, []);
+  const rows = useMemo(() => tierRows(), []);
   const faqs = useMemo(() => buildFaqs(rows), [rows]);
   const first = rows[0];
   const last = rows[rows.length - 1];
