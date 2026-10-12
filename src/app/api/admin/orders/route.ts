@@ -1,7 +1,11 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
-import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import {
+  requireAdmin,
+  requireRole,
+  requireSupabaseAuth,
+} from '@/lib/api/supabase-request';
 import {
   isPostgrestTableUnavailableError,
   isRlsOrPermissionDeniedError,
@@ -112,66 +116,264 @@ async function safeNotify(
   }
 }
 
+
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
+
   if (!auth.ok) return auth.response;
-  if (!requireRole(auth.ctx, 'customer')) return jsonErr('Forbidden', 403);
 
-  const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status') ?? undefined;
-  const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '20') || 20, 1), 100);
-  const offset = Math.max(Number(searchParams.get('offset') ?? '0') || 0, 0);
-
-  // Keep the history endpoint read-only and fast.
-  // Dispatch maintenance must not block customer page rendering.
-  // Supplier dispatch continues through the order/dispatch workflow.
-
-  let q = auth.ctx.supabase
-    .from('orders')
-    .select(
-      [
-        'id',
-        'order_number',
-        'status',
-        'customer_id',
-        'supplier_id',
-        'service_type',
-        'can_count',
-        'total_amount',
-        'payment_method',
-        'payment_status',
-        'address',
-        'address_id',
-        'address_snapshot',
-        'scheduled_at',
-        'note',
-        'rating',
-        'subscription_id',
-        'can_order_type',
-        'can_frequency',
-        'can_price_per_unit',
-        'created_at',
-        'updated_at',
-      ].join(', ')
-    )
-    .eq('customer_id', auth.ctx.profile.id)
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (status) {
-    const list = status
-      .split(',')
-      .map((x) => x.trim().toUpperCase())
-      .filter(Boolean);
-    if (list.length > 1) q = q.in('status', list);
-    else if (list.length === 1) q = q.eq('status', list[0]);
+  // This endpoint is for administrators only.
+  if (!requireAdmin(auth.ctx)) {
+    return jsonErr('Forbidden', 403);
   }
 
-  const { data, error } = await q;
-  if (error) return dbErr(error, 'orders', 'Orders load failed');
+  const { searchParams } = new URL(req.url);
 
-  return jsonOk((data ?? []).map(withCompat));
+  const rawLimit = Number(searchParams.get('limit') ?? 50);
+  const rawOffset = Number(searchParams.get('offset') ?? 0);
+
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0
+    ? Math.min(rawLimit, 200)
+    : 50;
+
+  const offset = Number.isInteger(rawOffset) && rawOffset >= 0
+    ? rawOffset
+    : 0;
+
+  const status = searchParams.get('status')?.trim().toUpperCase();
+  const paymentStatus = searchParams
+    .get('payment_status')
+    ?.trim()
+    .toLowerCase();
+  const service = searchParams.get('service')?.trim();
+  const fromRaw = searchParams.get('from');
+  const toRaw = searchParams.get('to');
+  const sortAscending = searchParams.get('sort') === 'asc';
+
+  const validStatuses = new Set([
+    'PENDING',
+    'ASSIGNED',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'CANCELLED',
+    'FAILED',
+  ]);
+
+  const validPaymentStatuses = new Set([
+    'unpaid',
+    'paid',
+    'refunded',
+  ]);
+
+  if (status && status !== 'ALL' && !validStatuses.has(status)) {
+    return jsonErr('Invalid order status', 400);
+  }
+
+  if (
+    paymentStatus &&
+    !validPaymentStatuses.has(paymentStatus)
+  ) {
+    return jsonErr('Invalid payment status', 400);
+  }
+
+  const from = fromRaw ? new Date(fromRaw) : null;
+  const to = toRaw ? new Date(toRaw) : null;
+
+  if (fromRaw && (!from || Number.isNaN(from.getTime()))) {
+    return jsonErr('Invalid from date', 400);
+  }
+
+  if (toRaw && (!to || Number.isNaN(to.getTime()))) {
+    return jsonErr('Invalid to date', 400);
+  }
+
+  if (from && to && from > to) {
+    return jsonErr('"from" must be before "to"', 400);
+  }
+
+  const sb = auth.ctx.supabase;
+
+  let query = sb
+    .from('orders')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: sortAscending })
+    .order('id', { ascending: sortAscending });
+
+  if (status && status !== 'ALL') {
+    query = query.eq('status', status);
+  }
+
+  if (paymentStatus) {
+    query = query.eq('payment_status', paymentStatus);
+  }
+
+  if (service) {
+    query = query.eq('service_type', service);
+  }
+
+  if (from) {
+    query = query.gte('created_at', from.toISOString());
+  }
+
+  if (to) {
+    query = query.lte('created_at', to.toISOString());
+  }
+
+  const {
+    data: orders,
+    error,
+    count,
+  } = await query.range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('[admin/orders] Failed to fetch orders:', error.message);
+    return jsonErr('Failed to fetch orders', 502);
+  }
+
+  const rows = orders ?? [];
+
+  // Fetch related profiles separately to avoid depending on
+  // PostgREST foreign-key relationship names.
+  const profileIds = [
+    ...new Set(
+      rows.flatMap((order) =>
+        [order.customer_id, order.technician_id]
+          .filter(
+            (id): id is string =>
+              typeof id === 'string' && id.length > 0,
+          ),
+      ),
+    ),
+  ];
+
+  const profileMap = new Map<
+    string,
+    { full_name: string | null; phone: string | null }
+  >();
+
+  if (profileIds.length > 0) {
+    const { data: profiles, error: profileError } = await sb
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', profileIds);
+
+    if (profileError) {
+      console.error(
+        '[admin/orders] Failed to fetch profiles:',
+        profileError.message,
+      );
+      return jsonErr('Failed to fetch order contact details', 502);
+    }
+
+    for (const profile of profiles ?? []) {
+      profileMap.set(profile.id, {
+        full_name: profile.full_name ?? null,
+        phone: profile.phone ?? null,
+      });
+    }
+  }
+
+  const enrichedOrders = rows.map((order) => {
+    const customer =
+      typeof order.customer_id === 'string'
+        ? profileMap.get(order.customer_id)
+        : undefined;
+
+    const technician =
+      typeof order.technician_id === 'string'
+        ? profileMap.get(order.technician_id)
+        : undefined;
+
+    return {
+      ...order,
+      customer_name: customer?.full_name ?? null,
+      customer_phone: customer?.phone ?? null,
+      technician_name: technician?.full_name ?? null,
+      technician_phone: technician?.phone ?? null,
+    };
+  });
+
+  const total = count ?? 0;
+  const hasMore = offset + rows.length < total;
+
+  const response = jsonOk({
+    ok: true,
+    data: enrichedOrders,
+    meta: {
+      total,
+      limit,
+      offset,
+      next_cursor: hasMore ? String(offset + rows.length) : null,
+      has_more: hasMore,
+    },
+  });
+
+  response.headers.set('X-Total-Count', String(total));
+  response.headers.set('Cache-Control', 'private, no-store');
+
+  return response;
 }
+
+// export async function GET(req: NextRequest) {
+//   const auth = await requireSupabaseAuth(req);
+//   if (!auth.ok) return auth.response;
+//   if (!requireRole(auth.ctx, 'customer')) return jsonErr('Forbidden', 403);
+
+//   const { searchParams } = new URL(req.url);
+//   const status = searchParams.get('status') ?? undefined;
+//   const limit = Math.min(Math.max(Number(searchParams.get('limit') ?? '20') || 20, 1), 100);
+//   const offset = Math.max(Number(searchParams.get('offset') ?? '0') || 0, 0);
+
+//   // Keep the history endpoint read-only and fast.
+//   // Dispatch maintenance must not block customer page rendering.
+//   // Supplier dispatch continues through the order/dispatch workflow.
+
+//   let q = auth.ctx.supabase
+//     .from('orders')
+//     .select(
+//       [
+//         'id',
+//         'order_number',
+//         'status',
+//         'customer_id',
+//         'supplier_id',
+//         'service_type',
+//         'can_count',
+//         'total_amount',
+//         'payment_method',
+//         'payment_status',
+//         'address',
+//         'address_id',
+//         'address_snapshot',
+//         'scheduled_at',
+//         'note',
+//         'rating',
+//         'subscription_id',
+//         'can_order_type',
+//         'can_frequency',
+//         'can_price_per_unit',
+//         'created_at',
+//         'updated_at',
+//       ].join(', ')
+//     )
+//     .eq('customer_id', auth.ctx.profile.id)
+//     .order('created_at', { ascending: false })
+//     .range(offset, offset + limit - 1);
+
+//   if (status) {
+//     const list = status
+//       .split(',')
+//       .map((x) => x.trim().toUpperCase())
+//       .filter(Boolean);
+//     if (list.length > 1) q = q.in('status', list);
+//     else if (list.length === 1) q = q.eq('status', list[0]);
+//   }
+
+//   const { data, error } = await q;
+//   if (error) return dbErr(error, 'orders', 'Orders load failed');
+
+//   return jsonOk((data ?? []).map(withCompat));
+// }
 
 export async function POST(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
