@@ -36,6 +36,11 @@ const num = (v: unknown) => (v === undefined || v === null ? '—' : String(v));
 const label = (s: string) => s.replaceAll('_', ' ');
 const errMsg = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
 
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) { super(message); this.status = status; }
+}
+
 /* ───────────────────────── Page ───────────────────────── */
 
 export default function SupplierSectionPage() {
@@ -66,7 +71,7 @@ export default function SupplierSectionPage() {
         headers: { Authorization: `Bearer ${token}`, ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body?.error ?? body?.message ?? 'Request failed. Try again.');
+      if (!res.ok) throw new ApiError(body?.error ?? body?.message ?? 'Request failed. Try again.', res.status);
       return body;
     },
     [supabase],
@@ -82,7 +87,7 @@ export default function SupplierSectionPage() {
         if (id !== latest.current) return; // a newer request superseded this one
         const payload = body?.data ?? body;
         setData(payload);
-        setError('');
+        if (!silent) setError('');
         if (section === 'settings' && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
           setRadius(String((payload as Row).zone_radius_km ?? 5));
@@ -106,7 +111,7 @@ export default function SupplierSectionPage() {
   }, [section, load]);
 
   const send = useCallback(
-    async (path: string, method: string, payload: Row, okMessage = 'Saved.') => {
+    async (path: string, method: string, payload: Row, okMessage = 'Saved.', onFail?: (e: unknown) => void) => {
       setBusy(true); setNotice(''); setError('');
       try {
         const body = await authedFetch(path, { method, body: JSON.stringify(payload) });
@@ -115,6 +120,8 @@ export default function SupplierSectionPage() {
         return true;
       } catch (e) {
         setError(errMsg(e, 'Request failed.'));
+        onFail?.(e);
+        void load(true); // state may be stale (e.g. 409 after reassignment): resync the list
         return false;
       } finally {
         setBusy(false);
@@ -177,11 +184,25 @@ export default function SupplierSectionPage() {
 
 /* ───────────────────────── Orders ───────────────────────── */
 
-type Send = (path: string, method: string, payload: Row, okMessage?: string) => Promise<boolean>;
+type Send = (path: string, method: string, payload: Row, okMessage?: string, onFail?: (e: unknown) => void) => Promise<boolean>;
 
 function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }) {
   // Optimistic status overrides: the button advances instantly, and rolls back if the server refuses.
   const [override, setOverride] = useState<Record<string, Status>>({});
+  // Orders whose accept/decline choice is settled (done, or the server said 409). Hides those buttons.
+  const [decided, setDecided] = useState<Set<string>>(new Set());
+  const markDecided = (id: string) => setDecided((s) => new Set(s).add(id));
+
+  const decide = async (id: string, action: 'accept' | 'reject') => {
+    const ok = await send(
+      `/api/supplier/orders/${encodeURIComponent(id)}/${action}`,
+      'PUT',
+      action === 'reject' ? { reason: 'Supplier declined' } : {},
+      action === 'accept' ? 'Order accepted.' : 'Order declined.',
+      (e) => { if (e instanceof ApiError && e.status === 409) markDecided(id); },
+    );
+    if (ok) markDecided(id);
+  };
 
   const advance = async (id: string, next: Status, okMessage: string) => {
     setOverride((o) => ({ ...o, [id]: next }));
@@ -206,7 +227,9 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
       {rows.map((o, i) => {
         const id = str(o.id);
         const status = override[id] ?? norm(o.status);
-        const canAccept = status === 'pending' || status === 'assigned';
+        // Accept/decline only while the order is still awaiting a decision. The API answers 409 once it is accepted.
+        const acceptedFlag = Boolean(o.accepted_at ?? o.supplier_accepted_at ?? o.is_accepted);
+        const canAccept = !decided.has(id) && (status === 'pending' || (status === 'assigned' && !acceptedFlag));
         return (
           <article key={id || i} className="sp-card">
             <div className="sp-row">
@@ -223,7 +246,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
 
             <div className="sp-actions">
               {canAccept && (
-                <button className="sp-btn" disabled={busy} onClick={() => void send(`/api/supplier/orders/${encodeURIComponent(id)}/accept`, 'PUT', {}, 'Order accepted.')}>
+                <button className="sp-btn" disabled={busy} onClick={() => void decide(id, 'accept')}>
                   Accept order
                 </button>
               )}
@@ -242,7 +265,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
               )}
               {canAccept && (
                 <Confirm className="sp-btn sp-btn--ghost" confirmText="Tap again to decline" disabled={busy}
-                  onConfirm={() => void send(`/api/supplier/orders/${encodeURIComponent(id)}/reject`, 'PUT', { reason: 'Supplier declined' }, 'Order declined.')}>
+                  onConfirm={() => void decide(id, 'reject')}>
                   Decline
                 </Confirm>
               )}
