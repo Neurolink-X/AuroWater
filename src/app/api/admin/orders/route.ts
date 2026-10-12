@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
 import {
@@ -296,23 +296,40 @@ export async function GET(req: NextRequest) {
   const total = count ?? 0;
   const hasMore = offset + rows.length < total;
 
-  const response = jsonOk({
-    ok: true,
-    data: enrichedOrders,
-    meta: {
-      total,
-      limit,
-      offset,
-      next_cursor: hasMore ? String(offset + rows.length) : null,
-      has_more: hasMore,
-    },
-  });
+  const response = NextResponse.json({
+  ok: true,
+  data: enrichedOrders,
+  meta: {
+    total,
+    limit,
+    offset,
+    next_cursor: hasMore ? String(offset + rows.length) : null,
+    has_more: hasMore,
+  },
+});
 
-  response.headers.set('X-Total-Count', String(total));
-  response.headers.set('Cache-Control', 'private, no-store');
+response.headers.set('X-Total-Count', String(total));
+response.headers.set('Cache-Control', 'private, no-store');
 
-  return response;
-}
+return response;
+
+//   const response = jsonOk({
+//     ok: true,
+//     data: enrichedOrders,
+//     meta: {
+//       total,
+//       limit,
+//       offset,
+//       next_cursor: hasMore ? String(offset + rows.length) : null,
+//       has_more: hasMore,
+//     },
+//   });
+
+//   response.headers.set('X-Total-Count', String(total));
+//   response.headers.set('Cache-Control', 'private, no-store');
+
+//   return response;
+// }
 
 // export async function GET(req: NextRequest) {
 //   const auth = await requireSupabaseAuth(req);
