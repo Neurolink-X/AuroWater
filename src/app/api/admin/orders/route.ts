@@ -308,12 +308,15 @@ export async function GET(req: NextRequest) {
   },
 });
 
+
 response.headers.set('X-Total-Count', String(total));
 response.headers.set('Cache-Control', 'private, no-store');
 
 return response;
+}
 
 //   const response = jsonOk({
+
 //     ok: true,
 //     data: enrichedOrders,
 //     meta: {
