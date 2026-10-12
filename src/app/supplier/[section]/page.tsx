@@ -310,6 +310,11 @@ function Inventory({ obj, busy, send, setError }: { obj: Row; busy: boolean; sen
   };
   return (
     <section className="sp-grid">
+      {obj.low_stock === true && (
+        <div role="status" className="sp-msg sp-msg--err sp-wide">
+          Stock is low: {num(obj.cans_available)} cans left (alert at {num(obj.low_stock_alert)}). Restock to keep receiving orders.
+        </div>
+      )}
       <Metric name="Available cans" value={num(obj.cans_available)} />
       <Metric name="Reserved cans" value={num(obj.reserved_cans)} />
       <Metric name="Low-stock alert at" value={num(obj.low_stock_alert)} />
@@ -317,6 +322,11 @@ function Inventory({ obj, busy, send, setError }: { obj: Row; busy: boolean; sen
       <article className="sp-card sp-wide">
         <h2 className="sp-h2">Adjust stock</h2>
         <p className="sp-sub">Enter a positive number to add cans, or a negative number to record an offline sale. Reservation checks still apply on the server.</p>
+        <div className="sp-chips" role="group" aria-label="Quick amounts">
+          {[10, 25, 50, -1].map((n) => (
+            <button key={n} type="button" className="sp-btn sp-btn--ghost" onClick={() => setDelta(String(n))}>{n > 0 ? `+${n}` : n}</button>
+          ))}
+        </div>
         <div className="sp-inline">
           <label className="sp-field" htmlFor="stock-delta">Change in cans
             <input id="stock-delta" className="sp-input" type="number" step={1} inputMode="numeric" placeholder="10 or -1" value={delta} onChange={(e) => setDelta(e.target.value)} />
@@ -547,6 +557,7 @@ const CSS = `
 .sp-actions{display:flex;gap:8px;flex-wrap:wrap}
 .sp-hint{margin:12px 0 0;color:var(--mute);font-size:13px}
 .sp-steps{margin:0 0 14px;padding-left:20px;color:var(--ink)} .sp-steps li{margin:4px 0}
+.sp-chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .sp-inline{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
 .sp-inline .sp-field{flex:1 1 180px;margin:0}
 .sp-field{display:block;margin:14px 0;font-size:13px;font-weight:600;color:#cbd5e1}
