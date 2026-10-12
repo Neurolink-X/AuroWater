@@ -1,115 +1,246 @@
-// /** Flat `settings` table rows → client mergeSettings()-compatible payload. */
-// export function rowsToSettingsPayload(
-//   rows: { key: string; value: string }[] | null | undefined
-// ): Record<string, unknown> {
-//   if (!rows?.length) return {};
-
-//   const map = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Record<string, string>;
-
-//   const out: Record<string, unknown> = {
-//     default_can_price: map.default_can_price ? Number(map.default_can_price) : undefined,
-//     subscription_can_price: map.subscription_can_price ? Number(map.subscription_can_price) : undefined,
-//     bulk_can_price: map.bulk_can_price ? Number(map.bulk_can_price) : undefined,
-//     bulk_threshold: map.bulk_threshold ? Number(map.bulk_threshold) : undefined,
-//     market_can_price: map.market_can_price ? Number(map.market_can_price) : undefined,
-//     convenience_fee: map.convenience_fee ? Number(map.convenience_fee) : undefined,
-//     emergency_surcharge: map.emergency_surcharge ? Number(map.emergency_surcharge) : undefined,
-//     gst_rate: map.gst_rate !== undefined ? Number(map.gst_rate) : undefined,
-//     bulk_commission: map.bulk_commission !== undefined ? Number(map.bulk_commission) : undefined,
-//     technician_commission_rate:
-//       map.technician_commission !== undefined ? Number(map.technician_commission) : undefined,
-//     supplier_commission_rate:
-//       map.supplier_commission !== undefined ? Number(map.supplier_commission) : undefined,
-//     support_email: map.support_email,
-//     secondary_email: map.secondary_email || null,
-//     phone_primary: map.phone_primary,
-//     phone_secondary: map.phone_secondary || null,
-//     office_address: map.office_address,
-//     working_hours: map.working_hours,
-//     brand_name: map.brand_name,
-//     whatsapp_enabled: map.whatsapp_enabled === '1' || map.whatsapp_enabled === 'true',
-//     platform_fee:
-//       map.platform_fee !== undefined && map.platform_fee !== ''
-//         ? Number(map.platform_fee)
-//         : undefined,
-//   };
-
-//   if (map.service_base_prices) {
-//     try {
-//       out.service_base_prices = JSON.parse(map.service_base_prices) as Record<string, number>;
-//     } catch {
-//       /* ignore */
-//     }
-//   }
-
-//   for (const [k, raw] of Object.entries(map)) {
-//     if (out[k] !== undefined) continue;
-//     const n = Number(raw);
-//     const looksNumeric =
-//       raw !== '' &&
-//       Number.isFinite(n) &&
-//       /^-?\d+(\.\d+)?$/.test(raw.trim());
-//     out[k] = looksNumeric ? n : raw;
-//   }
-
-//   return out;
-// }
-
-
 
 /**
  * src/lib/api/settings-map.ts
  *
- * Maps public.settings JSONB rows → typed frontend payload.
- * Keys match exactly what is seeded in 003_seed_settings migration.
+ * Maps public.settings JSONB rows → frontend settings payload.
  *
- * IMPORTANT: Supabase returns JSONB values already parsed by the JS client.
- * Never call .trim() or string methods on `value` without checking typeof first.
+ * Supports:
+ * - Existing application settings
+ * - Water pricing settings
+ * - Dynamic service_base_prices
+ * - JSONB values returned by Supabase
+ * - JSON-string values from legacy settings storage
+ * - Unknown future settings without silently discarding them
+ *
+ * IMPORTANT:
+ * This mapper only normalizes values. Server-side pricing validation
+ * and order-price calculation must also use the same authoritative settings.
  */
 
+export type ServiceBasePrices = Record<string, number>;
+
 export type SettingsPayload = {
-  // Pricing
+  // Existing pricing settings
   platform_fee_pct?: number;
   min_order_amount?: number;
   max_order_amount?: number;
   technician_base_pay?: number;
   commission_default_pct?: number;
   delivery_radius_km?: number;
+
+  // Water pricing
+  default_can_price?: number;
+  chilled_can_price?: number;
+  subscription_can_price?: number;
+  bulk_can_price?: number;
+  bulk_threshold?: number;
+  market_can_price?: number;
+  convenience_fee?: number;
+  emergency_surcharge?: number;
+  gst_rate?: number;
+  platform_fee?: number;
+
+  // Commission settings
+  bulk_commission?: number;
+  technician_commission?: number;
+  technician_commission_rate?: number;
+  supplier_commission?: number;
+  supplier_commission_rate?: number;
+
+  // Dynamic service pricing
+  service_base_prices?: ServiceBasePrices;
+
   // Features
   cod_enabled?: boolean;
   razorpay_enabled?: boolean;
   maintenance_mode?: boolean;
-  // App info
+  auto_assign_orders?: boolean;
+  whatsapp_enabled?: boolean;
+
+  // App information
   app_name?: string;
   app_tagline?: string;
+  brand_name?: string;
   support_email?: string;
+  secondary_email?: string | null;
   support_phone?: string;
-  // Geo
+  phone_primary?: string;
+  phone_secondary?: string | null;
+  office_address?: string;
+  working_hours?: string;
+
+  // Geographic settings
   service_cities?: string[];
+  service_radius_km?: number;
+
+  // Other settings
   founding_member_limit?: number;
-  // Catch-all
+  max_cans_per_order?: number;
+
+  // Future settings
   [key: string]: unknown;
 };
 
-/** Safely coerce any JSONB value to a number. Returns undefined if not numeric. */
-function toNumber(val: unknown): number | undefined {
-  if (val === null || val === undefined || val === '') return undefined;
-  const n = Number(val);
-  return Number.isFinite(n) ? n : undefined;
+/** Safely parse a JSON string when possible. */
+function parseJsonIfString(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
 }
 
-/** Safely coerce any JSONB value to a boolean. */
-function toBoolean(val: unknown): boolean {
-  return val === true || val === 1 || val === 'true' || val === '1';
+/** Safely coerce a value to a finite number. */
+function toNumber(value: unknown): number | undefined {
+  const parsed = parseJsonIfString(value);
+
+  if (
+    parsed === null ||
+    parsed === undefined ||
+    (typeof parsed === 'string' && parsed.trim() === '')
+  ) {
+    return undefined;
+  }
+
+  if (typeof parsed !== 'number' && typeof parsed !== 'string') {
+    return undefined;
+  }
+
+  const result = Number(parsed);
+  return Number.isFinite(result) ? result : undefined;
 }
 
-/** Safely coerce any JSONB value to a string. */
-function toStr(val: unknown): string {
-  if (typeof val === 'string') return val;
-  if (val === null || val === undefined) return '';
-  return String(val);
+/** Safely coerce a value to a boolean. */
+function toBoolean(value: unknown): boolean {
+  const parsed = parseJsonIfString(value);
+
+  if (typeof parsed === 'boolean') return parsed;
+  if (typeof parsed === 'number') return parsed === 1;
+
+  if (typeof parsed === 'string') {
+    const normalized = parsed.trim().toLowerCase();
+
+    if (normalized === 'true' || normalized === '1') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === '') {
+      return false;
+    }
+  }
+
+  return false;
 }
 
+/** Safely coerce a value to a string. */
+function toStr(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+/**
+ * Parse dynamic service pricing.
+ *
+ * Accepts either an already-parsed JSON object or a JSON string:
+ * {
+ *   "plumbing": 149,
+ *   "ro_service": 349,
+ *   "borewell": 499
+ * }
+ *
+ * Invalid entries are ignored instead of being exposed as valid prices.
+ */
+function toServiceBasePrices(value: unknown): ServiceBasePrices | undefined {
+  const parsed = parseJsonIfString(value);
+
+  if (
+    parsed === null ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed)
+  ) {
+    return undefined;
+  }
+
+  const result: ServiceBasePrices = {};
+
+  for (const [key, rawPrice] of Object.entries(parsed)) {
+    const normalizedKey = key.trim();
+
+    if (!normalizedKey) continue;
+
+    const price = toNumber(rawPrice);
+
+    // A malformed or negative price must not become a usable price.
+    if (price === undefined || price < 0) continue;
+
+    result[normalizedKey] = price;
+  }
+
+  return result;
+}
+
+const NUMBER_SETTING_KEYS = new Set<string>([
+  'platform_fee_pct',
+  'min_order_amount',
+  'max_order_amount',
+  'technician_base_pay',
+  'commission_default_pct',
+  'delivery_radius_km',
+
+  'default_can_price',
+  'normal_can_price',
+  'chilled_can_price',
+  'subscription_can_price',
+  'bulk_can_price',
+  'bulk_threshold',
+  'market_can_price',
+  'convenience_fee',
+  'emergency_surcharge',
+  'gst_rate',
+  'platform_fee',
+
+  'bulk_commission',
+  'technician_commission',
+  'technician_commission_rate',
+  'supplier_commission',
+  'supplier_commission_rate',
+
+  'founding_member_limit',
+  'service_radius_km',
+  'max_cans_per_order',
+]);
+
+const BOOLEAN_SETTING_KEYS = new Set<string>([
+  'cod_enabled',
+  'razorpay_enabled',
+  'maintenance_mode',
+  'auto_assign_orders',
+  'whatsapp_enabled',
+]);
+
+const STRING_SETTING_KEYS = new Set<string>([
+  'app_name',
+  'app_tagline',
+  'brand_name',
+  'support_email',
+  'secondary_email',
+  'support_phone',
+  'phone_primary',
+  'phone_secondary',
+  'office_address',
+  'working_hours',
+]);
+
+/**
+ * Convert settings rows into the frontend payload.
+ *
+ * Supports JSONB values and legacy string values.
+ * Later rows for a duplicate key take precedence, matching the previous
+ * Object.fromEntries behavior.
+ */
 export function rowsToSettingsPayload(
   rows: { key: string; value: unknown }[] | null | undefined
 ): SettingsPayload {
@@ -119,42 +250,62 @@ export function rowsToSettingsPayload(
 
   for (const { key, value } of rows) {
     switch (key) {
+      case 'service_base_prices': {
+        const prices = toServiceBasePrices(value);
 
-      // ── Numbers ──────────────────────────────────────────────────────────
-      case 'platform_fee_pct':
-      case 'min_order_amount':
-      case 'max_order_amount':
-      case 'technician_base_pay':
-      case 'commission_default_pct':
-      case 'delivery_radius_km':
-      case 'founding_member_limit':
-        out[key] = toNumber(value);
-        break;
+        if (prices !== undefined) {
+          out.service_base_prices = prices;
+        }
 
-      // ── Booleans ─────────────────────────────────────────────────────────
-      case 'cod_enabled':
-      case 'razorpay_enabled':
-      case 'maintenance_mode':
-        out[key] = toBoolean(value);
         break;
+      }
 
-      // ── Arrays ───────────────────────────────────────────────────────────
-      case 'service_cities':
-        out[key] = Array.isArray(value) ? (value as string[]) : [];
-        break;
+      case 'service_cities': {
+        const parsed = parseJsonIfString(value);
 
-      // ── Strings ──────────────────────────────────────────────────────────
-      case 'app_name':
-      case 'app_tagline':
-      case 'support_email':
-      case 'support_phone':
-        out[key] = toStr(value);
-        break;
+        if (Array.isArray(parsed)) {
+          out.service_cities = parsed.filter(
+            (city): city is string => typeof city === 'string'
+          );
+        } else {
+          out.service_cities = [];
+        }
 
-      // ── Pass-through (unknown future keys) ───────────────────────────────
-      default:
-        out[key] = value;
         break;
+      }
+
+      default: {
+        if (NUMBER_SETTING_KEYS.has(key)) {
+          const number = toNumber(value);
+
+          if (number !== undefined) {
+            out[key] = number;
+          }
+
+          break;
+        }
+
+        if (BOOLEAN_SETTING_KEYS.has(key)) {
+          out[key] = toBoolean(value);
+          break;
+        }
+
+        if (STRING_SETTING_KEYS.has(key)) {
+          if (key === 'secondary_email' || key === 'phone_secondary') {
+            out[key] = value === null || value === undefined || value === ''
+              ? null
+              : toStr(value);
+          } else {
+            out[key] = toStr(value);
+          }
+
+          break;
+        }
+
+        // Preserve unknown future keys. Parse valid JSON strings when possible.
+        out[key] = parseJsonIfString(value);
+        break;
+      }
     }
   }
 
