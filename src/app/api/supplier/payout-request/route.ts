@@ -1,32 +1,25 @@
-import { NextRequest } from 'next/server';
-import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { NextResponse } from 'next/server';
 
-/** Records a payout request intent; finance team processes offline. */
-export async function POST(req: NextRequest) {
-  const auth = await requireSupabaseAuth(req);
-  if (!auth.ok) return auth.response;
-  if (!requireRole(auth.ctx, 'supplier')) {
-    return jsonErr('Forbidden', 403);
-  }
+/**
+ * RETIRED: /api/supplier/payout-request
+ * Payout requests now go to POST /api/supplier/payouts, which validates and stores them.
+ * Delete this whole folder once nothing calls it.
+ */
 
-  let body: { amount?: number; notes?: string };
-  try {
-    body = (await req.json()) as { amount?: number; notes?: string };
-  } catch {
-    body = {};
-  }
+export const dynamic = 'force-dynamic';
 
-  const amount = Number(body.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return jsonErr('Valid amount is required', 400);
-  }
-
-  return jsonOk({
-    received: true as const,
-    message:
-      'Payout request recorded. Our team will verify pending earnings and process settlement.',
-    amount,
-    notes: typeof body.notes === 'string' ? body.notes : '',
-  });
+function gone() {
+  return NextResponse.json(
+    { error: 'This endpoint has moved. Use /api/supplier/payouts.' },
+    {
+      status: 410,
+      headers: {
+        'Cache-Control': 'no-store',
+        Link: '</api/supplier/payouts>; rel="successor-version"',
+      },
+    },
+  );
 }
+
+export const GET = gone;
+export const POST = gone;
