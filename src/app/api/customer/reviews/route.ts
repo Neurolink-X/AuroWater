@@ -179,8 +179,14 @@ export async function POST(
       ? body.order_id.trim()
       : '';
 
-  const rating =
-    Number(body.rating);
+ const rawRating = body.stars ?? body.rating;
+
+const rating =
+  typeof rawRating === 'number' ||
+  (typeof rawRating === 'string' &&
+    rawRating.trim() !== '')
+    ? Number(rawRating)
+    : NaN;
 
   const comment =
     typeof body.comment ===
@@ -403,28 +409,17 @@ export async function POST(
   /* Insert review                                                         */
   /* ---------------------------------------------------------------------- */
 
-  const reviewPayload = {
-    order_id,
-    customer_id:
-      auth.ctx.profile.id,
-
-    rating,
-
-    comment:
-      comment || null,
-
-    feedback_tags:
-      tags,
-
-    issue_category:
-      finalIssueCategory,
-
-    issue_description:
-      issue_description ||
-      null,
-
-    severity,
-  };
+ const reviewPayload = {
+  order_id,
+  customer_id: auth.ctx.profile.id,
+  supplier_id: order.supplier_id ?? null,
+  stars: rating,
+  comment: comment || null,
+  feedback_tags: tags,
+  issue_category: finalIssueCategory,
+  issue_description: issue_description || null,
+  severity,
+};
 
   const {
     data: inserted,
@@ -436,7 +431,7 @@ export async function POST(
         reviewPayload
       )
       .select(
-        'id, rating, created_at'
+        'id, stars, created_at'
       )
       .single();
 
@@ -464,10 +459,9 @@ export async function POST(
   } =
     await auth.ctx.supabase
       .from('orders')
-      .update({
-        has_review: true,
-        rating,
-      })
+     .update({
+  rating,
+})
       .eq(
         'id',
         order_id
@@ -547,7 +541,7 @@ export async function POST(
         inserted.id,
 
       rating:
-        inserted.rating,
+        inserted.stars,
 
       created_at:
         inserted.created_at,
