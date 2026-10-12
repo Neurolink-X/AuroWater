@@ -205,7 +205,7 @@ function RegisterPro() {
   );
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#F5F7FF] text-slate-200">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#192A68] text-slate-200">
       <Backdrop />
       <script
         type="application/ld+json"
