@@ -312,22 +312,44 @@ export default function TrackOrderPage() {
 
     // Rating is non-critical. Load only a small recent sample instead of
     // fetching hundreds of order IDs and then a second reviews query.
-    void sb
-      .from('reviews')
-      .select('rating')
-      .eq('supplier_id', supplierId)
-      .order('created_at', { ascending: false })
-      .limit(50)
-      .then(({ data: revs }) => {
-        const nums = (revs ?? [])
-          .map((r) => Number((r as { rating?: number }).rating ?? 0))
-          .filter((n) => n > 0);
-        if (!cancelled) {
-          setSupplierRating(
-            nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null,
-          );
-        }
-      });
+   void sb
+  .from('reviews')
+  .select('stars')
+  .eq('supplier_id', supplierId)
+  .order('created_at', { ascending: false })
+  .limit(50)
+  .then(({ data: revs, error: reviewsError }) => {
+    if (reviewsError) {
+      console.error(
+        '[customer/track] supplier reviews failed:',
+        reviewsError.message,
+      );
+
+      if (!cancelled) {
+        setSupplierRating(null);
+      }
+      return;
+    }
+
+    const ratings = (revs ?? [])
+      .map((review) => Number(review.stars))
+      .filter(
+        (stars) =>
+          Number.isFinite(stars) &&
+          stars >= 1 &&
+          stars <= 5,
+      );
+
+    const averageRating =
+      ratings.length > 0
+        ? ratings.reduce((sum, stars) => sum + stars, 0) /
+          ratings.length
+        : null;
+
+    if (!cancelled) {
+      setSupplierRating(averageRating);
+    }
+  });
 
     return () => {
       cancelled = true;
