@@ -145,7 +145,7 @@ const EYEBROW = 'text-xs font-bold uppercase tracking-[0.2em] text-cyan-300/90';
 export default function RegisterProPage() {
   // useSearchParams must sit under Suspense or the production build fails.
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F5F7FF]" aria-busy="true" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#050B18]" aria-busy="true" />}>
       <RegisterPro />
     </Suspense>
   );
