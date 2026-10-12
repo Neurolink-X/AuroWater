@@ -22,7 +22,8 @@ const SETTINGS_KEY_PATTERN =
 type SettingType =
   | 'number'
   | 'string'
-  | 'boolean';
+  | 'boolean'
+  | 'service_prices';
 
 interface SettingMeta {
   type: SettingType;
@@ -190,6 +191,12 @@ export const SETTINGS_SCHEMA: Record<
     type: 'boolean',
     label: 'Auto-assign orders',
   },
+
+  service_base_prices: {
+  type: 'service_prices',
+  label: 'Service base prices',
+  },
+  
 };
 
 /* -------------------------------------------------------------------------- */
