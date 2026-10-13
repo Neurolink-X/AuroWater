@@ -1,6 +1,14 @@
 import type { MetadataRoute } from 'next';
 
-const BRAND = '#0284C7';
+/**
+ * src/app/manifest.ts
+ *
+ * Android builds its native splash screen from:
+ *   background_color + the 512px icon + the app name.
+ * It must match the in-app splash in layout.tsx (#F8FAFC) and the
+ * viewport themeColor, or you see a colour jump while the app opens.
+ */
+const BRAND_LIGHT = '#F8FAFC';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -19,63 +27,69 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait-primary',
 
     // Same colour as the in-app splash = no flash between the two screens
-    background_color: BRAND,
-    theme_color: BRAND,
+    background_color: BRAND_LIGHT,
+    theme_color: BRAND_LIGHT,
 
-    categories: ['shopping', 'lifestyle', 'utilities'],
+    categories: ['shopping', 'lifestyle', 'utilities', 'business'],
     prefer_related_applications: false,
 
-    // Long-press the app icon to jump straight to these
     shortcuts: [
       {
         name: 'Book Water Delivery',
         short_name: 'Book',
         description: 'Order fresh water now',
         url: '/book?source=shortcut',
-        icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
-      },
-      {
-        name: 'My Orders',
-        short_name: 'Orders',
-        description: 'Track your deliveries',
-        url: '/orders?source=shortcut',
-        icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
-      },
-      {
-        name: 'Home Services',
-        short_name: 'Services',
-        description: 'Plumbing, RO repair, tank cleaning',
-        url: '/services?source=shortcut',
-        icons: [{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' }],
+        icons: [
+          {
+            src: '/icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+        ],
       },
     ],
 
     icons: [
-      { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-maskable-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-      { src: '/icons/icon-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
-
-    // Gives the rich "App Store style" install popup on Android and desktop Chrome
-    screenshots: [
       {
-        src: '/screenshots/home-narrow.png',
-        sizes: '1080x1920',
+        src: '/icons/icon-192x192.png',
+        sizes: '192x192',
         type: 'image/png',
-        form_factor: 'narrow',
-        label: 'Order water in 2 taps',
+        purpose: 'any',
       },
       {
-        src: '/screenshots/home-wide.png',
-        sizes: '1920x1080',
+        src: '/icons/icon-512x512.png',
+        sizes: '512x512',
         type: 'image/png',
-        form_factor: 'wide',
-        label: 'AuroTap on desktop',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-maskable-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+      {
+        src: '/icons/icon-maskable-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
