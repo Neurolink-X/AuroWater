@@ -5,10 +5,8 @@ import {
   jsonOk,
 } from '@/lib/api/json-response';
 
-import {
-  createSupabaseAnonClient,
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+import { isSupabaseConfigured } from '@/lib/db/supabase';
+import { createSupabaseAnonClient } from '@/lib/db/supabase-server';
 
 import { getSiteUrl } from '@/lib/env';
 import { checkRateLimit } from '@/lib/rate-limit';
