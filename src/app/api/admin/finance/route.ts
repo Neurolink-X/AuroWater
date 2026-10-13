@@ -54,12 +54,12 @@ const gross = completedOrders.reduce<number>(
   0,
 );
 
-  const collected = completedOrders
-    .filter((order) => order.payment_status === 'paid')
-    .reduce(
-      (sum, order) => sum + Number(order.total_amount ?? 0),
-      0,
-    );
+const collected = completedOrders
+  .filter((order) => order.payment_status === 'paid')
+  .reduce<number>(
+    (sum, order) => sum + Number(order.total_amount ?? 0),
+    0,
+  );
 
   const pendingPayments = Math.max(0, gross - collected);
 
