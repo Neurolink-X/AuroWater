@@ -396,8 +396,11 @@ function usePersisted<T>(key: string, initial: T, normalize: (raw: unknown) => T
   const [ready, setReady] = useState(false);
   const valueRef = useRef(value);
   const readyRef = useRef(false);
-  valueRef.current = value;
   const normalizeRef = useRef(normalize);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     const raw = lsGet(key);
