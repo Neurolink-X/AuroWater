@@ -1,15 +1,10 @@
-
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { adminSettingsGet } from '@/lib/api-client';
 
-type ApiPayload = {
-  data?: unknown;
-  settings?: unknown;
-  message?: string;
-  error?: string;
-};
+type UnknownRecord = Record<string, unknown>;
 
 type ServiceRate = {
   key: string;
@@ -31,40 +26,98 @@ const SERVICE_NAMES: Record<string, string> = {
   tank_cleaning: 'Water tank cleaning',
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+const RATE_MAP_KEYS = [
+  'service_base_prices',
+  'serviceBasePrices',
+  'configured_price',
+  'configured_prices',
+] as const;
+
+const RATE_VALUE_KEYS = [
+  'price',
+  'base_price',
+  'basePrice',
+  'amount',
+] as const;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
-function getSettings(payload: unknown): Record<string, unknown> | null {
+/**
+ * Supports common settings API response envelopes.
+ * Does not assume that every response uses the same nesting.
+ */
+function getSettings(payload: unknown): UnknownRecord | null {
   if (!isRecord(payload)) return null;
 
-  if (isRecord(payload.settings)) return payload.settings;
+  let current: UnknownRecord = payload;
 
-  if (isRecord(payload.data)) {
-    const data = payload.data;
-    return isRecord(data.settings) ? data.settings : data;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (isRecord(current.settings)) {
+      current = current.settings;
+      continue;
+    }
+
+    if (isRecord(current.data)) {
+      current = current.data;
+      continue;
+    }
+
+    return current;
   }
 
-  return payload;
+  return current;
+}
+
+/**
+ * Parses a non-negative finite price from a number,
+ * numeric string, or supported price object.
+ */
+function parsePrice(value: unknown): number | null {
+  let candidate = value;
+
+  if (isRecord(value)) {
+    candidate = undefined;
+
+    for (const key of RATE_VALUE_KEYS) {
+      if (value[key] !== undefined && value[key] !== null) {
+        candidate = value[key];
+        break;
+      }
+    }
+  }
+
+  if (typeof candidate === 'string') {
+    if (!candidate.trim()) return null;
+    candidate = Number(candidate);
+  }
+
+  if (
+    typeof candidate !== 'number' ||
+    !Number.isFinite(candidate) ||
+    candidate < 0
+  ) {
+    return null;
+  }
+
+  return candidate;
 }
 
 function getConfiguredRates(
-  settings: Record<string, unknown> | null,
+  settings: UnknownRecord | null,
 ): ServiceRate[] {
   if (!settings) return [];
 
-  const candidates = [
-    settings.service_base_prices,
-    settings.serviceBasePrices,
-    settings.configured_price,
-    settings.configured_prices,
-  ];
+  let rateMap: UnknownRecord | null = null;
 
-  let rateMap: Record<string, unknown> | null = null;
-
-  for (const candidate of candidates) {
-    if (isRecord(candidate)) {
-      rateMap = candidate;
+  for (const key of RATE_MAP_KEYS) {
+    if (isRecord(settings[key])) {
+      rateMap = settings[key] as UnknownRecord;
       break;
     }
   }
@@ -72,20 +125,42 @@ function getConfiguredRates(
   if (!rateMap) return [];
 
   return Object.entries(rateMap)
-    .filter(
-      (entry): entry is [string, number] =>
-        typeof entry[1] === 'number' &&
-        Number.isFinite(entry[1]) &&
-        entry[1] >= 0,
-    )
-    .map(([key, price]) => ({
-      key,
-      name:
-        SERVICE_NAMES[key] ??
-        key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
-      price,
-    }))
+    .flatMap(([key, value]) => {
+      const price = parsePrice(value);
+
+      if (price === null) return [];
+
+      return [
+        {
+          key,
+          name:
+            SERVICE_NAMES[key] ??
+            key
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (char) => char.toUpperCase()),
+          price,
+        },
+      ];
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function getErrorMessage(cause: unknown): string {
+  if (!(cause instanceof Error)) {
+    return 'An unexpected error occurred while loading service settings.';
+  }
+
+  if (
+    /unauthorized|no authentication token|http 401/i.test(cause.message)
+  ) {
+    return 'Your admin session may have expired. Sign in again and retry.';
+  }
+
+  if (/forbidden|http 403/i.test(cause.message)) {
+    return 'Your account does not have permission to view service settings.';
+  }
+
+  return cause.message || 'Could not load service settings.';
 }
 
 export default function AdminServicesPage() {
@@ -96,56 +171,52 @@ export default function AdminServicesPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
 
+  // Ignore results from older requests after refresh or unmount.
+  const requestId = useRef(0);
+
   const loadServicesOverview = useCallback(async () => {
+    const currentRequestId = ++requestId.current;
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-      });
+      // Uses the existing authenticated API client.
+      const payload: unknown = await adminSettingsGet();
 
-      const payload: unknown = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const details = isRecord(payload)
-          ? String(payload.message || payload.error || '')
-          : '';
-
-        throw new Error(
-          details || `Could not load service settings (HTTP ${response.status}).`,
-        );
-      }
+      if (currentRequestId !== requestId.current) return;
 
       const settings = getSettings(payload);
-      const hasRates = Boolean(
-        settings &&
-          [
-            settings.service_base_prices,
-            settings.serviceBasePrices,
-            settings.configured_price,
-            settings.configured_prices,
-          ].some(isRecord),
-      );
+
+      let hasRates = false;
+
+      if (settings) {
+        hasRates = RATE_MAP_KEYS.some((key) =>
+          isRecord(settings[key]),
+        );
+      }
 
       setHasRateConfiguration(hasRates);
       setRates(getConfiguredRates(settings));
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'An unexpected error occurred while loading service settings.',
-      );
+      if (currentRequestId !== requestId.current) return;
+
+      setHasRateConfiguration(false);
+      setRates([]);
+      setError(getErrorMessage(cause));
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadServicesOverview();
+
+    return () => {
+      requestId.current += 1;
+    };
   }, [loadServicesOverview, refreshKey]);
 
   const filteredRates = rates.filter((rate) => {
@@ -166,9 +237,11 @@ export default function AdminServicesPage() {
             <p className="text-xs font-bold tracking-[0.18em] text-cyan-700">
               AUROTAP / ADMIN
             </p>
+
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Water & home services
+              Water &amp; home services
             </h1>
+
             <p className="mt-1 text-sm text-slate-500">
               Review configured service rates and access pricing controls.
             </p>
@@ -190,9 +263,11 @@ export default function AdminServicesPage() {
               <p className="text-sm font-bold uppercase tracking-wider text-cyan-800">
                 Water delivered. Water problems solved.
               </p>
+
               <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
                 One service platform for everyday needs.
               </h2>
+
               <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
                 Keep water delivery as the primary service, with plumbing and
                 other home water services available as customers need them.
@@ -213,7 +288,9 @@ export default function AdminServicesPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-xl">
               💧
             </div>
+
             <h3 className="mt-4 font-bold">Water delivery</h3>
+
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Normal and chilled 20L RO water. Check order prices and delivery
               totals in the existing customer checkout.
@@ -224,7 +301,9 @@ export default function AdminServicesPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-xl">
               🛠️
             </div>
+
             <h3 className="mt-4 font-bold">Plumbing</h3>
+
             <p className="mt-2 text-sm leading-6 text-slate-500">
               Plumbing requests and technician availability should follow the
               existing booking and dispatch workflow.
@@ -235,7 +314,9 @@ export default function AdminServicesPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-xl">
               🏠
             </div>
+
             <h3 className="mt-4 font-bold">Home water services</h3>
+
             <p className="mt-2 text-sm leading-6 text-slate-500">
               RO servicing, tanks, pumps and other configured services can be
               listed when supported by the existing catalog.
@@ -247,6 +328,7 @@ export default function AdminServicesPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-bold">Configured service rates</h2>
+
               <p className="mt-1 text-sm text-slate-500">
                 Read-only view of rates returned by the existing settings API.
               </p>
@@ -255,7 +337,9 @@ export default function AdminServicesPage() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <label>
                 <span className="sr-only">Search configured services</span>
+
                 <input
+                  type="search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search services…"
@@ -282,28 +366,49 @@ export default function AdminServicesPage() {
               <p className="font-semibold text-rose-800">
                 Could not load service settings
               </p>
-              <p className="mt-1 break-words text-sm text-rose-700">{error}</p>
+
+              <p className="mt-1 break-words text-sm text-rose-700">
+                {error}
+              </p>
+
               <p className="mt-2 text-sm text-rose-700">
-                Check the admin session, permissions and API response. Keep
+                Check your admin session and server permissions. Keep
                 server-side authorization enabled.
               </p>
+
+              <button
+                type="button"
+                onClick={() => setRefreshKey((current) => current + 1)}
+                className="mt-3 rounded-lg border border-rose-300 px-3 py-2 text-sm font-semibold text-rose-800 hover:bg-rose-100"
+              >
+                Try again
+              </button>
             </div>
           ) : loading ? (
-            <p className="py-12 text-center text-sm text-slate-500" role="status">
+            <p
+              className="py-12 text-center text-sm text-slate-500"
+              role="status"
+            >
               Loading service settings…
             </p>
           ) : !hasRateConfiguration ? (
             <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
-              <h3 className="font-semibold">Service rates are not exposed here</h3>
+              <h3 className="font-semibold">
+                Service rates are not exposed here
+              </h3>
+
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 The settings response did not contain a recognised rate map.
-                This page does not invent a catalog or create database records.
-                Connect it to the verified service catalog API if one exists.
+                Verify the actual API response and database schema before
+                changing the pricing configuration. This page does not invent
+                rates or create database records.
               </p>
             </div>
           ) : filteredRates.length === 0 ? (
             <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
-              No configured rates match this search.
+              {rates.length === 0
+                ? 'The configured rate map contains no valid numeric rates.'
+                : 'No configured rates match this search.'}
             </p>
           ) : (
             <div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
@@ -314,10 +419,12 @@ export default function AdminServicesPage() {
                 >
                   <div className="min-w-0">
                     <p className="font-semibold">{rate.name}</p>
+
                     <p className="mt-1 break-all text-xs text-slate-400">
                       {rate.key}
                     </p>
                   </div>
+
                   <p className="shrink-0 font-bold">
                     ₹{rate.price.toLocaleString('en-IN')}
                   </p>
