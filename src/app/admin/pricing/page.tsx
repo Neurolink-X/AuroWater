@@ -1,4 +1,4 @@
-```tsx
+
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
@@ -122,18 +122,19 @@ export default function AdminPricingPage() {
       const payload = (await response.json().catch(() => ({}))) as ApiResult;
 
       if (!response.ok) {
-        throw new Error(
+        const message =
           payload.message ||
-            payload.error ||
-            `Unable to load pricing settings (${response.status}).`,
-        );
+          payload.error ||
+          `Unable to load pricing settings (HTTP ${response.status}).`;
+
+        throw new Error(message);
       }
 
       const nextSettings = extractSettings(payload);
 
       setSettings(nextSettings);
       setPriceMap(findPriceMap(nextSettings));
-    } catch (err) {
+ catch (err) {
       setError(
         err instanceof Error
           ? err.message
@@ -345,4 +346,4 @@ export default function AdminPricingPage() {
     </main>
   );
 }
-```
+
