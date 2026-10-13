@@ -1,4 +1,4 @@
-```ts
+
 /**
  * src/lib/db/supabase.ts
  *
@@ -164,4 +164,3 @@ export function createSupabaseBrowserAuthed(
     },
   });
 }
-```
