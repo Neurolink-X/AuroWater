@@ -1,150 +1,176 @@
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
-type Service = {
-  id: string;
-  name: string;
-  description?: string | null;
-  category?: string | null;
-  active?: boolean;
-  is_active?: boolean;
-  price?: number | null;
-  base_price?: number | null;
-};
-
-type ApiResult = {
-  ok?: boolean;
+type ApiPayload = {
   data?: unknown;
-  services?: unknown;
-  error?: string;
+  settings?: unknown;
   message?: string;
+  error?: string;
 };
 
-function extractServices(payload: unknown): Service[] {
-  if (Array.isArray(payload)) return payload as Service[];
+type ServiceRate = {
+  key: string;
+  name: string;
+  price: number;
+};
 
-  if (!payload || typeof payload !== 'object') return [];
+const SERVICE_NAMES: Record<string, string> = {
+  water_can: '20L water can',
+  normal_ro: 'Normal RO water',
+  chilled_ro: 'Chilled RO water',
+  plumbing: 'Plumbing',
+  installation: 'Installation',
+  maintenance: 'Maintenance',
+  water_tanker: 'Water tanker',
+  ro_service: 'RO service',
+  borewell: 'Borewell service',
+  motor_pump: 'Motor pump',
+  tank_cleaning: 'Water tank cleaning',
+};
 
-  const result = payload as ApiResult;
-  const data = result.data;
-
-  if (Array.isArray(data)) return data as Service[];
-
-  if (data && typeof data === 'object') {
-    const nested = data as Record<string, unknown>;
-
-    if (Array.isArray(nested.services)) {
-      return nested.services as Service[];
-    }
-  }
-
-  if (Array.isArray(result.services)) {
-    return result.services as Service[];
-  }
-
-  return [];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-const categories = ['All', 'Water', 'Plumbing', 'Maintenance', 'Other'];
+function getSettings(payload: unknown): Record<string, unknown> | null {
+  if (!isRecord(payload)) return null;
+
+  if (isRecord(payload.settings)) return payload.settings;
+
+  if (isRecord(payload.data)) {
+    const data = payload.data;
+    return isRecord(data.settings) ? data.settings : data;
+  }
+
+  return payload;
+}
+
+function getConfiguredRates(
+  settings: Record<string, unknown> | null,
+): ServiceRate[] {
+  if (!settings) return [];
+
+  const candidates = [
+    settings.service_base_prices,
+    settings.serviceBasePrices,
+    settings.configured_price,
+    settings.configured_prices,
+  ];
+
+  let rateMap: Record<string, unknown> | null = null;
+
+  for (const candidate of candidates) {
+    if (isRecord(candidate)) {
+      rateMap = candidate;
+      break;
+    }
+  }
+
+  if (!rateMap) return [];
+
+  return Object.entries(rateMap)
+    .filter(
+      (entry): entry is [string, number] =>
+        typeof entry[1] === 'number' &&
+        Number.isFinite(entry[1]) &&
+        entry[1] >= 0,
+    )
+    .map(([key, price]) => ({
+      key,
+      name:
+        SERVICE_NAMES[key] ??
+        key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+      price,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export default function AdminServicesPage() {
-  const [services, setServices] = useState<Service[]>([]);
+  const [rates, setRates] = useState<ServiceRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [hasRateConfiguration, setHasRateConfiguration] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadServicesOverview = useCallback(async () => {
+    setLoading(true);
+    setError('');
 
-    async function loadServices() {
-      setLoading(true);
-      setError('');
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
 
-      try {
-        // This is the existing admin settings API.
-        // It avoids inventing a new service table or endpoint.
-      
-        const response = await fetch('/api/admin/settings', {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          headers: { Accept: 'application/json' },
-        });
+      const payload: unknown = await response.json().catch(() => null);
 
-        const payload = (await response.json().catch(() => ({}))) as ApiResult;
+      if (!response.ok) {
+        const details = isRecord(payload)
+          ? String(payload.message || payload.error || '')
+          : '';
 
-        if (!response.ok) {
-          const message =
-            payload.message ||
-            payload.error ||
-            `Unable to load settings (HTTP ${response.status}).`;
-
-          throw new Error(message);
-        }
-
-        if (!cancelled) {
-          setServices(extractServices(payload));
-        }
-    catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : 'Something went wrong while loading services.',
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+        throw new Error(
+          details || `Could not load service settings (HTTP ${response.status}).`,
+        );
       }
+
+      const settings = getSettings(payload);
+      const hasRates = Boolean(
+        settings &&
+          [
+            settings.service_base_prices,
+            settings.serviceBasePrices,
+            settings.configured_price,
+            settings.configured_prices,
+          ].some(isRecord),
+      );
+
+      setHasRateConfiguration(hasRates);
+      setRates(getConfiguredRates(settings));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'An unexpected error occurred while loading service settings.',
+      );
+    } finally {
+      setLoading(false);
     }
-
-    void loadServices();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  const filteredServices = useMemo(() => {
+  useEffect(() => {
+    void loadServicesOverview();
+  }, [loadServicesOverview, refreshKey]);
+
+  const filteredRates = rates.filter((rate) => {
     const term = search.trim().toLowerCase();
 
-    return services.filter((service) => {
-      const matchesSearch =
-        !term ||
-        service.name?.toLowerCase().includes(term) ||
-        service.description?.toLowerCase().includes(term);
-
-      const matchesCategory =
-        category === 'All' ||
-        (service.category || 'Other').toLowerCase() ===
-          category.toLowerCase();
-
-      return matchesSearch && matchesCategory;
-    });
-  }, [services, search, category]);
-
-  const activeCount = services.filter(
-    (service) => service.active === true || service.is_active === true,
-  ).length;
+    return (
+      !term ||
+      rate.name.toLowerCase().includes(term) ||
+      rate.key.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
-      <div className="border-b border-slate-200 bg-white">
+      <header className="border-b border-slate-200">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <div>
-            <div className="mb-1 text-sm font-semibold text-cyan-700">
-              AUROTAP · ADMINISTRATION
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Water & Home Services
+            <p className="text-xs font-bold tracking-[0.18em] text-cyan-700">
+              AUROTAP / ADMIN
+            </p>
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Water & home services
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Monitor the service catalog and keep your local service
-              marketplace organised.
+              Review configured service rates and access pricing controls.
             </p>
           </div>
 
@@ -152,180 +178,166 @@ export default function AdminServicesPage() {
             href="/admin/dashboard"
             className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50"
           >
-            ← Admin dashboard
+            Back to dashboard
           </Link>
         </div>
-      </div>
+      </header>
 
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
-        <section className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-5">
-            <p className="text-sm font-medium text-cyan-800">
-              Catalog services
-            </p>
-            <p className="mt-2 text-3xl font-bold">{services.length}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Services returned by the API
-            </p>
-          </div>
+        <section className="rounded-3xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-blue-50 p-6 sm:p-9">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-sm font-bold uppercase tracking-wider text-cyan-800">
+                Water delivered. Water problems solved.
+              </p>
+              <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
+                One service platform for everyday needs.
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+                Keep water delivery as the primary service, with plumbing and
+                other home water services available as customers need them.
+              </p>
+            </div>
 
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
-            <p className="text-sm font-medium text-emerald-800">
-              Active services
-            </p>
-            <p className="mt-2 text-3xl font-bold">{activeCount}</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Based on explicit active flags
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-medium text-slate-600">
-              Filtered results
-            </p>
-            <p className="mt-2 text-3xl font-bold">
-              {filteredServices.length}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Matching your current filters
-            </p>
+            <div
+              aria-hidden="true"
+              className="flex h-28 w-28 shrink-0 items-center justify-center self-start rounded-3xl bg-white text-6xl shadow-sm ring-1 ring-cyan-100 sm:self-center"
+            >
+              💧
+            </div>
           </div>
         </section>
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <section className="mt-7 grid gap-4 sm:grid-cols-3">
+          <article className="rounded-2xl border border-cyan-100 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-xl">
+              💧
+            </div>
+            <h3 className="mt-4 font-bold">Water delivery</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Normal and chilled 20L RO water. Check order prices and delivery
+              totals in the existing customer checkout.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-xl">
+              🛠️
+            </div>
+            <h3 className="mt-4 font-bold">Plumbing</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Plumbing requests and technician availability should follow the
+              existing booking and dispatch workflow.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 p-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 text-xl">
+              🏠
+            </div>
+            <h3 className="mt-4 font-bold">Home water services</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              RO servicing, tanks, pumps and other configured services can be
+              listed when supported by the existing catalog.
+            </p>
+          </article>
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-lg font-bold">Service catalog</h2>
+              <h2 className="text-xl font-bold">Configured service rates</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Search and inspect services configured for AuroTap.
+                Read-only view of rates returned by the existing settings API.
               </p>
             </div>
 
-            <label className="w-full md:max-w-sm">
-              <span className="sr-only">Search services</span>
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search water, plumbing..."
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-600 focus:ring-4 focus:ring-cyan-50"
-              />
-            </label>
-          </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <label>
+                <span className="sr-only">Search configured services</span>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search services…"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm outline-none transition focus:border-cyan-600 focus:ring-4 focus:ring-cyan-50 sm:w-64"
+                />
+              </label>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {categories.map((item) => (
               <button
-                key={item}
                 type="button"
-                onClick={() => setCategory(item)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  category === item
-                    ? 'bg-cyan-700 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                onClick={() => setRefreshKey((current) => current + 1)}
+                disabled={loading}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {item}
+                {loading ? 'Loading…' : 'Refresh'}
               </button>
-            ))}
+            </div>
           </div>
 
-          {loading ? (
+          {error ? (
             <div
-              className="py-16 text-center text-sm text-slate-500"
-              role="status"
+              role="alert"
+              className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4"
             >
-              Loading service catalog…
-            </div>
-          ) : error ? (
-            <div className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-5">
-              <h3 className="font-semibold text-rose-800">
-                Could not load services
-              </h3>
-              <p className="mt-2 break-words text-sm text-rose-700">
-                {error}
+              <p className="font-semibold text-rose-800">
+                Could not load service settings
               </p>
+              <p className="mt-1 break-words text-sm text-rose-700">{error}</p>
               <p className="mt-2 text-sm text-rose-700">
-                If you see 401 or 403, check your admin session and role.
-                Do not remove server-side authorization to make this page load.
-              </p>
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="mt-4 rounded-lg bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-800"
-              >
-                Try again
-              </button>
-            </div>
-          ) : filteredServices.length === 0 ? (
-            <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-12 text-center">
-              <div className="text-3xl" aria-hidden="true">
-                💧
-              </div>
-              <h3 className="mt-3 font-semibold">
-                {services.length === 0
-                  ? 'No service list was returned'
-                  : 'No matching services'}
-              </h3>
-              <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
-                {services.length === 0
-                  ? 'The settings API may not expose the service catalog. Connect this page to the existing service catalog endpoint before enabling service management.'
-                  : 'Try another search term or select a different category.'}
+                Check the admin session, permissions and API response. Keep
+                server-side authorization enabled.
               </p>
             </div>
+          ) : loading ? (
+            <p className="py-12 text-center text-sm text-slate-500" role="status">
+              Loading service settings…
+            </p>
+          ) : !hasRateConfiguration ? (
+            <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
+              <h3 className="font-semibold">Service rates are not exposed here</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                The settings response did not contain a recognised rate map.
+                This page does not invent a catalog or create database records.
+                Connect it to the verified service catalog API if one exists.
+              </p>
+            </div>
+          ) : filteredRates.length === 0 ? (
+            <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
+              No configured rates match this search.
+            </p>
           ) : (
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredServices.map((service) => {
-                const active =
-                  service.active === true || service.is_active === true;
-
-                const price = service.base_price ?? service.price;
-
-                return (
-                  <article
-                    key={service.id}
-                    className="rounded-2xl border border-slate-200 p-5 transition hover:border-cyan-200 hover:shadow-md"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-50 text-xl">
-                        💧
-                      </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          active
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {active ? 'Active' : 'Status not confirmed'}
-                      </span>
-                    </div>
-
-                    <h3 className="mt-4 text-lg font-bold">{service.name}</h3>
-                    <p className="mt-1 min-h-10 text-sm leading-6 text-slate-500">
-                      {service.description || 'No description provided.'}
+            <div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+              {filteredRates.map((rate) => (
+                <div
+                  key={rate.key}
+                  className="flex items-center justify-between gap-4 px-4 py-4 sm:px-5"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold">{rate.name}</p>
+                    <p className="mt-1 break-all text-xs text-slate-400">
+                      {rate.key}
                     </p>
-
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
-                      <span className="text-sm text-slate-500">
-                        {service.category || 'Uncategorised'}
-                      </span>
-                      <span className="font-bold text-slate-900">
-                        {typeof price === 'number'
-                          ? `₹${price.toLocaleString('en-IN')}`
-                          : 'Price not available'}
-                      </span>
-                    </div>
-                  </article>
-                );
-              })}
+                  </div>
+                  <p className="shrink-0 font-bold">
+                    ₹{rate.price.toLocaleString('en-IN')}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
-        </section>
 
-        <p className="mt-5 text-xs leading-5 text-slate-400">
-          Read-only catalog view. Pricing and service status are not modified
-          from this page. Use the existing approved admin workflow for changes.
-        </p>
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <Link
+              href="/admin/pricing"
+              className="inline-flex items-center rounded-xl bg-cyan-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-cyan-800"
+            >
+              Review pricing
+              <span className="ml-2" aria-hidden="true">
+                →
+              </span>
+            </Link>
+          </div>
+        </section>
       </div>
     </main>
   );
