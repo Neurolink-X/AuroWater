@@ -520,17 +520,52 @@ function LoadingSkeleton() {
   );
 }
 
+
 function UpdatedAgo({ date }: { date: Date | null }) {
-  const [, tick] = useState(0);
+  const [now, setNow] = useState<number | null>(null);
+
   useEffect(() => {
-    const id = window.setInterval(() => tick((n) => n + 1), 15_000);
+    const updateNow = () => setNow(Date.now());
+
+    updateNow();
+
+    const id = window.setInterval(updateNow, 15_000);
     return () => window.clearInterval(id);
   }, []);
+
   if (!date) return null;
-  const s = Math.floor((Date.now() - date.getTime()) / 1000);
-  const text = s < 10 ? 'just now' : s < 60 ? `${s}s ago` : relTime(date.toISOString());
+
+  // Avoid calculating the current time during render.
+  const seconds =
+    now === null
+      ? 0
+      : Math.max(0, Math.floor((now - date.getTime()) / 1000));
+
+  let text: string;
+
+  if (now === null || seconds < 10) {
+    text = 'just now';
+  } else if (seconds < 60) {
+    text = `${seconds}s ago`;
+  } else {
+    const minutes = Math.floor(seconds / 60);
+
+    if (minutes < 60) {
+      text = `${minutes}m ago`;
+    } else {
+      const hours = Math.floor(minutes / 60);
+
+      if (hours < 24) {
+        text = `${hours}h ago`;
+      } else {
+        text = `${Math.floor(hours / 24)}d ago`;
+      }
+    }
+  }
+
   return <span className="text-xs text-slate-500">Updated {text}</span>;
 }
+
 
 /* ───────────────────────────── Charts ───────────────────────────── */
 
@@ -1889,14 +1924,18 @@ export default function AdminDashboardPage() {
 
         {!online && (
           <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            You're offline. Showing the last data we have; the dashboard will refresh automatically when you reconnect.
+           
+You&apos;re offline. Showing the last data we have; the dashboard will refresh automatically when you reconnect.
+
           </div>
         )}
 
         {error && hasData && (
           <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <span>
-              We couldn't refresh the dashboard, so you're seeing older data. We'll keep retrying automatically.
+             
+                We couldn&apos;t refresh the dashboard, so you&apos;re seeing older data. We&apos;ll keep retrying automatically.
+
             </span>
             <button type="button" className="ad-btn" onClick={handleRefresh} disabled={refreshing}>
               Retry now
@@ -1915,7 +1954,9 @@ export default function AdminDashboardPage() {
 
         {!error && partial.length > 0 && hasData && (
           <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Some data didn't load: {partial.join(', ')}. Other sections are up to date.
+            
+                  Some data didn&apos;t load: {partial.join(', ')}. Other sections are up to date.
+
           </div>
         )}
 
