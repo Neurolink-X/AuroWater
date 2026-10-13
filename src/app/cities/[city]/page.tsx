@@ -1,4 +1,3 @@
-```tsx
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -16,93 +15,107 @@ const CITIES: Record<string, CityInfo> = {
     slug: 'lucknow',
     region: 'Uttar Pradesh',
     description:
-      'Order 20-litre RO water cans and explore home plumbing services in Lucknow through AuroTap.',
+      'Explore 20-litre RO water delivery and home plumbing services in Lucknow through AuroTap.',
   },
   kanpur: {
     name: 'Kanpur',
     slug: 'kanpur',
     region: 'Uttar Pradesh',
     description:
-      'Find everyday RO water delivery and plumbing service options in Kanpur through AuroTap.',
+      'Explore 20-litre RO water delivery and home plumbing services in Kanpur through AuroTap.',
   },
   gorakhpur: {
     name: 'Gorakhpur',
     slug: 'gorakhpur',
     region: 'Uttar Pradesh',
     description:
-      'Explore 20-litre water-can delivery and home plumbing services in Gorakhpur with AuroTap.',
+      'Explore 20-litre RO water delivery and home plumbing services in Gorakhpur through AuroTap.',
   },
 };
 
 export const dynamicParams = false;
 
-export function generateStaticParams() {
+export function generateStaticParams(): Array<{ city: string }> {
   return Object.keys(CITIES).map((city) => ({ city }));
 }
 
+type CityPageProps = {
+  params: Promise<{ city: string }>;
+};
+
 export async function generateMetadata({
   params,
-}: {
-  params: Promise<{ city: string }>;
-}): Promise<Metadata> {
+}: CityPageProps): Promise<Metadata> {
   const { city: rawCity } = await params;
   const city = CITIES[rawCity.toLowerCase()];
 
   if (!city) {
-    return { title: 'City not found | AuroTap' };
+    return {
+      title: 'City not found | AuroTap',
+      robots: { index: false, follow: false },
+    };
   }
 
+  const title = `RO Water Delivery & Plumbing in ${city.name} | AuroTap`;
+
   return {
-    title: `RO Water Can Delivery & Plumbing in ${city.name} | AuroTap`,
+    title,
     description: city.description,
     alternates: {
       canonical: `/cities/${city.slug}`,
     },
     openGraph: {
-      title: `Water Delivery & Plumbing in ${city.name} | AuroTap`,
+      title,
       description: city.description,
+      url: `https://aurotap.in/cities/${city.slug}`,
       type: 'website',
       siteName: 'AuroTap',
     },
   };
 }
 
-export default async function CityPage({
-  params,
-}: {
-  params: Promise<{ city: string }>;
-}) {
+export default async function CityPage({ params }: CityPageProps) {
   const { city: rawCity } = await params;
   const city = CITIES[rawCity.toLowerCase()];
 
-  if (!city) notFound();
+  if (!city) {
+    notFound();
+  }
 
-  const siteUrl = 'https://aurotap.in';
-  const pageUrl = `${siteUrl}/cities/${city.slug}`;
+  const pageUrl = `https://aurotap.in/cities/${city.slug}`;
 
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'WebPage',
-    name: `Water delivery and plumbing services in ${city.name}`,
+    name: `Water delivery and plumbing information for ${city.name}`,
     description: city.description,
     url: pageUrl,
     isPartOf: {
       '@type': 'WebSite',
       name: 'AuroTap',
-      url: siteUrl,
+      url: 'https://aurotap.in',
     },
-    areaServed: {
-      '@type': 'City',
-      name: city.name,
-      containedInPlace: {
-        '@type': 'AdministrativeArea',
-        name: city.region,
+    about: {
+      '@type': 'Service',
+      name: 'Water delivery and home plumbing services',
+      areaServed: {
+        '@type': 'City',
+        name: city.name,
+        containedInPlace: {
+          '@type': 'AdministrativeArea',
+          name: city.region,
+        },
+      },
+      provider: {
+        '@type': 'Organization',
+        name: 'AuroTap',
+        url: 'https://aurotap.in',
       },
     },
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-white text-slate-900">
+    <main className="min-h-screen bg-white text-slate-900">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -113,10 +126,10 @@ export default async function CityPage({
       <header className="border-b border-slate-100 bg-white">
         <nav
           aria-label="Main navigation"
-          className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8"
+          className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8"
         >
           <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-700 text-xl text-white">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-700 text-2xl text-white">
               💧
             </span>
             <span>
@@ -131,30 +144,30 @@ export default async function CityPage({
 
           <Link
             href="/"
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50"
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:border-cyan-200 hover:bg-cyan-50"
           >
             Home
           </Link>
         </nav>
       </header>
 
-      <section className="relative isolate border-b border-cyan-100 bg-gradient-to-b from-cyan-50/80 via-white to-white">
+      <section className="relative isolate overflow-hidden border-b border-cyan-100 bg-gradient-to-b from-cyan-50 via-white to-white">
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-24 -top-20 -z-10 h-80 w-80 rounded-full bg-cyan-100/70 blur-3xl"
+          className="pointer-events-none absolute -right-24 -top-24 -z-10 h-96 w-96 rounded-full bg-cyan-100/70 blur-3xl"
         />
 
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-100 bg-white px-4 py-2 text-sm font-semibold text-cyan-800 shadow-sm">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Local services · {city.name}
-            </p>
+              Local services in {city.name}
+            </span>
 
-            <h1 className="mt-6 max-w-2xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="mt-6 text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
               Water delivered.
               <span className="mt-2 block text-cyan-700">
-                Home problems solved.
+                Water problems solved.
               </span>
               <span className="mt-2 block text-slate-800">
                 In {city.name}.
@@ -162,8 +175,8 @@ export default async function CityPage({
             </h1>
 
             <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
-              {city.description} Explore the available options, review the
-              details and choose the service you need.
+              {city.description} Choose the service you need and check
+              availability for your address before placing an order.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -186,69 +199,67 @@ export default async function CityPage({
             </div>
 
             <p className="mt-4 text-xs leading-5 text-slate-500">
-              Availability and delivery times depend on your service address
+              Service availability and delivery times depend on your address
               and local provider coverage.
             </p>
           </div>
 
-          <div className="relative">
-            <div className="rounded-[2rem] border border-cyan-100 bg-white p-5 shadow-xl shadow-cyan-950/5 sm:p-7">
-              <div className="rounded-3xl bg-gradient-to-br from-cyan-700 to-blue-950 p-7 text-white sm:p-9">
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold">
-                    YOUR DAILY WATER
-                  </span>
-                  <span className="text-2xl" aria-hidden="true">
-                    ✦
-                  </span>
-                </div>
+          <div className="rounded-[2rem] border border-cyan-100 bg-white p-5 shadow-xl shadow-cyan-950/5 sm:p-7">
+            <div className="rounded-3xl bg-gradient-to-br from-cyan-700 to-blue-950 p-7 text-white sm:p-9">
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold tracking-wider">
+                  EVERYDAY WATER
+                </span>
+                <span className="text-2xl" aria-hidden="true">
+                  ✦
+                </span>
+              </div>
 
-                <div className="mt-9 flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-cyan-100">Normal RO water</p>
-                    <p className="mt-2 text-5xl font-extrabold">₹20</p>
-                    <p className="mt-2 text-sm text-cyan-100">
-                      Per 20L can
-                    </p>
-                  </div>
-                  <div
-                    className="flex h-28 w-20 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-5xl"
-                    aria-hidden="true"
-                  >
-                    💧
-                  </div>
+              <div className="mt-9 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-sm text-cyan-100">Normal RO water</p>
+                  <p className="mt-2 text-5xl font-extrabold">₹20</p>
+                  <p className="mt-2 text-sm text-cyan-100">
+                    Per 20L can
+                  </p>
                 </div>
-
-                <div className="mt-6 border-t border-white/20 pt-5 text-sm text-cyan-50">
-                  Chilled RO water: ₹25 per 20L can
+                <div
+                  aria-hidden="true"
+                  className="flex h-28 w-20 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-5xl"
+                >
+                  💧
                 </div>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <span className="text-xl" aria-hidden="true">
-                    🚰
-                  </span>
-                  <p className="mt-2 font-bold">Water delivery</p>
-                  <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Everyday water for your home.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <span className="text-xl" aria-hidden="true">
-                    🛠️
-                  </span>
-                  <p className="mt-2 font-bold">Plumbing help</p>
-                  <p className="mt-1 text-sm leading-5 text-slate-500">
-                    Find options for home water problems.
-                  </p>
-                </div>
+              <div className="mt-6 border-t border-white/20 pt-5 text-sm text-cyan-50">
+                Chilled RO water · ₹25 per 20L can
               </div>
             </div>
 
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <article className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <span className="text-2xl" aria-hidden="true">
+                  🚰
+                </span>
+                <h2 className="mt-2 font-bold">Water delivery</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-500">
+                  Everyday water for your home.
+                </p>
+              </article>
+
+              <article className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <span className="text-2xl" aria-hidden="true">
+                  🛠️
+                </span>
+                <h2 className="mt-2 font-bold">Plumbing help</h2>
+                <p className="mt-1 text-sm leading-5 text-slate-500">
+                  Explore options for home water problems.
+                </p>
+              </article>
+            </div>
+
             <p className="mt-4 text-center text-xs text-slate-400">
-              Serving eligible addresses in {city.name}, subject to availability.
+              Availability in {city.name} must be confirmed for your address.
             </p>
           </div>
         </div>
@@ -263,43 +274,36 @@ export default async function CityPage({
             Everyday water service, made simpler.
           </h2>
           <p className="mt-4 leading-7 text-slate-600">
-            AuroTap brings water delivery and home water-related services
-            together in one place, helping customers discover suitable options
-            without unnecessary complexity.
+            Find water delivery and home water-related services in one place.
+            Review the details, confirm availability and check the final price
+            before placing an order.
           </p>
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-3">
-          {[
-            {
-              number: '01',
-              title: 'Choose your service',
-              text: 'Start with RO water delivery or explore plumbing support.',
-            },
-            {
-              number: '02',
-              title: 'Confirm your address',
-              text: 'Check your location and the service availability for it.',
-            },
-            {
-              number: '03',
-              title: 'Review before ordering',
-              text: 'Confirm the final price, delivery details and service terms.',
-            },
-          ].map((item) => (
-            <article
-              key={item.number}
-              className="rounded-2xl border border-slate-200 p-6 transition hover:border-cyan-200 hover:shadow-md"
-            >
-              <span className="text-sm font-extrabold text-cyan-700">
-                {item.number}
-              </span>
-              <h3 className="mt-4 text-lg font-bold">{item.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {item.text}
-              </p>
-            </article>
-          ))}
+          <article className="rounded-2xl border border-slate-200 p-6 transition hover:border-cyan-200 hover:shadow-md">
+            <span className="text-sm font-extrabold text-cyan-700">01</span>
+            <h3 className="mt-4 text-lg font-bold">Choose your service</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Start with RO water delivery or explore plumbing support.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 p-6 transition hover:border-cyan-200 hover:shadow-md">
+            <span className="text-sm font-extrabold text-cyan-700">02</span>
+            <h3 className="mt-4 text-lg font-bold">Confirm your address</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Check your service location and provider availability.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 p-6 transition hover:border-cyan-200 hover:shadow-md">
+            <span className="text-sm font-extrabold text-cyan-700">03</span>
+            <h3 className="mt-4 text-lg font-bold">Review before ordering</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Confirm the final amount, delivery details and service terms.
+            </p>
+          </article>
         </div>
       </section>
 
@@ -309,11 +313,12 @@ export default async function CityPage({
             <h2 className="text-2xl font-extrabold">
               Need water at home in {city.name}?
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Start from AuroTap and check which services are available at
-              your address.
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Visit AuroTap to explore services and check what is available
+              for your address.
             </p>
           </div>
+
           <Link
             href="/"
             className="inline-flex shrink-0 items-center justify-center rounded-xl bg-cyan-700 px-6 py-3.5 font-bold text-white transition hover:bg-cyan-800"
@@ -337,4 +342,3 @@ export default async function CityPage({
     </main>
   );
 }
-```
