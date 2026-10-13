@@ -1,15 +1,11 @@
+
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { adminSettingsGet } from '@/lib/api-client';
 
-type ApiPayload = {
-  ok?: boolean;
-  data?: unknown;
-  settings?: unknown;
-  message?: string;
-  error?: string;
-};
+type UnknownRecord = Record<string, unknown>;
 
 type PriceEntry = {
   key: string;
@@ -31,63 +27,140 @@ const SERVICE_LABELS: Record<string, string> = {
   tank_cleaning: 'Water tank cleaning',
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+const PRICE_MAP_KEYS = [
+  'service_base_prices',
+  'serviceBasePrices',
+  'configured_price',
+  'configured_prices',
+] as const;
+
+const PRICE_VALUE_KEYS = ['price', 'base_price', 'basePrice', 'amount'] as const;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }
 
-function getSettings(payload: unknown): Record<string, unknown> | null {
+/**
+ * Supports the existing API's common response envelopes without
+ * assuming that every response has identical nesting.
+ */
+function getSettings(payload: unknown): UnknownRecord | null {
   if (!isRecord(payload)) return null;
 
-  if (isRecord(payload.settings)) return payload.settings;
+  let current: UnknownRecord = payload;
 
-  if (isRecord(payload.data)) {
-    const data = payload.data;
-    if (isRecord(data.settings)) return data.settings;
-    return data;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (isRecord(current.settings)) {
+      current = current.settings;
+      continue;
+    }
+
+    if (isRecord(current.data)) {
+      current = current.data;
+      continue;
+    }
+
+    return current;
   }
 
-  return payload;
+  return current;
 }
 
 function getPriceMap(
-  settings: Record<string, unknown> | null,
-): Record<string, unknown> | null {
+  settings: UnknownRecord | null,
+): UnknownRecord | null {
   if (!settings) return null;
 
-  const candidates = [
-    settings.service_base_prices,
-    settings.serviceBasePrices,
-    settings.configured_price,
-    settings.configured_prices,
-  ];
-
-  for (const candidate of candidates) {
-    if (isRecord(candidate)) return candidate;
+  for (const key of PRICE_MAP_KEYS) {
+    if (isRecord(settings[key])) {
+      return settings[key] as UnknownRecord;
+    }
   }
 
   return null;
 }
 
+/**
+ * Accepts finite non-negative numbers and numeric strings.
+ * Does not accept empty strings, negative prices, NaN or Infinity.
+ */
+function parsePrice(value: unknown): number | null {
+  let candidate = value;
+
+  if (isRecord(value)) {
+    candidate = undefined;
+
+    for (const key of PRICE_VALUE_KEYS) {
+      if (value[key] !== undefined && value[key] !== null) {
+        candidate = value[key];
+        break;
+      }
+    }
+  }
+
+  if (typeof candidate === 'string') {
+    if (!candidate.trim()) return null;
+    candidate = Number(candidate);
+  }
+
+  if (
+    typeof candidate !== 'number' ||
+    !Number.isFinite(candidate) ||
+    candidate < 0
+  ) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function formatServiceLabel(key: string): string {
+  return (
+    SERVICE_LABELS[key] ??
+    key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+}
+
 function toPriceEntries(
-  priceMap: Record<string, unknown> | null,
+  priceMap: UnknownRecord | null,
 ): PriceEntry[] {
   if (!priceMap) return [];
 
   return Object.entries(priceMap)
-    .filter(
-      (entry): entry is [string, number] =>
-        typeof entry[1] === 'number' &&
-        Number.isFinite(entry[1]) &&
-        entry[1] >= 0,
-    )
-    .map(([key, price]) => ({
-      key,
-      label:
-        SERVICE_LABELS[key] ??
-        key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
-      price,
-    }))
+    .flatMap(([key, value]) => {
+      const price = parsePrice(value);
+
+      if (price === null) return [];
+
+      return [
+        {
+          key,
+          label: formatServiceLabel(key),
+          price,
+        },
+      ];
+    })
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function getErrorMessage(cause: unknown): string {
+  if (!(cause instanceof Error)) {
+    return 'An unexpected error occurred while loading pricing.';
+  }
+
+  if (/unauthorized|no authentication token|http 401/i.test(cause.message)) {
+    return 'Your admin session may have expired. Sign in again and retry.';
+  }
+
+  if (/forbidden|http 403/i.test(cause.message)) {
+    return 'Your account does not have permission to view pricing settings.';
+  }
+
+  return cause.message || 'Could not load pricing settings.';
 }
 
 export default function AdminPricingPage() {
@@ -97,29 +170,20 @@ export default function AdminPricingPage() {
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // Prevent older requests from overwriting newer results.
+  const requestId = useRef(0);
+
   const loadPricing = useCallback(async () => {
+    const currentRequestId = ++requestId.current;
+
     setLoading(true);
     setError('');
 
     try {
-      const response = await fetch('/api/admin/settings', {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        headers: { Accept: 'application/json' },
-      });
+      // Uses the existing authenticated API client and Bearer token.
+      const payload: unknown = await adminSettingsGet();
 
-      const payload: unknown = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        const details = isRecord(payload)
-          ? String(payload.message || payload.error || '')
-          : '';
-
-        throw new Error(
-          details || `Could not load pricing settings (HTTP ${response.status}).`,
-        );
-      }
+      if (currentRequestId !== requestId.current) return;
 
       const settings = getSettings(payload);
       const priceMap = getPriceMap(settings);
@@ -127,18 +191,25 @@ export default function AdminPricingPage() {
       setHasPriceMap(priceMap !== null);
       setPrices(toPriceEntries(priceMap));
     } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : 'An unexpected error occurred while loading pricing.',
-      );
+      if (currentRequestId !== requestId.current) return;
+
+      setHasPriceMap(false);
+      setPrices([]);
+      setError(getErrorMessage(cause));
     } finally {
-      setLoading(false);
+      if (currentRequestId === requestId.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void loadPricing();
+
+    return () => {
+      // Ignore results from this effect after refresh or unmount.
+      requestId.current += 1;
+    };
   }, [loadPricing, refreshKey]);
 
   return (
@@ -150,7 +221,7 @@ export default function AdminPricingPage() {
               AUROTAP / ADMIN
             </p>
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Pricing & charges
+              Pricing &amp; charges
             </h1>
             <p className="mt-1 text-sm text-slate-500">
               Review water prices and rates returned by your existing settings API.
@@ -200,8 +271,8 @@ export default function AdminPricingPage() {
                 <span className="text-sm text-slate-500">per 20L can</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                Customer-facing price including delivery and GST, as configured
-                in the current business pricing decision.
+                Customer-facing price including delivery and GST, according
+                to the current business pricing decision.
               </p>
             </article>
 
@@ -215,8 +286,8 @@ export default function AdminPricingPage() {
                 <span className="text-sm text-slate-500">per 20L can</span>
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                Display price for chilled water. Confirm the actual checkout
-                calculation before publishing any price changes.
+                Customer-facing chilled-water price. Verify checkout totals
+                and applicable taxes before changing production pricing.
               </p>
             </article>
           </div>
@@ -249,10 +320,12 @@ export default function AdminPricingPage() {
               <p className="font-semibold text-rose-800">
                 Pricing settings could not be loaded
               </p>
-              <p className="mt-1 break-words text-sm text-rose-700">{error}</p>
+              <p className="mt-1 break-words text-sm text-rose-700">
+                {error}
+              </p>
               <p className="mt-2 text-sm text-rose-700">
-                Check the admin session, permissions and API response. Do not
-                disable server-side authorization to resolve a 401 or 403.
+                Check your admin session and server permissions. Do not disable
+                server-side authorization to resolve an authentication error.
               </p>
             </div>
           ) : loading ? (
@@ -264,12 +337,13 @@ export default function AdminPricingPage() {
               <h3 className="font-semibold">No recognised price map found</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 The settings response does not contain a recognised price map.
-                Verify the actual response and schema before enabling editing.
+                Check the actual API response and database schema before
+                changing the pricing configuration.
               </p>
             </div>
           ) : prices.length === 0 ? (
             <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
-              The configured price map contains no valid numeric rates.
+              The configured price map contains no valid non-negative numeric rates.
             </p>
           ) : (
             <div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
@@ -296,10 +370,10 @@ export default function AdminPricingPage() {
         <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <h2 className="font-bold text-amber-950">Pricing safety checklist</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-amber-950/80">
-            <li>Confirm checkout totals match the prices displayed here.</li>
+            <li>Confirm checkout totals match the displayed prices.</li>
             <li>Do not add delivery twice when the advertised price includes it.</li>
             <li>Verify subscription rates separately from single-order rates.</li>
-            <li>Verify supplier payout and platform commission calculations.</li>
+            <li>Verify supplier payouts and platform commission calculations.</li>
           </ul>
         </section>
       </div>
