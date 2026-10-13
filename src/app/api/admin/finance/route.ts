@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     return jsonErr(error.message, 502);
   }
 
-  const completedOrders = orders ?? [];
+  
 
 const completedOrders = orders ?? [];
 
