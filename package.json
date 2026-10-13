@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint --suppressions-location eslint-suppressions.json",
     "db:setup": "node scripts/setup-db.js",
