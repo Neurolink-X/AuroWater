@@ -1170,11 +1170,33 @@ export default function AdminSettingsPage() {
                     ? 'Launch prices ready to save'
                     : 'Settings are up to date'}
               </p>
-              <p className="text-xs text-slate-500">
-                {errorKeys.length > 0
-                  ? `${errorKeys.length} ${errorKeys.length === 1 ? 'field has' : 'fields have'} a problem to fix first.`
-                  : 'Saving clears the public settings cache so customers see updates right away.'}
-              </p>
+          
+{errorKeys.length > 0 ? (
+  <button
+    type="button"
+    onClick={() => {
+      setSubmitted(true);
+      const firstError = errorKeys[0];
+      if (!firstError) return;
+
+      requestAnimationFrame(() => {
+        document.getElementById(`setting-${firstError}`)?.focus();
+        document.getElementById(`setting-${firstError}`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }}
+    className="text-left text-xs font-medium text-red-700 underline underline-offset-2 hover:text-red-900"
+  >
+    {errorKeys.length} {errorKeys.length === 1
+      ? 'field needs'
+      : 'fields need'} attention — click to review
+  </button>
+) : (
+  <p className="text-xs text-slate-500">
+    Saving clears the public settings cache so customers see updates right away.
+  </p>
+)}
+
             </div>
             <div className="flex items-center gap-2">
               {editedKeys.length > 0 && (
