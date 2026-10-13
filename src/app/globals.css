@@ -1,5 +1,6 @@
 /* AuroWater global styles
    Fonts are loaded with next/font in layout.tsx (no render-blocking @imports). */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
 
 /* ───────────── Tokens ───────────── */
