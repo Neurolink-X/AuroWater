@@ -828,6 +828,7 @@ export async function adminTechniciansList(): Promise<AdminTechnicianRow[]> {
   return apiFetchAuth<AdminTechnicianRow[]>('/admin/technicians');
 }
 
+
 export type AdminUserRow = {
   id: string;
   full_name: string | null;
@@ -841,7 +842,15 @@ export type AdminUserRow = {
   updated_at: string | null;
   order_count: number | null;
   total_spent: number | null;
+
+  // Supplier and technician quality metrics
+  average_rating: number | null;
+  review_count: number;
+  low_rating_count: number;
+  completed_work_count: number | null;
+  cancelled_work_count: number | null;
 };
+
 
 export async function adminUsersWithMeta(params?: {
   role?: string;
