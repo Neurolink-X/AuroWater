@@ -1159,8 +1159,13 @@ export default function AdminSettingsPage() {
         )}
       </div>
 
-      {ready && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-3 sm:px-6 sm:pb-4">
+      
+{ready &&
+  (editedKeys.length > 0 ||
+    changedKeys.length > 0 ||
+    errorKeys.length > 0) && (
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-3 sm:px-6 sm:pb-4">
+
           <div className="pointer-events-auto mx-auto flex max-w-6xl flex-col gap-3 rounded-2xl border border-slate-300 bg-white p-3 shadow-[0_8px_30px_rgba(15,23,42,0.18)] sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-slate-900">
