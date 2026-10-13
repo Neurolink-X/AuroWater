@@ -965,7 +965,7 @@ function UsersContent() {
   /* ───────────────────────────── Render ───────────────────────────── */
 
   return (
-    <div className="min-h-screen bg-[#F3F6FA] text-slate-900">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="mx-auto w-full max-w-7xl space-y-5 px-3 pb-28 pt-4 sm:px-6 sm:pt-6 lg:px-8">
         <header className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
