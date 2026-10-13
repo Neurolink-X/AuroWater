@@ -47,10 +47,12 @@ export async function GET(req: NextRequest) {
 
   const completedOrders = orders ?? [];
 
-  const gross = completedOrders.reduce(
-    (sum, order) => sum + Number(order.total_amount ?? 0),
-    0,
-  );
+const completedOrders = orders ?? [];
+
+const gross = completedOrders.reduce<number>(
+  (sum, order) => sum + Number(order.total_amount ?? 0),
+  0,
+);
 
   const collected = completedOrders
     .filter((order) => order.payment_status === 'paid')
