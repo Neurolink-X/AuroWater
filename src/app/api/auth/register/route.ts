@@ -16,11 +16,11 @@ import {
   seedSupplierRegistrationDefaults,
 } from '@/lib/auth/seed-supplier-registration';
 
+import { isSupabaseConfigured } from '@/lib/db/supabase';
 import {
   createSupabaseAnonClient,
   createSupabaseUserClient,
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+} from '@/lib/db/supabase-server';
 
 import {
   createServiceClient,
