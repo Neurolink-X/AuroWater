@@ -829,6 +829,7 @@ export async function adminTechniciansList(): Promise<AdminTechnicianRow[]> {
 }
 
 
+
 export type AdminUserRow = {
   id: string;
   full_name: string | null;
@@ -840,16 +841,24 @@ export type AdminUserRow = {
   city: string | null;
   created_at: string;
   updated_at: string | null;
+
+  // Customer order and spending metrics
   order_count: number | null;
   total_spent: number | null;
 
-  // Supplier and technician quality metrics
+  // Verification and application status
+  verification_status: string | null;
+  application_status: string | null;
+  application_type: string | null;
+
+  // Supplier / technician quality and work metrics
   average_rating: number | null;
   review_count: number;
   low_rating_count: number;
   completed_work_count: number | null;
   cancelled_work_count: number | null;
 };
+
 
 
 export async function adminUsersWithMeta(params?: {
