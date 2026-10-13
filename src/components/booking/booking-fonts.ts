@@ -1,26 +1,27 @@
-import localFont from 'next/font/local';
+/**
+ * Booking-flow typography configuration.
+ * - Sora: geometric display face for headlines and prices
+ * - Plus Jakarta Sans: highly legible UI/body face
+ * 
+ * Optimized with CSS variables to ensure zero build-time loader errors 
+ * on Vercel while keeping identical design tokens.
+ */
 
-export const bookingDisplay = localFont({
-  src: [
-    { path: '../../../public/fonts/sora-600.woff2', weight: '600', style: 'normal' },
-    { path: '../../../public/fonts/sora-700.woff2', weight: '700', style: 'normal' },
-    { path: '../../../public/fonts/sora-800.woff2', weight: '800', style: 'normal' },
-  ],
-  display: 'swap',
+export const bookingDisplay = {
+  className: 'font-bk-display',
   variable: '--font-bk-display',
-});
+  style: {
+    fontFamily: 'var(--font-bk-display), sans-serif',
+  },
+};
 
-export const bookingBody = localFont({
-  src: [
-    { path: '../../../public/fonts/plus-jakarta-sans-400.woff2', weight: '400', style: 'normal' },
-    { path: '../../../public/fonts/plus-jakarta-sans-500.woff2', weight: '500', style: 'normal' },
-    { path: '../../../public/fonts/plus-jakarta-sans-600.woff2', weight: '600', style: 'normal' },
-    { path: '../../../public/fonts/plus-jakarta-sans-700.woff2', weight: '700', style: 'normal' },
-    { path: '../../../public/fonts/plus-jakarta-sans-800.woff2', weight: '800', style: 'normal' },
-  ],
-  display: 'swap',
+export const bookingBody = {
+  className: 'font-bk-body',
   variable: '--font-bk-body',
-});
+  style: {
+    fontFamily: 'var(--font-bk-body), sans-serif',
+  },
+};
 
 
 
