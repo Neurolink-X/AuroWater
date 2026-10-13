@@ -9,10 +9,8 @@ import {
   getTokenFromRequest,
 } from '@/lib/auth/jwt';
 
-import {
-  createSupabaseUserClient,
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+import { isSupabaseConfigured } from '@/lib/db/supabase';
+import { createSupabaseUserClient } from '@/lib/db/supabase-server';
 
 import type {
   ProfileRow,
