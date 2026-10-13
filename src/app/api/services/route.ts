@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseAnonClient, isSupabaseConfigured } from '@/lib/db/supabase';
+import { isSupabaseConfigured } from '@/lib/db/supabase';
+import { createSupabaseAnonClient } from '@/lib/db/supabase-server';
 import { successResponse } from '@/lib/utils/helpers';
 
 export async function GET() {
