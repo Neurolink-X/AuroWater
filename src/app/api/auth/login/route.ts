@@ -11,11 +11,11 @@ import {
   profileTableUnavailableMessage,
 } from '@/lib/auth/ensure-profile';
 
+import { isSupabaseConfigured } from '@/lib/db/supabase';
 import {
   createSupabaseAnonClient,
   createSupabaseUserClient,
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+} from '@/lib/db/supabase-server';
 
 import type { ProfileRow } from '@/lib/db/types';
 
