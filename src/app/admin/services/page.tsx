@@ -1,4 +1,4 @@
-```tsx
+
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -67,6 +67,7 @@ export default function AdminServicesPage() {
       try {
         // This is the existing admin settings API.
         // It avoids inventing a new service table or endpoint.
+      
         const response = await fetch('/api/admin/settings', {
           method: 'GET',
           credentials: 'same-origin',
@@ -77,17 +78,18 @@ export default function AdminServicesPage() {
         const payload = (await response.json().catch(() => ({}))) as ApiResult;
 
         if (!response.ok) {
-          throw new Error(
+          const message =
             payload.message ||
-              payload.error ||
-              `Unable to load settings (${response.status}).`,
-          );
+            payload.error ||
+            `Unable to load settings (HTTP ${response.status}).`;
+
+          throw new Error(message);
         }
 
         if (!cancelled) {
           setServices(extractServices(payload));
         }
-      } catch (err) {
+    catch (err) {
         if (!cancelled) {
           setError(
             err instanceof Error
@@ -328,4 +330,3 @@ export default function AdminServicesPage() {
     </main>
   );
 }
-```
