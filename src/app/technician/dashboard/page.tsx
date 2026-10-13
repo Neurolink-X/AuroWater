@@ -149,6 +149,22 @@ interface TechProfile {
 
 type Availability = Record<string, boolean>;
 
+interface Stats {
+  todayCount: number;
+  totalCompleted: number;
+  monthEarnings: number;
+  totalEarnings: number;
+  avgRating: number | null;
+  anyOrderValueOnly: boolean;
+}
+
+interface DayPoint {
+  key: string;
+  label: string;
+  value: number;
+  isToday: boolean;
+}
+
 /* ───────────────────────────── Constants ───────────────────────────── */
 
 const ALLOWED_ROLES = ['technician', 'plumber'];
@@ -169,7 +185,6 @@ const ACCEPTED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'applica
 const UPI_PATTERN = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
 const SEED_UPI = 'rahul.verma@upi';
 
-/** Flip to true only after submitDocumentsToServer() is wired to a real upload and review endpoint. */
 const DOCUMENT_REVIEW_LIVE = true;
 
 const KEYS = {
@@ -1460,12 +1475,10 @@ export default function TechnicianDashboardPage() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [docsSubmitting, setDocsSubmitting] = useState(false);
 
-  // Single declared instance of persisted states
   const [profile, setProfile] = usePersisted<TechProfile>(KEYS.PROFILE, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
   const [availability, setAvailability] = usePersisted<Availability>(KEYS.AVAILABILITY, {}, normalizeAvailability);
   const [docs, setDocs] = usePersisted<TechDocs>(KEYS.DOCS, {}, normalizeDocs);
 
-  // Backend sync helpers
   const saveProfileToServer = useCallback(async (updated: TechProfile) => {
     try {
       await fetch('/api/technicians/profile', {
@@ -1499,12 +1512,10 @@ export default function TechnicianDashboardPage() {
   const busyRef = useRef<Record<string, string>>({});
   const seenOffersRef = useRef<Set<string> | null>(null);
 
-  /* ── Mount: device-local state, hash tab, greeting, obsolete cleanup ── */
   useEffect(() => {
     const savedOnline = lsGet(KEYS.ONLINE);
     setOnline(savedOnline === 'online' ? 'online' : 'offline');
 
-    // Fetch live verification status from the server
     async function fetchVerification() {
       try {
         const res = await fetch('/api/technicians/profile');
