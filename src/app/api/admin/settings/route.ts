@@ -44,7 +44,7 @@ interface SettingMeta {
  * - frontend usage
  * - production impact
  */
-export const SETTINGS_SCHEMA: Record<
+const SETTINGS_SCHEMA: Record<
   string,
   SettingMeta
 > = {
