@@ -102,4 +102,54 @@ assert.ok(supplierFinanceMigration.includes('pg_advisory_xact_lock'));
 assert.ok(supplierFinanceMigration.includes('ORDER_EARNING'));
 assert.ok(supplierFinanceMigration.includes('payee_balance(v_user_id)'));
 
-console.log(`Route/access, pricing, and supplier finance regression checks passed (${byRoute.size} page routes).`);
+// Versioned pricing regression guards: immutable versions, atomic publish/audit,
+// server-calculated snapshots, and customer-visible rates from the same effective rule.
+const pricingMigration = readFileSync(join(root, 'sql', '027_versioned_pricing_rules.sql'), 'utf8');
+assert.match(pricingMigration, /CREATE TABLE IF NOT EXISTS public\.pricing_versions/);
+assert.match(pricingMigration, /prevent_pricing_version_mutation/);
+assert.match(pricingMigration, /prevent_order_pricing_snapshot_mutation/);
+assert.match(pricingMigration, /publish_pricing_version/);
+assert.match(pricingMigration, /pg_advisory_xact_lock/);
+assert.match(pricingMigration, /current \u20b920 single-can supplier payout rule/);
+
+const pricingAdminApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'pricing', 'route.ts'), 'utf8');
+assert.match(pricingAdminApi, /publish_pricing_version/);
+assert.match(pricingAdminApi, /requireAdmin/);
+assert.match(pricingAdminApi, /price must be between \u20b920 and \u20b9500/);
+
+const pricingAdminPage = readFileSync(join(root, 'src', 'app', 'admin', 'pricing', 'page.tsx'), 'utf8');
+assert.match(pricingAdminPage, /Versioned pricing/);
+assert.match(pricingAdminPage, /Publish new version/);
+assert.match(pricingAdminPage, /Immutable history/);
+
+const customerPricingApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
+assert.match(customerPricingApi, /pricing_snapshot/);
+assert.match(customerPricingApi, /activePricingRow/);
+assert.match(customerPricingApi, /activePricingConfig\?\.water_normal/);
+assert.match(customerPricingApi, /supplier_entitlement/);
+
+const adminCreatedOrdersApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'orders', 'route.ts'), 'utf8');
+assert.match(adminCreatedOrdersApi, /pricing_snapshot/);
+assert.match(adminCreatedOrdersApi, /activePricingConfig\?\.water_normal/);
+
+const publicSettingsApi = readFileSync(join(root, 'src', 'app', 'api', 'settings', 'route.ts'), 'utf8');
+assert.match(publicSettingsApi, /pricing_versions/);
+assert.match(publicSettingsApi, /pricing_version/);
+
+const bookingWizard = readFileSync(join(root, 'src', 'components', 'booking', 'BookingWizard.tsx'), 'utf8');
+assert.match(bookingWizard, /settings\.default_can_price/);
+assert.match(bookingWizard, /settings\.chilled_can_price/);
+assert.match(bookingWizard, /settings\.subscription_can_price/);
+assert.match(bookingWizard, /settings\.bulk_can_price/);
+
+const subscriptionCron = readFileSync(join(root, 'src', 'app', 'api', 'cron', 'subscriptions', 'route.ts'), 'utf8');
+assert.match(subscriptionCron, /versioned_subscription_contract/);
+assert.match(subscriptionCron, /contract_snapshot/);
+assert.match(subscriptionCron, /supplier_entitlement_policy/);
+assert.match(pricingMigration, /prevent_subscription_pricing_snapshot_mutation/);
+
+const migrationBuilder = readFileSync(join(root, 'scripts', 'build-supabase-migrations.mjs'), 'utf8');
+assert.match(migrationBuilder, /027_versioned_pricing_rules\.sql/);
+assert.match(migrationBuilder, /026_supplier_finance_integrity\.sql/);
+
+console.log(`Route/access, versioned pricing, and supplier finance regression checks passed (${byRoute.size} page routes).`);

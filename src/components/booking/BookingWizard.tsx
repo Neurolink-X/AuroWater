@@ -101,10 +101,7 @@ const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
-const NORMAL_RO_CAN_PRICE: number = CAN_PRICES.normal;
-const CHILLED_RO_CAN_PRICE: number = CAN_PRICES.chilled;
 const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
-const BULK_RO_CAN_PRICE: number = CAN_PRICES.bulk;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -405,7 +402,11 @@ function subOptionDelta(serviceKey: string, subOptionKey: string): number {
 
 function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
   if (draft.serviceKey === 'plumbing') {
-    return PLUMBER_PRICES[draft.plumberType ?? 'labour'];
+    return settings.pricing_version
+      ? draft.plumberType === 'mistri'
+        ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri)
+        : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour)
+      : PLUMBER_PRICES[draft.plumberType ?? 'labour'];
   }
   return settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
 }
@@ -453,12 +454,12 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
       Math.max(1, draft.canQuantity ?? 1)
     );
     const per = draft.subOptionKey === 'chilled_ro'
-      ? CHILLED_RO_CAN_PRICE
+      ? settings.chilled_can_price
       : draft.canOrderType === 'subscription'
-        ? SUBSCRIPTION_RO_CAN_PRICE
+        ? settings.subscription_can_price
         : qty >= settings.bulk_threshold
-          ? BULK_RO_CAN_PRICE
-          : NORMAL_RO_CAN_PRICE;
+          ? settings.bulk_can_price
+          : settings.default_can_price;
     return Math.round(qty * per);
   }
 
@@ -636,7 +637,7 @@ function ServicePriceBox({
 export default function BookingWizard() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const { settings, calcOrderTotal, whatsappHref } = useSettings();
+  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings();
   const { session }  = useAuth();
 
   const [step, setStep]           = useState(1);
@@ -916,8 +917,12 @@ export default function BookingWizard() {
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
   const breakdown  = useMemo(() => {
     const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
-    return { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
-  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
+    // Before migration 027, preserve the existing no-GST checkout behavior.
+    // After versioned pricing is active, use the published tax rate consistently.
+    return settings.pricing_version
+      ? raw
+      : { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
+  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey, settings.pricing_version]);
 
   /* Itemised lines (sum = baseAmount) so every screen shows the same numbers */
   const priceLines = useMemo<PriceLine[]>(
@@ -933,18 +938,18 @@ export default function BookingWizard() {
     !!subOptionMeta(draft.serviceKey, draft.subOptionKey)?.quoteAfterVisit;
 
   const fromPrice = useCallback((key: string) => {
-    if (key === 'water_can') return NORMAL_RO_CAN_PRICE;
-    if (key === 'plumbing') return PLUMBER_PRICES.labour;
+    if (key === 'water_can') return settings.default_can_price;
+    if (key === 'plumbing') return settings.pricing_version ? (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES.labour;
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
   const perCan = draft.subOptionKey === 'chilled_ro'
-    ? CHILLED_RO_CAN_PRICE
+    ? settings.chilled_can_price
     : draft.canOrderType === 'subscription'
-      ? SUBSCRIPTION_RO_CAN_PRICE
+      ? settings.subscription_can_price
       : (draft.canQuantity ?? 1) >= settings.bulk_threshold
-        ? BULK_RO_CAN_PRICE
-        : NORMAL_RO_CAN_PRICE;
+        ? settings.bulk_can_price
+        : settings.default_can_price;
 
   const isSubscription =
     draft.serviceKey === 'water_can' &&
@@ -959,7 +964,7 @@ export default function BookingWizard() {
   const offPct = showCompare ? pctOff(marketPerCan, perCan) : 0;
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
   const subSave =
-    isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > SUBSCRIPTION_RO_CAN_PRICE
+    isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > settings.subscription_can_price
       ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
       : 0;
 
@@ -1400,6 +1405,13 @@ export default function BookingWizard() {
             const errCode =
         (e as { code?: string; details?: { code?: string } } | null)?.code ??
         (e as { details?: { code?: string } } | null)?.details?.code;
+      if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
+        await refreshSettings();
+        const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
+        setSubmitError(m);
+        toast.error(m);
+        return;
+      }
       if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
         const m = 'We could not place this address on the map. Please tap "Detect my location", or add the address again with your area and 6-digit pincode.';
         setSubmitError(m); toast.error(m);
@@ -1551,13 +1563,13 @@ export default function BookingWizard() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Water type">
                   <button type="button" aria-pressed={draft.subOptionKey !== 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'normal_ro' }))} className={optionBtn(draft.subOptionKey !== 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
-                    <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(NORMAL_RO_CAN_PRICE)} / 20L</span>
+                    <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(settings.default_can_price)} / 20L</span>
                     <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
                     <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
                   </button>
                   <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Chilled RO Water</span>
-                    <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(CHILLED_RO_CAN_PRICE)} / 20L</span>
+                    <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(settings.chilled_can_price)} / 20L</span>
                     <span className="mt-1 block text-xs text-slate-500">For parties, weddings &amp; events</span>
                     <span className="mt-1 block text-[11px] text-slate-500">Chilled &amp; delivered</span>
                   </button>
@@ -1608,10 +1620,10 @@ export default function BookingWizard() {
                   >
                     <span className="block text-sm font-extrabold">One-time</span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(draft.subOptionKey === 'chilled_ro' ? CHILLED_RO_CAN_PRICE : NORMAL_RO_CAN_PRICE)} per can
+                      {inr(draft.subOptionKey === 'chilled_ro' ? settings.chilled_can_price : settings.default_can_price)} per can
                     </span>
                     <span className="mt-1 block text-[11px] text-slate-400">
-                      {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(BULK_RO_CAN_PRICE)} per can from ${settings.bulk_threshold} cans`}
+                      {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(settings.bulk_can_price)} per can from ${settings.bulk_threshold} cans`}
                     </span>
                   </button>
 
@@ -1638,11 +1650,11 @@ export default function BookingWizard() {
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
                         {(draft.canQuantity ?? 1) >= settings.bulk_threshold
                           ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-                          : `Save 10% · ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
+                          : `Save 10% · ₹${settings.subscription_can_price}/can`}
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(SUBSCRIPTION_RO_CAN_PRICE)} per can · Save 10% vs one-time Normal RO
+                      {inr(settings.subscription_can_price)} per can · Save 10% vs one-time Normal RO
                     </span>
                     {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
                     <span className="mt-1 block text-[11px] text-slate-400">
@@ -1760,7 +1772,7 @@ export default function BookingWizard() {
                       >
                         <span className="block font-bold">{PLUMBER_LABELS[type]}</span>
                         <span className="mt-1 block text-sm">
-                          {inr(PLUMBER_PRICES[type])} starting
+                          {inr(settings.pricing_version ? type === 'mistri' ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri) : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES[type])} starting
                         </span>
                         <span className="mt-1 block text-xs text-slate-500">
                           Final quote depends on scope and materials.

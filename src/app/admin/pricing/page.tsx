@@ -1,382 +1,49 @@
-
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminSettingsGet } from '@/lib/api-client';
+import { toast } from 'sonner';
 
-type UnknownRecord = Record<string, unknown>;
+type Config = { water_normal:number; water_chilled:number; water_subscription:number; bulk_can_price:number; bulk_threshold:number; services:Record<string,number>; convenience_fee:number; emergency_surcharge:number; gst_rate:number };
+type Version = { id:number; version:number; effective_from:string; reason:string; config:Config; created_at:string; currently_effective?:boolean };
+const labels:Record<string,string> = { water_tanker:'Water tanker', ro_service:'RO service', plumbing:'Plumbing labour', borewell:'Borewell', motor_pump:'Motor & pump', tank_cleaning:'Tank cleaning' };
+const currency = (v:number) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(v);
 
-type PriceEntry = {
-  key: string;
-  label: string;
-  price: number;
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  water_can: 'Water can',
-  normal_ro: 'Normal RO water',
-  chilled_ro: 'Chilled RO water',
-  plumbing: 'Plumbing',
-  installation: 'Installation',
-  maintenance: 'Maintenance',
-  water_tanker: 'Water tanker',
-  ro_service: 'RO service',
-  borewell: 'Borewell service',
-  motor_pump: 'Motor pump',
-  tank_cleaning: 'Water tank cleaning',
-};
-
-const PRICE_MAP_KEYS = [
-  'service_base_prices',
-  'serviceBasePrices',
-  'configured_price',
-  'configured_prices',
-] as const;
-
-const PRICE_VALUE_KEYS = ['price', 'base_price', 'basePrice', 'amount'] as const;
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  );
+async function call<T>(method:'GET'|'POST', body?:unknown):Promise<T> {
+ const res=await fetch('/api/admin/pricing',{method,credentials:'include',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const envelope=await res.json().catch(()=>({}));
+ if(!res.ok||envelope.success===false) throw new Error(envelope.error||'Request failed');
+ return envelope.data as T;
 }
-
-/**
- * Supports the existing API's common response envelopes without
- * assuming that every response has identical nesting.
- */
-function getSettings(payload: unknown): UnknownRecord | null {
-  if (!isRecord(payload)) return null;
-
-  let current: UnknownRecord = payload;
-
-  for (let depth = 0; depth < 4; depth += 1) {
-    if (isRecord(current.settings)) {
-      current = current.settings;
-      continue;
-    }
-
-    if (isRecord(current.data)) {
-      current = current.data;
-      continue;
-    }
-
-    return current;
-  }
-
-  return current;
-}
-
-function getPriceMap(
-  settings: UnknownRecord | null,
-): UnknownRecord | null {
-  if (!settings) return null;
-
-  for (const key of PRICE_MAP_KEYS) {
-    if (isRecord(settings[key])) {
-      return settings[key] as UnknownRecord;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Accepts finite non-negative numbers and numeric strings.
- * Does not accept empty strings, negative prices, NaN or Infinity.
- */
-function parsePrice(value: unknown): number | null {
-  let candidate = value;
-
-  if (isRecord(value)) {
-    candidate = undefined;
-
-    for (const key of PRICE_VALUE_KEYS) {
-      if (value[key] !== undefined && value[key] !== null) {
-        candidate = value[key];
-        break;
-      }
-    }
-  }
-
-  if (typeof candidate === 'string') {
-    if (!candidate.trim()) return null;
-    candidate = Number(candidate);
-  }
-
-  if (
-    typeof candidate !== 'number' ||
-    !Number.isFinite(candidate) ||
-    candidate < 0
-  ) {
-    return null;
-  }
-
-  return candidate;
-}
-
-function formatServiceLabel(key: string): string {
-  return (
-    SERVICE_LABELS[key] ??
-    key.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
-  );
-}
-
-function toPriceEntries(
-  priceMap: UnknownRecord | null,
-): PriceEntry[] {
-  if (!priceMap) return [];
-
-  return Object.entries(priceMap)
-    .flatMap(([key, value]) => {
-      const price = parsePrice(value);
-
-      if (price === null) return [];
-
-      return [
-        {
-          key,
-          label: formatServiceLabel(key),
-          price,
-        },
-      ];
-    })
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-function getErrorMessage(cause: unknown): string {
-  if (!(cause instanceof Error)) {
-    return 'An unexpected error occurred while loading pricing.';
-  }
-
-  if (/unauthorized|no authentication token|http 401/i.test(cause.message)) {
-    return 'Your admin session may have expired. Sign in again and retry.';
-  }
-
-  if (/forbidden|http 403/i.test(cause.message)) {
-    return 'Your account does not have permission to view pricing settings.';
-  }
-
-  return cause.message || 'Could not load pricing settings.';
-}
-
 export default function AdminPricingPage() {
-  const [prices, setPrices] = useState<PriceEntry[]>([]);
-  const [hasPriceMap, setHasPriceMap] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  // Prevent older requests from overwriting newer results.
-  const requestId = useRef(0);
-
-  const loadPricing = useCallback(async () => {
-    const currentRequestId = ++requestId.current;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // Uses the existing authenticated API client and Bearer token.
-      const payload: unknown = await adminSettingsGet();
-
-      if (currentRequestId !== requestId.current) return;
-
-      const settings = getSettings(payload);
-      const priceMap = getPriceMap(settings);
-
-      setHasPriceMap(priceMap !== null);
-      setPrices(toPriceEntries(priceMap));
-    } catch (cause) {
-      if (currentRequestId !== requestId.current) return;
-
-      setHasPriceMap(false);
-      setPrices([]);
-      setError(getErrorMessage(cause));
-    } finally {
-      if (currentRequestId === requestId.current) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPricing();
-
-    return () => {
-      // Ignore results from this effect after refresh or unmount.
-      requestId.current += 1;
-    };
-  }, [loadPricing, refreshKey]);
-
-  return (
-    <main className="min-h-screen bg-white text-slate-900">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
-          <div>
-            <p className="text-xs font-bold tracking-[0.18em] text-cyan-700">
-              AUROTAP / ADMIN
-            </p>
-            <h1 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
-              Pricing &amp; charges
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Review water prices and rates returned by your existing settings API.
-            </p>
-          </div>
-
-          <Link
-            href="/admin/dashboard"
-            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50"
-          >
-            Back to dashboard
-          </Link>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8">
-        <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-800 to-blue-950 p-6 text-white sm:p-9">
-          <p className="text-sm font-semibold text-cyan-100">
-            TRANSPARENT WATER PRICING
-          </p>
-          <h2 className="mt-3 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-4xl">
-            Clear prices. Better customer trust.
-          </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-cyan-50 sm:text-base">
-            Keep the price shown to customers consistent with checkout,
-            subscriptions and supplier settlements. Verify every charge before
-            changing production pricing.
-          </p>
-        </section>
-
-        <section className="mt-8">
-          <div>
-            <h2 className="text-xl font-bold">Customer-facing water prices</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Established display prices for 20-litre cans.
-            </p>
-          </div>
-
-          <div className="mt-4 grid gap-5 md:grid-cols-2">
-            <article className="rounded-2xl border border-cyan-100 bg-white p-6 shadow-sm transition hover:shadow-md">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-50 text-2xl">
-                💧
-              </div>
-              <p className="mt-5 text-lg font-bold">Normal RO water</p>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold">₹20</span>
-                <span className="text-sm text-slate-500">per 20L can</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Customer-facing price including delivery and GST, according
-                to the current business pricing decision.
-              </p>
-            </article>
-
-            <article className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm transition hover:shadow-md">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-2xl">
-                ❄️
-              </div>
-              <p className="mt-5 text-lg font-bold">Chilled RO water</p>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-4xl font-extrabold">₹25</span>
-                <span className="text-sm text-slate-500">per 20L can</span>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                Customer-facing chilled-water price. Verify checkout totals
-                and applicable taxes before changing production pricing.
-              </p>
-            </article>
-          </div>
-        </section>
-
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold">Configured service rates</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Read-only values returned by the existing admin settings API.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setRefreshKey((current) => current + 1)}
-              disabled={loading}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {loading ? 'Loading…' : 'Refresh rates'}
-            </button>
-          </div>
-
-          {error ? (
-            <div
-              role="alert"
-              className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4"
-            >
-              <p className="font-semibold text-rose-800">
-                Pricing settings could not be loaded
-              </p>
-              <p className="mt-1 break-words text-sm text-rose-700">
-                {error}
-              </p>
-              <p className="mt-2 text-sm text-rose-700">
-                Check your admin session and server permissions. Do not disable
-                server-side authorization to resolve an authentication error.
-              </p>
-            </div>
-          ) : loading ? (
-            <p className="py-12 text-center text-sm text-slate-500" role="status">
-              Loading configured rates…
-            </p>
-          ) : !hasPriceMap ? (
-            <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6">
-              <h3 className="font-semibold">No recognised price map found</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                The settings response does not contain a recognised price map.
-                Check the actual API response and database schema before
-                changing the pricing configuration.
-              </p>
-            </div>
-          ) : prices.length === 0 ? (
-            <p className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-600">
-              The configured price map contains no valid non-negative numeric rates.
-            </p>
-          ) : (
-            <div className="mt-5 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
-              {prices.map((entry) => (
-                <div
-                  key={entry.key}
-                  className="flex items-center justify-between gap-4 px-4 py-4 sm:px-5"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold">{entry.label}</p>
-                    <p className="mt-1 break-all text-xs text-slate-400">
-                      {entry.key}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-lg font-bold">
-                    ₹{entry.price.toLocaleString('en-IN')}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <h2 className="font-bold text-amber-950">Pricing safety checklist</h2>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-amber-950/80">
-            <li>Confirm checkout totals match the displayed prices.</li>
-            <li>Do not add delivery twice when the advertised price includes it.</li>
-            <li>Verify subscription rates separately from single-order rates.</li>
-            <li>Verify supplier payouts and platform commission calculations.</li>
-          </ul>
-        </section>
-      </div>
-    </main>
-  );
+ const [versions,setVersions]=useState<Version[]>([]);
+ const [current,setCurrent]=useState<Version|null>(null);
+ const [config,setConfig]=useState<Config>({water_normal:20,water_chilled:25,water_subscription:20,bulk_can_price:20,bulk_threshold:50,services:{water_tanker:299,ro_service:349,plumbing:149,borewell:499,motor_pump:299,tank_cleaning:599},convenience_fee:10,emergency_surcharge:30,gst_rate:0});
+ const [reason,setReason]=useState(''); const [effective,setEffective]=useState(''); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState('');
+ const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await call<{versions:Version[];current:Version|null}>('GET');setVersions(r.versions);setCurrent(r.current);if(r.current?.config)setConfig(r.current.config);}catch(e){setError(e instanceof Error?e.message:'Could not load pricing.');}finally{setLoading(false);}},[]);
+ useEffect(()=>{void load();},[load]);
+ const update=(key:keyof Omit<Config,'services'>,v:string)=>setConfig(old=>({...old,[key]:v===''?0:Number(v)}));
+ const updateService=(key:string,v:string)=>setConfig(old=>({...old,services:{...old.services,[key]:v===''?0:Number(v)}}));
+ const field=(label:string,value:number,onChange:(v:string)=>void,min=0,max=100000,step='0.01')=><label key={label} className="block space-y-1.5 text-sm"><span className="font-semibold text-slate-800">{label}</span><input type="number" min={min} max={max} step={step} value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus:border-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-700/20"/></label>;
+ const publish=async()=>{if(saving)return;if(reason.trim().length<3){setError('Enter a clear reason for this price change.');return;}setSaving(true);setError('');try{await call('POST',{config,reason:reason.trim(),effective_from:effective?new Date(effective).toISOString():new Date().toISOString()});toast.success('New pricing version published');setReason('');setEffective('');await load();}catch(e){const msg=e instanceof Error?e.message:'Publish failed';setError(msg);toast.error(msg);}finally{setSaving(false);}};
+ return <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-8"><div className="mx-auto max-w-6xl space-y-6">
+ <header className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-bold tracking-[.18em] text-cyan-800">AUROTAP / ADMIN</p><h1 className="mt-2 text-3xl font-extrabold">Versioned pricing</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Publish a new price version with an effective date and audit reason. Water rates cannot go below the current ₹20 single-can supplier payout rule; multi-can payout schedules remain unapproved. Versions are immutable; old orders and payouts must never be recalculated from today&apos;s prices.</p></div><Link href="/admin/dashboard" className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold">Back to dashboard</Link></header>
+ {error&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
+ <section className="grid gap-4 md:grid-cols-3"><article className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase text-slate-500">Current effective version</p><p className="mt-2 text-2xl font-extrabold">{current?'v'+current.version:'Unavailable'}</p><p className="mt-1 text-sm text-slate-500">{current?new Date(current.effective_from).toLocaleString('en-IN'):'Apply migration 027 to enable versioning.'}</p></article><article className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase text-slate-500">Water pricing</p><p className="mt-2 text-2xl font-extrabold">{currency(config.water_normal)} / {currency(config.water_chilled)}</p><p className="mt-1 text-sm text-slate-500">Normal / chilled per 20L can</p></article><article className="rounded-2xl border bg-white p-5"><p className="text-xs font-bold uppercase text-slate-500">Version history</p><p className="mt-2 text-2xl font-extrabold">{versions.length}</p><p className="mt-1 text-sm text-slate-500">Read-only published history</p></article></section>
+ <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><h2 className="text-xl font-bold">Draft a new version</h2><p className="mt-1 text-sm text-slate-600">Prices are server-validated. The active version is selected by effective date.</p>
+ <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+ {field('Normal RO · ₹/can',config.water_normal,v=>update('water_normal',v),20,500)}
+ {field('Chilled RO · ₹/can',config.water_chilled,v=>update('water_chilled',v),20,500)}
+ {field('Subscription RO · ₹/can',config.water_subscription,v=>update('water_subscription',v),20,500)}
+ {field('Bulk RO · ₹/can',config.bulk_can_price,v=>update('bulk_can_price',v),20,500)}
+ {field('Bulk threshold · cans',config.bulk_threshold,v=>update('bulk_threshold',v),2,200,'1')}
+ {field('Convenience fee · ₹',config.convenience_fee,v=>update('convenience_fee',v),0,500)}
+ {field('Emergency surcharge · ₹',config.emergency_surcharge,v=>update('emergency_surcharge',v),0,5000)}
+ {field('GST rate · decimal',config.gst_rate,v=>update('gst_rate',v),0,1,'0.01')}
+ {Object.keys(config.services).sort().map(k=>field((labels[k]??k.replace(/_/g,' '))+' · ₹ base',config.services[k],v=>updateService(k,v),1,100000))}
+ </div>
+ <div className="mt-5 grid gap-4 md:grid-cols-2"><label className="space-y-1.5 text-sm"><span className="font-semibold">Effective from (optional)</span><input type="datetime-local" value={effective} min={new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)} onChange={e=>setEffective(e.target.value)} className="w-full rounded-xl border border-slate-300 px-3 py-2.5"/><span className="block text-xs text-slate-500">Blank means immediately.</span></label><label className="space-y-1.5 text-sm"><span className="font-semibold">Reason (required)</span><textarea value={reason} maxLength={500} onChange={e=>setReason(e.target.value)} rows={3} placeholder="e.g. approved supplier cost revision" className="w-full rounded-xl border border-slate-300 px-3 py-2.5"/><span className="block text-xs text-slate-500">{reason.length}/500 characters</span></label></div>
+ <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-5"><p className="max-w-2xl text-xs leading-5 text-amber-800">Publishing is not the same as deploying. Ensure order APIs have been wired to read the version and save snapshots before relying on live checkout pricing.</p><button onClick={()=>void publish()} disabled={saving||loading||!current||reason.trim().length<3} className="rounded-xl bg-cyan-800 px-5 py-3 text-sm font-bold text-white hover:bg-cyan-900 disabled:opacity-50">{saving?'Publishing…':'Publish new version'}</button></div></section>
+ <section className="rounded-2xl border bg-white p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Immutable history</h2><button onClick={()=>void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">{loading?'Loading…':'Refresh history'}</button></div><div className="mt-4 divide-y">{versions.map(v=><article key={v.id} className="grid gap-2 py-4 sm:grid-cols-[1fr_auto]"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold">Version {v.version}</h3>{v.currently_effective&&<span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-800">Effective now</span>}</div><p className="mt-1 text-sm text-slate-600">{v.reason}</p><p className="mt-1 text-xs text-slate-500">Effective {new Date(v.effective_from).toLocaleString('en-IN')} · Published {new Date(v.created_at).toLocaleString('en-IN')}</p></div><p className="font-bold">{currency(v.config.water_normal)} / {currency(v.config.water_chilled)}</p></article>)}{!versions.length&&!loading&&<p className="py-6 text-sm text-slate-500">No pricing versions found.</p>}</div></section>
+ </div></main>;
 }

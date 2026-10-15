@@ -434,6 +434,29 @@ export async function GET(
                 nextDate,
               scheduled_at:
                 scheduledAt,
+              ...(subscription.pricing_version !== undefined ? {
+                pricing_version: subscription.pricing_version ?? null,
+                pricing_snapshot: {
+                  currency: 'INR',
+                  version: subscription.pricing_version ?? null,
+                  source: subscription.pricing_version ? 'versioned_subscription_contract' : 'legacy_subscription_contract',
+                  service_type: 'water_can',
+                  contract_snapshot: subscription.pricing_snapshot && typeof subscription.pricing_snapshot === 'object'
+                    ? subscription.pricing_snapshot
+                    : null,
+                  quantity: qty,
+                  unit_price: unit,
+                  base_amount: base,
+                  convenience_fee: convenience,
+                  emergency_charge: 0,
+                  gst_rate: gstRate,
+                  gst_amount: gst,
+                  total_amount: total,
+                  supplier_entitlement: qty === 1 && total === 20 ? 20 : null,
+                  supplier_entitlement_policy: 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule',
+                  scheduled_at: scheduledAt,
+                },
+              } : {}),
             })
             .select('id')
             .single();

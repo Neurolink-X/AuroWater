@@ -70,10 +70,39 @@ export async function GET() {
       return ok(defaultPayload());
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...defaultPayload(),
       ...rowsToSettingsPayload(data),
     };
+
+    // Public prices follow the same effective immutable version as server checkout.
+    // The legacy settings payload remains the fallback until migration 021 is applied.
+    const { data: activeVersion, error: versionError } = await supabase
+      .from('pricing_versions')
+      .select('version, effective_from, config')
+      .lte('effective_from', new Date().toISOString())
+      .order('effective_from', { ascending: false })
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
+      const config = activeVersion.config as Record<string, unknown>;
+      const servicePrices = config.services && typeof config.services === 'object'
+        ? config.services as Record<string, number>
+        : {};
+      payload.pricing_version = activeVersion.version;
+      payload.pricing_effective_from = activeVersion.effective_from;
+      if (typeof config.water_normal === 'number') payload.default_can_price = config.water_normal;
+      if (typeof config.water_chilled === 'number') payload.chilled_can_price = config.water_chilled;
+      if (typeof config.water_subscription === 'number') payload.subscription_can_price = config.water_subscription;
+      if (typeof config.bulk_can_price === 'number') payload.bulk_can_price = config.bulk_can_price;
+      if (typeof config.bulk_threshold === 'number') payload.bulk_threshold = config.bulk_threshold;
+      if (typeof config.convenience_fee === 'number') payload.convenience_fee = config.convenience_fee;
+      if (typeof config.emergency_surcharge === 'number') payload.emergency_surcharge = config.emergency_surcharge;
+      if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
+      if (Object.keys(servicePrices).length) payload.service_base_prices = servicePrices;
+    }
     return ok(payload);
   } catch (err: unknown) {
     const name = err instanceof Error ? err.name : '';

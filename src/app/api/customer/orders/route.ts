@@ -263,12 +263,33 @@ export async function POST(req: NextRequest) {
   if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
   const flat = settingsResult.map;
 
-  // ── Pricing ──
-  // The booking UI currently does not charge GST. Keep server validation in
-  // sync until tax registration/configuration is explicitly enabled.
-  const gstRate = 0;
-  const convenience = service_type_key === 'water_can' ? 0 : Number(flat.convenience_fee ?? 10);
-  const emergencyFee = Number(flat.emergency_surcharge ?? 30);
+  // Select only a rule already effective at the current server time. Until migration 021
+  // is installed, retain the known launch-safe settings fallback.
+  const { data: activePricingRow, error: activePricingError } = await auth.ctx.supabase
+    .from('pricing_versions')
+    .select('version, effective_from, config')
+    .lte('effective_from', new Date().toISOString())
+    .order('effective_from', { ascending: false })
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const activePricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
+    ? activePricingRow.config as Record<string, unknown>
+    : null;
+  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
+    ? activePricingConfig.services as Record<string, unknown>
+    : {};
+  if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
+    console.error('[orders] active pricing lookup failed', activePricingError);
+    return jsonErr('Pricing is temporarily unavailable. Please retry shortly.', 503);
+  }
+
+  // Keep GST at the currently approved zero-rate behavior unless an administrator
+  // publishes a version with an explicitly configured decimal rate.
+  const gstCandidate = Number(activePricingConfig?.gst_rate ?? 0);
+  const gstRate = Number.isFinite(gstCandidate) && gstCandidate >= 0 && gstCandidate <= 1 ? gstCandidate : 0;
+  const convenience = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 10);
+  const emergencyFee = Number(activePricingConfig?.emergency_surcharge ?? flat.emergency_surcharge ?? 30);
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
@@ -281,7 +302,7 @@ export async function POST(req: NextRequest) {
   let subscriptionFrequency: string | null = null;
 
   if (isWater) {
-    const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
+    const bulkThreshold = Math.max(1, Math.floor(Number(activePricingConfig?.bulk_threshold ?? flat.bulk_threshold)) || 50);
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
     // Chilled RO is a separate one-time product: it uses its own configured
@@ -321,21 +342,28 @@ export async function POST(req: NextRequest) {
 
     // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
     // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
-    const regularPrice = 20;
-    waterUnitPrice = isChilled ? 25 : regularPrice;
+    const regularPrice = Number(activePricingConfig?.water_normal ?? 20);
+    const chilledPrice = Number(activePricingConfig?.water_chilled ?? 25);
+    const subscriptionPrice = Number(activePricingConfig?.water_subscription ?? regularPrice);
+    const bulkPrice = Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice);
+    const unitPrice = isSubscription ? subscriptionPrice : isChilled ? chilledPrice : qty >= bulkThreshold ? bulkPrice : regularPrice;
+    if (![regularPrice, chilledPrice, subscriptionPrice].every((price) => Number.isFinite(price) && price > 0)) {
+      return jsonErr('Water pricing configuration is invalid. Please contact support.', 503);
+    }
+    waterUnitPrice = unitPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
   } else {
     // Never trust a client-supplied base amount. Resolve the canonical service
     // rate from server settings, then apply only known option adjustments.
-    const configuredPrice = Number(flat[service_type_key + '_price']);
+    const configuredPrice = Number(activeServicePrices[service_type_key] ?? flat[service_type_key + '_price']);
     const plumberType = str(body.plumber_type) ?? 'labour';
     if (service_type_key === 'plumbing' && !['labour', 'mistri'].includes(plumberType)) {
       return jsonErr('Choose a valid plumber charge type.', 400);
     }
     const serviceBase = service_type_key === 'plumbing'
-      ? (plumberType === 'mistri' ? 700 : 149)
+      ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri ?? 700) : Number(activeServicePrices.plumbing ?? 149))
       : Number.isFinite(configuredPrice) && configuredPrice > 0
         ? configuredPrice
         : Number(st.base_price) || 0;
@@ -358,7 +386,7 @@ export async function POST(req: NextRequest) {
   if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0.5)) {
     const expected = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
     console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
-    return jsonErr('Price validation failed — totals do not match platform rates', 400);
+    return jsonErr('Pricing changed since this checkout opened. Refresh and review the updated total before placing the order.', 400, 'PRICE_CHANGED');
   }
 
   const { gst: gst_amount } = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
@@ -469,6 +497,27 @@ export async function POST(req: NextRequest) {
       is_emergency,
       note: noteParts.length ? noteParts.join(' | ') : null,
       scheduled_at: scheduledAt,
+      ...(activePricingRow ? {
+        pricing_version: Number(activePricingRow.version),
+        pricing_snapshot: {
+          currency: 'INR',
+          version: Number(activePricingRow.version),
+          effective_from: activePricingRow.effective_from,
+          service_type: service_type_key,
+          option_key: str(body.sub_option_key),
+          quantity: qty,
+          unit_price: waterUnitPrice,
+          base_amount,
+          convenience_fee: convenience,
+          emergency_charge,
+          gst_rate: gstRate,
+          gst_amount,
+          total_amount: total,
+          supplier_entitlement: isWater && qty === 1 && total === 20 ? 20 : null,
+          supplier_entitlement_policy: isWater ? 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule' : 'existing_completion_policy',
+          config: activePricingConfig,
+        },
+      } : {}),
     })
     .select('*')
     .single();
@@ -522,6 +571,11 @@ export async function POST(req: NextRequest) {
         price_per_can: waterUnitPrice,
         convenience_fee: convenience,
         gst_rate: gstRate,
+        // A subscription keeps the exact pricing contract from its first order.
+        ...(activePricingRow ? {
+          pricing_version: Number(activePricingRow.version),
+          pricing_snapshot: (order as Record<string, unknown>).pricing_snapshot ?? null,
+        } : {}),
         notes: str(body.notes),
       })
       .select('id')
@@ -598,6 +652,27 @@ export async function POST(req: NextRequest) {
         ].filter(Boolean).join(' | ') || null,
         scheduled_date: nextDate,
         scheduled_at: nextScheduledAt,
+        ...(activePricingRow ? {
+          pricing_version: Number(activePricingRow.version),
+          pricing_snapshot: {
+            currency: 'INR',
+            version: Number(activePricingRow.version),
+            effective_from: activePricingRow.effective_from,
+            service_type: service_type_key,
+            option_key: 'normal_ro',
+            quantity: qty,
+            unit_price: waterUnitPrice,
+            base_amount: nextBase,
+            convenience_fee: convenience,
+            emergency_charge: 0,
+            gst_rate: gstRate,
+            gst_amount: nextGst,
+            total_amount: nextTotal,
+            supplier_entitlement: qty === 1 && nextTotal === 20 ? 20 : null,
+            supplier_entitlement_policy: 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule',
+            config: activePricingConfig,
+          },
+        } : {}),
       });
 
     if (nextOrderError) {
