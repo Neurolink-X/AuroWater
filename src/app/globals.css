@@ -1,6 +1,9 @@
 /* AuroWater global styles
-   Fonts are loaded with next/font in layout.tsx (no render-blocking @imports). */
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
+   Fonts are loaded with next/font in layout.tsx (no render-blocking @imports).
+   Performance notes:
+   - The Google Fonts @import for Syne was removed: it blocked first paint, and nothing here uses it.
+   - Only transform / opacity are animated; box-shadow transitions are short and tiny.
+   - Dashboards (.neu-theme) skip scroll-reveal so pages feel instant on every switch. */
 @import "tailwindcss";
 
 /* ───────────── Tokens ───────────── */
@@ -42,9 +45,12 @@
   --font-heading: var(--font-clash, 'Clash Display'), var(--font-noto-deva, 'Noto Sans Devanagari'), system-ui, sans-serif;
   --font-body: var(--font-dm-sans, 'DM Sans'), var(--font-noto-deva, 'Noto Sans Devanagari'), system-ui, sans-serif;
 
+  /* Snappier reveal than before (was 900ms / 18px) */
   --reveal-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --reveal-duration: 900ms;
-  --reveal-distance: 18px;
+  --reveal-duration: 600ms;
+  --reveal-distance: 14px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Registers utilities: bg-primary, text-primary-dark, font-heading, shadow-soft ... */
@@ -85,8 +91,10 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-body);
-    text-rendering: optimizeLegibility;
+    /* "auto" is cheaper than optimizeLegibility, noticeable on low-end phones */
+    text-rendering: auto;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
     overflow-x: clip;
   }
@@ -101,6 +109,13 @@
   }
   p, li { text-wrap: pretty; }
   button, input, select, textarea { font: inherit; }
+
+  /* Removes the tap delay and double-tap zoom on controls: feels instant on mobile */
+  a, button, [role="button"], input, select, textarea, summary, label {
+    touch-action: manipulation;
+  }
+
+  img, video, svg { max-width: 100%; }
 
   /* Hindi / Devanagari */
   :lang(hi), .hindi-text, .hindi, .font-devanagari {
@@ -141,6 +156,20 @@
     border-radius: 1rem;
     box-shadow: var(--shadow-soft);
   }
+  /* backdrop blur is GPU-heavy: lighter on phones, off for users who ask for less data */
+  @media (max-width: 768px) {
+    .glass-card {
+      -webkit-backdrop-filter: blur(6px);
+      backdrop-filter: blur(6px);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-card {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: #fff;
+    }
+  }
 
   .gradient-section { background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 50%, #f8fafc 100%); }
   .gradient-hero { background: linear-gradient(160deg, #064e3b 0%, #065f46 30%, #047857 60%, #059669 100%); }
@@ -161,7 +190,7 @@
   }
 
   /* Hover only where hover exists, so touch screens don't get stuck states */
-  .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+  .hover-lift { transition: transform 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out); }
   @media (hover: hover) {
     .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-card); }
   }
@@ -204,6 +233,10 @@
     will-change: transform;
     opacity: 0.8;
   }
+  /* Smaller decorative layer on phones = less GPU memory */
+  @media (max-width: 640px) {
+    .hero-ripple { width: 280px; height: 280px; }
+  }
 
   .marquee-track {
     display: flex;
@@ -241,6 +274,143 @@
     clip: auto !important;
     clip-path: none !important;
   }
+
+  /* ───────────── Neumorphism (dashboards only; needs a .neu-theme wrapper) ───────────── */
+  .neu-theme {
+    --neu-bg: #e4ebe7;
+    --neu-dark: #b7c4bd;
+    --neu-light: #ffffff;
+    --neu-text: #1f2d28;
+    --muted: #55655e; /* darker muted text so it stays readable on the soft background */
+    background: var(--neu-bg);
+    color: var(--neu-text);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Dashboards render instantly: no scroll-reveal hiding content between page switches */
+  .neu-theme :is([data-reveal], .fade-up) {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+
+  .neu-theme .neu-card {
+    background: var(--neu-bg);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 8px 8px 16px var(--neu-dark), -8px -8px 16px var(--neu-light);
+  }
+
+  .neu-theme .neu-inset {
+    background: var(--neu-bg);
+    border-radius: 16px;
+    box-shadow: inset 5px 5px 10px var(--neu-dark), inset -5px -5px 10px var(--neu-light);
+  }
+
+  .neu-theme .neu-btn {
+    background: var(--neu-bg);
+    color: var(--neu-text);
+    border: none;
+    border-radius: 12px;
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 5px 5px 10px var(--neu-dark), -5px -5px 10px var(--neu-light);
+    transition: box-shadow 0.12s var(--ease-out), transform 0.12s var(--ease-out);
+  }
+  @media (hover: hover) {
+    .neu-theme .neu-btn:hover { transform: translateY(-1px); }
+  }
+  .neu-theme .neu-btn:active,
+  .neu-theme .neu-btn[aria-pressed="true"] {
+    transform: none;
+    box-shadow: inset 4px 4px 8px var(--neu-dark), inset -4px -4px 8px var(--neu-light);
+  }
+  .neu-theme .neu-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+  .neu-theme .neu-btn-primary { color: var(--primary-dark); }
+
+  .neu-theme .neu-input {
+    background: var(--neu-bg);
+    color: var(--neu-text);
+    border: none;
+    border-radius: 12px;
+    padding: 10px 14px;
+    width: 100%;
+    box-shadow: inset 4px 4px 8px var(--neu-dark), inset -4px -4px 8px var(--neu-light);
+  }
+  .neu-theme .neu-input::placeholder { color: #6b7a73; }
+
+  .neu-theme .neu-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-weight: 500;
+    box-shadow: 4px 4px 8px var(--neu-dark), -4px -4px 8px var(--neu-light);
+    transition: box-shadow 0.12s var(--ease-out);
+  }
+  .neu-theme .neu-nav[aria-current="page"] {
+    color: var(--primary-dark);
+    font-weight: 700;
+    box-shadow: inset 3px 3px 6px var(--neu-dark), inset -3px -3px 6px var(--neu-light);
+  }
+
+  .neu-theme .neu-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 9999px;
+    display: grid;
+    place-items: center;
+    color: var(--primary);
+    box-shadow: 4px 4px 8px var(--neu-dark), -4px -4px 8px var(--neu-light);
+  }
+
+  /* Tables stay flat for readability */
+  .neu-theme .neu-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .neu-theme .neu-table th { text-align: left; padding: 10px 12px; color: var(--muted); font-weight: 600; }
+  .neu-theme .neu-table td { padding: 12px; border-top: 1px solid rgba(0, 0, 0, 0.06); }
+
+  /* Status badges stay flat and colored so they stand out */
+  .neu-theme .neu-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+  .neu-theme .neu-badge-success { background: var(--primary-light); color: var(--primary-dark); }
+  .neu-theme .neu-badge-warning { background: #fef3c7; color: #92400e; }
+  .neu-theme .neu-badge-danger  { background: #fee2e2; color: #991b1b; }
+
+  /* Loading skeleton (use in app/supplier/loading.tsx). Animates transform only, so it is cheap. */
+  .neu-theme .neu-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--neu-bg);
+    border-radius: 16px;
+    box-shadow: inset 4px 4px 8px var(--neu-dark), inset -4px -4px 8px var(--neu-light);
+  }
+  .neu-theme .neu-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: translateX(-100%);
+    animation: aw-skeleton 1.4s ease-in-out infinite;
+  }
+
+  /* Optional dark variant: <div className="neu-theme neu-dark"> */
+  .neu-theme.neu-dark {
+    --neu-bg: #232a27;
+    --neu-dark: #151a18;
+    --neu-light: #2f3935;
+    --neu-text: #e5ece8;
+    --muted: #9fb0a8;
+    color-scheme: dark;
+  }
 }
 
 /* Skip rendering work for below-the-fold sections: <section className="cv-auto"> */
@@ -261,11 +431,11 @@
   }
 
   /* Legacy delay classes still work */
-  .fade-up-delay-1 { --reveal-delay: 100ms; }
-  .fade-up-delay-2 { --reveal-delay: 200ms; }
-  .fade-up-delay-3 { --reveal-delay: 300ms; }
-  .fade-up-delay-4 { --reveal-delay: 400ms; }
-  .fade-up-delay-5 { --reveal-delay: 500ms; }
+  .fade-up-delay-1 { --reveal-delay: 80ms; }
+  .fade-up-delay-2 { --reveal-delay: 160ms; }
+  .fade-up-delay-3 { --reveal-delay: 240ms; }
+  .fade-up-delay-4 { --reveal-delay: 320ms; }
+  .fade-up-delay-5 { --reveal-delay: 400ms; }
 
   /* rise (default) */
   [data-reveal-ready] :is([data-reveal=''], [data-reveal='rise'], .fade-up):not([data-revealed], .visible) {
@@ -292,6 +462,13 @@
   [data-reveal-ready] [data-reveal='ripple'][data-revealed] { clip-path: circle(75% at 50% 50%); }
 }
 
+/* ───────────── Smooth page-to-page fade (supported browsers only, ignored elsewhere) ───────────── */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  ::view-transition-old(root) { animation: 120ms ease-out both aw-vt-out; }
+  ::view-transition-new(root) { animation: 180ms ease-out both aw-vt-in; }
+}
+
 /* ───────────── Keyframes (prefixed so they never clash with Tailwind's) ───────────── */
 @keyframes aw-drift {
   from { transform: translate3d(-4%, -3%, 0) rotate(0deg) scale(1); }
@@ -306,13 +483,17 @@
 @keyframes aw-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 @keyframes aw-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8px); } }
 @keyframes aw-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes aw-skeleton { to { transform: translateX(100%); } }
 @keyframes aw-fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes aw-scale-in { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+@keyframes aw-vt-out { to { opacity: 0; } }
+@keyframes aw-vt-in { from { opacity: 0; } }
 
 /* ───────────── Reduced motion: one switch for everything decorative ───────────── */
 @media (prefers-reduced-motion: reduce) {
   .hero-gradient::before, .hero-ripple, .marquee-track, .pulse-ring::before,
-  .animate-float, .animate-in, .animate-scale-in, .animate-shimmer, .bounce-arrow {
+  .animate-float, .animate-in, .animate-scale-in, .animate-shimmer, .bounce-arrow,
+  .neu-skeleton::after {
     animation: none !important;
   }
   [data-reveal], .fade-up {
