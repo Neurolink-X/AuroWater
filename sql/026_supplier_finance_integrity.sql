@@ -160,7 +160,7 @@ BEGIN
   WHERE id = p_order_id AND supplier_id = p_supplier_id
   RETURNING * INTO v_order;
 
-  IF v_supplier_entitlement IS NOT NULL THEN
+  IF v_supplier_entitlement IS NOT NULL AND v_order.financials_posted_at IS NULL THEN
     IF NOT EXISTS (
       SELECT 1 FROM public.wallet_ledger wl
       WHERE wl.order_id = p_order_id AND wl.entry_type = 'ORDER_EARNING'
@@ -224,12 +224,31 @@ BEGIN
   IF v_role IS DISTINCT FROM 'supplier' THEN RAISE EXCEPTION 'supplier_role_required' USING ERRCODE = '42501'; END IF;
 
   PERFORM pg_advisory_xact_lock(hashtextextended(v_user_id::TEXT || ':supplier_payout', 0));
+
+  -- A legacy payout marked paid without its immutable ledger debit must be reconciled
+  -- before another request; otherwise the same earnings could be requested twice.
+  IF EXISTS (
+    SELECT 1 FROM public.payouts p
+    WHERE p.user_id = v_user_id AND p.role = 'supplier'
+      AND lower(COALESCE(p.status, 'pending')) = 'paid'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.wallet_ledger wl
+        WHERE wl.payout_id = p.id AND wl.entry_type = 'PAYOUT'
+      )
+  ) THEN
+    RAISE EXCEPTION 'payout_settlement_requires_reconciliation' USING ERRCODE = '55000';
+  END IF;
+
   IF EXISTS (
     SELECT 1 FROM public.payouts p
     WHERE p.user_id = v_user_id AND p.role = 'supplier'
       AND lower(COALESCE(p.status, 'pending')) IN ('pending', 'approved')
   ) THEN
     RAISE EXCEPTION 'payout_request_pending' USING ERRCODE = '23505';
+  END IF;
+
+  IF COALESCE(public.payee_balance(v_user_id), 0) < p_amount THEN
+    RAISE EXCEPTION 'insufficient_verified_supplier_balance' USING ERRCODE = '22023';
   END IF;
 
   INSERT INTO public.payouts (user_id, role, amount, status, method, note, payout_details, paid_at)
