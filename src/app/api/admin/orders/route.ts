@@ -488,7 +488,6 @@ export async function POST(req: NextRequest) {
   let subscriptionFrequency: string | null = null;
 
   if (isWater) {
-    const subPrice = Number(flat.subscription_can_price);
     const bulkThreshold = Math.max(1, Math.floor(Number(flat.bulk_threshold)) || 50);
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
@@ -527,18 +526,10 @@ export async function POST(req: NextRequest) {
 
     qty = Math.max(1, requested);
 
-    // Approved launch prices: Normal RO ₹20, Chilled RO ₹25, subscription ₹18.
-    // Stale legacy settings must not cause client/server total mismatches.
+    // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
+    // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
     const regularPrice = 20;
-    const configuredRecurringPrice = Number.isFinite(subPrice) && subPrice > 0 ? subPrice : 18;
-    const recurringPrice = configuredRecurringPrice < regularPrice
-      ? Math.min(configuredRecurringPrice, 18)
-      : 18;
-    waterUnitPrice = isChilled
-      ? 25
-      : isSubscription
-        ? recurringPrice
-        : regularPrice;
+    waterUnitPrice = isChilled ? 25 : regularPrice;
 
     base_amount = round2(qty * waterUnitPrice);
     subscriptionFrequency = isSubscription ? String(body.can_frequency) : null;
