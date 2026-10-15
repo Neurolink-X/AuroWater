@@ -110,12 +110,12 @@ assert.match(pricingMigration, /prevent_pricing_version_mutation/);
 assert.match(pricingMigration, /prevent_order_pricing_snapshot_mutation/);
 assert.match(pricingMigration, /publish_pricing_version/);
 assert.match(pricingMigration, /pg_advisory_xact_lock/);
-assert.match(pricingMigration, /fixed \u20b920 per-can supplier entitlement/);
+assert.match(pricingMigration, /current \u20b920 per-can supplier entitlement/);
 
 const pricingAdminApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'pricing', 'route.ts'), 'utf8');
 assert.match(pricingAdminApi, /publish_pricing_version/);
 assert.match(pricingAdminApi, /requireAdmin/);
-assert.match(pricingAdminApi, /water prices must be between \u20b920 and \u20b9500/);
+assert.match(pricingAdminApi, /price must be between \u20b920 and \u20b9500/);
 
 const pricingAdminPage = readFileSync(join(root, 'src', 'app', 'admin', 'pricing', 'page.tsx'), 'utf8');
 assert.match(pricingAdminPage, /Versioned pricing/);
