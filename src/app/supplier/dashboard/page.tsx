@@ -897,11 +897,13 @@ export default function SupplierDashboardPage() {
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
       const canCount = Number(row.can_count ?? 0);
-      const expectedWaterPayout = 20 * canCount;
+      const orderTotal = Number(row.total_amount ?? 0);
+      // Only validate the documented single-can ₹20 case. Multi-can or non-standard totals
+      // require the approved supplier schedule and must not be guessed by the UI.
       const waterPayoutMismatch =
         String(row.service_type ?? '').toLowerCase() === 'water_can' &&
-        canCount > 0 &&
-        Math.abs(amount - expectedWaterPayout) > 0.009;
+        canCount === 1 && orderTotal === 20 &&
+        Math.abs(amount - 20) > 0.009;
       // Never present a zero/mismatched amount or an unverified "paid" flag as a valid earning.
       const needsReview =
         !Number.isFinite(amount) ||
