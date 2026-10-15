@@ -67,7 +67,11 @@ export interface ContactConfig {
 }
 
 /** Full merged settings object */
-export interface PlatformSettings extends PricingConfig, ContactConfig {}
+export interface PlatformSettings extends PricingConfig, ContactConfig {
+  /** Active immutable price version; null means legacy launch-safe fallback. */
+  pricing_version: number | null;
+  pricing_effective_from: string | null;
+}
 
 /** Breakdown returned by calcOrderTotal() */
 export interface OrderBreakdown {
@@ -142,6 +146,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   working_hours:    '09:00–21:00 IST',
   brand_name:       'Auro Water',
   whatsapp_enabled: true,
+  pricing_version: null,
+  pricing_effective_from: null,
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -222,19 +228,28 @@ export function mergeSettings(
   if (!commissions.technician) commissions.technician = DEFAULT_SETTINGS.commissions.technician;
   if (!commissions.supplier)   commissions.supplier   = DEFAULT_SETTINGS.commissions.supplier;
 
-  const gstRate = toRate(raw.gst_rate) || DEFAULT_SETTINGS.gst_rate;
-  // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25 per 20L.
-  // Legacy database values below these launch prices must not leak into the UI.
-  // Approved launch prices stay consistent across settings, booking and order validation.
-  const defaultCanPrice = 20;
-  const chilledCanPrice = 25;
-  // Recurring Normal RO uses the same approved ₹20 rate as one-time Normal RO.
-  // Do not advertise a discount the server does not honour.
-  const effectiveSubscriptionCanPrice = defaultCanPrice;
-  const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
-  // A bulk rate must be lower than the one-time rate to qualify as a discount.
-  // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.
-  const effectiveBulkCanPrice = 20;
+  const hasVersionedPricing = Number.isInteger(raw.pricing_version) && Number(raw.pricing_version) > 0;
+  // Legacy mode keeps the approved launch defaults. Once versioned pricing is active,
+  // display the same server-published rates that the order API validates.
+  const gstRate = hasVersionedPricing
+    ? toRate(raw.gst_rate)
+    : toRate(raw.gst_rate) || DEFAULT_SETTINGS.gst_rate;
+  const defaultCanPrice = hasVersionedPricing
+    ? Math.max(20, safePositive(raw.default_can_price, 20))
+    : 20;
+  const chilledCanPrice = hasVersionedPricing
+    ? Math.max(20, safePositive(raw.chilled_can_price, 25))
+    : 25;
+  const effectiveSubscriptionCanPrice = hasVersionedPricing
+    ? Math.max(20, safePositive(raw.subscription_can_price, defaultCanPrice))
+    : 20;
+  const configuredBulkCanPrice = hasVersionedPricing
+    ? safePositive(raw.bulk_can_price, defaultCanPrice)
+    : 20;
+  // Keep UI aligned with the server's bulk <= normal invariant.
+  const effectiveBulkCanPrice = hasVersionedPricing
+    ? Math.min(defaultCanPrice, Math.max(20, configuredBulkCanPrice))
+    : 20;
 
   return {
     default_can_price:      defaultCanPrice,
@@ -259,6 +274,8 @@ export function mergeSettings(
     working_hours:    raw.working_hours    ?? DEFAULT_SETTINGS.working_hours,
     brand_name:       raw.brand_name       ?? DEFAULT_SETTINGS.brand_name,
     whatsapp_enabled: raw.whatsapp_enabled ?? DEFAULT_SETTINGS.whatsapp_enabled,
+    pricing_version: hasVersionedPricing ? Number(raw.pricing_version) : null,
+    pricing_effective_from: hasVersionedPricing && typeof raw.pricing_effective_from === 'string' ? raw.pricing_effective_from : null,
   };
 }
 
