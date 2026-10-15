@@ -28,6 +28,10 @@ ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS pricing_version INTEGER,
   ADD COLUMN IF NOT EXISTS pricing_snapshot JSONB;
 
+ALTER TABLE public.water_subscriptions
+  ADD COLUMN IF NOT EXISTS pricing_version INTEGER,
+  ADD COLUMN IF NOT EXISTS pricing_snapshot JSONB;
+
 COMMENT ON COLUMN public.orders.pricing_version IS
   'Pricing version used when this order was created; historical values must not be recalculated from current settings.';
 COMMENT ON COLUMN public.orders.pricing_snapshot IS
@@ -121,6 +125,22 @@ DROP TRIGGER IF EXISTS orders_pricing_snapshot_immutable ON public.orders;
 CREATE TRIGGER orders_pricing_snapshot_immutable
   BEFORE UPDATE ON public.orders
   FOR EACH ROW EXECUTE FUNCTION public.prevent_order_pricing_snapshot_mutation();
+
+CREATE OR REPLACE FUNCTION public.prevent_subscription_pricing_snapshot_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $
+BEGIN
+  IF NEW.pricing_version IS DISTINCT FROM OLD.pricing_version
+     OR NEW.pricing_snapshot IS DISTINCT FROM OLD.pricing_snapshot THEN
+    RAISE EXCEPTION 'Subscription pricing snapshots are immutable; create a new subscription contract to change its rate.';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS water_subscriptions_pricing_immutable ON public.water_subscriptions;
+CREATE TRIGGER water_subscriptions_pricing_immutable
+  BEFORE UPDATE ON public.water_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_subscription_pricing_snapshot_mutation();
 
 -- Atomic version allocation + audit logging. The database is the final authority.
 CREATE OR REPLACE FUNCTION public.publish_pricing_version(
