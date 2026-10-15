@@ -74,24 +74,18 @@ export async function POST(req: NextRequest) {
   const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
   if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
 
-  const { data: latest, error: latestError } = await auth.ctx.supabase.from('pricing_versions')
-    .select('version').order('version', { ascending: false }).limit(1).maybeSingle();
-  if (latestError) return jsonErr('Pricing schema is not ready or version history could not be read.', 503);
-  const version = Number(latest?.version ?? 0) + 1;
-  const { data, error } = await auth.ctx.supabase.from('pricing_versions').insert({
-    version, effective_from: date.toISOString(), reason, config: result.config, created_by: auth.ctx.profile.id,
-  }).select('id, version, effective_from, reason, config, created_at, created_by').single();
-  if (error || !data) {
-    console.error('[admin/pricing] publish failed', error);
-    return jsonErr(error?.code === '23505' ? 'A pricing version was published concurrently. Refresh history and try again.' : 'Could not publish pricing. No existing version was changed.', 409);
-  }
-  const { error: auditError } = await auth.ctx.supabase.from('audit_logs').insert({
-    actor_id: auth.ctx.profile.id, action: 'pricing.version.publish', entity: 'pricing_versions',
-    meta: { version, effective_from: data.effective_from, reason, config: result.config },
+  const { data, error } = await auth.ctx.supabase.rpc('publish_pricing_version', {
+    p_effective_from: date.toISOString(),
+    p_reason: reason,
+    p_config: result.config,
   });
-  if (auditError) {
-    console.error('[admin/pricing] audit failed after version insert', auditError);
-    return jsonErr('Version was created but audit logging failed. Refresh history before retrying; do not publish the same change again blindly.', 500);
+  const published = Array.isArray(data) ? data[0] : data;
+  if (error || !published) {
+    console.error('[admin/pricing] atomic publish failed', error);
+    const code = String(error?.code ?? '');
+    return jsonErr(code === '42501' ? 'Administrator access required.'
+      : code === '23505' ? 'A concurrent pricing publish occurred. Refresh history and try again.'
+      : 'Pricing could not be published. The database transaction was rolled back.', code === '42501' ? 403 : 409);
   }
-  return jsonOk(data, 201);
+  return jsonOk(published, 201);
 }
