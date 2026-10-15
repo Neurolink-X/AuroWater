@@ -83,7 +83,7 @@ RETURNS SETOF public.orders
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   v_role TEXT;
   v_order public.orders%ROWTYPE;
@@ -186,7 +186,7 @@ BEGIN
 
   RETURN NEXT v_order;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
