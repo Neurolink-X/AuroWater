@@ -640,7 +640,7 @@ function ServicePriceBox({
 export default function BookingWizard() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const { settings, calcOrderTotal, whatsappHref } = useSettings();
+  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings();
   const { session }  = useAuth();
 
   const [step, setStep]           = useState(1);
@@ -1408,6 +1408,13 @@ export default function BookingWizard() {
             const errCode =
         (e as { code?: string; details?: { code?: string } } | null)?.code ??
         (e as { details?: { code?: string } } | null)?.details?.code;
+      if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
+        await refreshSettings();
+        const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
+        setSubmitError(m);
+        toast.error(m);
+        return;
+      }
       if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
         const m = 'We could not place this address on the map. Please tap "Detect my location", or add the address again with your area and 6-digit pincode.';
         setSubmitError(m); toast.error(m);
