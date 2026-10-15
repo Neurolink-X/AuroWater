@@ -70,7 +70,7 @@ type EarningRow = {
   id: string;
   order_id: string;
   amount: number;
-  status: 'pending' | 'paid';
+  status: 'pending' | 'paid' | 'review';
   paid_at: string | null;
   created_at: string;
 };
@@ -710,6 +710,7 @@ export default function SupplierDashboardPage() {
   const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentCollector, setPaymentCollector] = useState<'supplier' | 'aurotap'>('supplier');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
   // Tracks which "assigned, not yet accepted" orders we've already seen,
@@ -891,14 +892,35 @@ export default function SupplierDashboardPage() {
     const doneRows = (data ?? []).filter((row) =>
       ['completed', 'delivered'].includes(String(row.status ?? '').toLowerCase()),
     );
-    setEarnings(doneRows.slice(0, 50).map((row) => ({
-      id: String(row.id),
-      order_id: String(row.id),
-      amount: Number(row.supplier_payout ?? 0),
-      status: 'pending' as const,
-      paid_at: null,
-      created_at: String(row.created_at ?? ''),
-    })));
+    setEarnings(doneRows.slice(0, 50).map((row) => {
+      const amount = Number(row.supplier_payout ?? 0);
+      const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
+      const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
+      const canCount = Number(row.can_count ?? 0);
+      const orderTotal = Number(row.total_amount ?? 0);
+      // Only validate the documented single-can ₹20 case. Multi-can or non-standard totals
+      // require the approved supplier schedule and must not be guessed by the UI.
+      const waterPayoutMismatch =
+        String(row.service_type ?? '').toLowerCase() === 'water_can' &&
+        canCount === 1 && orderTotal === 20 &&
+        Math.abs(amount - 20) > 0.009;
+      // Never present a zero/mismatched amount or an unverified "paid" flag as a valid earning.
+      const needsReview =
+        !Number.isFinite(amount) ||
+        amount <= 0 ||
+        waterPayoutMismatch ||
+        (String(row.service_type ?? '').toLowerCase() === 'water_can' && canCount !== 1) ||
+        (payoutStatus === 'paid' && !paidAt);
+      const isSettled = payoutStatus === 'paid' && Boolean(paidAt) && !needsReview;
+      return {
+        id: String(row.id),
+        order_id: String(row.id),
+        amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+        status: needsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
+        paid_at: isSettled ? paidAt : null,
+        created_at: String(row.completed_at ?? row.created_at ?? ''),
+      };
+    }));
   };
 
   const fetchDispatchSettings = async () => {
@@ -1066,11 +1088,11 @@ export default function SupplierDashboardPage() {
     ).length;
 
     const weekEarnings = earnings
-      .filter((e) => e.created_at >= weekAgo)
+      .filter((e) => e.status !== 'review' && e.created_at >= weekAgo)
       .reduce((sum, e) => sum + e.amount, 0);
 
     const monthEarnings = earnings
-      .filter((e) => e.created_at >= monthAgo)
+      .filter((e) => e.status !== 'review' && e.created_at >= monthAgo)
       .reduce((sum, e) => sum + e.amount, 0);
 
     const delivered = orders.filter((o) => o.status === 'delivered').length;
@@ -1130,6 +1152,7 @@ export default function SupplierDashboardPage() {
       payment?: {
         payment_confirmed?: boolean;
         payment_reference?: string;
+        payment_collector?: 'supplier' | 'aurotap';
       },
     ): Promise<boolean> => {
       setUpdatingOrder(orderId);
@@ -1286,7 +1309,7 @@ export default function SupplierDashboardPage() {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const deliveredCount = useMemo(() => orders.filter((o) => o.status === 'delivered').length, [orders]);
   const deliveries = Math.max(profile?.total_deliveries ?? 0, deliveredCount);
-  const earnedTotal = Math.max(profile?.total_earnings ?? 0, earnings.reduce((sum, e) => sum + e.amount, 0));
+  const earnedTotal = Math.max(profile?.total_earnings ?? 0, earnings.filter((e) => e.status !== 'review').reduce((sum, e) => sum + e.amount, 0));
   const derivedTier: SupplierProfile['tier'] =
     deliveries >= 400 ? 'platinum' : deliveries >= 150 ? 'gold' : deliveries >= 50 ? 'silver' : 'bronze';
   const effectiveTier: SupplierProfile['tier'] =
@@ -1940,6 +1963,7 @@ export default function SupplierDashboardPage() {
                       setCompletionOrder(order);
                       setPaymentReference('');
                       setPaymentConfirmed(false);
+                      setPaymentCollector('supplier');
                     }}
                     updating={updatingOrder}
                   />
@@ -2028,6 +2052,18 @@ export default function SupplierDashboardPage() {
 
                 {completionOrder.payment_status !== 'paid' && (
                   <>
+                    <label style={{ display: 'block', marginTop: 16 }}>
+                      <span style={{ display: 'block', marginBottom: 7, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.62)' }}>Who collected the payment?</span>
+                      <select
+                        value={paymentCollector}
+                        onChange={(event) => setPaymentCollector(event.target.value === 'aurotap' ? 'aurotap' : 'supplier')}
+                        disabled={Boolean(updatingOrder)}
+                        style={{ width: '100%', minHeight: 44, boxSizing: 'border-box', borderRadius: 11, border: '1px solid rgba(255,255,255,0.10)', background: '#101B2C', color: '#F0F4FF', padding: '0 12px', fontFamily: 'inherit' }}
+                      >
+                        <option value="supplier">Supplier collected directly</option>
+                        <option value="aurotap">AuroTap collected</option>
+                      </select>
+                    </label>
                     {completionOrder.payment_method?.toLowerCase() === 'upi' && (
                       <label style={{ display: 'block', marginTop: 16 }}>
                         <span style={{ display: 'block', marginBottom: 7, fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.62)' }}>
@@ -2091,6 +2127,7 @@ export default function SupplierDashboardPage() {
                           : {
                               payment_confirmed: true,
                               payment_reference: paymentReference.trim() || undefined,
+                              payment_collector: paymentCollector,
                             },
                       );
 
@@ -2142,10 +2179,10 @@ export default function SupplierDashboardPage() {
                     onMouseLeave={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                   >
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>#{e.order_id.slice(0, 8).toUpperCase()}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0D9B6C' }}>{INR(e.amount)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#F87171' : '#0D9B6C' }}>{e.amount > 0 ? INR(e.amount) : '—'}</div>
                     <div>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: e.status === 'paid' ? '#10B981' : '#F59E0B', background: e.status === 'paid' ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 999, letterSpacing: '0.04em' }}>
-                        {e.status === 'paid' ? 'Paid' : 'Pending'}
+                      <span style={{ fontSize: 10, fontWeight: 800, color: e.status === 'paid' ? '#10B981' : e.status === 'review' ? '#F87171' : '#F59E0B', background: e.status === 'paid' ? 'rgba(16,185,129,0.12)' : e.status === 'review' ? 'rgba(248,113,113,0.12)' : 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 999, letterSpacing: '0.04em' }}>
+                        {e.status === 'paid' ? 'Paid' : e.status === 'review' ? 'Needs review' : 'Pending'}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>

@@ -32,6 +32,7 @@ const bodySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']),
   payment_confirmed: z.boolean().optional(),
   payment_reference: z.string().trim().max(100).optional(),
+  payment_collector: z.enum(['supplier', 'aurotap']).optional(),
 });
 
 type OrderBefore = {
@@ -43,6 +44,9 @@ type OrderBefore = {
   payment_status: string | null;
   payment_method: string | null;
   total_amount: number | string | null;
+  service_type?: string | null;
+  supplier_payout?: number | string | null;
+  payout_status?: string | null;
 };
 
 const TRANSITIONS: Record<string, string> = {
@@ -85,7 +89,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { data: found, error: bErr } = await sb
     .from('orders')
-    .select('id, supplier_id, status, customer_id, can_count, payment_status, payment_method, total_amount')
+    .select('id, supplier_id, status, customer_id, can_count, payment_status, payment_method, total_amount, service_type, supplier_payout, payout_status')
     .eq('id', id)
     .maybeSingle();
   if (bErr) {
@@ -103,12 +107,26 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (prev === next) return jsonErr(`This order is already ${next.toLowerCase().replace('_', ' ')}.`, 409);
   if (TRANSITIONS[prev] !== next) return jsonErr('Invalid status transition', 400);
 
-  const patch: Record<string, unknown> = { status: next };
   const wasPaid = String(before.payment_status ?? 'unpaid').toLowerCase() === 'paid';
   const method = String(before.payment_method ?? 'cash').toLowerCase();
+  let updatedOrder: Record<string, unknown> | null = null;
 
   if (next === 'IN_PROGRESS') {
-    patch.dispatched_at = new Date().toISOString();
+    const { data: started, error: startError } = await sb
+      .from('orders')
+      .update({ status: next, dispatched_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('supplier_id', supplierId)
+      .eq('status', prev)
+      .select('*')
+      .maybeSingle();
+
+    if (startError) {
+      console.error('[supplier/status] start failed', { orderId: id, error: startError.message });
+      return jsonErr('Could not update this order. Please try again.', 502);
+    }
+    if (!started) return jsonErr('This order was just updated by another request. Refresh and try again.', 409);
+    updatedOrder = started as unknown as Record<string, unknown>;
   } else {
     const reference = parsed.data.payment_reference?.trim() ?? '';
     if (!wasPaid && parsed.data.payment_confirmed !== true) {
@@ -117,25 +135,41 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!wasPaid && method === 'upi' && !reference) {
       return jsonErr('Enter the UPI transaction reference before completing this order.', 400);
     }
-    if (!wasPaid) patch.payment_status = 'paid';
-    patch.completed_at = new Date().toISOString();
+    if (!wasPaid && !parsed.data.payment_collector) {
+      return jsonErr('Select who collected the payment before completing this order.', 400);
+    }
+
+    // Completion, payment evidence, the eligible supplier entitlement, and its immutable
+    // ledger entry commit in one database transaction.
+    const { data: completed, error: completeError } = await sb.rpc('complete_supplier_order_atomic', {
+      p_order_id: id,
+      p_supplier_id: supplierId,
+      p_payment_confirmed: parsed.data.payment_confirmed === true,
+      p_payment_reference: reference || null,
+      p_payment_collector: parsed.data.payment_collector ?? null,
+    });
+
+    if (completeError) {
+      console.error('[supplier/status] atomic completion failed', {
+        orderId: id,
+        code: completeError.code,
+        message: completeError.message,
+      });
+      if (/invalid_order_transition/i.test(completeError.message ?? '')) {
+        return jsonErr('This order changed before completion. Refresh and try again.', 409);
+      }
+      if (/payment_confirmation_required|upi_reference_required|payment_collector_required/i.test(completeError.message ?? '')) {
+        return jsonErr('Confirm payment details and collector before completing this order.', 400);
+      }
+      return jsonErr('Could not complete this order. Please try again or contact support if the issue continues.', 502);
+    }
+
+    const completedRow = Array.isArray(completed) ? completed[0] : completed;
+    if (!completedRow) return jsonErr('This order was just updated by another request. Refresh and try again.', 409);
+    updatedOrder = completedRow as unknown as Record<string, unknown>;
   }
 
-  // Compare-and-set: only update if the order is STILL in the state we checked.
-  // Without this, a double tap would complete twice and fire every side effect twice.
-  const { data, error } = await sb
-    .from('orders')
-    .update(patch)
-    .eq('id', id)
-    .eq('supplier_id', supplierId)
-    .eq('status', prev)
-    .select('*')
-    .maybeSingle();
-  if (error) {
-    console.error('[supplier/status] update failed', { orderId: id, error: error.message });
-    return jsonErr('Could not update this order. Please try again.', 502);
-  }
-  if (!data) return jsonErr('This order was just updated by another request. Refresh and try again.', 409);
+  const data = updatedOrder;
 
   if (next === 'COMPLETED') {
     if (!wasPaid) {

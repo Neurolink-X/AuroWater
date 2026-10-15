@@ -25,6 +25,8 @@ const ALLOWED_UPDATE_FIELDS = [
   'scheduled_date',
   'time_slot',
   'payment_status',
+  'payment_collector',
+  'payment_reference',
   'notes',
   'total_amount',
   'base_amount',
@@ -271,7 +273,7 @@ export async function PUT(
   const { data: before, error: beforeErr } = await sb
     .from('orders')
     .select(
-      'id, status, supplier_id, customer_id, can_quantity',
+      'id, status, supplier_id, customer_id, can_quantity, total_amount, payment_status, payment_method',
     )
     .eq('id', id)
     .maybeSingle();
@@ -286,9 +288,33 @@ export async function PUT(
 
   const beforeRow = before as Record<string, unknown>;
 
-  const previousStatus = String(
-    beforeRow.status ?? '',
-  );
+  const previousStatus = String(beforeRow.status ?? '');
+  const previousPaymentStatus = String(beforeRow.payment_status ?? 'unpaid').toLowerCase();
+  const requestedPaymentStatus = typeof patch.payment_status === 'string'
+    ? patch.payment_status.toLowerCase()
+    : previousPaymentStatus;
+
+  if (requestedPaymentStatus === 'paid' && previousPaymentStatus !== 'paid') {
+    if (body.payment_confirmed !== true) {
+      return jsonErr('Explicitly confirm that payment was received before marking this order paid.', 400);
+    }
+    if (patch.payment_collector !== 'supplier' && patch.payment_collector !== 'aurotap') {
+      return jsonErr('Select whether the supplier or AuroTap collected the payment.', 400);
+    }
+    const method = String(beforeRow.payment_method ?? 'cash').toLowerCase();
+    const reference = typeof patch.payment_reference === 'string' ? patch.payment_reference.trim() : '';
+    if (method === 'upi' && !reference) {
+      return jsonErr('Enter the UPI transaction reference before marking payment paid.', 400);
+    }
+    patch.payment_collector = patch.payment_collector;
+    patch.payment_collected_by = patch.payment_collector === 'supplier'
+      ? String(beforeRow.supplier_id ?? '') || null
+      : null;
+    patch.payment_collected_amount = Number(beforeRow.total_amount ?? 0);
+    patch.payment_collected_at = new Date().toISOString();
+    patch.payment_confirmed_at = new Date().toISOString();
+    patch.payment_reference = reference || null;
+  }
 
   const requestedStatus =
     typeof patch.status === 'string'
