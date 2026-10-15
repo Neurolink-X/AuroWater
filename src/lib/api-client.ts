@@ -1009,6 +1009,7 @@ export async function supplierOrderUpdateStatus(
   payment?: {
     payment_confirmed?: boolean;
     payment_reference?: string;
+    payment_collector?: 'supplier' | 'aurotap';
   }
 ): Promise<ApiOrder> {
   return apiFetchAuth<ApiOrder>(`/supplier/orders/${id}`, {
@@ -1033,8 +1034,8 @@ export async function supplierPayoutHistory(): Promise<unknown[]> {
   return apiFetchAuth<unknown[]>('/supplier/earnings/history');
 }
 
-export async function supplierPayoutRequest(body: { amount: number; notes?: string }): Promise<unknown> {
-  return apiFetchAuth('/supplier/payout-request', {
+export async function supplierPayoutRequest(body: { amount: number; method: 'upi' | 'bank'; upi_id?: string; bank_account?: string; ifsc?: string }): Promise<unknown> {
+  return apiFetchAuth('/supplier/payouts', {
     method: 'POST',
     body: JSON.stringify(body),
   });
