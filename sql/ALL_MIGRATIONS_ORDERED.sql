@@ -1314,6 +1314,579 @@ CREATE POLICY profiles_public_read_technicians ON public.profiles
 
 SELECT pg_notify('pgrst', 'reload schema');
 -- ═══════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/011_profile_settings.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap — Customer profile settings
+-- Migration: 011_profile_settings.sql
+-- Safe to run more than once.
+
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS settings JSONB
+NOT NULL
+DEFAULT '{}'::jsonb;
+
+COMMENT ON COLUMN public.profiles.settings
+IS 'Customer account preferences and notification settings';
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/012_service_quality.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap — Service Quality & Customer Feedback
+-- Migration: 012_service_quality.sql
+-- Safe to run more than once.
+
+BEGIN;
+
+-- ============================================================
+-- 1. Extend reviews
+-- ============================================================
+
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS feedback_tags JSONB
+    NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS issue_category TEXT;
+
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS issue_description TEXT;
+
+ALTER TABLE public.reviews
+  ADD COLUMN IF NOT EXISTS severity TEXT;
+
+-- Existing rows must have a valid severity before NOT NULL.
+UPDATE public.reviews
+SET severity = 'LOW'
+WHERE severity IS NULL
+   OR severity NOT IN (
+      'LOW',
+      'MEDIUM',
+      'HIGH',
+      'CRITICAL'
+   );
+
+ALTER TABLE public.reviews
+  ALTER COLUMN severity SET DEFAULT 'LOW';
+
+ALTER TABLE public.reviews
+  ALTER COLUMN severity SET NOT NULL;
+
+-- Add the constraint only when it does not already exist.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'reviews_severity_check'
+      AND conrelid = 'public.reviews'::regclass
+  ) THEN
+    ALTER TABLE public.reviews
+      ADD CONSTRAINT reviews_severity_check
+      CHECK (
+        severity IN (
+          'LOW',
+          'MEDIUM',
+          'HIGH',
+          'CRITICAL'
+        )
+      );
+  END IF;
+END
+$$;
+
+-- ============================================================
+-- 2. Service quality cases
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.service_quality_cases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  order_id UUID NOT NULL
+    REFERENCES public.orders(id)
+    ON DELETE CASCADE,
+
+  review_id UUID
+    REFERENCES public.reviews(id)
+    ON DELETE SET NULL,
+
+  customer_id UUID NOT NULL
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE,
+
+  supplier_id UUID
+    REFERENCES public.profiles(id)
+    ON DELETE SET NULL,
+
+  technician_id UUID
+    REFERENCES public.profiles(id)
+    ON DELETE SET NULL,
+
+  category TEXT NOT NULL,
+
+  severity TEXT NOT NULL DEFAULT 'MEDIUM'
+    CHECK (
+      severity IN (
+        'LOW',
+        'MEDIUM',
+        'HIGH',
+        'CRITICAL'
+      )
+    ),
+
+  status TEXT NOT NULL DEFAULT 'OPEN'
+    CHECK (
+      status IN (
+        'OPEN',
+        'ASSIGNED',
+        'INVESTIGATING',
+        'ACTION_REQUIRED',
+        'ESCALATED',
+        'RESOLVED',
+        'CUSTOMER_CONFIRMED',
+        'CLOSED'
+      )
+    ),
+
+  assigned_to UUID
+    REFERENCES public.profiles(id)
+    ON DELETE SET NULL,
+
+  resolution TEXT,
+
+  customer_resolution_status TEXT
+    CHECK (
+      customer_resolution_status IS NULL
+      OR customer_resolution_status IN (
+        'YES',
+        'PARTIAL',
+        'NO'
+      )
+    ),
+
+  resolved_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW(),
+
+  updated_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================
+-- 3. Indexes
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_order_idx
+ON public.service_quality_cases(order_id);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_review_idx
+ON public.service_quality_cases(review_id);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_customer_idx
+ON public.service_quality_cases(customer_id);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_supplier_idx
+ON public.service_quality_cases(supplier_id);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_technician_idx
+ON public.service_quality_cases(technician_id);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_status_idx
+ON public.service_quality_cases(status);
+
+CREATE INDEX IF NOT EXISTS
+  service_quality_cases_severity_idx
+ON public.service_quality_cases(severity);
+
+-- Only one quality case should originate from one review.
+CREATE UNIQUE INDEX IF NOT EXISTS
+  service_quality_cases_review_unique_idx
+ON public.service_quality_cases(review_id)
+WHERE review_id IS NOT NULL;
+
+-- ============================================================
+-- 4. updated_at trigger
+-- ============================================================
+
+DROP TRIGGER IF EXISTS
+  service_quality_cases_updated_at
+ON public.service_quality_cases;
+
+CREATE TRIGGER
+  service_quality_cases_updated_at
+BEFORE UPDATE ON public.service_quality_cases
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at();
+
+-- ============================================================
+-- 5. RLS
+-- ============================================================
+
+ALTER TABLE public.service_quality_cases
+ENABLE ROW LEVEL SECURITY;
+
+-- Customers can see only their own cases.
+DROP POLICY IF EXISTS
+  "service_quality_cases_customer_select"
+ON public.service_quality_cases;
+
+CREATE POLICY
+  "service_quality_cases_customer_select"
+ON public.service_quality_cases
+FOR SELECT
+USING (
+  customer_id = auth.uid()
+  OR COALESCE(
+      public.current_profile_role(),
+      ''
+    ) = 'admin'
+);
+
+-- Admins can fully manage quality cases.
+DROP POLICY IF EXISTS
+  "service_quality_cases_admin_all"
+ON public.service_quality_cases;
+
+CREATE POLICY
+  "service_quality_cases_admin_all"
+ON public.service_quality_cases
+FOR ALL
+USING (
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
+)
+WITH CHECK (
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
+);
+
+-- ============================================================
+-- 6. PostgREST schema refresh
+-- ============================================================
+
+SELECT pg_notify(
+  'pgrst',
+  'reload schema'
+);
+
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/013_customer_orders_performance.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap — Customer order history performance
+-- Migration: 013_customer_orders_performance.sql
+-- Safe to run more than once.
+
+-- Main history query:
+--   WHERE customer_id = ?
+--   ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS
+  orders_customer_created_at_idx
+ON public.orders (
+  customer_id,
+  created_at DESC
+);
+
+-- Filtered history tabs:
+--   WHERE customer_id = ? AND status = ?
+--   ORDER BY created_at DESC
+CREATE INDEX IF NOT EXISTS
+  orders_customer_status_created_at_idx
+ON public.orders (
+  customer_id,
+  status,
+  created_at DESC
+);
+
+SELECT pg_notify(
+  'pgrst',
+  'reload schema'
+);
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/014_water_subscriptions.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap — real recurring water-can subscriptions
+-- Migration: 014_water_subscriptions.sql
+-- Safe to run more than once.
+--
+-- IMPORTANT:
+-- This migration intentionally contains NO DO $$ blocks.
+-- It is safe to paste directly into Supabase SQL Editor.
+
+BEGIN;
+
+-- ============================================================
+-- 1. Extend orders for recurring water deliveries
+-- ============================================================
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS can_price_per_unit NUMERIC(10,2);
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS can_order_type TEXT;
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS can_frequency TEXT;
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS subscription_id UUID;
+
+-- Remove old frequency/type checks before recreating them.
+-- The current AuroTap schema uses these constraint names.
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_can_frequency_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_can_frequency_check
+  CHECK (
+    can_frequency IS NULL
+    OR can_frequency IN (
+      'daily',
+      'alternate',
+      'weekly',
+      'biweekly',
+      'monthly'
+    )
+  );
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_can_order_type_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_can_order_type_check
+  CHECK (
+    can_order_type IS NULL
+    OR can_order_type IN (
+      'one_time',
+      'subscription'
+    )
+  );
+
+-- In case an earlier failed attempt created this FK name.
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_subscription_fk;
+
+-- ============================================================
+-- 2. Subscription master record
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.water_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  customer_id UUID NOT NULL
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE,
+
+  address_id UUID NOT NULL
+    REFERENCES public.addresses(id)
+    ON DELETE RESTRICT,
+
+  first_order_id UUID
+    REFERENCES public.orders(id)
+    ON DELETE SET NULL,
+
+  last_order_id UUID
+    REFERENCES public.orders(id)
+    ON DELETE SET NULL,
+
+  quantity INTEGER NOT NULL
+    CHECK (quantity BETWEEN 1 AND 200),
+
+  frequency TEXT NOT NULL
+    CHECK (
+      frequency IN (
+        'daily',
+        'alternate',
+        'weekly',
+        'biweekly',
+        'monthly'
+      )
+    ),
+
+  status TEXT NOT NULL DEFAULT 'ACTIVE'
+    CHECK (
+      status IN (
+        'ACTIVE',
+        'PAUSED',
+        'CANCELLED'
+      )
+    ),
+
+  start_date DATE NOT NULL,
+
+  next_order_date DATE NOT NULL,
+
+  preferred_time_slot TEXT NOT NULL,
+
+  preferred_start_time TIME NOT NULL,
+
+  preferred_end_time TIME NOT NULL,
+
+  payment_method TEXT NOT NULL DEFAULT 'cash'
+    CHECK (
+      payment_method IN (
+        'cash',
+        'upi'
+      )
+    ),
+
+  price_per_can NUMERIC(10,2) NOT NULL
+    CHECK (price_per_can >= 0),
+
+  convenience_fee NUMERIC(10,2) NOT NULL DEFAULT 0
+    CHECK (convenience_fee >= 0),
+
+  gst_rate NUMERIC(6,5) NOT NULL DEFAULT 0
+    CHECK (
+      gst_rate >= 0
+      AND gst_rate <= 1
+    ),
+
+  notes TEXT,
+
+  pause_reason TEXT,
+
+  cancelled_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW(),
+
+  updated_at TIMESTAMPTZ
+    NOT NULL DEFAULT NOW()
+);
+
+-- Link orders to their subscription after the target table exists.
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_subscription_fk
+  FOREIGN KEY (subscription_id)
+  REFERENCES public.water_subscriptions(id)
+  ON DELETE SET NULL;
+
+-- ============================================================
+-- 3. Indexes
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS
+  water_subscriptions_customer_idx
+ON public.water_subscriptions(customer_id);
+
+CREATE INDEX IF NOT EXISTS
+  water_subscriptions_status_next_order_idx
+ON public.water_subscriptions(
+  status,
+  next_order_date
+);
+
+CREATE INDEX IF NOT EXISTS
+  water_subscriptions_address_idx
+ON public.water_subscriptions(address_id);
+
+CREATE INDEX IF NOT EXISTS
+  orders_subscription_idx
+ON public.orders(subscription_id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS
+  orders_subscription_schedule_unique_idx
+ON public.orders(
+  subscription_id,
+  scheduled_at
+)
+WHERE subscription_id IS NOT NULL
+  AND scheduled_at IS NOT NULL;
+
+-- ============================================================
+-- 4. updated_at
+-- ============================================================
+
+DROP TRIGGER IF EXISTS
+  water_subscriptions_updated_at
+ON public.water_subscriptions;
+
+CREATE TRIGGER
+  water_subscriptions_updated_at
+BEFORE UPDATE ON public.water_subscriptions
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at();
+
+-- ============================================================
+-- 5. Row Level Security
+-- ============================================================
+
+ALTER TABLE public.water_subscriptions
+ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS
+  "water_subscriptions_customer_select"
+ON public.water_subscriptions;
+
+CREATE POLICY
+  "water_subscriptions_customer_select"
+ON public.water_subscriptions
+FOR SELECT
+USING (
+  customer_id = auth.uid()
+  OR COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
+);
+
+DROP POLICY IF EXISTS
+  "water_subscriptions_admin_all"
+ON public.water_subscriptions;
+
+CREATE POLICY
+  "water_subscriptions_admin_all"
+ON public.water_subscriptions
+FOR ALL
+USING (
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
+)
+WITH CHECK (
+  COALESCE(
+    public.current_profile_role(),
+    ''
+  ) = 'admin'
+);
+
+-- ============================================================
+-- 6. PostgREST refresh
+-- ============================================================
+
+SELECT pg_notify(
+  'pgrst',
+  'reload schema'
+);
+
+COMMIT;
+
+-- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/015_atomic_supplier_stock_dispatch.sql
 -- ═══════════════════════════════════════════════════════════════
 
@@ -3134,6 +3707,54 @@ GRANT EXECUTE ON FUNCTION public.complete_technician_job_atomic(UUID,UUID,BOOLEA
 COMMIT;
 SELECT pg_notify('pgrst','reload schema');
 
+
+-- ═══════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/017_align_orders_payment_status_constraint.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater payment-status compatibility fix.
+-- The application uses 'unpaid' for cash/UPI orders and completion checks.
+-- Production currently allows pending/paid/refunded/failed but rejects unpaid.
+-- Preserve every existing production value and add 'unpaid'.
+BEGIN;
+
+ALTER TABLE public.orders
+  DROP CONSTRAINT IF EXISTS orders_payment_status_check;
+
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_payment_status_check
+  CHECK (
+    payment_status = ANY (
+      ARRAY[
+        'pending'::text,
+        'unpaid'::text,
+        'paid'::text,
+        'refunded'::text,
+        'failed'::text
+      ]
+    )
+  );
+
+COMMIT;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/018_supplier_dispatch_recovery.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroWater: bounded supplier-dispatch recovery index
+-- Safe/idempotent. Apply after existing supplier dispatch migrations.
+-- Supports the existing 5-minute scheduler without changing dispatch logic.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS orders_pending_water_supplier_recovery_idx
+  ON public.orders (created_at, last_dispatch_at)
+  WHERE status = 'PENDING'
+    AND supplier_id IS NULL
+    AND service_type = 'water_can';
 
 -- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/019_secure_auth_role_trigger.sql
