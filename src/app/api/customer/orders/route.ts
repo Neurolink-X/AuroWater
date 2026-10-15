@@ -386,7 +386,7 @@ export async function POST(req: NextRequest) {
   if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0.5)) {
     const expected = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
     console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
-    return jsonErr('Price validation failed — totals do not match platform rates', 400);
+    return jsonErr('Pricing changed since this checkout opened. Refresh and review the updated total before placing the order.', 400, 'PRICE_CHANGED');
   }
 
   const { gst: gst_amount } = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
