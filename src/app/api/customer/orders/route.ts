@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
   const activePricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown>
     : null;
-  const activeServicePrices = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
+  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
     ? activePricingConfig.services as Record<string, unknown>
     : {};
   if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
