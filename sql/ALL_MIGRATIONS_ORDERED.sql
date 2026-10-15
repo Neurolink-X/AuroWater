@@ -3809,6 +3809,8 @@ SELECT pg_notify('pgrst', 'reload schema');
 -- ═══════════════════════════════════════════════════════════════
 -- FILE: sql/020_market_aligned_water_can_pricing.sql
 -- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/021_auro_launch_pricing.sql
+-- ═══════════════════════════════════════════════════════════════
 
 -- Market-aligned pricing defaults for AuroWater.
 -- Safe forward migration: only replaces known legacy seed values; customized
@@ -3891,8 +3893,6 @@ UPDATE public.settings SET value = '10' WHERE key = 'convenience_fee' AND value 
 UPDATE public.settings SET value = '30' WHERE key = 'emergency_surcharge' AND value = '199';
 UPDATE public.service_types SET base_price = 20 WHERE key = 'water_can' AND base_price IN (10,12,39);
 
--- ═══════════════════════════════════════════════════════════════
--- FILE: sql/021_auro_launch_pricing.sql
 -- ═══════════════════════════════════════════════════════════════
 
 -- AuroTap launch price book.
