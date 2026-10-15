@@ -1151,6 +1151,7 @@ export default function SupplierDashboardPage() {
       payment?: {
         payment_confirmed?: boolean;
         payment_reference?: string;
+        payment_collector?: 'supplier' | 'aurotap';
       },
     ): Promise<boolean> => {
       setUpdatingOrder(orderId);
