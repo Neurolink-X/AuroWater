@@ -43,6 +43,11 @@ CREATE POLICY pricing_versions_admin_read ON public.pricing_versions
     WHERE p.id = auth.uid() AND p.role = 'admin' AND p.is_active = true
   ));
 
+DROP POLICY IF EXISTS pricing_versions_active_read ON public.pricing_versions;
+CREATE POLICY pricing_versions_active_read ON public.pricing_versions
+  FOR SELECT TO authenticated
+  USING (effective_from <= now());
+
 DROP POLICY IF EXISTS pricing_versions_admin_insert ON public.pricing_versions;
 CREATE POLICY pricing_versions_admin_insert ON public.pricing_versions
   FOR INSERT TO authenticated
@@ -86,7 +91,7 @@ BEGIN
       'water_subscription', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'subscription_can_price'), 20),
       'bulk_can_price', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'bulk_can_price'), 20),
       'bulk_threshold', COALESCE((SELECT value::integer FROM public.settings WHERE key = 'bulk_threshold'), 50),
-      'services', v_services,
+      'services', v_services || jsonb_build_object('plumbing_mistri', 700),
       'convenience_fee', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'convenience_fee'), 10),
       'emergency_surcharge', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'emergency_surcharge'), 30),
       -- Keep the current order API behaviour until tax policy is confirmed.
