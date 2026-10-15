@@ -110,7 +110,7 @@ assert.match(pricingMigration, /prevent_pricing_version_mutation/);
 assert.match(pricingMigration, /prevent_order_pricing_snapshot_mutation/);
 assert.match(pricingMigration, /publish_pricing_version/);
 assert.match(pricingMigration, /pg_advisory_xact_lock/);
-assert.match(pricingMigration, /current \u20b920 per-can supplier entitlement/);
+assert.match(pricingMigration, /current \u20b920 single-can supplier payout rule/);
 
 const pricingAdminApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'pricing', 'route.ts'), 'utf8');
 assert.match(pricingAdminApi, /publish_pricing_version/);
