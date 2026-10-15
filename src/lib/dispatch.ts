@@ -121,12 +121,34 @@ async function notify(
  */
 async function alertAdmins(db: any, orderId: string, message: string, action: string) {
   try {
-    const { data: admins, error: adminError } = await db.from('profiles').select('id').eq('role', 'admin').limit(20);
-    if (adminError) console.error('[dispatch] admin lookup failed', adminError.message);
+    const { data: admins, error: adminError } = await db
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(20);
+
+    if (adminError) {
+      console.error('[dispatch] admin lookup failed', adminError.message);
+      return;
+    }
+
+    const recipients = ((admins ?? []) as { id?: string }[]).filter((a) => a.id);
+    if (!recipients.length) return;
+
+    // Database primary key (order_id, action) makes this claim atomic across
+    // concurrent cron/API retries. Historical duplicate audit rows are preserved.
+    const { error: claimError } = await db
+      .from('dispatch_alert_events')
+      .insert({ order_id: orderId, action });
+
+    if (claimError) {
+      if (claimError.code === PG_UNIQUE_VIOLATION) return;
+      console.error('[dispatch] alert dedup claim failed:', claimError.message);
+      return;
+    }
 
     let created = false;
-    for (const a of (admins ?? []) as { id?: string }[]) {
-      if (!a.id) continue;
+    for (const a of recipients) {
       const { error } = await db.from('notifications').insert({
         user_id: a.id,
         title: 'Unassigned order',
@@ -136,8 +158,11 @@ async function alertAdmins(db: any, orderId: string, message: string, action: st
         is_read: false,
         dedup_key: `order_${orderId}_${action}_${a.id}`,
       });
+
       if (!error) created = true;
-      else if (error.code !== PG_UNIQUE_VIOLATION) console.error('[dispatch] admin alert failed', error.message);
+      else if (error.code !== PG_UNIQUE_VIOLATION) {
+        console.error('[dispatch] admin alert failed', error.message);
+      }
     }
 
     if (created) {
