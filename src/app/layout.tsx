@@ -136,7 +136,8 @@ const OG_IMAGE = {
  * no colour jump.
  * ──────────────────────────────────────────────────────────────────────── */
 
-const SPLASH_ON_WEB = true; // false = installed app only
+//const SPLASH_ON_WEB = true; // false = installed app only
+const SPLASH_ON_WEB = false; // installed app (PWA) only
 const SPLASH_SESSION_KEY = 'aurotap_splash_seen';
 
 const splashBootScript = `(function(){try{
@@ -445,7 +446,7 @@ export default function RootLayout({
           fontFamily:
             'var(--font-sans), var(--font-devanagari), system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
           WebkitTextSizeAdjust: '100%',
-          textRendering: 'optimizeLegibility',
+         // textRendering: 'optimizeLegibility',
         }}
         suppressHydrationWarning
       >
