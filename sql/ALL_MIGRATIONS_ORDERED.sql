@@ -4493,7 +4493,15 @@ BEGIN
   FOR service_key, service_value IN
     SELECT key, value FROM jsonb_each(p_config->'services')
   LOOP
-    IF service_key !~ '^[a-z][a-z0-9_]{1,49}
+    IF service_key !~ '^[a-z][a-z0-9_]{1,49}$'
+      OR jsonb_typeof(service_value) <> 'number'
+      OR (service_value::text)::numeric < 1
+      OR (service_value::text)::numeric > 100000 THEN
+      RAISE EXCEPTION 'Invalid service base price for %', service_key USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
+
+  PERFORM pg_advisory_xact_lock(hashtext('public.pricing_versions.version'));
   SELECT COALESCE(MAX(version), 0) + 1 INTO next_version FROM public.pricing_versions;
 
   INSERT INTO public.pricing_versions(version, effective_from, reason, config, created_by)
