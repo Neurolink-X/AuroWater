@@ -24,13 +24,13 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const MAX_OFFSET = 10_000;
 
-/** `notes` holds JSON like {"status":"pending", ...details}. Never throws. */
-function parseNotes(notes: unknown): Record<string, unknown> {
-  if (notes && typeof notes === 'object') return notes as Record<string, unknown>;
-  if (typeof notes !== 'string') return {};
+/** Safely parses payout_details without ever exposing full account details. */
+function parseDetails(details: unknown): Record<string, unknown> {
+  if (details && typeof details === 'object' && !Array.isArray(details)) return details as Record<string, unknown>;
+  if (typeof details !== 'string') return {};
   try {
-    const v = JSON.parse(notes) as unknown;
-    return v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    const v = JSON.parse(details) as unknown;
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
   } catch {
     return {};
   }
@@ -66,8 +66,9 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await auth.ctx.supabase
       .from('payouts')
-      .select('*')
-      .eq('supplier_id', auth.ctx.profile.id)
+      .select('id, user_id, role, amount, method, status, paid_at, created_at, payout_details')
+      .eq('user_id', auth.ctx.profile.id)
+      .eq('role', 'supplier')
       // Open requests (paid_at is null) first, then newest paid. `id` breaks ties so pages never overlap or skip rows.
       .order('paid_at', { ascending: false, nullsFirst: true })
       .order('id', { ascending: false })
@@ -80,15 +81,18 @@ export async function GET(req: NextRequest) {
 
     return jsonOk(
       ((data ?? []) as Record<string, unknown>[]).map((r) => {
-        const notes = parseNotes(r.notes);
+        const details = parseDetails(r.payout_details);
+        const status = String(r.status ?? 'pending').toLowerCase();
+        const paidAt = r.paid_at ?? null;
+        const safeStatus = status === 'paid' && !paidAt ? 'needs_review' : status;
         return {
           id: r.id,
           amount: r.amount,
           method: r.method,
-          status: r.paid_at ? 'paid' : String(notes.status ?? 'pending'),
+          status: safeStatus,
           requested_at: r.created_at ?? null,
-          paid_at: r.paid_at ?? null,
-          destination: r.method === 'upi' ? maskUpi(notes.upi_id ?? r.reference) : maskAccount(notes.bank_account),
+          paid_at: safeStatus === 'paid' ? paidAt : null,
+          destination: r.method === 'upi' ? maskUpi(details.upi_id) : maskAccount(details.bank_account),
         };
       }),
     );
