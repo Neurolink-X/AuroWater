@@ -3269,3 +3269,603 @@ UPDATE public.settings SET value = '20' WHERE key = 'market_can_price' AND value
 UPDATE public.settings SET value = '10' WHERE key = 'convenience_fee' AND value = '29';
 UPDATE public.settings SET value = '30' WHERE key = 'emergency_surcharge' AND value = '199';
 UPDATE public.service_types SET base_price = 20 WHERE key = 'water_can' AND base_price IN (10,12,39);
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/021_auro_launch_pricing.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap launch price book.
+-- For an existing database, prefer the idempotent sql/022_reconcile_launch_pricing.sql
+-- migration, which preserves known administrator customizations.
+-- This seed is for explicit launch setup and intentionally updates these price keys.
+
+INSERT INTO public.settings (key, value)
+VALUES
+  ('default_can_price', '20'),
+  ('chilled_can_price', '25'),
+  ('subscription_can_price', '18'),
+  ('bulk_can_price', '20'),
+  ('bulk_threshold', '50'),
+  ('market_can_price', '20'),
+  ('convenience_fee', '10'),
+  ('emergency_surcharge', '30'),
+  ('subscription_discount_percent', '10'),
+  ('service_base_prices', '{"water_tanker":299,"ro_service":349,"plumbing":149,"borewell":499,"motor_pump":299,"tank_cleaning":599}')
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/024_align_recurring_water_price.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap: align recurring Normal RO with approved launch price.
+-- Forward-only, idempotent. Does not rewrite historical orders or tax fields.
+-- Active subscriptions using the previous ₹18 rate are aligned for future deliveries.
+BEGIN;
+
+UPDATE public.settings
+SET value = '20', updated_at = now()
+WHERE key = 'subscription_can_price'
+  AND value IS DISTINCT FROM '20';
+
+INSERT INTO public.settings (key, value)
+VALUES ('subscription_can_price', '20')
+ON CONFLICT (key) DO NOTHING;
+
+DO $$
+BEGIN
+  IF to_regclass('public.water_subscriptions') IS NOT NULL
+     AND EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'water_subscriptions'
+         AND column_name = 'price_per_can'
+     )
+     AND EXISTS (
+       SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'water_subscriptions'
+         AND column_name = 'status'
+     )
+  THEN
+    EXECUTE $update$
+      UPDATE public.water_subscriptions
+      SET price_per_can = 20
+      WHERE status = 'ACTIVE'
+        AND price_per_can = 18
+    $update$;
+  END IF;
+END
+$$;
+
+SELECT pg_notify('pgrst', 'reload schema');
+
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/025_dispatch_alert_idempotency.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap: prevent retry loops from flooding notifications and audit_logs.
+-- Additive and idempotent. Existing historical audit records are preserved.
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.dispatch_alert_events (
+  order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  action text NOT NULL CHECK (
+    action IN (
+      'no_supplier',
+      'dispatch_exhausted',
+      'technician_no_candidates',
+      'technician_dispatch_exhausted'
+    )
+  ),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (order_id, action)
+);
+
+ALTER TABLE public.dispatch_alert_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.dispatch_alert_events FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.dispatch_alert_events TO service_role;
+
+-- Seed the dedup table for already-completed orders so the next cron run does
+-- not generate another alert for historical failures that were later completed.
+INSERT INTO public.dispatch_alert_events (order_id, action)
+SELECT DISTINCT
+  o.id,
+  replace(a.action, 'order.', '')
+FROM public.orders AS o
+JOIN public.audit_logs AS a
+  ON a.entity_id::text IN (o.id::text, o.order_number)
+WHERE o.status = 'COMPLETED'
+  AND a.action IN (
+    'order.no_supplier',
+    'order.dispatch_exhausted',
+    'order.technician_no_candidates',
+    'order.technician_dispatch_exhausted'
+  )
+ON CONFLICT (order_id, action) DO NOTHING;
+
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/026_supplier_finance_integrity.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap supplier finance integrity: additive, forward-only migration.
+-- Does not rewrite historical orders, payouts, or ledger entries.
+BEGIN;
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS payment_collector TEXT,
+  ADD COLUMN IF NOT EXISTS payment_collected_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS payment_collected_amount NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS payment_collected_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.orders'::regclass
+      AND conname = 'orders_payment_collector_check'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD CONSTRAINT orders_payment_collector_check
+      CHECK (payment_collector IS NULL OR payment_collector IN ('supplier', 'aurotap')) NOT VALID;
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.orders'::regclass
+      AND conname = 'orders_payment_collected_amount_nonnegative'
+  ) THEN
+    ALTER TABLE public.orders
+      ADD CONSTRAINT orders_payment_collected_amount_nonnegative
+      CHECK (payment_collected_amount IS NULL OR payment_collected_amount >= 0) NOT VALID;
+  END IF;
+END
+$$;
+
+-- Supplier earnings are the supplier's entitlement, not customer gross sales.
+-- Restrict direct RPC calls so a supplier cannot query another supplier's totals.
+CREATE OR REPLACE FUNCTION public.get_supplier_earnings(p_supplier_id UUID, p_period TEXT)
+RETURNS TABLE (period_label TEXT, order_count BIGINT, gross_amount NUMERIC, pending_payout NUMERIC)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  start_ts TIMESTAMPTZ;
+  pl TEXT;
+  caller_role TEXT;
+BEGIN
+  SELECT p.role INTO caller_role FROM public.profiles p WHERE p.id = auth.uid();
+  IF auth.uid() IS DISTINCT FROM p_supplier_id AND caller_role IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION 'forbidden_supplier_earnings' USING ERRCODE = '42501';
+  END IF;
+
+  pl := lower(coalesce(p_period, 'month'));
+  IF pl NOT IN ('today', 'week', 'month') THEN pl := 'month'; END IF;
+  start_ts := CASE pl
+    WHEN 'today' THEN date_trunc('day', NOW())
+    WHEN 'week' THEN date_trunc('week', NOW())
+    ELSE date_trunc('month', NOW())
+  END;
+
+  RETURN QUERY
+  SELECT pl::TEXT, COUNT(*)::BIGINT,
+    COALESCE(SUM(o.supplier_payout) FILTER (WHERE COALESCE(o.supplier_payout, 0) > 0), 0)::NUMERIC,
+    COALESCE(SUM(o.supplier_payout) FILTER (
+      WHERE COALESCE(o.supplier_payout, 0) > 0
+        AND lower(COALESCE(o.payout_status, 'pending')) = 'pending'
+    ), 0)::NUMERIC
+  FROM public.orders o
+  WHERE o.supplier_id = p_supplier_id
+    AND upper(COALESCE(o.status, '')) = 'COMPLETED'
+    AND COALESCE(o.completed_at, o.created_at) >= start_ts;
+END;
+$$;
+
+-- Complete a supplier order and post its verified entitlement in the same transaction.
+-- Only the confirmed single-can ₹20 order rule is credited automatically. Other amounts
+-- remain unposted until the supplier payout schedule is approved.
+CREATE OR REPLACE FUNCTION public.complete_supplier_order_atomic(
+  p_order_id UUID,
+  p_supplier_id UUID,
+  p_payment_confirmed BOOLEAN,
+  p_payment_reference TEXT,
+  p_payment_collector TEXT
+)
+RETURNS SETOF public.orders
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role TEXT;
+  v_order public.orders%ROWTYPE;
+  v_now TIMESTAMPTZ := NOW();
+  v_was_paid BOOLEAN;
+  v_method TEXT;
+  v_supplier_entitlement NUMERIC(10,2);
+BEGIN
+  IF auth.uid() IS DISTINCT FROM p_supplier_id THEN
+    RAISE EXCEPTION 'supplier_identity_mismatch' USING ERRCODE = '42501';
+  END IF;
+  SELECT p.role INTO v_role FROM public.profiles p WHERE p.id = auth.uid();
+  IF v_role IS DISTINCT FROM 'supplier' THEN
+    RAISE EXCEPTION 'supplier_role_required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT o.* INTO v_order
+  FROM public.orders o
+  WHERE o.id = p_order_id AND o.supplier_id = p_supplier_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_not_found_or_forbidden' USING ERRCODE = '42501'; END IF;
+  IF upper(COALESCE(v_order.status, '')) <> 'IN_PROGRESS' THEN
+    RAISE EXCEPTION 'invalid_order_transition' USING ERRCODE = '40001';
+  END IF;
+
+  v_was_paid := lower(COALESCE(v_order.payment_status, 'unpaid')) = 'paid';
+  v_method := lower(COALESCE(v_order.payment_method, 'cash'));
+
+  IF NOT v_was_paid AND p_payment_confirmed IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'payment_confirmation_required' USING ERRCODE = '22023';
+  END IF;
+  IF NOT v_was_paid AND v_method = 'upi' AND NULLIF(btrim(COALESCE(p_payment_reference, '')), '') IS NULL THEN
+    RAISE EXCEPTION 'upi_reference_required' USING ERRCODE = '22023';
+  END IF;
+  IF NOT v_was_paid AND (
+    p_payment_collector IS NULL OR p_payment_collector NOT IN ('supplier', 'aurotap')
+  ) THEN
+    RAISE EXCEPTION 'payment_collector_required' USING ERRCODE = '22023';
+  END IF;
+
+  -- The approved single-can launch case is ₹20 customer total -> ₹20 supplier entitlement.
+  -- Never infer multi-can or non-standard supplier rates from the customer total.
+  v_supplier_entitlement := NULL;
+  IF lower(COALESCE(v_order.service_type, '')) = 'water_can'
+     AND COALESCE(v_order.can_count, 0) = 1
+     AND COALESCE(v_order.total_amount, 0) = 20 THEN
+    v_supplier_entitlement := 20;
+  END IF;
+
+  UPDATE public.orders
+  SET status = 'COMPLETED',
+      completed_at = v_now,
+      payment_status = CASE WHEN v_was_paid THEN payment_status ELSE 'paid' END,
+      payment_confirmed_at = CASE WHEN v_was_paid THEN payment_confirmed_at ELSE v_now END,
+      payment_reference = CASE WHEN v_was_paid THEN payment_reference ELSE NULLIF(btrim(COALESCE(p_payment_reference, '')), '') END,
+      payment_collector = CASE WHEN v_was_paid THEN payment_collector ELSE p_payment_collector END,
+      payment_collected_by = CASE WHEN v_was_paid THEN payment_collected_by WHEN p_payment_collector = 'supplier' THEN p_supplier_id ELSE NULL END,
+      payment_collected_amount = CASE WHEN v_was_paid THEN payment_collected_amount ELSE total_amount END,
+      payment_collected_at = CASE WHEN v_was_paid THEN payment_collected_at ELSE v_now END,
+      supplier_payout = CASE
+        WHEN v_supplier_entitlement IS NOT NULL
+          AND financials_posted_at IS NULL
+          AND COALESCE(supplier_payout, 0) <> v_supplier_entitlement
+        THEN v_supplier_entitlement
+        ELSE supplier_payout
+      END,
+      payout_status = CASE
+        WHEN v_supplier_entitlement IS NOT NULL
+          AND financials_posted_at IS NULL
+          AND COALESCE(supplier_payout, 0) <> v_supplier_entitlement
+        THEN 'pending'
+        ELSE payout_status
+      END
+  WHERE id = p_order_id AND supplier_id = p_supplier_id
+  RETURNING * INTO v_order;
+
+  IF v_supplier_entitlement IS NOT NULL AND v_order.financials_posted_at IS NULL THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.wallet_ledger wl
+      WHERE wl.order_id = p_order_id AND wl.entry_type = 'ORDER_EARNING'
+    ) THEN
+      INSERT INTO public.wallet_ledger (
+        payee_id, payee_role, order_id, entry_type, amount, note, metadata, created_by
+      )
+      VALUES (
+        p_supplier_id, 'supplier', p_order_id, 'ORDER_EARNING', v_supplier_entitlement,
+        'Supplier entitlement for verified ₹20 single-can water order',
+        jsonb_build_object('service_type', 'water_can', 'can_count', 1, 'customer_total', v_order.total_amount),
+        p_supplier_id
+      );
+    ELSE
+      RAISE EXCEPTION 'order_earning_ledger_already_exists' USING ERRCODE = '23505';
+    END IF;
+
+    UPDATE public.orders
+    SET financials_posted_at = v_now, financials_payee_id = p_supplier_id
+    WHERE id = p_order_id AND supplier_id = p_supplier_id
+    RETURNING * INTO v_order;
+  END IF;
+
+  RETURN NEXT v_order;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
+
+-- Atomic payout request creation; advisory lock serializes concurrent requests per supplier.
+CREATE OR REPLACE FUNCTION public.request_supplier_payout(
+  p_amount NUMERIC, p_method TEXT, p_details JSONB
+)
+RETURNS TABLE (id UUID, amount NUMERIC, method TEXT, status TEXT, paid_at TIMESTAMPTZ, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_role TEXT;
+  v_row public.payouts%ROWTYPE;
+BEGIN
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'not_authenticated' USING ERRCODE = '42501'; END IF;
+  IF p_amount IS NULL OR p_amount <= 0 OR p_amount > 1000000 THEN
+    RAISE EXCEPTION 'invalid_payout_amount' USING ERRCODE = '22023';
+  END IF;
+  IF p_method NOT IN ('upi', 'bank') OR jsonb_typeof(COALESCE(p_details, '{}'::jsonb)) <> 'object' THEN
+    RAISE EXCEPTION 'invalid_payout_details' USING ERRCODE = '22023';
+  END IF;
+  IF p_method = 'upi' AND COALESCE(p_details->>'upi_id', '') !~* '^[a-z0-9._-]{2,256}@[a-z][a-z0-9]{1,63}$' THEN
+    RAISE EXCEPTION 'invalid_upi_id' USING ERRCODE = '22023';
+  END IF;
+  IF p_method = 'bank' AND (
+    COALESCE(p_details->>'bank_account', '') !~ '^[0-9]{9,18}$'
+    OR COALESCE(p_details->>'ifsc', '') !~* '^[A-Z]{4}0[A-Z0-9]{6}$'
+  ) THEN
+    RAISE EXCEPTION 'invalid_bank_details' USING ERRCODE = '22023';
+  END IF;
+
+  SELECT p.role INTO v_role FROM public.profiles p WHERE p.id = v_user_id;
+  IF v_role IS DISTINCT FROM 'supplier' THEN RAISE EXCEPTION 'supplier_role_required' USING ERRCODE = '42501'; END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtextextended(v_user_id::TEXT || ':supplier_payout', 0));
+
+  -- A legacy payout marked paid without its immutable ledger debit must be reconciled
+  -- before another request; otherwise the same earnings could be requested twice.
+  IF EXISTS (
+    SELECT 1 FROM public.payouts p
+    WHERE p.user_id = v_user_id AND p.role = 'supplier'
+      AND lower(COALESCE(p.status, 'pending')) = 'paid'
+      AND NOT EXISTS (
+        SELECT 1 FROM public.wallet_ledger wl
+        WHERE wl.payout_id = p.id AND wl.entry_type = 'PAYOUT'
+      )
+  ) THEN
+    RAISE EXCEPTION 'payout_settlement_requires_reconciliation' USING ERRCODE = '55000';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.payouts p
+    WHERE p.user_id = v_user_id AND p.role = 'supplier'
+      AND lower(COALESCE(p.status, 'pending')) IN ('pending', 'approved')
+  ) THEN
+    RAISE EXCEPTION 'payout_request_pending' USING ERRCODE = '23505';
+  END IF;
+
+  IF COALESCE(public.payee_balance(v_user_id), 0) < p_amount THEN
+    RAISE EXCEPTION 'insufficient_verified_supplier_balance' USING ERRCODE = '22023';
+  END IF;
+
+  INSERT INTO public.payouts (user_id, role, amount, status, method, note, payout_details, paid_at)
+  VALUES (v_user_id, 'supplier', p_amount, 'pending', p_method, 'Supplier payout request', p_details, NULL)
+  RETURNING * INTO v_row;
+
+  RETURN QUERY SELECT v_row.id, v_row.amount, v_row.method, v_row.status, v_row.paid_at, v_row.created_at;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.request_supplier_payout(NUMERIC, TEXT, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.request_supplier_payout(NUMERIC, TEXT, JSONB) TO authenticated;
+
+SELECT pg_notify('pgrst', 'reload schema');
+COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/027_versioned_pricing_rules.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap versioned pricing rules and immutable order snapshots.
+-- Additive migration: does not rewrite existing orders, earnings, payouts, or live settings.
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.pricing_versions (
+  id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  version INTEGER NOT NULL UNIQUE CHECK (version > 0),
+  effective_from TIMESTAMPTZ NOT NULL,
+  reason TEXT NOT NULL CHECK (char_length(trim(reason)) BETWEEN 3 AND 500),
+  config JSONB NOT NULL CHECK (jsonb_typeof(config) = 'object'),
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT pricing_versions_config_required CHECK (
+    config ? 'water_normal'
+    AND config ? 'water_chilled'
+    AND config ? 'water_subscription'
+    AND config ? 'services'
+    AND config ? 'convenience_fee'
+    AND config ? 'emergency_surcharge'
+    AND config ? 'gst_rate'
+  )
+);
+
+CREATE INDEX IF NOT EXISTS pricing_versions_effective_idx
+  ON public.pricing_versions (effective_from DESC, version DESC);
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS pricing_version INTEGER,
+  ADD COLUMN IF NOT EXISTS pricing_snapshot JSONB;
+
+COMMENT ON COLUMN public.orders.pricing_version IS
+  'Pricing version used when this order was created; historical values must not be recalculated from current settings.';
+COMMENT ON COLUMN public.orders.pricing_snapshot IS
+  'Immutable server-calculated price components and policy snapshot for audit/reconciliation.';
+
+ALTER TABLE public.pricing_versions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS pricing_versions_admin_read ON public.pricing_versions;
+CREATE POLICY pricing_versions_admin_read ON public.pricing_versions
+  FOR SELECT TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = auth.uid() AND p.role = 'admin' AND p.is_active = true
+  ));
+
+DROP POLICY IF EXISTS pricing_versions_active_read ON public.pricing_versions;
+CREATE POLICY pricing_versions_active_read ON public.pricing_versions
+  FOR SELECT TO anon, authenticated
+  USING (effective_from <= now());
+
+DROP POLICY IF EXISTS pricing_versions_admin_insert ON public.pricing_versions;
+CREATE POLICY pricing_versions_admin_insert ON public.pricing_versions
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    created_by = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.profiles p
+      WHERE p.id = auth.uid() AND p.role = 'admin' AND p.is_active = true
+    )
+  );
+
+CREATE OR REPLACE FUNCTION public.prevent_pricing_version_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Pricing versions are immutable; publish a new version instead.';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS pricing_versions_immutable ON public.pricing_versions;
+CREATE TRIGGER pricing_versions_immutable
+  BEFORE UPDATE OR DELETE ON public.pricing_versions
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_pricing_version_mutation();
+
+-- Seed a baseline version only if this migration has not already seeded/published one.
+-- Prices are read from existing settings when available; approved launch fallbacks remain ₹20/₹25.
+DO $$
+DECLARE
+  v_config JSONB;
+  v_services JSONB;
+  v_next_version INTEGER;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.pricing_versions) THEN
+    SELECT COALESCE(
+      (SELECT value::jsonb FROM public.settings WHERE key = 'service_base_prices'),
+      '{"water_tanker":299,"ro_service":349,"plumbing":149,"borewell":499,"motor_pump":299,"tank_cleaning":599}'::jsonb
+    ) INTO v_services;
+
+    v_config := jsonb_build_object(
+      'water_normal', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'default_can_price'), 20),
+      'water_chilled', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'chilled_can_price'), 25),
+      'water_subscription', 20,
+      'bulk_can_price', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'bulk_can_price'), 20),
+      'bulk_threshold', COALESCE((SELECT value::integer FROM public.settings WHERE key = 'bulk_threshold'), 50),
+      'services', v_services || jsonb_build_object('plumbing_mistri', 700),
+      'convenience_fee', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'convenience_fee'), 10),
+      'emergency_surcharge', COALESCE((SELECT value::numeric FROM public.settings WHERE key = 'emergency_surcharge'), 30),
+      -- Keep the current order API behaviour until tax policy is confirmed.
+      'gst_rate', 0
+    );
+
+    SELECT COALESCE(MAX(version), 0) + 1 INTO v_next_version FROM public.pricing_versions;
+    INSERT INTO public.pricing_versions (version, effective_from, reason, config)
+    VALUES (v_next_version, now(), 'Baseline imported from existing settings; no historical orders changed.', v_config);
+  END IF;
+END $$;
+
+
+-- Prevent later order updates from changing the price version or price snapshot.
+CREATE OR REPLACE FUNCTION public.prevent_order_pricing_snapshot_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $
+BEGIN
+  IF NEW.pricing_version IS DISTINCT FROM OLD.pricing_version
+     OR NEW.pricing_snapshot IS DISTINCT FROM OLD.pricing_snapshot THEN
+    RAISE EXCEPTION 'Order pricing snapshots are immutable; use an approved adjustment/credit workflow.';
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS orders_pricing_snapshot_immutable ON public.orders;
+CREATE TRIGGER orders_pricing_snapshot_immutable
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_order_pricing_snapshot_mutation();
+
+-- Atomic version allocation + audit logging. The database is the final authority.
+CREATE OR REPLACE FUNCTION public.publish_pricing_version(
+  p_effective_from TIMESTAMPTZ,
+  p_reason TEXT,
+  p_config JSONB
+)
+RETURNS public.pricing_versions
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $
+DECLARE
+  actor UUID := auth.uid();
+  next_version INTEGER;
+  published public.pricing_versions;
+BEGIN
+  IF actor IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = actor AND role = 'admin' AND is_active = true
+  ) THEN
+    RAISE EXCEPTION 'Administrator access required' USING ERRCODE = '42501';
+  END IF;
+  IF p_effective_from IS NULL OR p_effective_from < now() - interval '60 seconds' THEN
+    RAISE EXCEPTION 'Effective date must be now or in the future' USING ERRCODE = '22023';
+  END IF;
+  IF p_reason IS NULL OR char_length(trim(p_reason)) NOT BETWEEN 3 AND 500 THEN
+    RAISE EXCEPTION 'Reason must be 3 to 500 characters' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(p_config) <> 'object'
+    OR NOT (p_config ? 'water_normal')
+    OR NOT (p_config ? 'water_chilled')
+    OR NOT (p_config ? 'water_subscription')
+    OR NOT (p_config ? 'bulk_can_price')
+    OR NOT (p_config ? 'bulk_threshold')
+    OR NOT (p_config ? 'services')
+    OR NOT (p_config ? 'convenience_fee')
+    OR NOT (p_config ? 'emergency_surcharge')
+    OR NOT (p_config ? 'gst_rate') THEN
+    RAISE EXCEPTION 'Pricing configuration is incomplete' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(p_config->'services') <> 'object'
+    OR (p_config->>'water_normal')::numeric < 20 OR (p_config->>'water_normal')::numeric > 500
+    OR (p_config->>'water_chilled')::numeric < 20 OR (p_config->>'water_chilled')::numeric > 500
+    OR (p_config->>'water_subscription')::numeric < 20 OR (p_config->>'water_subscription')::numeric > 500
+    OR (p_config->>'bulk_can_price')::numeric < 20
+    OR (p_config->>'bulk_can_price')::numeric > (p_config->>'water_normal')::numeric
+    OR (p_config->>'bulk_threshold')::integer < 2 OR (p_config->>'bulk_threshold')::integer > 200
+    OR (p_config->>'convenience_fee')::numeric < 0 OR (p_config->>'convenience_fee')::numeric > 500
+    OR (p_config->>'emergency_surcharge')::numeric < 0 OR (p_config->>'emergency_surcharge')::numeric > 5000
+    OR (p_config->>'gst_rate')::numeric < 0 OR (p_config->>'gst_rate')::numeric > 1 THEN
+    RAISE EXCEPTION 'Pricing values are outside approved limits; water prices must cover the current ₹20 per-can supplier entitlement.' USING ERRCODE = '22023';
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('public.pricing_versions.version'));
+  SELECT COALESCE(MAX(version), 0) + 1 INTO next_version FROM public.pricing_versions;
+
+  INSERT INTO public.pricing_versions(version, effective_from, reason, config, created_by)
+  VALUES (next_version, p_effective_from, trim(p_reason), p_config, actor)
+  RETURNING * INTO published;
+
+  INSERT INTO public.audit_logs(actor_id, action, entity, entity_id, meta)
+  VALUES (actor, 'pricing.version.publish', 'pricing_versions', NULL,
+    jsonb_build_object('version', next_version, 'effective_from', p_effective_from,
+      'reason', trim(p_reason), 'config', p_config));
+
+  RETURN published;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.pricing_versions FROM authenticated, anon;
+
+COMMIT;
+
