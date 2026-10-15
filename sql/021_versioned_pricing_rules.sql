@@ -45,7 +45,7 @@ CREATE POLICY pricing_versions_admin_read ON public.pricing_versions
 
 DROP POLICY IF EXISTS pricing_versions_active_read ON public.pricing_versions;
 CREATE POLICY pricing_versions_active_read ON public.pricing_versions
-  FOR SELECT TO authenticated
+  FOR SELECT TO anon, authenticated
   USING (effective_from <= now());
 
 DROP POLICY IF EXISTS pricing_versions_admin_insert ON public.pricing_versions;
