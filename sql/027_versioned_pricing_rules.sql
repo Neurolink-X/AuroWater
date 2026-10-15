@@ -199,28 +199,7 @@ BEGIN
   FOR service_key, service_value IN
     SELECT key, value FROM jsonb_each(p_config->'services')
   LOOP
-    IF service_key !~ '^[a-z][a-z0-9_]{1,49}
-  SELECT COALESCE(MAX(version), 0) + 1 INTO next_version FROM public.pricing_versions;
-
-  INSERT INTO public.pricing_versions(version, effective_from, reason, config, created_by)
-  VALUES (next_version, p_effective_from, trim(p_reason), p_config, actor)
-  RETURNING * INTO published;
-
-  INSERT INTO public.audit_logs(actor_id, action, entity, entity_id, meta)
-  VALUES (actor, 'pricing.version.publish', 'pricing_versions', NULL,
-    jsonb_build_object('version', next_version, 'effective_from', p_effective_from,
-      'reason', trim(p_reason), 'config', p_config));
-
-  RETURN published;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) TO authenticated;
-REVOKE INSERT, UPDATE, DELETE ON public.pricing_versions FROM authenticated, anon;
-
-COMMIT;
-
+    IF service_key !~ '^[a-z][a-z0-9_]{1,49}$'
       OR jsonb_typeof(service_value) <> 'number'
       OR (service_value::text)::numeric < 1
       OR (service_value::text)::numeric > 100000 THEN
