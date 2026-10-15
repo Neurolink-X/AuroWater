@@ -909,8 +909,6 @@ export default function SupplierDashboardPage() {
       const amount = Number(row.supplier_payout ?? 0);
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
-      const canCount = Number(row.can_count ?? 0);
-      const orderTotal = Number(row.total_amount ?? 0);
       // Never infer today's supplier rate for historical orders: old orders may have
       // a different approved supplier schedule. Multi-can orders are not inherently errors.
       // A completed order with no posted financial snapshot or no positive entitlement
