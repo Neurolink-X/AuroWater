@@ -61,7 +61,9 @@ assert.match(pricingPage, /price: 'Quote required'/);
 
 const supplierDashboard = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8');
 assert.ok(supplierDashboard.includes("status: needsReview ? 'review'"));
-assert.ok(supplierDashboard.includes('waterPayoutMismatch'));
+assert.ok(supplierDashboard.includes('financialsPosted = Boolean(row.financials_posted_at)'));
+assert.ok(supplierDashboard.includes('formatScheduledSlot(order.scheduled_slot)'));
+assert.ok(!supplierDashboard.includes('canCount !== 1'));
 assert.ok(supplierDashboard.includes('payment_collector: paymentCollector'));
 
 const supplierCompletion = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'orders', '[id]', 'route.ts'), 'utf8');
