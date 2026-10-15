@@ -28,8 +28,8 @@ BEGIN
       ADD CONSTRAINT orders_payment_collected_amount_nonnegative
       CHECK (payment_collected_amount IS NULL OR payment_collected_amount >= 0) NOT VALID;
   END IF;
-END
-$$;
+END;
+$;
 
 -- Supplier earnings are the supplier's entitlement, not customer gross sales.
 -- Restrict direct RPC calls so a supplier cannot query another supplier's totals.
