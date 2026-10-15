@@ -101,10 +101,7 @@ const MAX_FORM_STEP = 5;
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
-const NORMAL_RO_CAN_PRICE: number = CAN_PRICES.normal;
-const CHILLED_RO_CAN_PRICE: number = CAN_PRICES.chilled;
 const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
-const BULK_RO_CAN_PRICE: number = CAN_PRICES.bulk;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
