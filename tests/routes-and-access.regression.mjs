@@ -70,6 +70,13 @@ assert.ok(supplierCompletion.includes('complete_supplier_order_atomic'));
 assert.ok(supplierCompletion.includes('p_payment_collector: parsed.data.payment_collector'));
 assert.ok(supplierCompletion.includes('p_payment_reference: reference || null'));
 
+const adminOrderApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'orders', '[id]', 'route.ts'), 'utf8');
+assert.ok(adminOrderApi.includes('Explicitly confirm that payment was received'));
+assert.ok(adminOrderApi.includes('payment_collected_by'));
+assert.ok(adminOrderApi.includes('payment_collected_amount'));
+assert.ok(adminOrderApi.includes('payment_collected_at'));
+assert.ok(adminOrderApi.includes('Enter the UPI transaction reference'));
+
 const supplierPayoutApi = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'payouts', 'route.ts'), 'utf8');
 assert.ok(supplierPayoutApi.includes('request_supplier_payout'));
 assert.ok(supplierPayoutApi.includes(".eq('user_id', auth.ctx.profile.id)"));
