@@ -91,7 +91,8 @@ export default function SupplierNav() {
   const pathname = usePathname();
   const online = useOnline();
   const { hydrated, isLoggedIn } = useAuth();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpenPath, setMoreOpenPath] = useState<string | null>(null);
+const moreOpen = Boolean(pathname && moreOpenPath === pathname);
   const moreId = useId();
   const moreButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -101,10 +102,15 @@ export default function SupplierNav() {
   const moreActive = mobileMore.some((i) => isActivePath(pathname, i.href));
   const showSignIn = hydrated && !isLoggedIn;
 
+  // const closeMore = useCallback(() => {
+  //   setMoreOpen(false);
+  //   moreButtonRef.current?.focus();
+  // }, []);
+
   const closeMore = useCallback(() => {
-    setMoreOpen(false);
-    moreButtonRef.current?.focus();
-  }, []);
+  setMoreOpenPath(null);
+  moreButtonRef.current?.focus();
+}, []);
 
   // Close the sheet when the route changes.
   useEffect(() => {
@@ -235,7 +241,11 @@ export default function SupplierNav() {
                 type="button"
                 aria-expanded={moreOpen}
                 aria-controls={moreOpen ? moreId : undefined}
-                onClick={() => setMoreOpen((o) => !o)}
+               onClick={() =>
+  setMoreOpenPath((current) =>
+    current === pathname ? null : pathname
+  )
+}
                 className={`relative flex min-h-[3.5rem] w-full flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${focusRing} ${
                   moreActive || moreOpen ? 'text-emerald-700' : 'text-slate-500'
                 }`}
