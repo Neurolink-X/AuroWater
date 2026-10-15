@@ -405,9 +405,11 @@ function subOptionDelta(serviceKey: string, subOptionKey: string): number {
 
 function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
   if (draft.serviceKey === 'plumbing') {
-    return draft.plumberType === 'mistri'
-      ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri)
-      : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour);
+    return settings.pricing_version
+      ? draft.plumberType === 'mistri'
+        ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri)
+        : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour)
+      : PLUMBER_PRICES[draft.plumberType ?? 'labour'];
   }
   return settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
 }
@@ -940,7 +942,7 @@ export default function BookingWizard() {
 
   const fromPrice = useCallback((key: string) => {
     if (key === 'water_can') return settings.default_can_price;
-    if (key === 'plumbing') return settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour;
+    if (key === 'plumbing') return settings.pricing_version ? (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES.labour;
     return settings.service_base_prices[key as ServiceKey] ?? 0;
   }, [settings]);
 
@@ -1766,7 +1768,7 @@ export default function BookingWizard() {
                       >
                         <span className="block font-bold">{PLUMBER_LABELS[type]}</span>
                         <span className="mt-1 block text-sm">
-                          {inr(type === 'mistri' ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri) : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour))} starting
+                          {inr(settings.pricing_version ? type === 'mistri' ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri) : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES[type])} starting
                         </span>
                         <span className="mt-1 block text-xs text-slate-500">
                           Final quote depends on scope and materials.
