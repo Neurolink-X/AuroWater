@@ -171,7 +171,7 @@ BEGIN
     OR (p_config->>'convenience_fee')::numeric < 0 OR (p_config->>'convenience_fee')::numeric > 500
     OR (p_config->>'emergency_surcharge')::numeric < 0 OR (p_config->>'emergency_surcharge')::numeric > 5000
     OR (p_config->>'gst_rate')::numeric < 0 OR (p_config->>'gst_rate')::numeric > 1 THEN
-    RAISE EXCEPTION 'Pricing values are outside approved limits; water prices must cover the current ₹20 per-can supplier entitlement.' USING ERRCODE = '22023';
+    RAISE EXCEPTION 'Pricing values are outside approved limits; water prices must respect the current ₹20 single-can supplier payout rule; multi-can payout schedules remain unapproved.' USING ERRCODE = '22023';
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext('public.pricing_versions.version'));
