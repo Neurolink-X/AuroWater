@@ -572,10 +572,10 @@ export async function POST(req: NextRequest) {
         convenience_fee: convenience,
         gst_rate: gstRate,
         // A subscription keeps the exact pricing contract from its first order.
-        pricing_version: activePricingRow ? Number(activePricingRow.version) : null,
-        pricing_snapshot: activePricingRow
-          ? ((order as Record<string, unknown>).pricing_snapshot ?? null)
-          : null,
+        ...(activePricingRow ? {
+          pricing_version: Number(activePricingRow.version),
+          pricing_snapshot: (order as Record<string, unknown>).pricing_snapshot ?? null,
+        } : {}),
         notes: str(body.notes),
       })
       .select('id')
