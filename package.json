@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint --suppressions-location eslint-suppressions.json",
+    "lint": "eslint --suppressions-location eslint-suppressions.json --prune-suppressions",
     "db:setup": "node scripts/setup-db.js",
     "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
     "smoke": "node scripts/smoke-test.mjs",

@@ -112,7 +112,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   /* Pricing */
   default_can_price:      20,
   chilled_can_price:      25,
-  subscription_can_price: 18,
+  subscription_can_price: 20,
   bulk_can_price:         20,
   bulk_threshold:         50,
   market_can_price:       20,
@@ -227,11 +227,9 @@ export function mergeSettings(
   // Approved launch prices stay consistent across settings, booking and order validation.
   const defaultCanPrice = 20;
   const chilledCanPrice = 25;
-  const configuredSubscriptionCanPrice = safePositive(raw.subscription_can_price, DEFAULT_SETTINGS.subscription_can_price);
-  const recurringOfferPrice = Math.round(defaultCanPrice * 0.9);
-  const effectiveSubscriptionCanPrice = configuredSubscriptionCanPrice > 0 && configuredSubscriptionCanPrice < defaultCanPrice
-    ? Math.min(configuredSubscriptionCanPrice, recurringOfferPrice)
-    : recurringOfferPrice;
+  // Recurring Normal RO uses the same approved ₹20 rate as one-time Normal RO.
+  // Do not advertise a discount the server does not honour.
+  const effectiveSubscriptionCanPrice = defaultCanPrice;
   const configuredBulkCanPrice = safePositive(raw.bulk_can_price, DEFAULT_SETTINGS.bulk_can_price);
   // A bulk rate must be lower than the one-time rate to qualify as a discount.
   // If admin data is invalid (e.g. ₹35 bulk vs ₹12 regular), show/apply regular pricing instead.

@@ -13,7 +13,7 @@
 export const WATER_CAN_PRICES = Object.freeze({
   normal: 20,
   chilled: 25,
-  subscription: 18,
+  subscription: 20,
 });
 
 export type WaterCanPricingOption = 'normal' | 'chilled';
@@ -46,7 +46,7 @@ function roundRupees(value: number): number {
  *
  * Normal RO: ₹20
  * Chilled RO: ₹25
- * Subscription RO: ₹18
+ * Subscription RO: ₹20 (same rate as one-time normal RO)
  *
  * Subscription orders cannot use chilled RO.
  * Client-supplied prices and stale settings are never trusted.

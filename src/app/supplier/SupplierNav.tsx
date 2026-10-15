@@ -112,11 +112,6 @@ const moreOpen = Boolean(pathname && moreOpenPath === pathname);
   moreButtonRef.current?.focus();
 }, []);
 
-  // Close the sheet when the route changes.
-  useEffect(() => {
-    setMoreOpen(false);
-  }, [pathname]);
-
   useEffect(() => {
     if (!moreOpen) return;
     const onKey = (e: KeyboardEvent) => {
