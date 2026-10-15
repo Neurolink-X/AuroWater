@@ -142,6 +142,12 @@ assert.match(bookingWizard, /settings\.chilled_can_price/);
 assert.match(bookingWizard, /settings\.subscription_can_price/);
 assert.match(bookingWizard, /settings\.bulk_can_price/);
 
+const subscriptionCron = readFileSync(join(root, 'src', 'app', 'api', 'cron', 'subscriptions', 'route.ts'), 'utf8');
+assert.match(subscriptionCron, /versioned_subscription_contract/);
+assert.match(subscriptionCron, /contract_snapshot/);
+assert.match(subscriptionCron, /supplier_entitlement_policy/);
+assert.match(pricingMigration, /prevent_subscription_pricing_snapshot_mutation/);
+
 const migrationBuilder = readFileSync(join(root, 'scripts', 'build-supabase-migrations.mjs'), 'utf8');
 assert.match(migrationBuilder, /027_versioned_pricing_rules\.sql/);
 assert.match(migrationBuilder, /026_supplier_finance_integrity\.sql/);
