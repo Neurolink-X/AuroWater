@@ -69,6 +69,7 @@ assert.ok(supplierCompletion.includes('payment_collected_by'));
 assert.ok(supplierCompletion.includes('payment_collected_amount'));
 assert.ok(supplierCompletion.includes("Select who collected the payment"));
 assert.ok(supplierCompletion.includes('patch.supplier_payout = 20'));
+assert.ok(supplierCompletion.includes('complete_supplier_order_atomic'));
 
 const supplierPayoutApi = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'payouts', 'route.ts'), 'utf8');
 assert.ok(supplierPayoutApi.includes('request_supplier_payout'));
@@ -86,5 +87,7 @@ const supplierFinanceMigration = readFileSync(join(root, 'sql', '026_supplier_fi
 assert.ok(supplierFinanceMigration.includes('payment_collector'));
 assert.ok(supplierFinanceMigration.includes('SUM(o.supplier_payout)'));
 assert.ok(supplierFinanceMigration.includes('pg_advisory_xact_lock'));
+assert.ok(supplierFinanceMigration.includes('ORDER_EARNING'));
+assert.ok(supplierFinanceMigration.includes('payee_balance(v_user_id)'));
 
 console.log(`Route/access, pricing, and supplier finance regression checks passed (${byRoute.size} page routes).`);
