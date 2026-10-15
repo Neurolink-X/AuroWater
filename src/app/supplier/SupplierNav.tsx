@@ -114,7 +114,7 @@ const moreOpen = Boolean(pathname && moreOpenPath === pathname);
 
   // Close the sheet when the route changes.
   useEffect(() => {
-    setMoreOpen(false);
+    setMoreOpenPath(null);
   }, [pathname]);
 
   useEffect(() => {
