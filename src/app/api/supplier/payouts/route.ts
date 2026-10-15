@@ -67,6 +67,12 @@ export async function POST(req: NextRequest) {
     if (error.code === '23505' || /payout_request_pending/i.test(error.message ?? '')) {
       return jsonErr('You already have a payout request awaiting processing.', 409);
     }
+    if (/insufficient_verified_supplier_balance/i.test(error.message ?? '')) {
+      return jsonErr('The requested amount exceeds your verified available balance.', 422);
+    }
+    if (/payout_settlement_requires_reconciliation/i.test(error.message ?? '')) {
+      return jsonErr('A previous payout needs settlement verification before another request can be made.', 409);
+    }
     console.error('[supplier/payouts] request RPC failed', { code: error.code, message: error.message });
     return jsonErr('Unable to create payout request right now. Please try again.', 502);
   }
