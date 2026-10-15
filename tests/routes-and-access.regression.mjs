@@ -76,6 +76,12 @@ assert.ok(supplierPayoutApi.includes(".eq('user_id', auth.ctx.profile.id)"));
 assert.ok(!supplierPayoutApi.includes(".eq('supplier_id'"));
 assert.ok(supplierPayoutApi.includes('payout_details'));
 
+const supplierPayoutHistory = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'earnings', 'history', 'route.ts'), 'utf8');
+assert.ok(supplierPayoutHistory.includes(".eq('user_id', auth.ctx.profile.id)"));
+assert.ok(supplierPayoutHistory.includes(".eq('role', 'supplier')"));
+assert.ok(supplierPayoutHistory.includes('payout_details'));
+assert.ok(!supplierPayoutHistory.includes(".eq('supplier_id', auth.ctx.profile.id)"));
+
 const supplierFinanceMigration = readFileSync(join(root, 'sql', '026_supplier_finance_integrity.sql'), 'utf8');
 assert.ok(supplierFinanceMigration.includes('payment_collector'));
 assert.ok(supplierFinanceMigration.includes('SUM(o.supplier_payout)'));
