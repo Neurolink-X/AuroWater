@@ -909,6 +909,7 @@ export default function SupplierDashboardPage() {
         !Number.isFinite(amount) ||
         amount <= 0 ||
         waterPayoutMismatch ||
+        (String(row.service_type ?? '').toLowerCase() === 'water_can' && canCount !== 1) ||
         (payoutStatus === 'paid' && !paidAt);
       const isSettled = payoutStatus === 'paid' && Boolean(paidAt) && !needsReview;
       return {
