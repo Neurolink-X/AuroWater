@@ -47,7 +47,7 @@ export interface PricingConfig {
   bulk_can_price:         number;  // ₹ bulk rate (≥ bulk_threshold cans)
   bulk_threshold:         number;  // minimum qty for bulk pricing
   market_can_price:       number;  // admin-configured illustrative reference for savings display
-  service_base_prices:    Record<ServiceKey, number>;
+  service_base_prices:    Record<string, number>;
   convenience_fee:        number;  // flat ₹ per order
   emergency_surcharge:    number;  // flat ₹ for emergency orders
   gst_rate:               number;  // 0–1, e.g. 0.18 = 18%
@@ -123,6 +123,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     borewell:      499,
     motor_pump:    299,
     tank_cleaning: 599,
+    plumbing_mistri: 700,
   },
   convenience_fee:     10,
   emergency_surcharge: 30,
