@@ -571,6 +571,11 @@ export async function POST(req: NextRequest) {
         price_per_can: waterUnitPrice,
         convenience_fee: convenience,
         gst_rate: gstRate,
+        // A subscription keeps the exact pricing contract from its first order.
+        pricing_version: activePricingRow ? Number(activePricingRow.version) : null,
+        pricing_snapshot: activePricingRow
+          ? ((order as Record<string, unknown>).pricing_snapshot ?? null)
+          : null,
         notes: str(body.notes),
       })
       .select('id')
