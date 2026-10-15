@@ -1187,7 +1187,12 @@ export default function SupplierDashboardPage() {
         );
 
         if (profile?.id) {
-          await fetchOrders();
+          // Completion changes supplier_payout/payout_status atomically in the database.
+          // Refresh earnings immediately as well as orders; realtime delivery is not guaranteed.
+          await Promise.all([
+            fetchOrders(),
+            ...(nextStatus === 'delivered' ? [fetchEarnings(profile.id)] : []),
+          ]);
         }
 
         return true;
