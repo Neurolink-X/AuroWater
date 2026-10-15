@@ -197,7 +197,7 @@ const fmtTime = (iso: string) => {
 const formatScheduledSlot = (value: string) => {
   const raw = String(value ?? '').trim();
   if (!raw) return 'Time not specified';
-  if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(raw)) {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw)) {
     const formatted = fmtTime(raw);
     return formatted || 'Time not specified';
   }
