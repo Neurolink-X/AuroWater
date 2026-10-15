@@ -185,10 +185,23 @@ const fmtTime = (iso: string) => {
   const d = new Date(iso);
   if (!iso || Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
   });
+};
+
+// Database timestamps can arrive as ISO strings (often UTC). Always display
+// those in India Standard Time; preserve human-entered labels such as "Morning".
+const formatScheduledSlot = (value: string) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'Time not specified';
+  if (/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}/.test(raw)) {
+    const formatted = fmtTime(raw);
+    return formatted || 'Time not specified';
+  }
+  return raw;
 };
 
 // Today's date (YYYY-MM-DD) in India time, so "today" is right on any device.
@@ -550,7 +563,7 @@ function OrderCard({
             📅 {fmtDate(order.scheduled_date)}
           </span>
           <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
-            ⏰ {order.scheduled_slot}
+            ⏰ {formatScheduledSlot(order.scheduled_slot)}
           </span>
           {order.cans_count != null && order.cans_count > 0 && (
             <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(13,155,108,0.9)', background: 'rgba(13,155,108,0.1)', padding: '4px 10px', borderRadius: 999, whiteSpace: 'nowrap' }}>
@@ -898,18 +911,15 @@ export default function SupplierDashboardPage() {
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
       const canCount = Number(row.can_count ?? 0);
       const orderTotal = Number(row.total_amount ?? 0);
-      // Only validate the documented single-can ₹20 case. Multi-can or non-standard totals
-      // require the approved supplier schedule and must not be guessed by the UI.
-      const waterPayoutMismatch =
-        String(row.service_type ?? '').toLowerCase() === 'water_can' &&
-        canCount === 1 && orderTotal === 20 &&
-        Math.abs(amount - 20) > 0.009;
-      // Never present a zero/mismatched amount or an unverified "paid" flag as a valid earning.
+      // Never infer today's supplier rate for historical orders: old orders may have
+      // a different approved supplier schedule. Multi-can orders are not inherently errors.
+      // A completed order with no posted financial snapshot or no positive entitlement
+      // must remain visible for reconciliation, not be presented as a valid payable earning.
+      const financialsPosted = Boolean(row.financials_posted_at);
       const needsReview =
         !Number.isFinite(amount) ||
         amount <= 0 ||
-        waterPayoutMismatch ||
-        (String(row.service_type ?? '').toLowerCase() === 'water_can' && canCount !== 1) ||
+        !financialsPosted ||
         (payoutStatus === 'paid' && !paidAt);
       const isSettled = payoutStatus === 'paid' && Boolean(paidAt) && !needsReview;
       return {
@@ -2184,7 +2194,7 @@ export default function SupplierDashboardPage() {
                     onMouseLeave={(el) => { (el.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                   >
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.6)' }}>#{e.order_id.slice(0, 8).toUpperCase()}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#F87171' : '#0D9B6C' }}>{e.amount > 0 ? INR(e.amount) : '—'}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#F87171' : '#0D9B6C' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
                     <div>
                       <span style={{ fontSize: 10, fontWeight: 800, color: e.status === 'paid' ? '#10B981' : e.status === 'review' ? '#F87171' : '#F59E0B', background: e.status === 'paid' ? 'rgba(16,185,129,0.12)' : e.status === 'review' ? 'rgba(248,113,113,0.12)' : 'rgba(245,158,11,0.12)', padding: '2px 8px', borderRadius: 999, letterSpacing: '0.04em' }}>
                         {e.status === 'paid' ? 'Paid' : e.status === 'review' ? 'Needs review' : 'Pending'}
