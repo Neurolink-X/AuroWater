@@ -4338,7 +4338,7 @@ CREATE POLICY pricing_versions_admin_read ON public.pricing_versions
   FOR SELECT TO authenticated
   USING (EXISTS (
     SELECT 1 FROM public.profiles p
-    WHERE p.id = auth.uid() AND p.role = 'admin' AND p.is_active = true
+    WHERE p.id = auth.uid() AND p.role = 'admin' AND p.is_active = true AND COALESCE(p.status, 'active') = 'active'
   ));
 
 DROP POLICY IF EXISTS pricing_versions_active_read ON public.pricing_versions;
@@ -4450,10 +4450,12 @@ AS $$
 DECLARE
   actor UUID := auth.uid();
   next_version INTEGER;
+  service_key TEXT;
+  service_value JSONB;
   published public.pricing_versions;
 BEGIN
   IF actor IS NULL OR NOT EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = actor AND role = 'admin' AND is_active = true
+    SELECT 1 FROM public.profiles WHERE id = actor AND role = 'admin' AND is_active = true AND COALESCE(status, 'active') = 'active'
   ) THEN
     RAISE EXCEPTION 'Administrator access required' USING ERRCODE = '42501';
   END IF;
@@ -4487,6 +4489,38 @@ BEGIN
     OR (p_config->>'gst_rate')::numeric < 0 OR (p_config->>'gst_rate')::numeric > 1 THEN
     RAISE EXCEPTION 'Pricing values are outside approved limits; water prices must respect the current ₹20 single-can supplier payout rule; multi-can payout schedules remain unapproved.' USING ERRCODE = '22023';
   END IF;
+
+  FOR service_key, service_value IN
+    SELECT key, value FROM jsonb_each(p_config->'services')
+  LOOP
+    IF service_key !~ '^[a-z][a-z0-9_]{1,49}
+  SELECT COALESCE(MAX(version), 0) + 1 INTO next_version FROM public.pricing_versions;
+
+  INSERT INTO public.pricing_versions(version, effective_from, reason, config, created_by)
+  VALUES (next_version, p_effective_from, trim(p_reason), p_config, actor)
+  RETURNING * INTO published;
+
+  INSERT INTO public.audit_logs(actor_id, action, entity, entity_id, meta)
+  VALUES (actor, 'pricing.version.publish', 'pricing_versions', NULL,
+    jsonb_build_object('version', next_version, 'effective_from', p_effective_from,
+      'reason', trim(p_reason), 'config', p_config));
+
+  RETURN published;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.pricing_versions FROM authenticated, anon;
+
+COMMIT;
+
+      OR jsonb_typeof(service_value) <> 'number'
+      OR (service_value::text)::numeric < 1
+      OR (service_value::text)::numeric > 100000 THEN
+      RAISE EXCEPTION 'Invalid service base price for %', service_key USING ERRCODE = '22023';
+    END IF;
+  END LOOP;
 
   PERFORM pg_advisory_xact_lock(hashtext('public.pricing_versions.version'));
   SELECT COALESCE(MAX(version), 0) + 1 INTO next_version FROM public.pricing_versions;
