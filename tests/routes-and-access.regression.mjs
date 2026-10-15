@@ -65,11 +65,10 @@ assert.ok(supplierDashboard.includes('waterPayoutMismatch'));
 assert.ok(supplierDashboard.includes('payment_collector: paymentCollector'));
 
 const supplierCompletion = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'orders', '[id]', 'route.ts'), 'utf8');
-assert.ok(supplierCompletion.includes('payment_collected_by'));
-assert.ok(supplierCompletion.includes('payment_collected_amount'));
 assert.ok(supplierCompletion.includes("Select who collected the payment"));
-assert.ok(supplierCompletion.includes('patch.supplier_payout = 20'));
 assert.ok(supplierCompletion.includes('complete_supplier_order_atomic'));
+assert.ok(supplierCompletion.includes('p_payment_collector: parsed.data.payment_collector'));
+assert.ok(supplierCompletion.includes('p_payment_reference: reference || null'));
 
 const supplierPayoutApi = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'payouts', 'route.ts'), 'utf8');
 assert.ok(supplierPayoutApi.includes('request_supplier_payout'));
@@ -85,6 +84,10 @@ assert.ok(!supplierPayoutHistory.includes(".eq('supplier_id', auth.ctx.profile.i
 
 const supplierFinanceMigration = readFileSync(join(root, 'sql', '026_supplier_finance_integrity.sql'), 'utf8');
 assert.ok(supplierFinanceMigration.includes('payment_collector'));
+assert.ok(supplierFinanceMigration.includes('payment_collected_by'));
+assert.ok(supplierFinanceMigration.includes('payment_collected_amount'));
+assert.ok(supplierFinanceMigration.includes('payment_collected_at'));
+assert.ok(supplierFinanceMigration.includes('complete_supplier_order_atomic'));
 assert.ok(supplierFinanceMigration.includes('SUM(o.supplier_payout)'));
 assert.ok(supplierFinanceMigration.includes('pg_advisory_xact_lock'));
 assert.ok(supplierFinanceMigration.includes('ORDER_EARNING'));
