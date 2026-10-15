@@ -135,16 +135,18 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
     patch.completed_at = new Date().toISOString();
 
-    // Approved launch rule: supplier entitlement is ₹20 per delivered water can.
-    // Only create a new entitlement when completing a water order; never rewrite old completed orders.
+    // Supplier entitlement is not the customer total. Only apply the confirmed single-can
+    // launch rule (₹20 order -> ₹20 supplier amount); leave other order sizes for reconciliation
+    // until the supplier agreement and tax treatment define a verified schedule.
     const canCount = Number(before.can_count ?? 0);
+    const orderTotal = Number(before.total_amount ?? 0);
     const existingSupplierPayout = Number(before.supplier_payout ?? 0);
     if (
       String(before.service_type ?? '').toLowerCase() === 'water_can' &&
-      Number.isInteger(canCount) && canCount > 0 &&
-      (!Number.isFinite(existingSupplierPayout) || existingSupplierPayout <= 0)
+      canCount === 1 && orderTotal === 20 &&
+      Number.isFinite(existingSupplierPayout) && existingSupplierPayout <= 0
     ) {
-      patch.supplier_payout = canCount * 20;
+      patch.supplier_payout = 20;
       patch.payout_status = 'pending';
     }
   }
