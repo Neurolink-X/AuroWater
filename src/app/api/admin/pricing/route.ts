@@ -14,7 +14,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'Pricing config must be an object.' };
   const v = raw as Record<string, unknown>;
   for (const [key, label] of [['water_normal','Normal water'],['water_chilled','Chilled water'],['water_subscription','Subscription water'],['bulk_can_price','Bulk water']] as const) {
-    if (!money(v[key], 20, 500)) return { error: label + ' price must be between ₹20 and ₹500 to cover the current supplier entitlement.' };
+    if (!money(v[key], 20, 500)) return { error: label + ' price must be between ₹20 and ₹500 to respect the current ₹20 single-can supplier payout rule.' };
   }
   if (!Number.isInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
   if (!money(v.convenience_fee, 0, 500) || !money(v.emergency_surcharge, 0, 5000)) return { error: 'Fees are outside the allowed range.' };
