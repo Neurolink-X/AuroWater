@@ -918,8 +918,12 @@ export default function BookingWizard() {
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
   const breakdown  = useMemo(() => {
     const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
-    return raw;
-  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
+    // Before migration 027, preserve the existing no-GST checkout behavior.
+    // After versioned pricing is active, use the published tax rate consistently.
+    return settings.pricing_version
+      ? raw
+      : { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
+  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey, settings.pricing_version]);
 
   /* Itemised lines (sum = baseAmount) so every screen shows the same numbers */
   const priceLines = useMemo<PriceLine[]>(
