@@ -32,6 +32,7 @@ const bodySchema = z.object({
   status: z.enum(['IN_PROGRESS', 'COMPLETED']),
   payment_confirmed: z.boolean().optional(),
   payment_reference: z.string().trim().max(100).optional(),
+  payment_collector: z.enum(['supplier', 'aurotap']).optional(),
 });
 
 type OrderBefore = {
@@ -43,6 +44,9 @@ type OrderBefore = {
   payment_status: string | null;
   payment_method: string | null;
   total_amount: number | string | null;
+  service_type?: string | null;
+  supplier_payout?: number | string | null;
+  payout_status?: string | null;
 };
 
 const TRANSITIONS: Record<string, string> = {
@@ -85,7 +89,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const { data: found, error: bErr } = await sb
     .from('orders')
-    .select('id, supplier_id, status, customer_id, can_count, payment_status, payment_method, total_amount')
+    .select('id, supplier_id, status, customer_id, can_count, payment_status, payment_method, total_amount, service_type, supplier_payout, payout_status')
     .eq('id', id)
     .maybeSingle();
   if (bErr) {
@@ -117,8 +121,32 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     if (!wasPaid && method === 'upi' && !reference) {
       return jsonErr('Enter the UPI transaction reference before completing this order.', 400);
     }
-    if (!wasPaid) patch.payment_status = 'paid';
+    if (!wasPaid && !parsed.data.payment_collector) {
+      return jsonErr('Select who collected the payment before completing this order.', 400);
+    }
+    if (!wasPaid) {
+      patch.payment_status = 'paid';
+      patch.payment_confirmed_at = new Date().toISOString();
+      patch.payment_reference = reference || null;
+      patch.payment_collector = parsed.data.payment_collector;
+      patch.payment_collected_by = parsed.data.payment_collector === 'supplier' ? supplierId : null;
+      patch.payment_collected_amount = Number(before.total_amount ?? 0);
+      patch.payment_collected_at = new Date().toISOString();
+    }
     patch.completed_at = new Date().toISOString();
+
+    // Approved launch rule: supplier entitlement is ₹20 per delivered water can.
+    // Only create a new entitlement when completing a water order; never rewrite old completed orders.
+    const canCount = Number(before.can_count ?? 0);
+    const existingSupplierPayout = Number(before.supplier_payout ?? 0);
+    if (
+      String(before.service_type ?? '').toLowerCase() === 'water_can' &&
+      Number.isInteger(canCount) && canCount > 0 &&
+      (!Number.isFinite(existingSupplierPayout) || existingSupplierPayout <= 0)
+    ) {
+      patch.supplier_payout = canCount * 20;
+      patch.payout_status = 'pending';
+    }
   }
 
   // Compare-and-set: only update if the order is STILL in the state we checked.
