@@ -4302,7 +4302,7 @@ CREATE TABLE IF NOT EXISTS public.pricing_versions (
   effective_from TIMESTAMPTZ NOT NULL,
   reason TEXT NOT NULL CHECK (char_length(trim(reason)) BETWEEN 3 AND 500),
   config JSONB NOT NULL CHECK (jsonb_typeof(config) = 'object'),
-  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT pricing_versions_config_required CHECK (
     config ? 'water_normal'
