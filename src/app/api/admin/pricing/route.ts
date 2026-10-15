@@ -1,737 +1,97 @@
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import {
-  requireAdmin,
-  requireSupabaseAuth,
-} from '@/lib/api/supabase-request';
-import { createServiceClient } from '@/utils/supabase/server';
+import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
-const PRICING_KEY = 'pricing_rules';
-
-const ruleSchema = z.object({
-  id: z.string().uuid().optional(),
-
-  service_type_id: z
-    .number()
-    .int()
-    .positive(),
-
-  zone_id: z
-    .string()
-    .uuid()
-    .nullable()
-    .optional(),
-
-  base_price: z
-    .number()
-    .finite()
-    .nonnegative(),
-
-  distance_multiplier: z
-    .number()
-    .finite()
-    .nonnegative()
-    .default(1),
-
-  tax_percentage: z
-    .number()
-    .finite()
-    .min(0)
-    .max(100)
-    .default(0),
-
-  min_order_value: z
-    .number()
-    .finite()
-    .nonnegative()
-    .default(0),
-
-  emergency_charge: z
-    .number()
-    .finite()
-    .nonnegative()
-    .default(0),
-});
-
-type PricingRule = z.infer<typeof ruleSchema> & {
-  id: string;
+type Config = {
+  water_normal: number; water_chilled: number; water_subscription: number;
+  bulk_can_price: number; bulk_threshold: number; services: Record<string, number>;
+  convenience_fee: number; emergency_surcharge: number; gst_rate: number;
 };
+const money = (v: unknown, min: number, max: number): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 
-type PricingRuleWithNames = PricingRule & {
-  service_name: string | null;
-  zone_name: string | null;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Helpers                                                                    */
-/* -------------------------------------------------------------------------- */
-
-function normaliseRule(
-  input: z.infer<typeof ruleSchema>,
-): PricingRule {
-  return {
-    id: input.id ?? crypto.randomUUID(),
-
-    service_type_id: input.service_type_id,
-
-    zone_id: input.zone_id ?? null,
-
-    base_price: input.base_price,
-
-    distance_multiplier:
-      input.distance_multiplier ?? 1,
-
-    tax_percentage:
-      input.tax_percentage ?? 0,
-
-    min_order_value:
-      input.min_order_value ?? 0,
-
-    emergency_charge:
-      input.emergency_charge ?? 0,
-  };
-}
-
-function validateNoDuplicateRule(
-  rules: PricingRule[],
-  candidate: PricingRule,
-  ignoreId?: string,
-): string | null {
-  const duplicate = rules.find(
-    (rule) =>
-      rule.id !== ignoreId &&
-      rule.service_type_id ===
-        candidate.service_type_id &&
-      (rule.zone_id ?? null) ===
-        (candidate.zone_id ?? null),
-  );
-
-  if (duplicate) {
-    return (
-      'A pricing rule already exists for this service and zone.'
-    );
+function validate(raw: unknown): { config?: Config; error?: string } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'Pricing config must be an object.' };
+  const v = raw as Record<string, unknown>;
+  for (const [key, label] of [['water_normal','Normal water'],['water_chilled','Chilled water'],['water_subscription','Subscription water'],['bulk_can_price','Bulk water']] as const) {
+    if (!money(v[key], 1, 500)) return { error: label + ' price must be between ₹1 and ₹500.' };
   }
-
-  return null;
+  if (!Number.isInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
+  if (!money(v.convenience_fee, 0, 500) || !money(v.emergency_surcharge, 0, 5000)) return { error: 'Fees are outside the allowed range.' };
+  if (!money(v.gst_rate, 0, 1)) return { error: 'GST must be decimal-based (for example, 0.18).' };
+  if (Number(v.bulk_can_price) > Number(v.water_normal)) return { error: 'Bulk price cannot exceed normal water price.' };
+  if (!v.services || typeof v.services !== 'object' || Array.isArray(v.services)) return { error: 'Service prices are required.' };
+  const services: Record<string, number> = {};
+  for (const [key, value] of Object.entries(v.services as Record<string, unknown>)) {
+    if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 1, 100000)) return { error: 'Invalid service price: ' + key };
+    services[key] = Math.round(value * 100) / 100;
+  }
+  if (!Object.keys(services).length) return { error: 'At least one service price is required.' };
+  return { config: {
+    water_normal: Math.round(Number(v.water_normal) * 100) / 100,
+    water_chilled: Math.round(Number(v.water_chilled) * 100) / 100,
+    water_subscription: Math.round(Number(v.water_subscription) * 100) / 100,
+    bulk_can_price: Math.round(Number(v.bulk_can_price) * 100) / 100,
+    bulk_threshold: Number(v.bulk_threshold), services,
+    convenience_fee: Math.round(Number(v.convenience_fee) * 100) / 100,
+    emergency_surcharge: Math.round(Number(v.emergency_surcharge) * 100) / 100,
+    gst_rate: Number(v.gst_rate),
+  } };
 }
 
-async function loadRules(
-  sb: ReturnType<
-    typeof import('@/lib/db/supabase').createSupabaseUserClient
-  >,
-): Promise<PricingRule[]> {
-  const { data, error } = await sb
-    .from('settings')
-    .select('value')
-    .eq('key', PRICING_KEY)
-    .maybeSingle();
-
+export async function GET(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
+  const { data, error } = await auth.ctx.supabase.from('pricing_versions')
+    .select('id, version, effective_from, reason, config, created_at, created_by')
+    .order('version', { ascending: false }).limit(100);
   if (error) {
-    throw new Error(error.message);
+    console.error('[admin/pricing] load failed', error);
+    return jsonErr(error.code === '42P01' || error.code === 'PGRST205'
+      ? 'Apply sql/021_versioned_pricing_rules.sql before using versioned pricing.'
+      : 'Unable to load pricing versions.', error.code === '42P01' || error.code === 'PGRST205' ? 503 : 502);
   }
+  const versions = (data ?? []).map((row) => ({ ...row, currently_effective: Date.parse(row.effective_from) <= Date.now() }));
+  return jsonOk({ versions, current: versions.find((row) => row.currently_effective) ?? null });
+}
 
-  if (!data?.value) {
-    return [];
-  }
-
+export async function POST(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
+  let body: Record<string, unknown>;
   try {
-    const parsed: unknown = JSON.parse(
-      String(data.value),
-    );
+    const raw: unknown = await req.json();
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return jsonErr('Invalid JSON body.', 400);
+    body = raw as Record<string, unknown>;
+  } catch { return jsonErr('Invalid JSON body.', 400); }
 
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  if (reason.length < 3 || reason.length > 500) return jsonErr('Reason must be 3–500 characters.', 400);
+  const result = validate(body.config);
+  if (!result.config) return jsonErr(result.error ?? 'Invalid pricing configuration.', 400);
+  const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
+  if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
 
-    const rules: PricingRule[] = [];
-
-    for (const item of parsed) {
-      const result = ruleSchema.safeParse(item);
-
-      if (!result.success) {
-        continue;
-      }
-
-      rules.push(
-        normaliseRule(result.data),
-      );
-    }
-
-    return rules;
-  } catch {
-    throw new Error(
-      'Pricing configuration is corrupted or invalid.',
-    );
+  const { data: latest, error: latestError } = await auth.ctx.supabase.from('pricing_versions')
+    .select('version').order('version', { ascending: false }).limit(1).maybeSingle();
+  if (latestError) return jsonErr('Pricing schema is not ready or version history could not be read.', 503);
+  const version = Number(latest?.version ?? 0) + 1;
+  const { data, error } = await auth.ctx.supabase.from('pricing_versions').insert({
+    version, effective_from: date.toISOString(), reason, config: result.config, created_by: auth.ctx.profile.id,
+  }).select('id, version, effective_from, reason, config, created_at, created_by').single();
+  if (error || !data) {
+    console.error('[admin/pricing] publish failed', error);
+    return jsonErr(error?.code === '23505' ? 'A pricing version was published concurrently. Refresh history and try again.' : 'Could not publish pricing. No existing version was changed.', 409);
   }
-}
-
-async function saveRules(
-  rules: PricingRule[],
-): Promise<void> {
-  const admin = createServiceClient();
-
-  const { error } = await admin
-    .from('settings')
-    .upsert(
-      {
-        key: PRICING_KEY,
-        value: JSON.stringify(rules),
-        updated_at:
-          new Date().toISOString(),
-      },
-      {
-        onConflict: 'key',
-      },
-    );
-
-  if (error) {
-    throw new Error(error.message);
+  const { error: auditError } = await auth.ctx.supabase.from('audit_logs').insert({
+    actor_id: auth.ctx.profile.id, action: 'pricing.version.publish', entity: 'pricing_versions',
+    meta: { version, effective_from: data.effective_from, reason, config: result.config },
+  });
+  if (auditError) {
+    console.error('[admin/pricing] audit failed after version insert', auditError);
+    return jsonErr('Version was created but audit logging failed. Refresh history before retrying; do not publish the same change again blindly.', 500);
   }
-}
-
-async function validateReferences(
-  sb: ReturnType<
-    typeof import('@/lib/db/supabase').createSupabaseUserClient
-  >,
-  rule: PricingRule,
-): Promise<string | null> {
-  /*
-   * Validate service type.
-   */
-  const {
-    data: serviceType,
-    error: serviceError,
-  } = await sb
-    .from('service_types')
-    .select('id')
-    .eq('id', rule.service_type_id)
-    .maybeSingle();
-
-  if (serviceError) {
-    throw new Error(
-      serviceError.message,
-    );
-  }
-
-  if (!serviceType) {
-    return 'Service type not found.';
-  }
-
-  /*
-   * Validate zone when supplied.
-   *
-   * null means the rule applies to all zones.
-   */
-  if (rule.zone_id) {
-    const {
-      data: zone,
-      error: zoneError,
-    } = await sb
-      .from('service_zones')
-      .select('id')
-      .eq('id', rule.zone_id)
-      .maybeSingle();
-
-    if (zoneError) {
-      throw new Error(
-        zoneError.message,
-      );
-    }
-
-    if (!zone) {
-      return 'Service zone not found.';
-    }
-  }
-
-  return null;
-}
-
-async function enrichRules(
-  sb: ReturnType<
-    typeof import('@/lib/db/supabase').createSupabaseUserClient
-  >,
-  rules: PricingRule[],
-): Promise<PricingRuleWithNames[]> {
-  const serviceIds = [
-    ...new Set(
-      rules.map(
-        (rule) =>
-          rule.service_type_id,
-      ),
-    ),
-  ];
-
-  const zoneIds = [
-    ...new Set(
-      rules
-        .map((rule) => rule.zone_id)
-        .filter(
-          (
-            id,
-          ): id is string =>
-            Boolean(id),
-        ),
-    ),
-  ];
-
-  const [
-    servicesResult,
-    zonesResult,
-  ] = await Promise.all([
-    serviceIds.length
-      ? sb
-          .from('service_types')
-          .select('id, name')
-          .in('id', serviceIds)
-      : Promise.resolve({
-          data: [],
-          error: null,
-        }),
-
-    zoneIds.length
-      ? sb
-          .from('service_zones')
-          .select('id, name')
-          .in('id', zoneIds)
-      : Promise.resolve({
-          data: [],
-          error: null,
-        }),
-  ]);
-
-  if (servicesResult.error) {
-    throw new Error(
-      servicesResult.error.message,
-    );
-  }
-
-  if (zonesResult.error) {
-    throw new Error(
-      zonesResult.error.message,
-    );
-  }
-
-  const serviceNames = new Map(
-    (servicesResult.data ?? []).map(
-      (item) => [
-        Number(item.id),
-        String(item.name),
-      ],
-    ),
-  );
-
-  const zoneNames = new Map(
-    (zonesResult.data ?? []).map(
-      (item) => [
-        String(item.id),
-        String(item.name),
-      ],
-    ),
-  );
-
-  return rules.map((rule) => ({
-    ...rule,
-
-    service_name:
-      serviceNames.get(
-        rule.service_type_id,
-      ) ?? null,
-
-    zone_name: rule.zone_id
-      ? zoneNames.get(
-          rule.zone_id,
-        ) ?? null
-      : 'All zones',
-  }));
-}
-
-async function parseJsonBody(
-  req: NextRequest,
-): Promise<unknown | null> {
-  try {
-    return await req.json();
-  } catch {
-    return null;
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* GET                                                                        */
-/* -------------------------------------------------------------------------- */
-
-export async function GET(
-  req: NextRequest,
-) {
-  const auth =
-    await requireSupabaseAuth(req);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  if (!requireAdmin(auth.ctx)) {
-    return jsonErr(
-      'Forbidden',
-      403,
-    );
-  }
-
-  try {
-    const rules = await loadRules(
-      auth.ctx.supabase,
-    );
-
-    const enriched =
-      await enrichRules(
-        auth.ctx.supabase,
-        rules,
-      );
-
-    return jsonOk(enriched);
-  } catch (error: unknown) {
-    return jsonErr(
-      error instanceof Error
-        ? error.message
-        : 'Failed to load pricing rules',
-      502,
-    );
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* POST                                                                       */
-/* -------------------------------------------------------------------------- */
-
-export async function POST(
-  req: NextRequest,
-) {
-  const auth =
-    await requireSupabaseAuth(req);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  if (!requireAdmin(auth.ctx)) {
-    return jsonErr(
-      'Forbidden',
-      403,
-    );
-  }
-
-  const raw =
-    await parseJsonBody(req);
-
-  if (raw === null) {
-    return jsonErr(
-      'Invalid JSON body',
-      400,
-    );
-  }
-
-  const parsed =
-    ruleSchema.safeParse(raw);
-
-  if (!parsed.success) {
-    return jsonErr(
-      parsed.error.issues[0]
-        ?.message ??
-        'Invalid pricing rule',
-      422,
-    );
-  }
-
-  try {
-    const rule =
-      normaliseRule(
-        parsed.data,
-      );
-
-    /*
-     * Validate referenced service
-     * and zone before saving.
-     */
-    const referenceError =
-      await validateReferences(
-        auth.ctx.supabase,
-        rule,
-      );
-
-    if (referenceError) {
-      return jsonErr(
-        referenceError,
-        422,
-      );
-    }
-
-    const rules =
-      await loadRules(
-        auth.ctx.supabase,
-      );
-
-    /*
-     * Prevent two rules for the
-     * same service + zone.
-     */
-    const duplicateError =
-      validateNoDuplicateRule(
-        rules,
-        rule,
-      );
-
-    if (duplicateError) {
-      return jsonErr(
-        duplicateError,
-        409,
-      );
-    }
-
-    rules.unshift(rule);
-
-    await saveRules(rules);
-
-    const [enriched] =
-      await enrichRules(
-        auth.ctx.supabase,
-        [rule],
-      );
-
-    return jsonOk(
-      enriched ?? rule,
-      201,
-    );
-  } catch (error: unknown) {
-    return jsonErr(
-      error instanceof Error
-        ? error.message
-        : 'Failed to create pricing rule',
-      502,
-    );
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* PUT                                                                        */
-/* -------------------------------------------------------------------------- */
-
-export async function PUT(
-  req: NextRequest,
-) {
-  const auth =
-    await requireSupabaseAuth(req);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  if (!requireAdmin(auth.ctx)) {
-    return jsonErr(
-      'Forbidden',
-      403,
-    );
-  }
-
-  const raw =
-    await parseJsonBody(req);
-
-  if (raw === null) {
-    return jsonErr(
-      'Invalid JSON body',
-      400,
-    );
-  }
-
-  const parsed =
-    ruleSchema.safeParse(raw);
-
-  if (!parsed.success) {
-    return jsonErr(
-      parsed.error.issues[0]
-        ?.message ??
-        'Invalid pricing rule',
-      422,
-    );
-  }
-
-  if (!parsed.data.id) {
-    return jsonErr(
-      'id is required',
-      400,
-    );
-  }
-
-  try {
-    const updatedRule =
-      normaliseRule(
-        parsed.data,
-      );
-
-    /*
-     * Validate referenced service
-     * and zone before updating.
-     */
-    const referenceError =
-      await validateReferences(
-        auth.ctx.supabase,
-        updatedRule,
-      );
-
-    if (referenceError) {
-      return jsonErr(
-        referenceError,
-        422,
-      );
-    }
-
-    const rules =
-      await loadRules(
-        auth.ctx.supabase,
-      );
-
-    const index =
-      rules.findIndex(
-        (rule) =>
-          rule.id ===
-          updatedRule.id,
-      );
-
-    if (index < 0) {
-      return jsonErr(
-        'Pricing rule not found',
-        404,
-      );
-    }
-
-    /*
-     * Prevent duplicate service +
-     * zone combinations.
-     */
-    const duplicateError =
-      validateNoDuplicateRule(
-        rules,
-        updatedRule,
-        updatedRule.id,
-      );
-
-    if (duplicateError) {
-      return jsonErr(
-        duplicateError,
-        409,
-      );
-    }
-
-    rules[index] =
-      updatedRule;
-
-    await saveRules(rules);
-
-    const [enriched] =
-      await enrichRules(
-        auth.ctx.supabase,
-        [updatedRule],
-      );
-
-    return jsonOk(
-      enriched ?? updatedRule,
-    );
-  } catch (error: unknown) {
-    return jsonErr(
-      error instanceof Error
-        ? error.message
-        : 'Failed to update pricing rule',
-      502,
-    );
-  }
-}
-
-/* -------------------------------------------------------------------------- */
-/* DELETE                                                                     */
-/* -------------------------------------------------------------------------- */
-
-export async function DELETE(
-  req: NextRequest,
-) {
-  const auth =
-    await requireSupabaseAuth(req);
-
-  if (!auth.ok) {
-    return auth.response;
-  }
-
-  if (!requireAdmin(auth.ctx)) {
-    return jsonErr(
-      'Forbidden',
-      403,
-    );
-  }
-
-  const { searchParams } =
-    new URL(req.url);
-
-  const id =
-    searchParams
-      .get('id')
-      ?.trim();
-
-  if (!id) {
-    return jsonErr(
-      'id is required',
-      400,
-    );
-  }
-
-  /*
-   * Validate UUID before touching
-   * the settings record.
-   */
-  const idCheck =
-    z.string().uuid().safeParse(id);
-
-  if (!idCheck.success) {
-    return jsonErr(
-      'Invalid pricing rule id',
-      400,
-    );
-  }
-
-  try {
-    const rules =
-      await loadRules(
-        auth.ctx.supabase,
-      );
-
-    const index =
-      rules.findIndex(
-        (rule) =>
-          rule.id === id,
-      );
-
-    if (index < 0) {
-      return jsonErr(
-        'Pricing rule not found',
-        404,
-      );
-    }
-
-    const [deleted] =
-      rules.splice(
-        index,
-        1,
-      );
-
-    await saveRules(rules);
-
-    return jsonOk({
-      deleted: true,
-      rule: deleted,
-    });
-  } catch (error: unknown) {
-    return jsonErr(
-      error instanceof Error
-        ? error.message
-        : 'Failed to delete pricing rule',
-      502,
-    );
-  }
+  return jsonOk(data, 201);
 }
