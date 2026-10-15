@@ -69,8 +69,8 @@ export interface ContactConfig {
 /** Full merged settings object */
 export interface PlatformSettings extends PricingConfig, ContactConfig {
   /** Active immutable price version; null means legacy launch-safe fallback. */
-  pricing_version: number | null;
-  pricing_effective_from: string | null;
+  pricing_version?: number | null;
+  pricing_effective_from?: string | null;
 }
 
 /** Breakdown returned by calcOrderTotal() */
