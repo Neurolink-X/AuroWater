@@ -153,11 +153,25 @@ BEGIN
     OR NOT (p_config ? 'water_normal')
     OR NOT (p_config ? 'water_chilled')
     OR NOT (p_config ? 'water_subscription')
+    OR NOT (p_config ? 'bulk_can_price')
+    OR NOT (p_config ? 'bulk_threshold')
     OR NOT (p_config ? 'services')
     OR NOT (p_config ? 'convenience_fee')
     OR NOT (p_config ? 'emergency_surcharge')
     OR NOT (p_config ? 'gst_rate') THEN
     RAISE EXCEPTION 'Pricing configuration is incomplete' USING ERRCODE = '22023';
+  END IF;
+  IF jsonb_typeof(p_config->'services') <> 'object'
+    OR (p_config->>'water_normal')::numeric < 20 OR (p_config->>'water_normal')::numeric > 500
+    OR (p_config->>'water_chilled')::numeric < 20 OR (p_config->>'water_chilled')::numeric > 500
+    OR (p_config->>'water_subscription')::numeric < 20 OR (p_config->>'water_subscription')::numeric > 500
+    OR (p_config->>'bulk_can_price')::numeric < 20
+    OR (p_config->>'bulk_can_price')::numeric > (p_config->>'water_normal')::numeric
+    OR (p_config->>'bulk_threshold')::integer < 2 OR (p_config->>'bulk_threshold')::integer > 200
+    OR (p_config->>'convenience_fee')::numeric < 0 OR (p_config->>'convenience_fee')::numeric > 500
+    OR (p_config->>'emergency_surcharge')::numeric < 0 OR (p_config->>'emergency_surcharge')::numeric > 5000
+    OR (p_config->>'gst_rate')::numeric < 0 OR (p_config->>'gst_rate')::numeric > 1 THEN
+    RAISE EXCEPTION 'Pricing values are outside approved limits; water prices must cover the current ₹20 per-can supplier entitlement.' USING ERRCODE = '22023';
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtext('public.pricing_versions.version'));
@@ -178,5 +192,6 @@ $;
 
 REVOKE ALL ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) TO authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.pricing_versions FROM authenticated, anon;
 
 COMMIT;
