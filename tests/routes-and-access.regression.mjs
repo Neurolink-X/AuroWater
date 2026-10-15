@@ -58,4 +58,27 @@ assert.match(pricingPage, /const CHILLED_RO_PRICE = 25/);
 assert.match(pricingPage, /const RECURRING_RO_PRICE = 20/);
 assert.match(pricingPage, /price: 'Quote required'/);
 
-console.log(`Route/access and pricing integrity regression checks passed (${byRoute.size} page routes).`);
+
+const supplierDashboard = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8');
+assert.ok(supplierDashboard.includes("status: needsReview ? 'review'"));
+assert.ok(supplierDashboard.includes('waterPayoutMismatch'));
+assert.ok(supplierDashboard.includes('payment_collector: paymentCollector'));
+
+const supplierCompletion = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'orders', '[id]', 'route.ts'), 'utf8');
+assert.ok(supplierCompletion.includes('payment_collected_by'));
+assert.ok(supplierCompletion.includes('payment_collected_amount'));
+assert.ok(supplierCompletion.includes("Select who collected the payment"));
+assert.ok(supplierCompletion.includes('patch.supplier_payout = 20'));
+
+const supplierPayoutApi = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'payouts', 'route.ts'), 'utf8');
+assert.ok(supplierPayoutApi.includes('request_supplier_payout'));
+assert.ok(supplierPayoutApi.includes(".eq('user_id', auth.ctx.profile.id)"));
+assert.ok(!supplierPayoutApi.includes(".eq('supplier_id'"));
+assert.ok(supplierPayoutApi.includes('payout_details'));
+
+const supplierFinanceMigration = readFileSync(join(root, 'sql', '026_supplier_finance_integrity.sql'), 'utf8');
+assert.ok(supplierFinanceMigration.includes('payment_collector'));
+assert.ok(supplierFinanceMigration.includes('SUM(o.supplier_payout)'));
+assert.ok(supplierFinanceMigration.includes('pg_advisory_xact_lock'));
+
+console.log(`Route/access, pricing, and supplier finance regression checks passed (${byRoute.size} page routes).`);
