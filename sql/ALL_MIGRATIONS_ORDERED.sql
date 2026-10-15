@@ -2314,7 +2314,7 @@ CREATE OR REPLACE FUNCTION public.release_technician_assignment(
   p_reason TEXT DEFAULT 'REJECTED'
 ) RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   o public.orders;
 BEGIN
@@ -2356,14 +2356,14 @@ BEGIN
 
   RETURN TRUE;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_order_id UUID,
   p_technician_id UUID
 ) RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   o public.orders;
   code TEXT;
@@ -2390,7 +2390,7 @@ BEGIN
 
   RETURN code;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.verify_service_otp(
   p_order_id UUID,
@@ -2700,7 +2700,7 @@ CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_technician_id UUID
 ) RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   o public.orders;
   code TEXT;
@@ -2727,7 +2727,7 @@ BEGIN
 
   RETURN code;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.verify_service_otp(
   p_order_id UUID,
@@ -3030,7 +3030,7 @@ CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_technician_id UUID
 ) RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   o public.orders;
   code TEXT;
@@ -3057,7 +3057,7 @@ BEGIN
 
   RETURN code;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.verify_service_otp(
   p_order_id UUID,
@@ -3311,7 +3311,7 @@ CREATE OR REPLACE FUNCTION public.accept_technician_job(
   p_technician_id UUID
 ) RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   now_ts TIMESTAMPTZ := now();
 BEGIN
@@ -3337,14 +3337,14 @@ BEGIN
 
   RETURN TRUE;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.create_service_otp(
   p_order_id UUID,
   p_technician_id UUID
 ) RETURNS TEXT
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   o public.orders;
   code TEXT;
@@ -3371,7 +3371,7 @@ BEGIN
 
   RETURN code;
 END;
-$;
+$$;
 
 CREATE OR REPLACE FUNCTION public.verify_service_otp(
   p_order_id UUID,
@@ -4405,7 +4405,7 @@ END $$;
 
 -- Prevent later order updates from changing the price version or price snapshot.
 CREATE OR REPLACE FUNCTION public.prevent_order_pricing_snapshot_mutation()
-RETURNS TRIGGER LANGUAGE plpgsql AS $
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.pricing_version IS DISTINCT FROM OLD.pricing_version
      OR NEW.pricing_snapshot IS DISTINCT FROM OLD.pricing_snapshot THEN
@@ -4413,7 +4413,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS orders_pricing_snapshot_immutable ON public.orders;
 CREATE TRIGGER orders_pricing_snapshot_immutable
@@ -4421,7 +4421,7 @@ CREATE TRIGGER orders_pricing_snapshot_immutable
   FOR EACH ROW EXECUTE FUNCTION public.prevent_order_pricing_snapshot_mutation();
 
 CREATE OR REPLACE FUNCTION public.prevent_subscription_pricing_snapshot_mutation()
-RETURNS TRIGGER LANGUAGE plpgsql AS $
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.pricing_version IS DISTINCT FROM OLD.pricing_version
      OR NEW.pricing_snapshot IS DISTINCT FROM OLD.pricing_snapshot THEN
@@ -4429,7 +4429,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS water_subscriptions_pricing_immutable ON public.water_subscriptions;
 CREATE TRIGGER water_subscriptions_pricing_immutable
@@ -4446,7 +4446,7 @@ RETURNS public.pricing_versions
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $
+AS $$
 DECLARE
   actor UUID := auth.uid();
   next_version INTEGER;
@@ -4502,7 +4502,7 @@ BEGIN
 
   RETURN published;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.publish_pricing_version(TIMESTAMPTZ, TEXT, JSONB) TO authenticated;
