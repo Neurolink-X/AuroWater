@@ -275,7 +275,6 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sort, setSort] = useState<SortId>('best');
   const [savedOnly, setSavedOnly] = useState(false);
-  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const [techs, setTechs] = useState<Technician[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -287,19 +286,30 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
 
   const searchId = useId();
   const deferredQuery = useDeferredValue(searchQuery);
+  const filterKey = JSON.stringify([skill, city, onlyAvailable, deferredQuery, sort, savedOnly]);
+  const [limitState, setLimitState] = useState<{ key: string; value: number }>({ key: '', value: PAGE_SIZE });
+  const limit = limitState.key === filterKey ? limitState.value : PAGE_SIZE;
 
   useEffect(() => { router.prefetch('/book'); }, [router]);
 
-  // Shared links reopen the same view. Read once on mount (no useSearchParams, so the page stays fully server-rendered for SEO).
+  // Shared links reopen the same view. Apply browser-only state after mount to preserve SSR markup.
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    if (p.get('skill')) setSkill(p.get('skill') as string);
-    if (p.get('city')) setCity(p.get('city') as string);
-    if (p.get('available') === '1') setOnlyAvailable(true);
-    if (p.get('q')) setSearchQuery(p.get('q') as string);
-    const s = p.get('sort');
-    if (SORTS.some((x) => x.id === s)) setSort(s as SortId);
-    try { setSaved(JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]') as string[]); } catch { /* ignore */ }
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const p = new URLSearchParams(window.location.search);
+      if (p.get('skill')) setSkill(p.get('skill') as string);
+      if (p.get('city')) setCity(p.get('city') as string);
+      if (p.get('available') === '1') setOnlyAvailable(true);
+      if (p.get('q')) setSearchQuery(p.get('q') as string);
+      const requestedSort = p.get('sort');
+      if (SORTS.some((x) => x.id === requestedSort)) setSort(requestedSort as SortId);
+      try {
+        const parsed = JSON.parse(localStorage.getItem(SAVED_KEY) ?? '[]');
+        if (Array.isArray(parsed) && parsed.every((id) => typeof id === 'string')) setSaved(parsed);
+      } catch { /* ignore invalid local storage */ }
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Keep the URL in sync (debounced).
@@ -318,23 +328,31 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
     return () => clearTimeout(id);
   }, [skill, city, onlyAvailable, searchQuery, sort]);
 
-  // Instant paint from cache, then refresh from the network.
+  // Paint cached data asynchronously, then refresh stale data from the network.
   useEffect(() => {
     let cancelled = false;
+    let freshCache = false;
     try {
       const raw = sessionStorage.getItem(CACHE_KEY);
       if (raw) {
         const c = JSON.parse(raw) as { at: number; rows: Technician[] };
         if (Array.isArray(c.rows) && c.rows.length) {
-          setTechs(c.rows); setListLoading(false); hasData.current = true;
-          if (Date.now() - c.at < CACHE_TTL) return;
+          hasData.current = true;
+          freshCache = Date.now() - c.at < CACHE_TTL;
+          queueMicrotask(() => {
+            if (cancelled) return;
+            setTechs(c.rows);
+            setLoadError(false);
+            setListLoading(false);
+          });
         }
       }
-    } catch { /* ignore */ }
-    setLoadError(false);
+    } catch { /* ignore invalid cache */ }
+    if (freshCache) return () => { cancelled = true; };
     void getTechnicians()
       .then((rows) => {
         if (cancelled) return;
+        setLoadError(false);
         const mapped = (Array.isArray(rows) ? rows : []).map(normalize);
         setTechs(mapped);
         hasData.current = mapped.length > 0;
@@ -349,8 +367,6 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
       });
     return () => { cancelled = true; };
   }, [reload]);
-
-  useEffect(() => { setLimit(PAGE_SIZE); }, [skill, city, onlyAvailable, deferredQuery, sort, savedOnly]);
 
   const allSkills = useMemo(() => {
     const set = new Set<string>(SERVICES.map((s) => s.skill));
@@ -633,7 +649,10 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
               </div>
               {filtered.length > visible.length && (
                 <div style={{ textAlign: 'center', marginTop: 32 }}>
-                  <button type="button" onClick={() => setLimit((n) => n + PAGE_SIZE)} style={{ background: '#fff', color: '#065F46', fontWeight: 800, fontSize: 14, padding: '12px 28px', borderRadius: 12, border: '1.5px solid #0D9B6C', cursor: 'pointer' }}>
+                  <button type="button" onClick={() => setLimitState((current) => ({
+                    key: filterKey,
+                    value: (current.key === filterKey ? current.value : PAGE_SIZE) + PAGE_SIZE,
+                  }))} style={{ background: '#fff', color: '#065F46', fontWeight: 800, fontSize: 14, padding: '12px 28px', borderRadius: 12, border: '1.5px solid #0D9B6C', cursor: 'pointer' }}>
                     Show more ({filtered.length - visible.length} left)
                   </button>
                 </div>
