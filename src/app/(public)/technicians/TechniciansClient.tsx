@@ -342,19 +342,17 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
           queueMicrotask(() => {
             if (cancelled) return;
             setTechs(c.rows);
+            setLoadError(false);
             setListLoading(false);
           });
         }
       }
     } catch { /* ignore invalid cache */ }
     if (freshCache) return () => { cancelled = true; };
-    // Reset the visible error state after the effect has committed.
-    queueMicrotask(() => {
-      if (!cancelled) setLoadError(false);
-    });
     void getTechnicians()
       .then((rows) => {
         if (cancelled) return;
+        setLoadError(false);
         const mapped = (Array.isArray(rows) ? rows : []).map(normalize);
         setTechs(mapped);
         hasData.current = mapped.length > 0;
