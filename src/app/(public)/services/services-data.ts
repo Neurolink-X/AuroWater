@@ -4,12 +4,27 @@
    /services/[key]) can import it without sending it to the browser twice.
 ───────────────────────────────────────────── */
 
-export const BRAND = 'AuroTap';
+// One place for the brand name. Override with NEXT_PUBLIC_BRAND_NAME in .env if needed.
+export const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME || 'AuroTap';
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://aurotap.in').replace(/\/$/, '');
 export const PAGE_PATH = '/services';
 
 export const LIVE_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur'] as const;
 export const CITY_LINE = 'Kanpur, Lucknow & Gorakhpur';
+
+/* ── SEO text: used by layout.tsx (metadata) and page.tsx (structured data) ── */
+export const PAGE_TITLE = `Water Delivery & Home Services | ${BRAND}`;
+export const PAGE_DESCRIPTION = `Order 20L water cans, water tankers, RO repair, plumbing, borewell, motor pump and tank cleaning in supported areas of ${CITY_LINE}.`;
+export const PAGE_KEYWORDS: string[] = Array.from(
+  new Set([
+    ...LIVE_CITIES.flatMap((c) => [`water can delivery ${c}`, `plumber in ${c}`, `RO service ${c}`, `water tanker ${c}`, `tank cleaning ${c}`]),
+    'RO water 20 litre can delivery',
+    'chilled water can delivery',
+    'book plumber online',
+    'borewell service Uttar Pradesh',
+    'motor pump repair',
+  ]),
+);
 
 /* ── Types ── */
 export type ServiceKey =
