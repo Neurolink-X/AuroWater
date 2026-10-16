@@ -3104,9 +3104,10 @@ export default function SupplierDashboardPage() {
       const amount = Number(row.supplier_payout ?? 0);
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
-      // Supplier payout is posted by the database the moment an order is completed (sql/023), so a
-      // positive amount IS the posted figure. Only a completed order with no payout yet needs review.
-      const needsReview = !Number.isFinite(amount) || amount <= 0;
+      // A positive supplier_payout is not sufficient proof of posting. The immutable ledger-posted
+      // timestamp is the accounting source of truth; legacy/unreconciled rows remain review-only.
+      const financialsPosted = Boolean(row.financials_posted_at);
+      const needsReview = !financialsPosted || !Number.isFinite(amount) || amount <= 0;
       const isSettled = payoutStatus === 'paid' && !needsReview;
       return {
         id: String(row.id),
