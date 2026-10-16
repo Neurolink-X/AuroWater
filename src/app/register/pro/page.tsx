@@ -34,12 +34,36 @@ const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 type Kind = 'supplier' | 'technician';
 
+/** Set to true once /api/applications accepts a `role` field. Until then the role only shapes the UI and presets. */
+const SEND_ROLE = false;
+
+type RoleId = 'can' | 'tanker' | 'plumber' | 'borewell' | 'tank' | 'ro';
+const ROLE_IDS = ['can', 'tanker', 'plumber', 'borewell', 'tank', 'ro'] as const;
+
+type RoleDef = {
+  kind: Kind; label: string; icon: string; blurb: string; needs: string;
+  unit: string; qty: number; qtyMax: number; qtyStep: number; price: number; priceMax: number;
+  vehicle?: string; cans?: number; skills?: string[];
+};
+
+/** Each role maps onto an existing application type, so the API payload stays valid. */
+const ROLES: Record<RoleId, RoleDef> = {
+  can: { kind: 'supplier', label: 'Water can delivery', icon: '💧', blurb: 'Deliver water cans to homes, shops and offices near you.', needs: 'A cycle, bike or auto, and a UPI ID', unit: 'can', qty: 30, qtyMax: 200, qtyStep: 5, price: 40, priceMax: 1000, vehicle: 'Bike', cans: 20 },
+  tanker: { kind: 'supplier', label: 'Water tanker', icon: '🚚', blurb: 'Supply bulk water to societies, building sites and businesses.', needs: 'A mini-truck or tanker, and a UPI ID', unit: 'trip', qty: 4, qtyMax: 30, qtyStep: 1, price: 800, priceMax: 20000, vehicle: 'Mini-truck', cans: 100 },
+  plumber: { kind: 'technician', label: 'Plumber', icon: '🔧', blurb: 'Fix leaks, fit pipes and taps, and handle bathroom and kitchen work.', needs: 'Just your skills and experience', unit: 'job', qty: 4, qtyMax: 20, qtyStep: 1, price: 400, priceMax: 20000, skills: ['Plumbing'] },
+  borewell: { kind: 'technician', label: 'Borewell and boring', icon: '⛏️', blurb: 'Drill and service borewells and handle pump and motor work.', needs: 'Your boring skills and experience', unit: 'job', qty: 1, qtyMax: 5, qtyStep: 1, price: 5000, priceMax: 100000, skills: ['Boring'] },
+  tank: { kind: 'technician', label: 'Tank cleaning', icon: '🧽', blurb: 'Clean and maintain overhead and underground water tanks.', needs: 'Your maintenance skills and experience', unit: 'job', qty: 3, qtyMax: 15, qtyStep: 1, price: 600, priceMax: 20000, skills: ['Maintenance'] },
+  ro: { kind: 'technician', label: 'RO install and service', icon: '🚰', blurb: 'Install, repair and service RO water purifiers.', needs: 'Your RO skills and experience', unit: 'job', qty: 4, qtyMax: 20, qtyStep: 1, price: 500, priceMax: 20000, skills: ['RO Install'] },
+};
+const FEATURED_ROLE: RoleId = 'plumber'; // needs no vehicle and no payout details, so it is the quickest to start
+
 /* ───────────────────────── Validation (unchanged behaviour) ───────────────────────── */
 
 const baseShape = {
   full_name: z.string().trim().min(2, 'Enter your full name').max(80, 'Name is too long'),
   phone: z.string().regex(PHONE_RE, 'Enter a valid 10-digit mobile number'),
   city: z.enum(SERVICE_CITIES, { message: 'Choose your city' }),
+  role: z.enum(ROLE_IDS),
 };
 
 const supplierSchema = z
@@ -71,6 +95,7 @@ type Payload = SupplierPayload | TechnicianPayload;
 /** One flat shape for the shared form; each kind uses only its own fields. */
 type FormValues = {
   type: Kind;
+  role: RoleId;
   full_name: string;
   phone: string;
   city: string;
@@ -83,10 +108,12 @@ type FormValues = {
   experience_years?: number;
 };
 
-const defaultsFor = (kind: Kind): FormValues =>
-  kind === 'supplier'
-    ? { type: 'supplier', full_name: '', phone: '', city: SERVICE_CITIES[0], vehicle_type: 'Bike', cans_capacity: 20, upi_id: '', bank_account: '', ifsc: '' }
-    : { type: 'technician', full_name: '', phone: '', city: SERVICE_CITIES[0], skills: ['Plumbing'], experience_years: 1 };
+const defaultsFor = (role: RoleId): FormValues => {
+  const r = ROLES[role];
+  return r.kind === 'supplier'
+    ? { type: 'supplier', role, full_name: '', phone: '', city: SERVICE_CITIES[0], vehicle_type: r.vehicle, cans_capacity: r.cans, upi_id: '', bank_account: '', ifsc: '' }
+    : { type: 'technician', role, full_name: '', phone: '', city: SERVICE_CITIES[0], skills: r.skills, experience_years: 1 };
+};
 
 type StepDef = { title: string; hint: string; fields: (keyof FormValues)[] };
 const STEPS: Record<Kind, StepDef[]> = {
@@ -103,7 +130,7 @@ const STEPS: Record<Kind, StepDef[]> = {
 
 /** Saved on this device only, and never includes payout details. */
 const DRAFT_FIELDS: (keyof FormValues)[] = ['full_name', 'phone', 'city', 'vehicle_type', 'cans_capacity', 'skills', 'experience_years'];
-const draftKey = (kind: Kind) => `aurotap:pro-draft:${kind}`;
+const draftKey = (role: RoleId) => `aurotap:pro-draft:${role}`;
 
 /* ───────────────────────── Tiers (all marketing numbers come from here) ───────────────────────── */
 
@@ -126,7 +153,8 @@ function buildFaqs(rows: TierRow[]) {
   const first = rows[0];
   const last = rows[rows.length - 1];
   return [
-    { q: 'Who can apply?', a: `Water delivery partners with a vehicle, and plumbing or RO technicians, in ${SERVICE_CITIES.slice(0, -1).join(', ')} and ${SERVICE_CITIES[SERVICE_CITIES.length - 1]}.` },
+    { q: 'Who can apply?', a: `Water can and tanker suppliers with a vehicle, plus plumbers, borewell and boring crews, tank cleaners and RO technicians, in ${SERVICE_CITIES.slice(0, -1).join(', ')} and ${SERVICE_CITIES[SERVICE_CITIES.length - 1]}.` },
+    { q: 'Which role should I choose?', a: 'Pick the work you already do. Water can and tanker roles need a vehicle and a UPI ID. Plumber, borewell, tank cleaning and RO roles need no vehicle: only your skills and experience.' },
     { q: 'How long does review take?', a: 'We review applications within 24 hours and contact you to verify your details.' },
     { q: 'What do I need to apply?', a: 'Your mobile number, your city, and a UPI ID for payouts. A bank account and IFSC are optional.' },
     { q: 'How do I get paid?', a: 'Your earnings appear in the supplier portal. Request a payout there and our team settles it to the UPI ID or bank account you gave us. Requests are processed by our team, so they are not instant.' },
@@ -170,8 +198,11 @@ function RegisterPro() {
   const { hydrated, isLoggedIn } = useAuth();
   const [showBar, setShowBar] = useState(false);
 
-  const kind: Kind = (sp.get('type') ?? '').toLowerCase() === 'technician' ? 'technician' : 'supplier';
-  const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/register/pro?type=${kind}`)}`;
+  const roleParam = (sp.get('role') ?? '').toLowerCase();
+  const legacyType = (sp.get('type') ?? '').toLowerCase(); // keeps old ?type= links working
+  const role: RoleId = (ROLE_IDS as readonly string[]).includes(roleParam) ? (roleParam as RoleId) : legacyType === 'technician' ? 'plumber' : 'can';
+  const kind: Kind = ROLES[role].kind;
+  const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/register/pro?role=${role}`)}`;
 
   const rows = useMemo(() => tierRows(), []);
   const faqs = useMemo(() => buildFaqs(rows), [rows]);
@@ -205,7 +236,7 @@ function RegisterPro() {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(values),
+          body: JSON.stringify(SEND_ROLE ? values : Object.fromEntries(Object.entries(values).filter(([k]) => k !== 'role'))),
           signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(20_000) : undefined,
         });
         const json = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; data?: { id?: string } | null };
@@ -230,7 +261,7 @@ function RegisterPro() {
     [isLoggedIn, loginHref, router],
   );
 
-  const shareHref = `https://wa.me/?text=${encodeURIComponent(`Earn with ${BRAND} as a water delivery partner or technician. Apply here: https://${typeof window !== 'undefined' ? window.location.host : ''}/register/pro`)}`;
+  const shareHref = `https://wa.me/?text=${encodeURIComponent(`Earn with ${BRAND} as a water supplier, tanker, plumber, borewell, tank cleaning or RO partner. Apply here: https://${typeof window !== 'undefined' ? window.location.host : ''}/register/pro`)}`;
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#E3EDF6] text-slate-600 [scroll-behavior:smooth]">
@@ -253,13 +284,13 @@ function RegisterPro() {
           <div className="aw-rise">
             <span className={`inline-flex items-center gap-2 rounded-full bg-[#E3EDF6] px-4 py-2 ${EYEBROW} ${INSET}`}>
               <span aria-hidden className="aw-pulse h-2 w-2 rounded-full bg-sky-500" />
-              Now onboarding partners in {SERVICE_CITIES.length} cities
+              Now onboarding six kinds of partners in {SERVICE_CITIES.length} cities
             </span>
             <h1 className="mt-5 text-[clamp(2.25rem,6vw,4rem)] font-extrabold leading-[1.04] tracking-[-0.035em] text-[#0B2A4A]">
-              Deliver water. Fix pipes. Earn more every month.
+              Every water job, one platform. Earn more as you grow.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-600">
-              Join {BRAND} as a water delivery supplier or a plumbing and RO technician. Get steady orders near you, keep more of every delivery as you grow, and get paid to your own UPI or bank account.
+              Join {BRAND} as a water can supplier, tanker owner, plumber, borewell crew, tank cleaner or RO technician. Get steady orders near you, keep more of every delivery as you grow, and get paid to your own UPI or bank account.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -287,16 +318,26 @@ function RegisterPro() {
                 </li>
               ))}
             </ul>
+
+            <div className="mt-8">
+              <p className="text-sm font-bold text-slate-700">Available in</p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {SERVICE_CITIES.map((c) => (
+                  <li key={c} className="rounded-xl bg-[#E3EDF6] px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-[3px_3px_6px_#b7c8d9,-3px_-3px_6px_#ffffff]">{c}</li>
+                ))}
+              </ul>
+            </div>
           </div>
 
           <div id="apply" className="scroll-mt-6 lg:sticky lg:top-6">
-            <ApplicationCard kind={kind} ready={hydrated} signedIn={isLoggedIn} loginHref={loginHref} onSubmit={submitApplication} />
+            <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} loginHref={loginHref} onSubmit={submitApplication} />
           </div>
         </section>
 
+        <RoleShowcase role={role} />
         <HowItWorks />
         <TierLadder rows={rows} />
-        <Estimator rows={rows} />
+        <Estimator key={role} rows={rows} role={role} />
 
         {/* FAQ */}
         <section aria-labelledby="faq-h" className="aw-defer mt-20">
@@ -326,7 +367,7 @@ function RegisterPro() {
         aria-hidden={!showBar}
         className={`fixed inset-x-0 bottom-0 z-30 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 transition duration-300 lg:hidden ${showBar ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-full opacity-0'}`}
       >
-        <a href="#apply" tabIndex={showBar ? 0 : -1} className={`${BTN_PRIMARY} w-full`}>Apply as {kind === 'supplier' ? 'supplier' : 'technician'}</a>
+        <a href="#apply" tabIndex={showBar ? 0 : -1} className={`${BTN_PRIMARY} w-full`}>Apply: {ROLES[role].label}</a>
       </div>
     </div>
   );
@@ -367,6 +408,45 @@ const Stat = memo(function Stat({ value, label }: { value: string; label: string
       <p className="text-xl font-extrabold tracking-tight text-[#0B2A4A]">{value}</p>
       <p className="mt-1 text-xs font-medium text-slate-500">{label}</p>
     </li>
+  );
+});
+
+const RoleShowcase = memo(function RoleShowcase({ role }: { role: RoleId }) {
+  const goApply = () => document.getElementById('apply')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  return (
+    <section aria-labelledby="roles-h" className="aw-defer mt-20">
+      <p className={EYEBROW}>Choose your work</p>
+      <h2 id="roles-h" className={H2}>Six ways to earn with {BRAND}</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">Pick the one that matches what you already do. The form adjusts to your choice.</p>
+      <ul className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {ROLE_IDS.map((id) => {
+          const r = ROLES[id];
+          const on = id === role;
+          return (
+            <li key={id} className="relative">
+              {id === FEATURED_ROLE && (
+                <span className="absolute -top-3 right-4 z-10 rounded-full bg-gradient-to-br from-teal-500 to-sky-600 px-3 py-1 text-xs font-bold text-white shadow-[3px_3px_8px_#b7c8d9]">Easiest to start</span>
+              )}
+              <Link
+                href={`/register/pro?role=${id}`}
+                scroll={false}
+                replace
+                prefetch
+                onClick={goApply}
+                aria-current={on ? 'true' : undefined}
+                className={`flex h-full flex-col rounded-3xl bg-[#E3EDF6] p-5 transition ${FOCUS} ${on ? INSET : `${RAISED} hover:-translate-y-0.5`}`}
+              >
+                <span aria-hidden className={`grid h-12 w-12 place-items-center rounded-2xl bg-[#E3EDF6] text-2xl ${on ? RAISED_SM : INSET}`}>{r.icon}</span>
+                <span className="mt-4 text-lg font-extrabold text-[#0B2A4A]">{r.label}</span>
+                <span className="mt-1 text-sm leading-6 text-slate-600">{r.blurb}</span>
+                <span className="mt-3 text-xs font-semibold text-slate-500">You need: {r.needs}</span>
+                <span className="mt-4 text-sm font-bold text-sky-700">{on ? 'Selected' : 'Apply for this'}</span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 });
 
@@ -419,53 +499,55 @@ const TierLadder = memo(function TierLadder({ rows }: { rows: TierRow[] }) {
   );
 });
 
-function Estimator({ rows }: { rows: TierRow[] }) {
-  const [cans, setCans] = useState(30);
-  const [price, setPrice] = useState(40);
+function Estimator({ rows, role }: { rows: TierRow[]; role: RoleId }) {
+  const r = ROLES[role];
+  const [qty, setQty] = useState(r.qty);
+  const [price, setPrice] = useState(r.price);
   const first = rows[0];
   const last = rows[rows.length - 1];
+  const plural = `${r.unit}s`;
 
   const safePrice = Number.isFinite(price) && price > 0 ? price : 0;
-  const monthly = cans * safePrice * DELIVERY_DAYS;
+  const monthly = qty * safePrice * DELIVERY_DAYS;
   const take = (commission: number) => monthly * (1 - commission / 100);
   const gain = take(last.commission) - take(first.commission);
   const topNet = Math.max(take(last.commission), 1);
-  const daysToTop = last.orders > 0 ? Math.ceil(last.orders / Math.max(cans, 1)) : 0;
-  const pct = ((cans - 5) / 195) * 100;
+  const daysToTop = last.orders > 0 ? Math.ceil(last.orders / Math.max(qty, 1)) : 0;
+  const pct = r.qtyMax > r.qtyStep ? ((qty - r.qtyStep) / (r.qtyMax - r.qtyStep)) * 100 : 100;
 
   return (
     <section id="earn" aria-labelledby="calc-h" className="aw-defer mt-20 scroll-mt-6">
       <div className={`${CARD} grid gap-8 p-6 sm:p-8 lg:grid-cols-2`}>
         <div>
-          <p className={EYEBROW}>Earnings estimator</p>
+          <p className={EYEBROW}>Earnings estimator · {r.label}</p>
           <h2 id="calc-h" className={H2}>See what growing is worth</h2>
           <p className="mt-2 text-sm leading-7 text-slate-600">Enter your own numbers. This is an estimate based on the commission for each tier, not a promise of orders.</p>
 
-          <label htmlFor="calc-cans" className="mt-6 flex justify-between text-sm font-bold text-[#0B2A4A]">
-            Cans delivered per day <span className="text-sky-700">{cans}</span>
+          <label htmlFor="calc-qty" className="mt-6 flex justify-between text-sm font-bold text-[#0B2A4A]">
+            {r.unit === 'can' ? 'Cans delivered' : r.unit === 'trip' ? 'Tanker trips' : 'Jobs completed'} per day <span className="text-sky-700">{qty}</span>
           </label>
           <input
-            id="calc-cans" type="range" min={5} max={200} step={5} value={cans}
-            onChange={(e) => setCans(Number(e.target.value))}
+            id="calc-qty" type="range" min={r.qtyStep} max={r.qtyMax} step={r.qtyStep} value={qty}
+            onChange={(e) => setQty(Number(e.target.value))}
             style={{ background: `linear-gradient(90deg,#0ea5e9 ${pct}%,#cfdeeb ${pct}%)` }}
             className={`mt-3 h-3 w-full cursor-pointer appearance-none rounded-full ${INSET} accent-sky-600 ${FOCUS}`}
           />
 
-          <label htmlFor="calc-price" className="mt-6 block text-sm font-bold text-[#0B2A4A]">Your price per can (₹)</label>
-          <input id="calc-price" type="number" inputMode="decimal" min={1} max={1000} value={Number.isFinite(price) ? price : ''} onChange={(e) => setPrice(e.target.valueAsNumber)} className={`${INPUT} mt-2 max-w-[180px]`} />
+          <label htmlFor="calc-price" className="mt-6 block text-sm font-bold text-[#0B2A4A]">Your price per {r.unit} (₹)</label>
+          <input id="calc-price" type="number" inputMode="decimal" min={1} max={r.priceMax} value={Number.isFinite(price) ? price : ''} onChange={(e) => setPrice(e.target.valueAsNumber)} className={`${INPUT} mt-2 max-w-[180px]`} />
         </div>
 
         <div className={`rounded-2xl bg-[#E3EDF6] p-6 ${INSET}`} aria-live="polite">
-          <p className="text-sm font-bold text-slate-500">Monthly, after commission ({DELIVERY_DAYS} delivery days)</p>
+          <p className="text-sm font-bold text-slate-500">Monthly, after commission ({DELIVERY_DAYS} working days)</p>
 
           <ul className="mt-4 space-y-3">
-            {rows.map((r) => {
-              const v = take(r.commission);
+            {rows.map((t) => {
+              const v = take(t.commission);
               return (
-                <li key={r.tier}>
+                <li key={t.tier}>
                   <div className="flex items-baseline justify-between text-sm">
-                    <span className="text-slate-600">{r.label} <span className="text-slate-400">({r.commission}%)</span></span>
-                    <span className={`font-extrabold ${r === last ? 'text-teal-700' : 'text-[#0B2A4A]'}`}>{inr(v)}</span>
+                    <span className="text-slate-600">{t.label} <span className="text-slate-400">({t.commission}%)</span></span>
+                    <span className={`font-extrabold ${t === last ? 'text-teal-700' : 'text-[#0B2A4A]'}`}>{inr(v)}</span>
                   </div>
                   <div className="mt-1 h-2 overflow-hidden rounded-full bg-[#cfdeeb]">
                     <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-500 transition-[width] duration-500 ease-out" style={{ width: `${Math.min(100, (v / topNet) * 100)}%` }} />
@@ -476,11 +558,11 @@ function Estimator({ rows }: { rows: TierRow[] }) {
           </ul>
 
           <p className="mt-5 rounded-xl bg-teal-500/10 px-4 py-3 text-sm font-semibold text-teal-800">
-            {gain > 0 ? `${inr(gain)} more every month at ${last.label}, on the same deliveries.` : 'Enter a price to see the difference.'}
+            {gain > 0 ? `${inr(gain)} more every month at ${last.label}, on the same work.` : 'Enter a price to see the difference.'}
           </p>
           {daysToTop > 0 && (
             <p className="mt-3 text-xs leading-5 text-slate-500">
-              At {cans} cans a day, you would reach {last.label} ({last.orders}+ orders) in about {daysToTop} delivery {daysToTop === 1 ? 'day' : 'days'}.
+              At {qty} {qty === 1 ? r.unit : plural} a day, you would reach {last.label} ({last.orders}+ orders) in about {daysToTop} working {daysToTop === 1 ? 'day' : 'days'}.
             </p>
           )}
         </div>
@@ -492,34 +574,35 @@ function Estimator({ rows }: { rows: TierRow[] }) {
 /* ───────────────────────── Application form ───────────────────────── */
 
 function ApplicationCard({
-  kind, ready, signedIn, loginHref, onSubmit,
+  kind, role, ready, signedIn, loginHref, onSubmit,
 }: {
   kind: Kind;
+  role: RoleId;
   ready: boolean;
   signedIn: boolean;
   loginHref: string;
   onSubmit: (v: Payload) => Promise<boolean>;
 }) {
-  const tab = (k: Kind, label: string) => (
-    <Link
-      href={`/register/pro?type=${k}`}
-      scroll={false}
-      replace
-      prefetch
-      aria-current={kind === k ? 'page' : undefined}
-      className={`flex min-h-[44px] flex-1 items-center justify-center rounded-xl px-4 text-sm font-bold transition ${FOCUS} ${kind === k ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
-    >
-      {label}
-    </Link>
-  );
-
+  const r = ROLES[role];
   return (
     <div className={`rounded-[32px] bg-[#E3EDF6] p-5 sm:p-7 ${RAISED}`}>
-      <nav aria-label="Application type" className={`flex gap-1 rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET}`}>
-        {tab('supplier', 'Water supplier')}
-        {tab('technician', 'Technician')}
+      <nav aria-label="Choose your work" className={`flex gap-1 overflow-x-auto rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET} [scrollbar-width:none]`}>
+        {ROLE_IDS.map((id) => (
+          <Link
+            key={id}
+            href={`/register/pro?role=${id}`}
+            scroll={false}
+            replace
+            prefetch
+            aria-current={role === id ? 'page' : undefined}
+            className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${FOCUS} ${role === id ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
+          >
+            <span aria-hidden>{ROLES[id].icon}</span>
+            {ROLES[id].label}
+          </Link>
+        ))}
       </nav>
-      <h2 className="mt-5 text-xl font-extrabold text-[#0B2A4A]">{kind === 'supplier' ? 'Supplier application' : 'Technician application'}</h2>
+      <h2 className="mt-5 text-xl font-extrabold text-[#0B2A4A]">{r.label} application</h2>
       <p className="mt-1 text-sm text-slate-500">
         {ready && !signedIn ? (
           <>It takes about two minutes. You will sign in at the end. <Link href={loginHref} className="font-semibold text-sky-700 underline underline-offset-4">Sign in now</Link></>
@@ -527,12 +610,13 @@ function ApplicationCard({
           'It takes about two minutes. We review within 24 hours.'
         )}
       </p>
-      <ApplicationForm key={kind} kind={kind} ready={ready} onSubmit={onSubmit} />
+      <p className="mt-1 text-xs text-slate-500">You need: {r.needs}.</p>
+      <ApplicationForm key={role} kind={kind} role={role} ready={ready} onSubmit={onSubmit} />
     </div>
   );
 }
 
-function ApplicationForm({ kind, ready, onSubmit }: { kind: Kind; ready: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
+function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
   const steps = STEPS[kind];
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -541,16 +625,16 @@ function ApplicationForm({ kind, ready, onSubmit }: { kind: Kind; ready: boolean
   const uid = useId();
 
   const resolver = zodResolver(kind === 'supplier' ? supplierSchema : technicianSchema) as unknown as Resolver<FormValues>;
-  const form = useForm<FormValues>({ resolver, defaultValues: defaultsFor(kind), mode: 'onTouched' });
+  const form = useForm<FormValues>({ resolver, defaultValues: defaultsFor(role), mode: 'onTouched' });
   const { register, formState: { errors, isSubmitting }, setValue, watch, trigger, reset } = form;
 
   // Restore a saved draft (non-sensitive fields only) after the first paint.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(draftKey(kind));
-      if (raw) { reset({ ...defaultsFor(kind), ...(JSON.parse(raw) as Partial<FormValues>) }); setSaved(true); }
+      const raw = localStorage.getItem(draftKey(role));
+      if (raw) { reset({ ...defaultsFor(role), ...(JSON.parse(raw) as Partial<FormValues>) }); setSaved(true); }
     } catch { /* storage unavailable or corrupt: start fresh */ }
-  }, [kind, reset]);
+  }, [role, reset]);
 
   // Save a draft as the user types.
   useEffect(() => {
@@ -561,13 +645,13 @@ function ApplicationForm({ kind, ready, onSubmit }: { kind: Kind; ready: boolean
         try {
           const draft: Partial<FormValues> = {};
           for (const f of DRAFT_FIELDS) if (values[f] !== undefined) (draft as Record<string, unknown>)[f] = values[f];
-          localStorage.setItem(draftKey(kind), JSON.stringify(draft));
+          localStorage.setItem(draftKey(role), JSON.stringify(draft));
           setSaved(true);
         } catch { /* ignore */ }
       }, 500);
     });
     return () => { clearTimeout(timer); sub.unsubscribe(); };
-  }, [kind, watch]);
+  }, [role, watch]);
 
   // Move focus to the new step heading so screen-reader and keyboard users know where they are.
   useEffect(() => {
@@ -588,12 +672,12 @@ function ApplicationForm({ kind, ready, onSubmit }: { kind: Kind; ready: boolean
 
   const submit = form.handleSubmit(async (values) => {
     const ok = await onSubmit(values as unknown as Payload);
-    if (ok) { try { localStorage.removeItem(draftKey(kind)); } catch { /* ignore */ } }
+    if (ok) { try { localStorage.removeItem(draftKey(role)); } catch { /* ignore */ } }
   });
 
   const clearDraft = () => {
-    try { localStorage.removeItem(draftKey(kind)); } catch { /* ignore */ }
-    reset(defaultsFor(kind));
+    try { localStorage.removeItem(draftKey(role)); } catch { /* ignore */ }
+    reset(defaultsFor(role));
     setStep(0);
     setSaved(false);
     toast.info('Draft cleared.');
@@ -666,7 +750,7 @@ function ApplicationForm({ kind, ready, onSubmit }: { kind: Kind; ready: boolean
                 {VEHICLES.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </Field>
-            <Field label="Cans you can carry" htmlFor={id('cans_capacity')} error={err('cans_capacity')}>
+            <Field label="Cans you can carry" htmlFor={id('cans_capacity')} error={err('cans_capacity')} hint={role === 'tanker' ? 'About 20 L per can, so 1,000 L is 50' : undefined}>
               <div className="flex items-center gap-3">
                 <button type="button" aria-label="Fewer cans" onClick={() => setCans(cans - 5)} className={`${BTN_SOFT} h-12 w-12 shrink-0 text-xl`}>−</button>
                 <input type="number" min={1} max={500} inputMode="numeric" {...register('cans_capacity', { valueAsNumber: true })} {...a11y('cans_capacity')} className={`${INPUT} text-center`} />
