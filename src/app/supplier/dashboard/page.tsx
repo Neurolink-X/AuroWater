@@ -218,6 +218,10 @@ const toISTDateKey = (value: unknown): string => {
 
 // Today's date (YYYY-MM-DD) in India time, so "today" is right on any device.
 const todayIST = () => toISTDateKey(new Date().toISOString());
+const tomorrowIST = () => {
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()).split('-').map(Number);
+  return toISTDateKey(new Date(Date.UTC(year, month - 1, day + 1, 12)));
+};
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, '');
 
@@ -405,11 +409,13 @@ function StatCard({
 
 // ─── Water-delivery helpers ───────────────────────────────────────────────────
 
-type OrderFilter = 'all' | 'today' | 'cash' | 'accept';
+type OrderFilter = 'all' | 'today' | 'tomorrow' | 'overdue' | 'cash' | 'accept';
 
 const FILTER_LABELS: Record<OrderFilter, string> = {
   all: 'All',
   today: 'Today',
+  tomorrow: 'Tomorrow',
+  overdue: 'Overdue',
   cash: 'Cash to collect',
   accept: 'Needs accept',
 };
@@ -721,6 +727,7 @@ export default function SupplierDashboardPage() {
   const [stockBusy, setStockBusy] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [dispatchOnline, setDispatchOnline] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [dispatchSettingsBusy, setDispatchSettingsBusy] = useState(false);
 
   const [tab, setTab] = useState<'active' | 'history'>('active');
@@ -745,14 +752,28 @@ export default function SupplierDashboardPage() {
   // ── Auth guard ──────────────────────────────────────────────────────────────
   useEffect(() => {
     setMounted(true);
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        router.replace('/auth/login?redirect=/supplier/dashboard');
-        return;
-      }
-      await loadAll(session.user.id);
-    })();
+    let active = true;
+    const redirectToLogin = () => { if (active) router.replace('/auth/login?redirect=/supplier/dashboard'); };
+    const initialize = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error || !session?.user) { redirectToLogin(); return; }
+        await loadAll(session.user.id);
+      } catch (error) { console.error('[supplier] session initialization failed:', error instanceof Error ? error.message : error); redirectToLogin(); }
+    };
+    void initialize();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (active && (event === 'SIGNED_OUT' || !session?.user)) redirectToLogin();
+    });
+    const refreshOnFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      void (async () => { try { const { data: { session }, error } = await supabase.auth.getSession(); if (error || !session?.user) redirectToLogin(); else await loadAll(session.user.id); } catch (error) { console.error('[supplier] focus refresh failed:', error instanceof Error ? error.message : error); } })();
+    };
+    const online = () => setIsOnline(true); const offline = () => setIsOnline(false);
+    setIsOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    window.addEventListener('focus', refreshOnFocus); document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('online', online); window.addEventListener('offline', offline);
+    return () => { active = false; subscription.unsubscribe(); window.removeEventListener('focus', refreshOnFocus); document.removeEventListener('visibilitychange', refreshOnFocus); window.removeEventListener('online', online); window.removeEventListener('offline', offline); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1289,6 +1310,8 @@ export default function SupplierDashboardPage() {
         .filter((o) => {
           if (!matchesQuery(o, q)) return false;
           if (filter === 'today') return o.scheduled_date === todayStr;
+          if (filter === 'tomorrow') return o.scheduled_date === tomorrowIST();
+          if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
           if (filter === 'cash') return o.payment_status !== 'paid';
           if (filter === 'accept') return o.status === 'assigned' && !o.accepted_at;
           return true;
@@ -1359,6 +1382,7 @@ export default function SupplierDashboardPage() {
 
   return (
     <>
+      {!isOnline && <div role="status" aria-live="polite" style={{ position: 'sticky', top: 0, zIndex: 50, marginBottom: 12, padding: '10px 14px', borderRadius: 12, background: '#78350F', color: '#FEF3C7', fontWeight: 700, fontSize: 13 }}>You are offline. Showing last loaded data; changes will not sync until connection returns.</div>}
       <style>{`
         .sdash * { box-sizing: border-box; font-family: inherit; }
         .sdash { font-family: var(--font-lexend), system-ui, sans-serif; }
