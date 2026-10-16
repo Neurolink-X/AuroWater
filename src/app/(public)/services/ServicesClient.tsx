@@ -41,7 +41,7 @@ const IconDroplet = () => (
 
 /* ─────────────────────────────────────────────
    SERVICE CARD
-   Hover is pure CSS now (see services.css), so a card never re-renders on mouse move.
+   Hover is pure CSS (see services.css), so a card never re-renders on mouse move.
    memo() means cards only re-render when their own data changes.
 ───────────────────────────────────────────── */
 type CardProps = { s: Service; index: number; normalCanPrice: number; chilledCanPrice: number };
@@ -61,7 +61,6 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
     '--a-border': `${s.accent}33`,
     '--a-line': `${s.accent}55`,
     '--a-shadow': `${s.accent}40`,
-    '--a-glow': `${s.accent}12`,
   } as React.CSSProperties;
 
   // First row loads straight away; everything else waits until it is near the screen.
@@ -69,7 +68,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
 
   return (
     <article className="sv-card" style={vars} aria-labelledby={`sv-${s.key}-title`}>
-      {/* Lightweight original local SVG; no third-party image request. */}
+      {/* Lightweight original local SVG sitting in a pressed-in well; no third-party image request. */}
       <div className="sv-card-illustration">
         <Image
           src={ILLUSTRATIONS[s.key]}
@@ -82,16 +81,15 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
         />
       </div>
 
+      <div className="sv-card-tag">{s.tag}</div>
+
       {isCan && (
-        <div className="flex flex-wrap gap-2 px-4 pt-3" aria-label="20 litre water prices">
-          <span className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-extrabold text-cyan-900">Normal RO ₹{normalCanPrice}/20L</span>
-          <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-extrabold text-sky-900">Chilled RO ₹{chilledCanPrice}/20L</span>
-          <span className="w-full text-[11px] text-slate-600">Delivery included · No separate water delivery fee</span>
+        <div className="sv-chips" aria-label="20 litre water prices">
+          <span className="sv-chip">Normal RO ₹{normalCanPrice}/20L</span>
+          <span className="sv-chip">Chilled RO ₹{chilledCanPrice}/20L</span>
+          <span className="sv-chip-note">Delivery included · No separate water delivery fee</span>
         </div>
       )}
-
-      <div className="sv-card-stripe" />
-      <div className="sv-card-tag">{s.tag}</div>
 
       <div className="sv-card-body">
         <div className="sv-card-top">
@@ -112,7 +110,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
         </div>
 
         <p className="sv-card-desc">{displayDescription}</p>
-        <div className="sv-card-divider" />
+        <div className="sv-card-divider" aria-hidden="true" />
 
         <div className="sv-card-includes">
           <div className="sv-includes-label">What&apos;s included</div>
@@ -220,10 +218,11 @@ export default function ServicesClient() {
           </div>
         </div>
 
+        {/* Wave colour comes from CSS (--nm-bg), so hero and page surface always match */}
         <svg className="sv-wave" viewBox="0 0 1440 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path fill="#F0F4FF" opacity="0.4" d="M0,50 C240,85 480,15 720,50 C960,85 1200,20 1440,50 L1440,100 L0,100 Z" />
-          <path fill="#F0F4FF" opacity="0.6" d="M0,65 C200,40 500,88 720,65 C940,42 1200,82 1440,65 L1440,100 L0,100 Z" />
-          <path fill="#F0F4FF" d="M0,80 C180,65 360,92 540,80 C720,68 900,88 1080,78 C1260,68 1360,84 1440,80 L1440,100 L0,100 Z" />
+          <path opacity="0.4" d="M0,50 C240,85 480,15 720,50 C960,85 1200,20 1440,50 L1440,100 L0,100 Z" />
+          <path opacity="0.6" d="M0,65 C200,40 500,88 720,65 C940,42 1200,82 1440,65 L1440,100 L0,100 Z" />
+          <path d="M0,80 C180,65 360,92 540,80 C720,68 900,88 1080,78 C1260,68 1360,84 1440,80 L1440,100 L0,100 Z" />
         </svg>
       </div>
 
@@ -263,15 +262,17 @@ export default function ServicesClient() {
         {/* Labour and professional discovery CTA */}
         <section aria-labelledby="sv-find-help" className="sv-help">
           <div className="sv-help-main">
-            <Image
-              src="/illustrations/home-technician.svg"
-              alt="Home-service professional illustration"
-              width={160}
-              height={105}
-              loading="lazy"
-              sizes="160px"
-              className="sv-help-img"
-            />
+            <div className="sv-help-well">
+              <Image
+                src="/illustrations/home-technician.svg"
+                alt="Home-service professional illustration"
+                width={160}
+                height={105}
+                loading="lazy"
+                sizes="160px"
+                className="sv-help-img"
+              />
+            </div>
             <div>
               <p className="sv-help-eyebrow">Need a helping hand?</p>
               <h2 id="sv-find-help" className="sv-help-title">Find a plumber or home-service professional</h2>
