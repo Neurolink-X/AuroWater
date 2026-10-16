@@ -278,7 +278,7 @@ function RegisterPro() {
         }}
       />
 
-      <main className="relative mx-auto w-full max-w-6xl px-3 pb-28 pt-6 sm:px-4 sm:pt-12 lg:pb-20">
+      <main className="relative mx-auto w-full min-w-0 max-w-6xl px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 sm:px-4 sm:pb-20 sm:pt-12 lg:pb-20">
         {/* Hero + application */}
         <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div className="aw-rise">
@@ -697,7 +697,7 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
   return (
     <form
       noValidate
-      className="mt-6"
+      className="mt-6 min-w-0"
       onSubmit={(e) => {
         if (!isLast) { e.preventDefault(); void next(); return; } // Enter advances instead of submitting early
         void submit(e);
@@ -812,7 +812,7 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
       </div>
 
       {/* Actions */}
-      <div className="mt-7 flex gap-3">
+      <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
         {step > 0 && (
           <button type="button" onClick={() => setStep((s) => s - 1)} className={`${BTN_SOFT} w-full px-6 sm:w-auto`}>
             Back
@@ -839,9 +839,9 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
 function Field({ label, htmlFor, error, hint, children }: { label: string; htmlFor: string; error?: string; hint?: string; children: ReactNode }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-2 flex items-baseline justify-between gap-3 text-sm font-bold text-slate-700">
-        {label}
-        {hint && <span className="text-xs font-medium text-slate-500">{hint}</span>}
+      <label htmlFor={htmlFor} className="mb-2 flex min-w-0 flex-col items-start gap-1 text-sm font-bold text-slate-700 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+        <span className="min-w-0 break-words">{label}</span>
+        {hint && <span className="max-w-full break-words text-xs font-medium text-slate-500 sm:text-right">{hint}</span>}
       </label>
       {children}
       {error && <p id={`${htmlFor}-err`} role="alert" className="mt-2 text-sm font-semibold text-rose-600">{error}</p>}
