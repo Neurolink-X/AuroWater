@@ -29,7 +29,7 @@ const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
 
 /** Statuses during which the supplier may see the customer's phone and exact address. */
-const CONTACT_STATUSES = new Set(['ASSIGNED', 'IN_PROGRESS']);
+const ACTIVE_CONTACT_STATUSES = new Set(['IN_PROGRESS']);
 
 type Row = Record<string, unknown>;
 
@@ -122,16 +122,31 @@ export async function GET(req: NextRequest) {
         const customer = profileById.get(String(order.customer_id ?? ''));
         const serviceType = serviceTypeById.get(Number(order.service_type_id));
         const address = addressById.get(String(order.address_id ?? ''));
-        const reveal = CONTACT_STATUSES.has(String(order.status ?? '').toUpperCase());
+        const orderStatus = String(order.status ?? '').toUpperCase();
+        // Reveal exact contact only after supplier acceptance or while work is in progress.
+        const reveal = ACTIVE_CONTACT_STATUSES.has(orderStatus) ||
+          (orderStatus === 'ASSIGNED' && Boolean(order.accepted_at));
 
         const area = address?.area ?? address?.line2;
+        const snapshot = (order.address_snapshot && typeof order.address_snapshot === 'object')
+          ? order.address_snapshot as Record<string, unknown>
+          : {};
         const fullAddress = address
           ? join([address.house_flat ?? address.line1, area, address.landmark, address.city, address.state, address.pincode])
-          : '';
-        const coarseAddress = address ? join([area, address.city]) : '';
+          : join([snapshot.house_flat, snapshot.line1, snapshot.area, snapshot.landmark, snapshot.city, snapshot.state, snapshot.pincode, snapshot.formatted_address, snapshot.full_address]);
+        const coarseAddress = address
+          ? join([area, address.city])
+          : join([snapshot.area, snapshot.city]);
 
         return {
           ...order,
+          // Remove potentially sensitive legacy/snapshot fields inherited from ...order.
+          address: reveal ? order.address ?? null : null,
+          address_line: reveal ? order.address_line ?? null : null,
+          address_snapshot: reveal ? order.address_snapshot ?? null : null,
+          contact_phone: reveal ? order.contact_phone ?? null : null,
+          lat: reveal ? order.lat ?? null : null,
+          lng: reveal ? order.lng ?? null : null,
           booking_id: order.order_number ?? order.booking_id ?? order.id,
           service_type_label:
             order.service_type ?? order.service_type_key ?? serviceType?.name ?? serviceType?.key ?? 'Service',
@@ -150,7 +165,7 @@ export async function GET(req: NextRequest) {
                 landmark: reveal ? address.landmark ?? null : null,
                 city: address.city ?? null,
                 state: address.state ?? null,
-                pincode: address.pincode ?? null,
+                pincode: reveal ? address.pincode ?? null : null,
                 lat: reveal ? address.lat ?? null : null,
                 lng: reveal ? address.lng ?? null : null,
               }
