@@ -234,6 +234,18 @@ const waLink = (phone: string, text: string) => {
 const mapsLink = (addr: string) =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
 
+const exportEarningsCsv = (rows: EarningRow[]) => {
+  if (!rows.length) return false;
+  const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+  const lines = [
+    ['Order ID', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
+    ...rows.map((row) => [row.order_id, row.amount.toFixed(2), row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
+  ];
+  const blob = new Blob(['\\uFEFF' + lines.join('\\r\\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob); const link = document.createElement('a');
+  link.href = url; link.download = `aurotap-supplier-earnings-${todayIST()}.csv`; link.click(); URL.revokeObjectURL(url); return true;
+};
+
 const TIER_RANK: SupplierProfile['tier'][] = ['bronze', 'silver', 'gold', 'platinum'];
 
 const normalizeOrderStatus = (status: unknown): OrderStatus => {
@@ -495,6 +507,7 @@ function OrderCard({
   const isActive = ['pending', 'assigned', 'in_progress'].includes(order.status);
   const hasPhone = !!order.customer_phone && order.customer_phone !== '—';
   const fullAddress = [order.address_line, order.city].filter(Boolean).join(', ');
+  const canRevealContact = isActive && (order.status === 'in_progress' || (order.status === 'assigned' && !!order.accepted_at));
   const isToday = isActive && order.scheduled_date === today;
   const isOverdue = isActive && !!order.scheduled_date && order.scheduled_date < today;
   const isPaid = order.payment_status === 'paid';
@@ -562,7 +575,7 @@ function OrderCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
             <span style={{ color: 'rgba(255,255,255,0.35)' }}>{Icon.phone(12)}</span>
             <span>{order.customer_name} · </span>
-            {order.customer_phone && order.customer_phone !== '—' ? (
+            {canRevealContact && order.customer_phone && order.customer_phone !== '—' ? (
               <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} style={{ color: '#6EE7B7', textDecoration: 'underline', textUnderlineOffset: 3 }} aria-label={`Call customer ${order.customer_name}`}>
                 {order.customer_phone}
               </a>
@@ -570,7 +583,8 @@ function OrderCard({
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
             <span style={{ marginTop: 1, flexShrink: 0, color: 'rgba(255,255,255,0.3)' }}>{Icon.map(11)}</span>
-            {order.address_line}, {order.city}
+            <span>{canRevealContact ? (fullAddress || 'Address unavailable — refresh order details') : ([order.address_line, order.city].filter(Boolean).join(', ') || 'Area only until order acceptance')}</span>
+            {canRevealContact && fullAddress && <button type="button" onClick={() => { void navigator.clipboard.writeText(fullAddress).then(() => toast.success('Delivery address copied')).catch(() => toast.error('Could not copy address. Check browser clipboard permissions.')); }} style={{ marginLeft: 8, border: '1px solid rgba(255,255,255,0.12)', borderRadius: 7, padding: '3px 7px', background: 'rgba(255,255,255,0.05)', color: '#6EE7B7', fontSize: 10, cursor: 'pointer' }}>Copy</button>}
           </div>
         </div>
 
@@ -603,7 +617,7 @@ function OrderCard({
         )}
 
         {/* Quick actions for the delivery partner */}
-        {isActive && (hasPhone || fullAddress) && (
+        {canRevealContact && (hasPhone || fullAddress) && (
           <div style={{ display: 'flex', gap: 6 }}>
             {hasPhone && (
               <a href={`tel:${cleanPhone(order.customer_phone)}`} style={quickLinkStyle} aria-label={`Call ${order.customer_name}`}>
@@ -875,7 +889,8 @@ export default function SupplierDashboardPage() {
           accepted_at: row.accepted_at ?? row.assigned_at ?? null,
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
-          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
+          // Prefer the privacy-filtered address from /api/supplier/orders.
+          address_line: String(row.address_text ?? (['ASSIGNED', 'IN_PROGRESS'].includes(String(row.status ?? '').toUpperCase()) ? (row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress) : [snapshot.area, snapshot.city].filter(Boolean).join(', ')) ?? ''),
           city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
           customer_name: String(row.customer_name ?? '—'),
           customer_phone: String(row.customer_phone ?? '—'),
@@ -1663,6 +1678,9 @@ export default function SupplierDashboardPage() {
           </div>
 
           {/* ── STATS GRID ─────────────────────────────────────────────── */}
+          <section aria-label="Earnings export" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button type="button" onClick={() => { if (!exportEarningsCsv(earnings)) toast.info('No earnings rows available to export yet.'); }} style={{ border: '1px solid rgba(255,255,255,0.14)', borderRadius: 10, padding: '9px 12px', background: 'rgba(255,255,255,0.05)', color: '#E2E8F0', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Export recent earnings CSV</button>
+          </section>
           <div
             className="stats-grid"
             style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 10, marginBottom: 24 }}
