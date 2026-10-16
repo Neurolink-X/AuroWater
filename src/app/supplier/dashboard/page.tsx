@@ -2860,7 +2860,18 @@ export default function SupplierDashboardPage() {
           toast.error('Could not verify your session. Check your connection and retry.');
           return;
         }
-        if (!result.data.session?.user) { redirectToLogin(); return; }
+        if (!result.data.session?.user) {
+          // Browser storage can briefly lag during Supabase token rotation. Attempt one
+          // explicit refresh before redirecting, so a recoverable session is not lost.
+          const refreshed = await supabase.auth.refreshSession();
+          if (!active) return;
+          if (refreshed.error || !refreshed.data.session?.user) {
+            redirectToLogin();
+            return;
+          }
+          await loadAll(refreshed.data.session.user.id);
+          return;
+        }
         await loadAll(result.data.session.user.id);
       } catch (error) {
         console.error('[supplier] session initialization failed:', error instanceof Error ? error.message : error);
@@ -2888,7 +2899,12 @@ export default function SupplierDashboardPage() {
               console.warn('[supplier] retry session check failed:', retry.error.message);
               return;
             }
-            if (!retry.data.session?.user) { redirectToLogin(); return; }
+            if (!retry.data.session?.user) {
+              const refreshed = await supabase.auth.refreshSession();
+              if (refreshed.error || !refreshed.data.session?.user) { redirectToLogin(); return; }
+              await loadAll(refreshed.data.session.user.id);
+              return;
+            }
             await loadAll(retry.data.session.user.id);
             return;
           }
