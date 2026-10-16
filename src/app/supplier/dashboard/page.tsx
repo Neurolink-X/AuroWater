@@ -18,6 +18,8 @@ import {
   supplierStockUpdate,
   supplierSettingsGet,
   supplierSettingsUpdate,
+  supplierEarningsSummary,
+  supplierRatingGet,
 } from '@/lib/api-client';
 import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
 
@@ -162,9 +164,41 @@ const formatScheduledSlot = (value: string) => {
   return raw;
 };
 
-// Today's date (YYYY-MM-DD) in India time, so "today" is right on any device.
-const todayIST = () =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+// Normalize date-only values without shifting them. Convert timestamps to India-local dates.
+const toISTDateKey = (value: unknown): string => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const normalized = !hasTimezone && /^\d{4}-\d{2}-\d{2}[T ]/.test(raw)
+    ? \`\${raw.replace(' ', 'T')}+05:30\`
+    : raw;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+};
+const todayIST = () => toISTDateKey(new Date().toISOString());
+const tomorrowIST = () => {
+  const [year, month, day] = todayIST().split('-').map(Number);
+  if (!year || !month || !day) return '';
+  return toISTDateKey(new Date(Date.UTC(year, month - 1, day + 1, 12)).toISOString());
+};
+const exportEarningsCsv = (rows: EarningRow[]) => {
+  if (!rows.length) return false;
+  const cell = (value: unknown) => \`"\${String(value ?? '').replace(/"/g, '""')}"\`;
+  const lines = [
+    ['Order ID', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
+    ...rows.map((row) => [row.order_id, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
+  ];
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = \`aurotap-supplier-earnings-recent-\${todayIST()}.csv\`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
+};
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, '');
 
@@ -502,11 +536,13 @@ function StatCard({
 
 // ─── Water-delivery helpers ───────────────────────────────────────────────────
 
-type OrderFilter = 'all' | 'today' | 'cash' | 'accept';
+type OrderFilter = 'all' | 'today' | 'tomorrow' | 'overdue' | 'cash' | 'accept';
 
 const FILTER_LABELS: Record<OrderFilter, string> = {
   all: 'All',
   today: 'Today',
+  tomorrow: 'Tomorrow',
+  overdue: 'Overdue',
   cash: 'Cash to collect',
   accept: 'Needs accept',
 };
@@ -557,8 +593,9 @@ function OrderCard({
 
   const today = todayIST();
   const isActive = ['pending', 'assigned', 'in_progress'].includes(order.status);
-  const hasPhone = !!order.customer_phone && order.customer_phone !== '—';
-  const fullAddress = [order.address_line, order.city].filter(Boolean).join(', ');
+  const canRevealContact = isActive && (order.status === 'in_progress' || (order.status === 'assigned' && Boolean(order.accepted_at)));
+  const hasPhone = canRevealContact && !!order.customer_phone && order.customer_phone !== '—';
+  const fullAddress = canRevealContact ? [order.address_line, order.city].filter(Boolean).join(', ') : '';
   const isToday = isActive && order.scheduled_date === today;
   const isOverdue = isActive && !!order.scheduled_date && order.scheduled_date < today;
   const isPaid = order.payment_status === 'paid';
@@ -592,15 +629,27 @@ function OrderCard({
           <div className="sd-row sd-gap6 sd-wellrow">
             <span className="sd-muted-ico">{Icon.phone(12)}</span>
             <span>{order.customer_name} · </span>
-            {order.customer_phone && order.customer_phone !== '—' ? (
-              <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} className="sd-link" aria-label={`Call customer ${order.customer_name}`}>
+            {hasPhone ? (
+              <a href={\`tel:\${order.customer_phone.replace(/[^\d+]/g, '')}\`} className="sd-link" aria-label={\`Call customer \${order.customer_name}\`}>
                 {order.customer_phone}
               </a>
-            ) : <span>Phone not provided</span>}
+            ) : <span>{isActive ? 'Contact shown after acceptance' : 'Contact hidden for privacy'}</span>}
           </div>
           <div className="sd-row sd-gap6 sd-top sd-addr">
             <span className="sd-muted-ico" style={{ marginTop: 1, flexShrink: 0 }}>{Icon.map(11)}</span>
-            <span>{order.address_line}, {order.city}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              {canRevealContact ? (fullAddress || 'Address unavailable — refresh order details') : (isActive ? 'Exact address shown after acceptance' : 'Exact address hidden for privacy')}
+            </span>
+            {canRevealContact && fullAddress && (
+              <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" aria-label="Copy delivery address"
+                onClick={() => {
+                  void navigator.clipboard.writeText(fullAddress)
+                    .then(() => toast.success('Delivery address copied'))
+                    .catch(() => toast.error('Could not copy address. Check browser clipboard permissions.'));
+                }}>
+                Copy
+              </button>
+            )}
           </div>
         </div>
 
@@ -624,7 +673,7 @@ function OrderCard({
           </div>
         )}
 
-        {isActive && (hasPhone || fullAddress) && (
+        {canRevealContact && (hasPhone || fullAddress) && (
           <div className="sd-row sd-gap8">
             {hasPhone && (
               <a href={`tel:${cleanPhone(order.customer_phone)}`} className="sd-quick" aria-label={`Call ${order.customer_name}`}>
@@ -707,6 +756,8 @@ export default function SupplierDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [ordersStale, setOrdersStale] = useState(false);
+  const [networkOnline, setNetworkOnline] = useState(true);
+  const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number } | null>(null);
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
@@ -720,17 +771,69 @@ export default function SupplierDashboardPage() {
   const knownWaitingRef = useRef<Set<string> | null>(null);
 
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
+  // ── Auth guard + safe session recovery ───────────────────────────────────────
   useEffect(() => {
     setMounted(true);
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        router.replace('/auth/login?redirect=/supplier/dashboard');
-        return;
-      }
-      await loadAll(session.user.id);
-    })();
+    let active = true;
+    let initialized = false;
+    let refreshInFlight = false;
+    const redirectToLogin = () => { if (active) router.replace('/auth/login?redirect=/supplier/dashboard'); };
+
+    const initialize = async () => {
+      try {
+        let result = await supabase.auth.getSession();
+        if (result.error) {
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          result = await supabase.auth.getSession();
+        }
+        if (!active) return;
+        if (result.error) {
+          console.error('[supplier] session check failed:', result.error.message);
+          toast.error('Could not verify your session. Check your connection and retry.');
+          return;
+        }
+        if (!result.data.session?.user) { redirectToLogin(); return; }
+        await loadAll(result.data.session.user.id);
+      } catch (error) {
+        console.error('[supplier] session initialization failed:', error instanceof Error ? error.message : error);
+        if (active) toast.error('Could not verify your session. Please retry without closing the page.');
+      } finally { initialized = true; }
+    };
+    void initialize();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (active && initialized && event === 'SIGNED_OUT' && !session) redirectToLogin();
+    });
+
+    const refreshOnFocus = () => {
+      if (!active || !initialized || document.visibilityState !== 'visible' || !navigator.onLine || refreshInFlight) return;
+      refreshInFlight = true;
+      void (async () => {
+        try {
+          const result = await supabase.auth.getSession();
+          if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
+          if (!result.data.session?.user) { redirectToLogin(); return; }
+          await loadAll(result.data.session.user.id);
+        } catch (error) {
+          console.error('[supplier] focus refresh failed:', error instanceof Error ? error.message : error);
+        } finally { refreshInFlight = false; }
+      })();
+    };
+    const online = () => { setNetworkOnline(true); refreshOnFocus(); };
+    const offline = () => setNetworkOnline(false);
+    setNetworkOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('online', online);
+    window.addEventListener('offline', offline);
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('online', online);
+      window.removeEventListener('offline', offline);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -782,8 +885,18 @@ export default function SupplierDashboardPage() {
     };
 
     setProfile(normalized);
-    await fetchOrders();
-    await fetchEarnings(normalized.id);
+    await Promise.all([
+      fetchOrders(),
+      fetchEarnings(normalized.id),
+      (async () => {
+        try {
+          const rating = await supplierRatingGet();
+          setProfile((current) => current?.id === normalized.id ? { ...current, rating: rating.average_rating, rating_count: rating.review_count } : current);
+        } catch (ratingError) {
+          console.warn('[supplier] rating unavailable:', ratingError instanceof Error ? ratingError.message : ratingError);
+        }
+      })(),
+    ]);
     buildStats(normalized);
   };
 
@@ -803,22 +916,10 @@ export default function SupplierDashboardPage() {
       }
       setOrdersStale(false);
       const flat: Order[] = rows.map((row) => {
-        const snapshot = row.address_snapshot ?? {};
         const noteText = String(row.note ?? row.notes ?? '');
         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-        const snapshotAddress = [
-          snapshot.house_flat,
-          snapshot.area,
-          snapshot.landmark,
-          snapshot.city,
-          snapshot.pincode,
-        ].map((part) => String(part ?? '').trim()).filter(Boolean).join(', ');
         const scheduledValue = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? '';
-        const scheduledDate = row.scheduled_date
-          ? String(row.scheduled_date)
-          : scheduledValue
-            ? new Date(String(scheduledValue)).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-            : '';
+        const scheduledDate = toISTDateKey(scheduledValue);
 
         return {
           id: String(row.id ?? ''),
@@ -833,11 +934,11 @@ export default function SupplierDashboardPage() {
           scheduled_slot: String(row.time_slot ?? row.scheduled_slot ?? slotMatch?.[1]?.trim() ?? ''),
           notes: row.note ?? row.notes ?? null,
           created_at: String(row.created_at ?? ''),
-          accepted_at: row.accepted_at ?? row.assigned_at ?? null,
+          accepted_at: row.accepted_at ?? null,
           payment_method: row.payment_method ?? null,
           payment_status: row.payment_status ?? null,
-          address_line: String(row.address_line ?? row.address ?? snapshot.formatted_address ?? snapshot.full_address ?? snapshotAddress),
-          city: String(row.customer_city ?? snapshot.city ?? row.city ?? ''),
+          address_line: String(row.address_text ?? ''),
+          city: '',
           customer_name: String(row.customer_name ?? '—'),
           customer_phone: String(row.customer_phone ?? '—'),
         };
@@ -890,6 +991,13 @@ export default function SupplierDashboardPage() {
       return;
     }
 
+    try {
+      const summary = await supplierEarningsSummary('month');
+      setEarningsSummary(summary);
+    } catch (summaryError) {
+      setEarningsSummary(null);
+      console.warn('[supplier] earnings summary unavailable:', summaryError instanceof Error ? summaryError.message : summaryError);
+    }
     // Filter status on the client: an enum filter with an unknown label makes PostgREST answer 400.
     const doneRows = (data ?? []).filter((row) =>
       ['completed', 'delivered'].includes(String(row.status ?? '').toLowerCase()),
@@ -1264,6 +1372,8 @@ export default function SupplierDashboardPage() {
         .filter((o) => {
           if (!matchesQuery(o, q)) return false;
           if (filter === 'today') return o.scheduled_date === todayStr;
+          if (filter === 'tomorrow') return o.scheduled_date === tomorrowIST();
+          if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
           if (filter === 'cash') return o.payment_status !== 'paid';
           if (filter === 'accept') return o.status === 'assigned' && !o.accepted_at;
           return true;
@@ -1338,6 +1448,11 @@ export default function SupplierDashboardPage() {
       <style>{DASHBOARD_CSS}</style>
 
       <div className="sdash">
+        {!networkOnline && (
+          <div role="status" aria-live="polite" style={{ position: 'sticky', top: 0, zIndex: 80, padding: '10px 16px', background: '#7F1D1D', color: '#FEF2F2', fontSize: 12, fontWeight: 800, textAlign: 'center' }}>
+            You are offline. Dashboard data may be out of date; it will refresh when connection returns.
+          </div>
+        )}
         {/* ── HEADER ─────────────────────────────────────────────────────── */}
         <header className="sd-header">
           <div className="sd-header-in">
@@ -1498,8 +1613,8 @@ export default function SupplierDashboardPage() {
             <StatCard
               icon={<>{Icon.star(16)}</>}
               label="Your Rating"
-              value={profile ? (profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'New') : '—'}
-              sub={profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} reviews` : 'Ratings appear after reviews'}
+              value={profile ? (profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'No reviews') : '—'}
+              sub={profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} customer reviews` : 'No customer reviews yet'}
               accent="#B45309"
               loading={loading}
             />
@@ -1856,10 +1971,24 @@ export default function SupplierDashboardPage() {
             </div>
           )}
 
-          {/* ── EARNINGS TABLE ─────────────────────────────────────────── */}
+          {/* ── EARNINGS SUMMARY + TABLE ─────────────────────────────────── */}
+          <section aria-label="Supplier earnings" style={{ marginBottom: 24 }}>
+            <div className="sd-row sd-between sd-wrap" style={{ gap: 12, marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Earnings summary</h2>
+              <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" onClick={() => {
+                if (!exportEarningsCsv(earnings)) toast.info('No recent earnings rows available to export yet.');
+              }}>
+                Export recent CSV ({earnings.length})
+              </button>
+            </div>
+            <div className="sd-stats" style={{ marginBottom: 16 }}>
+              <StatCard icon={Icon.wallet(17)} label="This month" value={earningsSummary ? INR(earningsSummary.gross_amount) : '—'} sub={earningsSummary ? `${earningsSummary.order_count} orders counted by finance ledger` : 'Summary temporarily unavailable'} accent="#6D28D9" loading={loading} />
+              <StatCard icon={Icon.chart(17)} label="Pending payout" value={earningsSummary ? INR(earningsSummary.pending_payout) : '—'} sub="From the supplier earnings ledger" accent="#9A5A06" loading={loading} />
+            </div>
+          </section>
           {earnings.length > 0 && (
             <div>
-              <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Recent Earnings</h2>
+              <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Recent Earnings (latest 50 loaded rows)</h2>
               <div className="sd-table">
                 <div className="sd-earn sd-earn--head">
                   {['Order', 'Amount', 'Status', 'Date'].map((h) => <div key={h}>{h}</div>)}
