@@ -6,7 +6,7 @@ import TechniciansClient from './TechniciansClient';
 import { BRAND, FAQS, PAGE_PATH, SERVICES, SITE_URL, UP_CITIES } from './technicians-shared';
 
 // Self-hosted by Next at build time: replaces the render-blocking Google Fonts @import.
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '800', '900'] });
+const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '800'] });
 
 const TITLE = `Water Technicians in ${UP_CITIES.join(', ')} | ${BRAND}`;
 const DESCRIPTION = `Book plumbers, RO service, borewell, motor pump, water tanker and tank cleaning technicians in ${UP_CITIES.join(', ')}. Compare ratings and availability, then book online.`;
