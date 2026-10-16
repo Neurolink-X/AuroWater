@@ -204,9 +204,20 @@ const formatScheduledSlot = (value: string) => {
   return raw;
 };
 
+// Normalize database date/timestamp values to an India-local YYYY-MM-DD key.
+// Some schemas return scheduled_date as a date, others as a full timestamp.
+// Keeping the timestamp string would make today's route comparisons silently fail.
+const toISTDateKey = (value: unknown): string => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(date);
+};
+
 // Today's date (YYYY-MM-DD) in India time, so "today" is right on any device.
-const todayIST = () =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+const todayIST = () => toISTDateKey(new Date().toISOString());
 
 const cleanPhone = (p: string) => p.replace(/[^\d+]/g, '');
 
@@ -825,11 +836,7 @@ export default function SupplierDashboardPage() {
           snapshot.pincode,
         ].map((part) => String(part ?? '').trim()).filter(Boolean).join(', ');
         const scheduledValue = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? '';
-        const scheduledDate = row.scheduled_date
-          ? String(row.scheduled_date)
-          : scheduledValue
-            ? new Date(String(scheduledValue)).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-            : '';
+        const scheduledDate = toISTDateKey(scheduledValue);
 
         return {
           id: String(row.id ?? ''),
