@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 
@@ -8,26 +8,186 @@ import { BRAND, FAQS, PAGE_PATH, SERVICES, SITE_URL, UP_CITIES } from './technic
 // Self-hosted by Next at build time: replaces the render-blocking Google Fonts @import.
 const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '800'] });
 
-const TITLE = `Water Technicians in ${UP_CITIES.join(', ')} | ${BRAND}`;
-const DESCRIPTION = `Book plumbers, RO service, borewell, motor pump, water tanker and tank cleaning technicians in ${UP_CITIES.join(', ')}. Compare ratings and availability, then book online.`;
+// Page is fully static: serve from the edge/CDN and refresh once a day.
+export const revalidate = 86400;
+
+/* ------------------------------------------------------------------ */
+/* Contact (optional): set these in .env and the buttons appear        */
+/*   NEXT_PUBLIC_SUPPORT_PHONE=+919XXXXXXXXX                           */
+/*   NEXT_PUBLIC_WHATSAPP_NUMBER=919XXXXXXXXX  (country code, no +)    */
+/* If they are not set, nothing is shown and nothing breaks.           */
+/* ------------------------------------------------------------------ */
+
+const PHONE = process.env.NEXT_PUBLIC_SUPPORT_PHONE?.trim() || '';
+const WHATSAPP = (process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
+const WA_LINK = WHATSAPP ? `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Hi ${BRAND}, I need a water technician.`)}` : '';
+
+/* ------------------------------------------------------------------ */
+/* SEO helpers                                                         */
+/* ------------------------------------------------------------------ */
+
+const cityShort = UP_CITIES.length > 3 ? `${UP_CITIES.slice(0, 3).join(', ')} & UP` : UP_CITIES.join(', ');
+const cityAll = UP_CITIES.join(', ');
+
+// Keep the title near 60 characters and the description near 160 so Google does not cut them.
+const TITLE = `Plumber, RO Service & Water Technicians in ${cityShort} | ${BRAND}`;
+const DESCRIPTION = `Book verified plumbers, RO service, borewell, motor pump, water tanker and tank cleaning technicians in ${cityAll}. Compare ratings, see who is live, book online.`;
+
+const SERVICE_TERMS = ['plumber', 'RO service', 'borewell', 'motor pump repair', 'water tanker booking', 'water tank cleaning'];
+
+// Every service + city combination people actually search for, for example "RO service in Lucknow".
+const KEYWORDS = Array.from(
+  new Set([
+    ...UP_CITIES.flatMap((c) => SERVICE_TERMS.map((t) => `${t} in ${c}`)),
+    'water technician Uttar Pradesh',
+    'book plumber online',
+    'RO water purifier service near me',
+    'water tank cleaning near me',
+    'borewell service Uttar Pradesh',
+    'water tanker on call',
+    'water softener hard water solution',
+    'geyser repair near me',
+    'drain cleaning service',
+  ]),
+).slice(0, 52);
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
-  keywords: ['plumber in Kanpur', 'RO service Lucknow', 'borewell Gorakhpur', 'water tanker booking', 'tank cleaning service', 'water technician Uttar Pradesh'],
-  alternates: { canonical: PAGE_PATH },
+  keywords: KEYWORDS,
+  applicationName: BRAND,
+  category: 'Home services',
+  alternates: { canonical: PAGE_PATH, languages: { 'en-IN': PAGE_PATH } },
   openGraph: { type: 'website', siteName: BRAND, title: TITLE, description: DESCRIPTION, url: PAGE_PATH, locale: 'en_IN' },
   twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
-  robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 } },
+  formatDetection: { telephone: false, email: false, address: false },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 },
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#022C22',
 };
 
 const json = (o: unknown) => JSON.stringify(o).replace(/</g, '\\u003c');
 
+/* ------------------------------------------------------------------ */
+/* Neumorphism tokens (full class strings so Tailwind keeps them)      */
+/* ------------------------------------------------------------------ */
+// Base surface #E4F1EB, dark shadow #BFCFC7, light shadow #FFFFFF.
+
+const SURFACE = 'bg-[#E4F1EB]';
+const RAISED = 'rounded-3xl bg-[#E4F1EB] shadow-[9px_9px_18px_#BFCFC7,-9px_-9px_18px_#FFFFFF]';
+const RAISED_SM = 'rounded-2xl bg-[#E4F1EB] shadow-[5px_5px_11px_#BFCFC7,-5px_-5px_11px_#FFFFFF]';
+const INSET = 'rounded-2xl bg-[#E4F1EB] shadow-[inset_5px_5px_10px_#BFCFC7,inset_-5px_-5px_10px_#FFFFFF]';
+const PRESS = 'transition-shadow duration-200 motion-reduce:transition-none hover:shadow-[12px_12px_22px_#BFCFC7,-12px_-12px_22px_#FFFFFF] active:shadow-[inset_5px_5px_10px_#BFCFC7,inset_-5px_-5px_10px_#FFFFFF]';
+const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600';
+
+const BTN_PRIMARY = `inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-6 py-3 text-sm font-extrabold text-white shadow-[6px_6px_14px_#BFCFC7,-6px_-6px_14px_#FFFFFF] transition-shadow duration-200 motion-reduce:transition-none hover:shadow-[9px_9px_18px_#BFCFC7,-9px_-9px_18px_#FFFFFF] active:shadow-[inset_4px_4px_9px_rgba(0,0,0,0.25)] ${FOCUS}`;
+const BTN_SOFT = `inline-flex min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-[#E4F1EB] px-6 py-3 text-sm font-extrabold text-emerald-900 shadow-[6px_6px_14px_#BFCFC7,-6px_-6px_14px_#FFFFFF] transition-shadow duration-200 motion-reduce:transition-none hover:shadow-[9px_9px_18px_#BFCFC7,-9px_-9px_18px_#FFFFFF] active:shadow-[inset_4px_4px_9px_#BFCFC7,inset_-4px_-4px_9px_#FFFFFF] ${FOCUS}`;
+
+const H2 = 'text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl';
+const LEAD = 'mt-2 max-w-2xl text-sm leading-7 text-gray-600 sm:text-base';
+const LABEL = 'text-sm font-bold text-emerald-800';
+
+/* ------------------------------------------------------------------ */
+/* Static marketing content                                            */
+/* ------------------------------------------------------------------ */
+
+const TRUST_POINTS: ReadonlyArray<readonly [string, string, string]> = [
+  ['✅', 'Reviewed partners', 'Our team reviews every applicant and calls to verify details.'],
+  ['🟢', 'Live or Busy status', 'See who can take the job now before you call.'],
+  ['⭐', 'Open profiles', 'Ratings, jobs done, city and skills on every profile.'],
+  ['⚡', 'Book in minutes', 'Pick a service, choose a technician, confirm online.'],
+];
+
+const STEPS: ReadonlyArray<readonly [string, string]> = [
+  ['Choose your service', 'Plumber, RO service, borewell, motor pump, tanker or tank cleaning.'],
+  ['Compare technicians', 'Check rating, jobs completed, skills and who is Live in your city.'],
+  ['Book and get it fixed', 'Confirm online. Ask for the estimate before work starts.'],
+];
+
+const PROBLEMS: ReadonlyArray<readonly [string, string]> = [
+  ['Leaking tap or pipe', 'Plumber'],
+  ['Low water pressure at home', 'Plumber / motor pump'],
+  ['RO gives less or no water', 'RO service'],
+  ['Water tastes salty or bad', 'RO service'],
+  ['Motor pump not starting', 'Motor pump repair'],
+  ['Overhead tank looks dirty', 'Tank cleaning'],
+  ['Borewell water level dropped', 'Borewell service'],
+  ['Need water for a function or site', 'Water tanker'],
+];
+
+// Related water needs. Keep only the ones your team can really fulfil.
+const MORE_SERVICES: ReadonlyArray<readonly [string, string]> = [
+  ['💧', 'Water softener for hard water'],
+  ['🔥', 'Geyser repair and installation'],
+  ['🚿', 'Bathroom and kitchen fittings'],
+  ['🕳️', 'Drain and sewer cleaning'],
+  ['🧱', 'Leak detection and waterproofing'],
+  ['⚙️', 'Submersible pump installation'],
+  ['🧪', 'Water quality (TDS) checking'],
+  ['🏭', 'Commercial RO plant service'],
+];
+
+const PRICE_FACTORS: ReadonlyArray<readonly [string, string]> = [
+  ['Visiting charge', 'Many technicians charge a fixed visit fee. Ask for it before you confirm.'],
+  ['Parts and material', 'Filters, membranes, pipes and motors are priced separately. Ask for the part brand and price.'],
+  ['Size and difficulty', 'A tank, borewell or plant job takes more time and tools than a simple tap repair.'],
+  ['Urgency and distance', 'Same-day or late-hour calls and faraway locations can cost more.'],
+];
+
+const BUSINESS_NEEDS: ReadonlyArray<readonly [string, string]> = [
+  ['Apartments and societies', 'Regular tank cleaning, motor pump care and tanker supply for residents.'],
+  ['Hotels, hospitals and schools', 'Safe, clean water and RO upkeep without downtime.'],
+  ['Factories and shops', 'Bulk tanker supply and commercial RO service on a schedule.'],
+];
+
+const CARE_TIPS: ReadonlyArray<readonly [string, string]> = [
+  ['RO filters', 'Most households service the RO and change filters every 6 to 12 months. Hard water or heavy use may need it sooner.'],
+  ['Water tanks', 'Cleaning overhead and underground tanks about every 6 months keeps stored water fresh and safe.'],
+  ['Motor pumps', 'Strange noise, frequent tripping or slow filling are early signs. Early repair costs less than a burnt motor.'],
+  ['Not sure what you need?', 'Ask the technician to check your water (TDS and hardness) first. That tells you if you need an RO, a softener or just a filter change.'],
+  ['Safety first', 'Switch off the power before anyone touches a motor, geyser or pump, and never let anyone work on wet wiring.'],
+  ['Before any job', 'Ask for the visiting charge and estimate first, and keep the technician name and phone for your records.'],
+];
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 export default function TechniciansPage() {
   const url = SITE_URL + PAGE_PATH;
+
   const ld = [
-    { '@context': 'https://schema.org', '@type': 'CollectionPage', name: TITLE, description: DESCRIPTION, url, isPartOf: { '@type': 'WebSite', name: BRAND, url: SITE_URL }, inLanguage: 'en-IN' },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#organization`,
+      name: BRAND,
+      url: SITE_URL,
+      areaServed: UP_CITIES.map((c) => ({ '@type': 'City', name: c })),
+      ...(PHONE
+        ? { contactPoint: [{ '@type': 'ContactPoint', telephone: PHONE, contactType: 'customer support', areaServed: 'IN', availableLanguage: ['en', 'hi'] }] }
+        : {}),
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: TITLE,
+      description: DESCRIPTION,
+      url,
+      isPartOf: { '@type': 'WebSite', name: BRAND, url: SITE_URL },
+      publisher: { '@id': `${SITE_URL}/#organization` },
+      inLanguage: 'en-IN',
+      about: SERVICE_TERMS.map((t) => ({ '@type': 'Thing', name: t })),
+    },
     {
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
@@ -46,6 +206,7 @@ export default function TechniciansPage() {
         item: {
           '@type': 'Service',
           name: s.label,
+          serviceType: s.label,
           description: s.blurb,
           provider: { '@type': 'Organization', name: BRAND, url: SITE_URL },
           areaServed: UP_CITIES.map((c) => ({ '@type': 'City', name: c })),
@@ -53,78 +214,319 @@ export default function TechniciansPage() {
         },
       })),
     },
-    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+    },
   ];
-
-  const H2 = 'mt-2 text-3xl font-extrabold tracking-tight text-gray-900';
-  const EYEBROW = 'text-xs font-bold uppercase tracking-widest text-emerald-700';
 
   return (
     <div className={jakarta.className}>
+      {/* Tiny global CSS: smooth anchor scrolling and no tap flash. Motion is switched off for users who ask for it. */}
+      <style>{`html{scroll-behavior:smooth}a,summary{-webkit-tap-highlight-color:transparent}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}`}</style>
+
       {ld.map((o, i) => (
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(o) }} />
       ))}
 
       <nav aria-label="Breadcrumb" className="bg-[#022C22] px-6 pt-4 text-sm text-emerald-200/80">
         <ol className="mx-auto flex max-w-[1200px] items-center gap-2">
-          <li><Link href="/" className="font-semibold underline-offset-4 hover:underline">Home</Link></li>
+          <li>
+            <Link href="/" className="font-semibold underline-offset-4 hover:underline">
+              Home
+            </Link>
+          </li>
           <li aria-hidden>/</li>
-          <li aria-current="page" className="font-semibold text-white">Technicians</li>
+          <li aria-current="page" className="font-semibold text-white">
+            Technicians
+          </li>
         </ol>
       </nav>
 
       <TechniciansClient>
         {/* Server-rendered SEO and marketing sections, placed between the list and the join banner */}
-        <div className="mx-auto max-w-[1200px] px-6 pb-16">
-          <section aria-labelledby="svc-h" className="mt-8" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 480px' }}>
-            <p className={EYEBROW}>Services</p>
-            <h2 id="svc-h" className={H2}>Book the service you need</h2>
-            <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {SERVICES.map((s) => (
-                <li key={s.key}>
-                  <Link href={`/book?service=${s.key}`} className="flex h-full flex-col rounded-2xl border-[1.5px] border-gray-100 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition hover:-translate-y-1 hover:border-emerald-600 hover:shadow-[0_20px_48px_rgba(13,155,108,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600">
-                    <span aria-hidden className="text-3xl">{s.icon}</span>
-                    <span className="mt-3 text-lg font-extrabold text-gray-900">{s.label}</span>
-                    <span className="mt-1 text-sm leading-6 text-gray-500">{s.blurb}</span>
-                    <span className="mt-4 text-sm font-bold text-emerald-700">Book {s.label.toLowerCase()} →</span>
+        <div className={SURFACE}>
+          <div className="mx-auto max-w-[1200px] px-6 pb-20 pt-10">
+            {/* Trust strip */}
+            <section aria-label="Why customers trust us" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {TRUST_POINTS.map(([icon, t, d]) => (
+                <div key={t} className={`${RAISED_SM} flex items-start gap-3 p-5`}>
+                  <span aria-hidden className={`${INSET} flex h-11 w-11 shrink-0 items-center justify-center text-xl`}>
+                    {icon}
+                  </span>
+                  <div>
+                    <p className="font-extrabold text-gray-900">{t}</p>
+                    <p className="mt-1 text-sm leading-6 text-gray-600">{d}</p>
+                  </div>
+                </div>
+              ))}
+            </section>
+
+            {/* Services */}
+            <section aria-labelledby="svc-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 520px' }}>
+              <p className={LABEL}>Our services</p>
+              <h2 id="svc-h" className={`mt-1 ${H2}`}>
+                Plumber, RO service and every water service in one place
+              </h2>
+              <p className={LEAD}>Pick what you need. You will see technicians in your city with rating, jobs completed and availability.</p>
+              <ul className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {SERVICES.map((s) => (
+                  <li key={s.key}>
+                    <Link href={`/book?service=${s.key}`} className={`flex h-full flex-col p-6 ${RAISED} ${PRESS} ${FOCUS}`}>
+                      <span aria-hidden className={`${INSET} flex h-14 w-14 items-center justify-center text-3xl`}>
+                        {s.icon}
+                      </span>
+                      <span className="mt-4 text-lg font-extrabold text-gray-900">{s.label}</span>
+                      <span className="mt-1 text-sm leading-6 text-gray-600">{s.blurb}</span>
+                      <span className="mt-5 inline-flex items-center gap-1 text-sm font-bold text-emerald-800">
+                        Book {s.label.toLowerCase()}
+                        <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 6l6 6-6 6" />
+                        </svg>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* How it works: a real sequence, so numbered */}
+            <section aria-labelledby="how-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 300px' }}>
+              <h2 id="how-h" className={H2}>
+                How booking works
+              </h2>
+              <ol className="mt-8 grid gap-6 md:grid-cols-3">
+                {STEPS.map(([t, d], i) => (
+                  <li key={t} className={`${RAISED_SM} flex gap-4 p-6`}>
+                    <span aria-hidden className={`${INSET} flex h-11 w-11 shrink-0 items-center justify-center text-lg font-extrabold text-emerald-800`}>
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-extrabold text-gray-900">{t}</p>
+                      <p className="mt-1 text-sm leading-6 text-gray-600">{d}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-8 flex flex-wrap gap-4">
+                <Link href="/book" className={BTN_PRIMARY}>
+                  Book a technician now
+                </Link>
+                {WA_LINK && (
+                  <a href={WA_LINK} target="_blank" rel="noopener noreferrer" className={BTN_SOFT}>
+                    Chat on WhatsApp
+                  </a>
+                )}
+                {PHONE && (
+                  <a href={`tel:${PHONE}`} className={BTN_SOFT}>
+                    Call us
+                  </a>
+                )}
+                <Link href="#faq-h" className={BTN_SOFT}>
+                  Read common questions
+                </Link>
+              </div>
+            </section>
+
+            {/* Common problems: matches how people search */}
+            <section aria-labelledby="prob-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 420px' }}>
+              <h2 id="prob-h" className={H2}>
+                Common water problems we help fix
+              </h2>
+              <p className={LEAD}>Not sure which service you need? Find your problem and book the right technician.</p>
+              <ul className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {PROBLEMS.map(([problem, service]) => (
+                  <li key={problem}>
+                    <Link href="/book" className={`flex h-full flex-col justify-between gap-3 p-5 ${RAISED_SM} ${PRESS} ${FOCUS}`}>
+                      <span className="font-bold leading-6 text-gray-900">{problem}</span>
+                      <span className={`${INSET} self-start px-3 py-1 text-xs font-bold text-emerald-800`}>{service}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Related services: more search traffic and more jobs per customer */}
+            <section aria-labelledby="more-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 340px' }}>
+              <h2 id="more-h" className={H2}>
+                Need something else for your water?
+              </h2>
+              <p className={LEAD}>Tell us what you need and our team will help you find the right technician.</p>
+              <ul className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                {MORE_SERVICES.map(([icon, label]) => (
+                  <li key={label}>
+                    <Link href="/book" className={`flex h-full items-center gap-3 p-4 ${RAISED_SM} ${PRESS} ${FOCUS}`}>
+                      <span aria-hidden className={`${INSET} flex h-11 w-11 shrink-0 items-center justify-center text-xl`}>
+                        {icon}
+                      </span>
+                      <span className="text-sm font-bold leading-5 text-gray-900">{label}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Price transparency: builds trust without promising fixed prices */}
+            <section aria-labelledby="price-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 320px' }}>
+              <h2 id="price-h" className={H2}>
+                What decides the price of a water service?
+              </h2>
+              <p className={LEAD}>No surprises. Here is what usually changes the final bill, so you can ask the right questions.</p>
+              <dl className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {PRICE_FACTORS.map(([t, d]) => (
+                  <div key={t} className={`${RAISED_SM} p-6`}>
+                    <dt className="font-extrabold text-gray-900">{t}</dt>
+                    <dd className="mt-2 text-sm leading-6 text-gray-600">{d}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            {/* B2B: apartments, hotels, factories give repeat, high-value work */}
+            <section aria-labelledby="biz-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 360px' }}>
+              <h2 id="biz-h" className={H2}>
+                For apartments, hotels, schools and businesses
+              </h2>
+              <p className={LEAD}>Share your requirement and our team will get back to you with the right technicians.</p>
+              <ul className="mt-8 grid gap-6 md:grid-cols-3">
+                {BUSINESS_NEEDS.map(([t, d]) => (
+                  <li key={t} className={`${RAISED} p-6`}>
+                    <p className="font-extrabold text-gray-900">{t}</p>
+                    <p className="mt-2 text-sm leading-6 text-gray-600">{d}</p>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-8">
+                <Link href="/book" className={BTN_SOFT}>
+                  Share your requirement
+                </Link>
+              </div>
+            </section>
+
+            {/* Cities: local SEO text */}
+            <section aria-labelledby="city-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 260px' }}>
+              <h2 id="city-h" className={H2}>
+                Water technicians across Uttar Pradesh
+              </h2>
+              <p className={LEAD}>
+                Looking for a plumber in {UP_CITIES[0]}, RO service in {UP_CITIES[1] ?? UP_CITIES[0]} or a water tanker nearby? We list technicians in these cities:
+              </p>
+              <ul className="mt-6 flex flex-wrap gap-4">
+                {UP_CITIES.map((c) => (
+                  <li key={c} className={`${INSET} px-5 py-3 text-sm font-bold text-gray-900`}>
+                    {c}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Why us */}
+            <section aria-labelledby="why-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 300px' }}>
+              <p className={LABEL}>Why {BRAND}</p>
+              <h2 id="why-h" className={`mt-1 ${H2}`}>
+                Clear choices, quick booking
+              </h2>
+              <ul className="mt-8 grid gap-6 md:grid-cols-3">
+                {[
+                  ['See before you book', 'Ratings, jobs completed, city and skills sit on every profile, so you can compare in seconds.'],
+                  ['Know who is free', 'Each technician shows Live or Busy, so you do not waste time on someone who cannot take the job.'],
+                  ['Reviewed partners', 'Every applicant is reviewed by our team, who contact them to verify their details.'],
+                ].map(([t, d]) => (
+                  <li key={t} className={`${RAISED} p-6`}>
+                    <p className="font-extrabold text-gray-900">{t}</p>
+                    <p className="mt-2 text-sm leading-6 text-gray-600">{d}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Helpful guide: strong E-E-A-T content for search engines */}
+            <section aria-labelledby="tips-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 460px' }}>
+              <h2 id="tips-h" className={H2}>
+                Simple water care tips for your home
+              </h2>
+              <p className={LEAD}>A little care saves money. These are general guidelines, your technician can advise for your exact setup.</p>
+              <dl className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {CARE_TIPS.map(([t, d]) => (
+                  <div key={t} className={`${RAISED_SM} p-6`}>
+                    <dt className="font-extrabold text-gray-900">{t}</dt>
+                    <dd className="mt-2 text-sm leading-7 text-gray-600">{d}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+
+            {/* FAQ */}
+            <section aria-labelledby="faq-h" className="mt-16 scroll-mt-6" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 520px' }}>
+              <p className={LABEL}>Questions</p>
+              <h2 id="faq-h" className={`mt-1 ${H2}`}>
+                Before you book
+              </h2>
+              <div className="mt-8 flex flex-col gap-4">
+                {FAQS.map((f) => (
+                  <details key={f.q} className={`group ${RAISED_SM} px-5 py-2 open:shadow-[inset_5px_5px_10px_#BFCFC7,inset_-5px_-5px_10px_#FFFFFF] sm:px-6`}>
+                    <summary className={`flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-4 font-bold text-gray-900 [&::-webkit-details-marker]:hidden ${FOCUS}`}>
+                      {f.q}
+                      <span aria-hidden className="text-xl text-emerald-800 transition-transform duration-200 motion-reduce:transition-none group-open:rotate-45">
+                        +
+                      </span>
+                    </summary>
+                    <p className="max-w-3xl pb-3 pt-1 text-sm leading-7 text-gray-600">{f.a}</p>
+                  </details>
+                ))}
+              </div>
+            </section>
+
+            {/* Closing call to action */}
+            <section aria-labelledby="cta-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 220px' }}>
+              <div className={`${RAISED} flex flex-col items-start gap-6 p-8 md:flex-row md:items-center md:justify-between`}>
+                <div>
+                  <h2 id="cta-h" className={H2}>
+                    Water problem today? Get a technician today.
+                  </h2>
+                  <p className="mt-2 max-w-xl text-sm leading-7 text-gray-600">
+                    Compare technicians in {cityShort}, check who is Live and book online with {BRAND}.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-4">
+                  <Link href="/book" className={BTN_PRIMARY}>
+                    Book a technician
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
+                  {WA_LINK && (
+                    <a href={WA_LINK} target="_blank" rel="noopener noreferrer" className={BTN_SOFT}>
+                      WhatsApp
+                    </a>
+                  )}
+                  {PHONE && (
+                    <a href={`tel:${PHONE}`} className={BTN_SOFT}>
+                      Call
+                    </a>
+                  )}
+                </div>
+              </div>
+            </section>
 
-          <section aria-labelledby="why-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 280px' }}>
-            <p className={EYEBROW}>Why {BRAND}</p>
-            <h2 id="why-h" className={H2}>Clear choices, quick booking</h2>
-            <ul className="mt-6 grid gap-4 md:grid-cols-3">
-              {[
-                ['See before you book', 'Ratings, jobs completed, city and skills sit on every profile, so you can compare in seconds.'],
-                ['Know who is free', 'Each technician shows Live or Busy, so you do not waste time on someone who cannot take the job.'],
-                ['Reviewed partners', 'Every applicant is reviewed by our team, who contact them to verify their details.'],
-              ].map(([t, d]) => (
-                <li key={t} className="rounded-2xl border-[1.5px] border-emerald-100 bg-emerald-50/60 p-6">
-                  <p className="font-extrabold text-gray-900">{t}</p>
-                  <p className="mt-2 text-sm leading-6 text-gray-600">{d}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
+            {/* Spacer so the mobile bar never hides the last content */}
+            <div aria-hidden className="h-20 md:hidden" />
+          </div>
+        </div>
 
-          <section aria-labelledby="faq-h" className="mt-16" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 520px' }}>
-            <p className={EYEBROW}>Questions</p>
-            <h2 id="faq-h" className={H2}>Before you book</h2>
-            <div className="mt-6 divide-y divide-gray-100 overflow-hidden rounded-2xl border-[1.5px] border-gray-100 bg-white">
-              {FAQS.map((f) => (
-                <details key={f.q} className="group px-5 py-4 sm:px-6">
-                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 font-bold text-gray-900 [&::-webkit-details-marker]:hidden">
-                    {f.q}
-                    <span aria-hidden className="text-xl text-emerald-700 transition-transform group-open:rotate-45">+</span>
-                  </summary>
-                  <p className="mt-2 max-w-3xl text-sm leading-7 text-gray-600">{f.a}</p>
-                </details>
-              ))}
-            </div>
-          </section>
+        {/* Sticky mobile action bar: the easiest way to turn a visit into a booking */}
+        <div className="fixed inset-x-0 bottom-0 z-40 flex gap-3 bg-[#E4F1EB]/95 px-4 pt-3 shadow-[0_-6px_16px_#BFCFC7] backdrop-blur md:hidden" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <Link href="/book" className={`${BTN_PRIMARY} flex-1`}>
+            Book now
+          </Link>
+          {WA_LINK && (
+            <a href={WA_LINK} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp" className={BTN_SOFT}>
+              WhatsApp
+            </a>
+          )}
+          {PHONE && (
+            <a href={`tel:${PHONE}`} aria-label="Call us" className={BTN_SOFT}>
+              Call
+            </a>
+          )}
         </div>
       </TechniciansClient>
     </div>
