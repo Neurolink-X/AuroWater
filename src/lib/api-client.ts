@@ -1025,6 +1025,15 @@ export async function supplierEarningsSummary(period = 'month'): Promise<Supplie
   return apiFetchAuth<SupplierEarningsSummary>(`/supplier/earnings?period=${encodeURIComponent(period)}`);
 }
 
+export type SupplierRatingSummary = {
+  average_rating: number;
+  review_count: number;
+};
+
+export async function supplierRatingGet(): Promise<SupplierRatingSummary> {
+  return apiFetchAuth<SupplierRatingSummary>('/supplier/rating');
+}
+
 /** @deprecated Prefer supplierEarningsSummary */
 export async function supplierEarnings(period?: string): Promise<unknown> {
   return supplierEarningsSummary(period ?? 'month');
