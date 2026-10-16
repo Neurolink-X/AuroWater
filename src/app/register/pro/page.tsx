@@ -278,7 +278,7 @@ function RegisterPro() {
         }}
       />
 
-      <main className="relative mx-auto max-w-6xl px-4 pb-28 pt-8 sm:pt-12 lg:pb-20">
+      <main className="relative mx-auto w-full max-w-6xl px-3 pb-28 pt-6 sm:px-4 sm:pt-12 lg:pb-20">
         {/* Hero + application */}
         <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div className="aw-rise">
@@ -293,10 +293,10 @@ function RegisterPro() {
               Join {BRAND} as a water can supplier, tanker owner, plumber, borewell crew, tank cleaner or RO technician. Get steady orders near you, keep more of every delivery as you grow, and get paid to your own UPI or bank account.
             </p>
 
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#apply" className={`${BTN_PRIMARY} px-7 lg:hidden`}>Apply now</a>
-              <a href="#earn" className={`${BTN_SOFT} px-6`}>Estimate my earnings</a>
-              <a href={shareHref} target="_blank" rel="noopener noreferrer" className={`${BTN_SOFT} px-6`}>Share on WhatsApp</a>
+            <div className="mt-7 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:flex-wrap">
+              <a href="#apply" className={`${BTN_PRIMARY} w-full px-5 min-[420px]:w-auto min-[420px]:px-7 lg:hidden`}>Apply now</a>
+              <a href="#earn" className={`${BTN_SOFT} w-full px-5 min-[420px]:w-auto min-[420px]:px-6`}>Estimate my earnings</a>
+              <a href={shareHref} target="_blank" rel="noopener noreferrer" className={`${BTN_SOFT} w-full px-5 min-[420px]:w-auto min-[420px]:px-6`}>Share on WhatsApp</a>
             </div>
 
             <ul className="mt-9 grid gap-4 sm:grid-cols-3">
@@ -585,8 +585,8 @@ function ApplicationCard({
 }) {
   const r = ROLES[role];
   return (
-    <div className={`rounded-[32px] bg-[#E3EDF6] p-5 sm:p-7 ${RAISED}`}>
-      <nav aria-label="Choose your work" className={`flex gap-1 overflow-x-auto rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET} [scrollbar-width:none]`}>
+    <div className={`min-w-0 rounded-[24px] bg-[#E3EDF6] p-4 sm:rounded-[32px] sm:p-7 ${RAISED}`}>
+      <nav aria-label="Choose your work" className={`grid grid-cols-2 gap-2 rounded-2xl bg-[#E3EDF6] p-2 ${INSET} sm:flex sm:gap-1 sm:overflow-x-auto sm:p-1.5 [scrollbar-width:none]`}>
         {ROLE_IDS.map((id) => (
           <Link
             key={id}
@@ -595,14 +595,14 @@ function ApplicationCard({
             replace
             prefetch
             aria-current={role === id ? 'page' : undefined}
-            className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${FOCUS} ${role === id ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
+            className={`flex min-h-[48px] min-w-0 w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold leading-tight transition ${FOCUS} sm:w-auto sm:shrink-0 sm:px-3 ${role === id ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
           >
-            <span aria-hidden>{ROLES[id].icon}</span>
-            {ROLES[id].label}
+            <span aria-hidden className="shrink-0">{ROLES[id].icon}</span>
+            <span className="min-w-0 break-words">{ROLES[id].label}</span>
           </Link>
         ))}
       </nav>
-      <h2 className="mt-5 text-xl font-extrabold text-[#0B2A4A]">{r.label} application</h2>
+      <h2 className="mt-5 break-words text-xl font-extrabold text-[#0B2A4A] sm:text-2xl">{r.label} application</h2>
       <p className="mt-1 text-sm text-slate-500">
         {ready && !signedIn ? (
           <>It takes about two minutes. You will sign in at the end. <Link href={loginHref} className="font-semibold text-sky-700 underline underline-offset-4">Sign in now</Link></>
@@ -709,7 +709,7 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
       </div>
       <ol className="mt-2 flex gap-2" aria-label="Steps">
         {steps.map((s, i) => (
-          <li key={s.title} aria-current={i === step ? 'step' : undefined} className={`flex-1 text-xs font-bold ${i === step ? 'text-sky-700' : 'text-slate-400'}`}>{s.title}</li>
+          <li key={s.title} aria-current={i === step ? 'step' : undefined} className={`min-w-0 flex-1 break-words text-[11px] font-bold leading-tight sm:text-xs ${i === step ? 'text-sky-700' : 'text-slate-400'}`}>{s.title}</li>
         ))}
       </ol>
 
@@ -751,7 +751,7 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
               </select>
             </Field>
             <Field label="Cans you can carry" htmlFor={id('cans_capacity')} error={err('cans_capacity')} hint={role === 'tanker' ? 'About 20 L per can, so 1,000 L is 50' : undefined}>
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                 <button type="button" aria-label="Fewer cans" onClick={() => setCans(cans - 5)} className={`${BTN_SOFT} h-12 w-12 shrink-0 text-xl`}>−</button>
                 <input type="number" min={1} max={500} inputMode="numeric" {...register('cans_capacity', { valueAsNumber: true })} {...a11y('cans_capacity')} className={`${INPUT} text-center`} />
                 <button type="button" aria-label="More cans" onClick={() => setCans(cans + 5)} className={`${BTN_SOFT} h-12 w-12 shrink-0 text-xl`}>+</button>
@@ -786,7 +786,7 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
           <>
             <fieldset aria-describedby={err('skills') ? `${id('skills')}-err` : undefined}>
               <legend className="mb-3 text-sm font-bold text-slate-700">Skills</legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2 sm:gap-3">
                 {SKILLS.map((s) => {
                   const on = skills.includes(s);
                   return (
@@ -814,11 +814,11 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
       {/* Actions */}
       <div className="mt-7 flex gap-3">
         {step > 0 && (
-          <button type="button" onClick={() => setStep((s) => s - 1)} className={`${BTN_SOFT} px-6`}>
+          <button type="button" onClick={() => setStep((s) => s - 1)} className={`${BTN_SOFT} w-full px-6 sm:w-auto`}>
             Back
           </button>
         )}
-        <button type="submit" disabled={isSubmitting || (isLast && !ready)} className={`${BTN_PRIMARY} flex-1`}>
+        <button type="submit" disabled={isSubmitting || (isLast && !ready)} className={`${BTN_PRIMARY} w-full flex-1 px-4 sm:w-auto`}>
           {isSubmitting ? 'Submitting…' : isLast ? 'Submit application' : 'Continue'}
         </button>
       </div>
@@ -1462,7 +1462,7 @@ function Field({ label, htmlFor, error, hint, children }: { label: string; htmlF
 //       </div>
 
 //       {/* Actions */}
-//       <div className="mt-6 flex gap-3">
+//       <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
 //         {step > 0 && (
 //           <button type="button" onClick={() => setStep((s) => s - 1)} className="min-h-[52px] rounded-2xl border border-white/15 px-5 font-bold text-slate-200 transition hover:bg-white/5">
 //             Back
