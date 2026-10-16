@@ -762,6 +762,7 @@ export default function SupplierDashboardPage() {
   const [ordersStale, setOrdersStale] = useState(false);
   const [networkOnline, setNetworkOnline] = useState(true);
   const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number } | null>(null);
+  const [ratingLoadState, setRatingLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [completionOrder, setCompletionOrder] = useState<Order | null>(null);
@@ -816,7 +817,18 @@ export default function SupplierDashboardPage() {
         try {
           const result = await supabase.auth.getSession();
           if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
-          if (!result.data.session?.user) { redirectToLogin(); return; }
+          if (!result.data.session?.user) {
+            // A missing session on tab focus can be a brief storage/refresh race; verify once more.
+            await new Promise((resolve) => setTimeout(resolve, 900));
+            const retry = await supabase.auth.getSession();
+            if (retry.error) {
+              console.warn('[supplier] retry session check failed:', retry.error.message);
+              return;
+            }
+            if (!retry.data.session?.user) { redirectToLogin(); return; }
+            await loadAll(retry.data.session.user.id);
+            return;
+          }
           await loadAll(result.data.session.user.id);
         } catch (error) {
           console.error('[supplier] focus refresh failed:', error instanceof Error ? error.message : error);
@@ -896,7 +908,9 @@ export default function SupplierDashboardPage() {
         try {
           const rating = await supplierRatingGet();
           setProfile((current) => current?.id === normalized.id ? { ...current, rating: rating.average_rating, rating_count: rating.review_count } : current);
+          setRatingLoadState('loaded');
         } catch (ratingError) {
+          setRatingLoadState('error');
           console.warn('[supplier] rating unavailable:', ratingError instanceof Error ? ratingError.message : ratingError);
         }
       })(),
@@ -1407,7 +1421,7 @@ export default function SupplierDashboardPage() {
       todays: todays.length,
       overdue: activeOrders.filter((o) => o.scheduled_date && o.scheduled_date < todayStr).length,
       cans: todays.reduce((sum, o) => sum + (o.cans_count ?? 0), 0),
-      cash: activeOrders.reduce((sum, o) => sum + (o.payment_status === 'paid' ? 0 : o.amount), 0),
+      cash: todays.reduce((sum, o) => sum + (o.payment_status === 'paid' ? 0 : o.amount), 0),
       awaiting: activeOrders.filter((o) => o.status === 'assigned' && !o.accepted_at).length,
       slots: Array.from(slots.entries()),
     };
@@ -1617,8 +1631,8 @@ export default function SupplierDashboardPage() {
             <StatCard
               icon={<>{Icon.star(16)}</>}
               label="Your Rating"
-              value={profile ? (profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'No reviews') : '—'}
-              sub={profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} customer reviews` : 'No customer reviews yet'}
+              value={!profile || ratingLoadState === 'loading' ? '—' : ratingLoadState === 'error' ? 'Unavailable' : profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'No reviews'}
+              sub={ratingLoadState === 'error' ? 'Could not verify review data' : profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} customer reviews` : ratingLoadState === 'loaded' ? 'No customer reviews yet' : 'Loading verified review data'}
               accent="#B45309"
               loading={loading}
             />
