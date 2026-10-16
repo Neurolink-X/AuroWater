@@ -280,8 +280,8 @@ function RegisterPro() {
 
       <main className="relative mx-auto w-full min-w-0 max-w-6xl px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 sm:px-4 sm:pb-20 sm:pt-12 lg:pb-20">
         {/* Hero + application */}
-        <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
-          <div className="aw-rise">
+        <section className="grid min-w-0 grid-cols-1 items-start gap-8 sm:gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
+          <div className="min-w-0 aw-rise">
             <span className={`inline-flex items-center gap-2 rounded-full bg-[#E3EDF6] px-4 py-2 ${EYEBROW} ${INSET}`}>
               <span aria-hidden className="aw-pulse h-2 w-2 rounded-full bg-sky-500" />
               Now onboarding six kinds of partners in {SERVICE_CITIES.length} cities
@@ -329,7 +329,7 @@ function RegisterPro() {
             </div>
           </div>
 
-          <div id="apply" className="scroll-mt-6 lg:sticky lg:top-6">
+          <div id="apply" className="min-w-0 scroll-mt-6 lg:sticky lg:top-6">
             <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} loginHref={loginHref} onSubmit={submitApplication} />
           </div>
         </section>
@@ -523,7 +523,7 @@ function Estimator({ rows, role }: { rows: TierRow[]; role: RoleId }) {
           <h2 id="calc-h" className={H2}>See what growing is worth</h2>
           <p className="mt-2 text-sm leading-7 text-slate-600">Enter your own numbers. This is an estimate based on the commission for each tier, not a promise of orders.</p>
 
-          <label htmlFor="calc-qty" className="mt-6 flex justify-between text-sm font-bold text-[#0B2A4A]">
+          <label htmlFor="calc-qty" className="mt-6 flex flex-wrap items-start justify-between gap-x-3 gap-y-1 text-sm font-bold text-[#0B2A4A]">
             {r.unit === 'can' ? 'Cans delivered' : r.unit === 'trip' ? 'Tanker trips' : 'Jobs completed'} per day <span className="text-sky-700">{qty}</span>
           </label>
           <input
@@ -545,7 +545,7 @@ function Estimator({ rows, role }: { rows: TierRow[]; role: RoleId }) {
               const v = take(t.commission);
               return (
                 <li key={t.tier}>
-                  <div className="flex items-baseline justify-between text-sm">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                     <span className="text-slate-600">{t.label} <span className="text-slate-400">({t.commission}%)</span></span>
                     <span className={`font-extrabold ${t === last ? 'text-teal-700' : 'text-[#0B2A4A]'}`}>{inr(v)}</span>
                   </div>
