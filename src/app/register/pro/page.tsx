@@ -278,7 +278,7 @@ function RegisterPro() {
         }}
       />
 
-      <main className="relative mx-auto max-w-6xl px-4 pb-28 pt-8 sm:pt-12 lg:pb-20">
+      <main className="relative mx-auto w-full max-w-6xl px-3 pb-28 pt-6 sm:px-4 sm:pt-12 lg:pb-20">
         {/* Hero + application */}
         <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_.95fr] lg:gap-14">
           <div className="aw-rise">
@@ -586,7 +586,7 @@ function ApplicationCard({
   const r = ROLES[role];
   return (
     <div className={`rounded-[32px] bg-[#E3EDF6] p-5 sm:p-7 ${RAISED}`}>
-      <nav aria-label="Choose your work" className={`flex gap-1 overflow-x-auto rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET} [scrollbar-width:none]`}>
+      <nav aria-label="Choose your work" className={`grid grid-cols-2 gap-2 rounded-2xl bg-[#E3EDF6] p-2 ${INSET} sm:flex sm:gap-1 sm:overflow-x-auto sm:p-1.5 [scrollbar-width:none]`}>
         {ROLE_IDS.map((id) => (
           <Link
             key={id}
@@ -595,10 +595,10 @@ function ApplicationCard({
             replace
             prefetch
             aria-current={role === id ? 'page' : undefined}
-            className={`flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${FOCUS} ${role === id ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
+            className={`flex min-h-[48px] min-w-0 w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm font-bold leading-tight transition ${FOCUS} sm:w-auto sm:shrink-0 sm:px-3 ${role === id ? 'bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-[3px_3px_8px_#b7c8d9]' : 'text-slate-600 hover:text-sky-700'}`}
           >
-            <span aria-hidden>{ROLES[id].icon}</span>
-            {ROLES[id].label}
+            <span aria-hidden className="shrink-0">{ROLES[id].icon}</span>
+            <span className="min-w-0 break-words">{ROLES[id].label}</span>
           </Link>
         ))}
       </nav>
