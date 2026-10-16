@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { getToken } from '@/lib/api-client';
 
 type Config = { water_normal:number; water_chilled:number; water_subscription:number; bulk_can_price:number; bulk_threshold:number; services:Record<string,number>; convenience_fee:number; emergency_surcharge:number; gst_rate:number };
 type Version = { id:number; version:number; effective_from:string; reason:string; config:Config; created_at:string; currently_effective?:boolean };
@@ -10,8 +11,17 @@ const labels:Record<string,string> = { water_tanker:'Water tanker', ro_service:'
 const currency = (v:number) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:2}).format(v);
 
 async function call<T>(method:'GET'|'POST', body?:unknown):Promise<T> {
- const res=await fetch('/api/admin/pricing',{method,credentials:'include',headers:{'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const token = await getToken();
+ if (!token) throw new Error('Your session has expired. Sign in again to manage pricing.');
+ const res=await fetch('/api/admin/pricing',{
+  method,
+  credentials:'include',
+  headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+  ...(body?{body:JSON.stringify(body)}:{})
+ });
  const envelope=await res.json().catch(()=>({}));
+ if (res.status===401) throw new Error('Your session is no longer valid. Sign in again, then reopen pricing.');
+ if (res.status===403) throw new Error('Administrator access is required to manage pricing.');
  if(!res.ok||envelope.success===false) throw new Error(envelope.error||'Request failed');
  return envelope.data as T;
 }
