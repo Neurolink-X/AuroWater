@@ -275,9 +275,6 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sort, setSort] = useState<SortId>('best');
   const [savedOnly, setSavedOnly] = useState(false);
-  const filterKey = JSON.stringify([skill, city, onlyAvailable, deferredQuery, sort, savedOnly]);
-  const [limitState, setLimitState] = useState<{ key: string; value: number }>({ key: '', value: PAGE_SIZE });
-  const limit = limitState.key === filterKey ? limitState.value : PAGE_SIZE;
 
   const [techs, setTechs] = useState<Technician[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -289,6 +286,9 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
 
   const searchId = useId();
   const deferredQuery = useDeferredValue(searchQuery);
+  const filterKey = JSON.stringify([skill, city, onlyAvailable, deferredQuery, sort, savedOnly]);
+  const [limitState, setLimitState] = useState<{ key: string; value: number }>({ key: '', value: PAGE_SIZE });
+  const limit = limitState.key === filterKey ? limitState.value : PAGE_SIZE;
 
   useEffect(() => { router.prefetch('/book'); }, [router]);
 
