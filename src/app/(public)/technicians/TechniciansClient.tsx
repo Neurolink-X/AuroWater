@@ -348,7 +348,10 @@ export default function TechniciansClient({ children }: { children?: ReactNode }
       }
     } catch { /* ignore invalid cache */ }
     if (freshCache) return () => { cancelled = true; };
-    setLoadError(false);
+    // Reset the visible error state after the effect has committed.
+    queueMicrotask(() => {
+      if (!cancelled) setLoadError(false);
+    });
     void getTechnicians()
       .then((rows) => {
         if (cancelled) return;
