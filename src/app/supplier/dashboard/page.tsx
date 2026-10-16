@@ -171,7 +171,7 @@ const toISTDateKey = (value: unknown): string => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
   const normalized = !hasTimezone && /^\d{4}-\d{2}-\d{2}[T ]/.test(raw)
-    ? \`\${raw.replace(' ', 'T')}+05:30\`
+    ? `${raw.replace(' ', 'T')}+05:30`
     : raw;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return '';
@@ -185,7 +185,7 @@ const tomorrowIST = () => {
 };
 const exportEarningsCsv = (rows: EarningRow[]) => {
   if (!rows.length) return false;
-  const cell = (value: unknown) => \`"\${String(value ?? '').replace(/"/g, '""')}"\`;
+  const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
   const lines = [
     ['Order ID', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
     ...rows.map((row) => [row.order_id, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
@@ -194,7 +194,7 @@ const exportEarningsCsv = (rows: EarningRow[]) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = \`aurotap-supplier-earnings-recent-\${todayIST()}.csv\`;
+  link.download = `aurotap-supplier-earnings-recent-${todayIST()}.csv`;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return true;
@@ -630,7 +630,7 @@ function OrderCard({
             <span className="sd-muted-ico">{Icon.phone(12)}</span>
             <span>{order.customer_name} · </span>
             {hasPhone ? (
-              <a href={\`tel:\${order.customer_phone.replace(/[^\d+]/g, '')}\`} className="sd-link" aria-label={\`Call customer \${order.customer_name}\`}>
+              <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} className="sd-link" aria-label={`Call customer ${order.customer_name}`}>
                 {order.customer_phone}
               </a>
             ) : <span>{isActive ? 'Contact shown after acceptance' : 'Contact hidden for privacy'}</span>}
@@ -643,6 +643,10 @@ function OrderCard({
             {canRevealContact && fullAddress && (
               <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" aria-label="Copy delivery address"
                 onClick={() => {
+                  if (!navigator.clipboard?.writeText) {
+                    toast.error('Clipboard access is unavailable in this browser.');
+                    return;
+                  }
                   void navigator.clipboard.writeText(fullAddress)
                     .then(() => toast.success('Delivery address copied'))
                     .catch(() => toast.error('Could not copy address. Check browser clipboard permissions.'));
