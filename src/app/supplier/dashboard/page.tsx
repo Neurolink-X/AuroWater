@@ -900,6 +900,7 @@ export default function SupplierDashboardPage() {
       created_at: new Date().toISOString(),
     };
 
+    setRatingLoadState('loading');
     setProfile(normalized);
     await Promise.all([
       fetchOrders(),
