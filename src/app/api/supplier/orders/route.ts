@@ -101,9 +101,21 @@ export async function GET(req: NextRequest) {
       console.error('[supplier/orders] customer contact lookup failed', profilesResult.error);
       return jsonErr('Unable to load delivery contact details right now', 502);
     }
-    // Labels and addresses degrade gracefully, but are never swallowed silently.
-    if (serviceTypesResult.error) console.error('[supplier/orders] service types lookup failed', serviceTypesResult.error);
-    if (addressesResult.error) console.error('[supplier/orders] addresses lookup failed', addressesResult.error);
+    if (serviceTypesResult.error) {
+      // Service labels are optional; keep the order visible with its stored service key.
+      console.error('[supplier/orders] service types lookup failed', serviceTypesResult.error);
+    }
+    if (addressesResult.error) {
+      console.error('[supplier/orders] addresses lookup failed', addressesResult.error);
+      // Do not silently return blank delivery details for an active accepted job.
+      const needsExactAddress = orders.some((order) => {
+        const status = String(order.status ?? '').toUpperCase();
+        return status === 'IN_PROGRESS' || (status === 'ASSIGNED' && Boolean(order.accepted_at));
+      });
+      if (needsExactAddress) {
+        return jsonErr('Unable to load delivery address details. Please retry.', 502);
+      }
+    }
 
     const profileById = new Map((profilesResult.data ?? []).map((p) => [String(p.id), p]));
     const serviceTypeById = new Map((serviceTypesResult.data ?? []).map((s) => [Number(s.id), s]));
