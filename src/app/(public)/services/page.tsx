@@ -1,17 +1,20 @@
-import type { Metadata, Viewport } from 'next';
 import { DM_Sans, Syne } from 'next/font/google';
 
 import ServicesClient from './ServicesClient';
 import {
   BRAND,
-  CITY_LINE,
   LIVE_CITIES,
+  PAGE_DESCRIPTION,
   PAGE_PATH,
+  PAGE_TITLE,
   SERVICES,
   SERVICE_FAQS,
   SITE_URL,
 } from './services-data';
 import './services.css';
+
+/* Page metadata (title, description, canonical, keywords, viewport) lives in layout.tsx.
+   This file only renders the page, the structured data and the FAQ. */
 
 /* Fonts are downloaded at build time and served from your own domain:
    no render-blocking request to Google, no layout jump. */
@@ -20,42 +23,6 @@ const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-
 
 // Static page: served from the CDN and refreshed once a day. Live prices load in the browser from settings.
 export const revalidate = 86400;
-
-const TITLE = `Water Delivery, Plumber & RO Service in UP | ${BRAND}`;
-const DESCRIPTION = `Order 20L RO water cans, water tankers, plumber, RO service, borewell, motor pump repair and tank cleaning in ${CITY_LINE}. Check availability and see prices before you book.`;
-
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: TITLE,
-  description: DESCRIPTION,
-  applicationName: BRAND,
-  category: 'Home services',
-  keywords: Array.from(
-    new Set([
-      ...LIVE_CITIES.flatMap((c) => [`water can delivery ${c}`, `plumber in ${c}`, `RO service ${c}`, `water tanker ${c}`, `tank cleaning ${c}`]),
-      'RO water 20 litre can delivery',
-      'chilled water can delivery',
-      'book plumber online',
-      'borewell service Uttar Pradesh',
-      'motor pump repair',
-    ]),
-  ),
-  alternates: { canonical: PAGE_PATH, languages: { 'en-IN': PAGE_PATH } },
-  openGraph: { type: 'website', siteName: BRAND, title: TITLE, description: DESCRIPTION, url: PAGE_PATH, locale: 'en_IN' },
-  twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION },
-  formatDetection: { telephone: false, email: false, address: false },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 },
-  },
-};
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  themeColor: '#0A1628',
-};
 
 const json = (o: unknown) => JSON.stringify(o).replace(/</g, '\\u003c');
 
@@ -76,8 +43,8 @@ export default function ServicesPage() {
     {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
-      name: TITLE,
-      description: DESCRIPTION,
+      name: PAGE_TITLE,
+      description: PAGE_DESCRIPTION,
       url,
       isPartOf: { '@type': 'WebSite', name: BRAND, url: SITE_URL },
       publisher: { '@id': `${SITE_URL}/#organization` },
