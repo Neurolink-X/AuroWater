@@ -2860,7 +2860,18 @@ export default function SupplierDashboardPage() {
           toast.error('Could not verify your session. Check your connection and retry.');
           return;
         }
-        if (!result.data.session?.user) { redirectToLogin(); return; }
+        if (!result.data.session?.user) {
+          // Browser storage can briefly lag during Supabase token rotation. Attempt one
+          // explicit refresh before redirecting, so a recoverable session is not lost.
+          const refreshed = await supabase.auth.refreshSession();
+          if (!active) return;
+          if (refreshed.error || !refreshed.data.session?.user) {
+            redirectToLogin();
+            return;
+          }
+          await loadAll(refreshed.data.session.user.id);
+          return;
+        }
         await loadAll(result.data.session.user.id);
       } catch (error) {
         console.error('[supplier] session initialization failed:', error instanceof Error ? error.message : error);
@@ -2888,7 +2899,12 @@ export default function SupplierDashboardPage() {
               console.warn('[supplier] retry session check failed:', retry.error.message);
               return;
             }
-            if (!retry.data.session?.user) { redirectToLogin(); return; }
+            if (!retry.data.session?.user) {
+              const refreshed = await supabase.auth.refreshSession();
+              if (refreshed.error || !refreshed.data.session?.user) { redirectToLogin(); return; }
+              await loadAll(refreshed.data.session.user.id);
+              return;
+            }
             await loadAll(retry.data.session.user.id);
             return;
           }
@@ -3088,9 +3104,10 @@ export default function SupplierDashboardPage() {
       const amount = Number(row.supplier_payout ?? 0);
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
-      // Supplier payout is posted by the database the moment an order is completed (sql/023), so a
-      // positive amount IS the posted figure. Only a completed order with no payout yet needs review.
-      const needsReview = !Number.isFinite(amount) || amount <= 0;
+      // A positive supplier_payout is not sufficient proof of posting. The immutable ledger-posted
+      // timestamp is the accounting source of truth; legacy/unreconciled rows remain review-only.
+      const financialsPosted = Boolean(row.financials_posted_at);
+      const needsReview = !financialsPosted || !Number.isFinite(amount) || amount <= 0;
       const isSettled = payoutStatus === 'paid' && !needsReview;
       return {
         id: String(row.id),

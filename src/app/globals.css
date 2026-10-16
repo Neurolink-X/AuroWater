@@ -1,6 +1,6 @@
 /* AuroWater global styles
-   Fonts are loaded with next/font in layout.tsx (no render-blocking @imports).
-   Performance notes:
+   System-first font stacks keep builds deterministic and avoid runtime/build-time
+   dependence on third-party font delivery. Performance notes:
    - The Google Fonts @import for Syne was removed: it blocked first paint, and nothing here uses it.
    - Only transform / opacity are animated; box-shadow transitions are short and tiny.
    - Dashboards (.neu-theme) skip scroll-reveal so pages feel instant on every switch. */
@@ -9,6 +9,15 @@
 /* ───────────── Tokens ───────────── */
 :root {
   color-scheme: light;
+
+  /* Stable system-first typography: no Google Fonts network request during build. */
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-brand: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-devanagari: "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
+  --font-clash: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-dm-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-noto-deva: "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
 
   --background: #f8fafc;
   --foreground: #0f172a;

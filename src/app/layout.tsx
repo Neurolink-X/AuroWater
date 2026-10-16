@@ -1,10 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import {
-  Bricolage_Grotesque,
-  DM_Sans,
-  Noto_Sans_Devanagari,
-  Syne,
-} from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 
@@ -36,43 +30,9 @@ import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistratio
  * ['normal', 'italic'].
  * ──────────────────────────────────────────────────────────────────────── */
 
-const fontDisplay = Bricolage_Grotesque({
-  subsets: ['latin'],
-  axes: ['opsz'],
-  display: 'swap',
-  variable: '--font-display',
-});
+// Font families are defined as system-first CSS stacks in globals.css.
+// Avoid build-time network calls to Google Fonts so CI and production builds are deterministic.
 
-const fontBrand = Syne({
-  subsets: ['latin'],
-  weight: ['700', '800'],
-  display: 'swap',
-  variable: '--font-brand',
-});
-
-const fontSans = DM_Sans({
-  subsets: ['latin'],
-  style: 'normal',
-  axes: ['opsz'],
-  display: 'swap',
-  variable: '--font-sans',
-});
-
-const fontDevanagari = Noto_Sans_Devanagari({
-  subsets: ['devanagari'],
-  weight: ['400', '500', '600', '700'],
-  display: 'swap',
-  // Hindi is optional, so don't preload it for English visitors.
-  preload: false,
-  variable: '--font-devanagari',
-});
-
-const FONT_VARIABLES = [
-  fontDisplay.variable,
-  fontBrand.variable,
-  fontSans.variable,
-  fontDevanagari.variable,
-].join(' ');
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Site configuration
@@ -412,7 +372,6 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={FONT_VARIABLES}
       // Lets Next.js skip the animated scroll on route changes while keeping
       // smooth scrolling for in-page anchors (needs scroll-behavior: smooth in CSS).
       data-scroll-behavior="smooth"

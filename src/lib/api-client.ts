@@ -172,7 +172,7 @@ async function fetchWithRetryRaw(
   throw new ApiError('Network error', 503, 'NETWORK');
 }
 
-async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnauthorized = true): Promise<T> {
   const { res, json } = await fetchWithRetryParse(path, init);
 
   if (!res.ok || json.success === false) {
@@ -182,7 +182,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
         (window.location.pathname.startsWith('/auth/login') ||
           window.location.pathname.startsWith('/auth/register'));
       /** Failed login/register must not hard-redirect (breaks error UI + resend flows). */
-      if (!onAuthEntry) {
+      if (!onAuthEntry && redirectOnUnauthorized) {
         clearToken();
         clearUser();
         if (typeof window !== 'undefined') {
@@ -218,18 +218,77 @@ export async function apiFetchSafe<T>(path: string, init: RequestInit = {}): Pro
 }
 
 async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = await getToken();
-  if (!token) {
-    throw new ApiError('No authentication token found', 401);
+  const supabase = createClient();
+
+  const requestWithToken = (token: string) =>
+    apiFetch<T>(
+      path,
+      {
+        ...init,
+        credentials: 'include',
+        headers: {
+          ...(init.headers ?? {}),
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      false, // Do not redirect until a one-time session refresh has been attempted.
+    );
+
+  try {
+    const token = await getToken();
+    if (!token) {
+      throw new ApiError('No authentication token found', 401);
+    }
+
+    try {
+      return await requestWithToken(token);
+    } catch (firstError) {
+      if (!(firstError instanceof ApiError) || firstError.status !== 401) {
+        throw firstError;
+      }
+
+      // A stale access token can return 401 even while the refresh token is still valid.
+      // Refresh once and retry the exact same request before treating the user as signed out.
+      const { data, error } = await supabase.auth.refreshSession();
+      const refreshedToken = data.session?.access_token;
+      if (error || !refreshedToken) {
+        throw new ApiError('Your session has expired. Please sign in again.', 401, 'SESSION_EXPIRED');
+      }
+
+      try {
+        return await requestWithToken(refreshedToken);
+      } catch (retryError) {
+        if (retryError instanceof ApiError && retryError.status === 401) {
+          throw new ApiError('Your session could not be renewed. Please sign in again.', 401, 'SESSION_EXPIRED');
+        }
+        throw retryError;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      // Clear this browser's invalid session only after refresh + retry both fail.
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        /* stale refresh tokens can make local sign-out throw; clear app-side state below */
+      }
+      clearToken();
+      clearUser();
+      clearAuthGateCookies();
+      safeRemove('aurowater_session');
+
+      if (typeof window !== 'undefined') {
+        const onAuthEntry =
+          window.location.pathname.startsWith('/auth/login') ||
+          window.location.pathname.startsWith('/auth/register');
+        if (!onAuthEntry) {
+          const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
+          window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
+        }
+      }
+    }
+    throw error;
   }
-  return apiFetch<T>(path, {
-    ...init,
-    credentials: 'include',
-    headers: {
-      ...(init.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
 }
 
 /* ─── Auth ─────────────────────────────────────────────────────────── */
