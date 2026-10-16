@@ -2135,6 +2135,8 @@ type EarningRow = {
   id: string;
   order_id: string;
   amount: number;
+  /** True only when the database transaction posted this earning to the financial ledger. */
+  financialsPosted: boolean;
   status: 'pending' | 'paid' | 'review';
   paid_at: string | null;
   created_at: string;
@@ -3088,14 +3090,16 @@ export default function SupplierDashboardPage() {
       const amount = Number(row.supplier_payout ?? 0);
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
-      // Supplier payout is posted by the database the moment an order is completed (sql/023), so a
-      // positive amount IS the posted figure. Only a completed order with no payout yet needs review.
-      const needsReview = !Number.isFinite(amount) || amount <= 0;
+      // A positive supplier_payout alone is not proof that money was posted to the immutable ledger.
+      // Unposted/legacy rows remain visible for reconciliation but must not be counted as payable.
+      const financialsPosted = Boolean(row.financials_posted_at);
+      const needsReview = !financialsPosted || !Number.isFinite(amount) || amount <= 0;
       const isSettled = payoutStatus === 'paid' && !needsReview;
       return {
         id: String(row.id),
         order_id: String(row.id),
         amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
+        financialsPosted,
         status: needsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
         paid_at: isSettled ? paidAt : null,
         created_at: String(row.completed_at ?? row.created_at ?? ''),
