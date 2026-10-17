@@ -509,7 +509,6 @@ function PageHeader({ title, description, actions }: { title: string; descriptio
       </div>
       {actions}
     </div>
-    </DashboardLanguageContext.Provider>
   );
 }
 
@@ -2023,6 +2022,7 @@ export default function TechnicianDashboardPage() {
         />
       )}
     </div>
+    </DashboardLanguageContext.Provider>
   );
 }
 
