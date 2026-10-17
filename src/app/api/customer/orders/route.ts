@@ -538,8 +538,10 @@ export async function POST(req: NextRequest) {
       platform_fee: convenience,
       final_amount: total,
       base_amount: netBaseAmount,
-      referral_discount_amount: referralDiscountAmount,
-      referral_reward_id: referralReward?.id ?? null,
+      ...(referralReward ? {
+        referral_discount_amount: referralDiscountAmount,
+        referral_reward_id: referralReward.id,
+      } : {}),
       convenience_fee: convenience,
       emergency_charge,
       gst_amount,
