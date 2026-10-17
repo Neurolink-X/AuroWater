@@ -376,7 +376,9 @@ export default function TrackOrderPage() {
     `https://wa.me/91${(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '9889305803').replace(/\D/g, '')}`;
 
   const supportNeedsSupplierHref = `https://wa.me/919889305803?text=${encodeURIComponent(
-    `My order ${id} needs a supplier`
+    isTechnicianService
+      ? `My service booking ${id} needs help finding a plumber/technician.`
+      : `My water order ${id} needs a supplier.`
   )}`;
 
   const unassignedPending = status === 'PENDING' && !supplierId;
@@ -536,15 +538,17 @@ export default function TrackOrderPage() {
         emoji: '🧑‍🔧',
         title: `${providerLabel} assigned`,
         sub: technicianName
-          ? `${technicianName} has been assigned to your booking.`
+          ? `${technicianName} has been assigned to your booking. The professional may still need to accept the job.`
           : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
+        hindi: 'प्रोफेशनल असाइन हो गया है। उनके द्वारा काम स्वीकार करने की पुष्टि का इंतज़ार हो सकता है।',
       }
     : isTechnicianService && status === 'PENDING'
       ? {
           ...baseHero,
           emoji: '🔎',
-          title: 'Finding your professional',
+          title: `Finding your ${providerLabel.toLowerCase()}`,
           sub: `We're checking availability for your ${serviceKey === 'plumbing' ? 'plumbing' : 'service'} booking.`,
+          hindi: 'हम आपके क्षेत्र में सही प्लंबर/टेक्नीशियन ढूँढ रहे हैं। अपडेट अपने-आप आएगा।',
         }
       : baseHero;
   const shortId = String(o.order_number ?? id.slice(0, 8));
@@ -629,6 +633,9 @@ export default function TrackOrderPage() {
                   <p className="mt-1 max-w-xl text-sm leading-6 text-white/65">
                     {hero?.sub ?? 'We are keeping your order updated.'}
                   </p>
+                  {'hindi' in (hero ?? {}) && hero?.hindi ? (
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-white/70" lang="hi">{hero.hindi}</p>
+                  ) : null}
                 </div>
               </div>
 
@@ -673,8 +680,15 @@ export default function TrackOrderPage() {
                     <h2 className="font-extrabold text-slate-900">
                       {isTechnicianService ? `Finding your ${providerLabel.toLowerCase()}` : 'Finding your supplier'}
                     </h2>
-                    <p className="mt-1 text-sm leading-5 text-slate-500">
-                      We&apos;re checking nearby availability. You can leave this page safely.
+                    <p className="mt-1 text-sm leading-5 text-slate-600">
+                      {isTechnicianService
+                        ? 'We are checking nearby plumbers and technicians. You can leave this page safely.'
+                        : 'We are checking nearby water suppliers. You can leave this page safely.'}
+                    </p>
+                    <p className="mt-1 text-sm leading-5 text-slate-500" lang="hi">
+                      {isTechnicianService
+                        ? 'आप इस पेज से जा सकते हैं। बुकिंग की स्थिति अपने-आप अपडेट होगी।'
+                        : 'आप इस पेज से जा सकते हैं। ऑर्डर की स्थिति अपने-आप अपडेट होगी।'}
                     </p>
                   </div>
                   <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-bold text-cyan-700">Auto-updating</span>
