@@ -357,6 +357,8 @@ export default function TrackOrderPage() {
   }, [supplierId, session?.accessToken]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
+  const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);
+  const providerLabel = serviceKey === 'plumbing' ? 'Plumber' : 'Technician';
   const addrStr = formatSnapshot(order?.address_snapshot as Record<string, unknown> | null);
 
   const timelineSteps = useMemo(() => {
@@ -525,7 +527,24 @@ export default function TrackOrderPage() {
   const gst = Number(o.gst_amount ?? 0);
   const emerg = Number(o.emergency_charge ?? 0);
   const canCancel = status === 'PENDING' || status === 'ASSIGNED';
-  const hero = HERO[status];
+  const baseHero = HERO[status];
+  const hero = isTechnicianService && status === 'ASSIGNED'
+    ? {
+        ...baseHero,
+        emoji: '🧑‍🔧',
+        title: `${providerLabel} assigned`,
+        sub: tech?.full_name
+          ? `${tech.full_name} has been assigned to your booking.`
+          : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
+      }
+    : isTechnicianService && status === 'PENDING'
+      ? {
+          ...baseHero,
+          emoji: '🔎',
+          title: 'Finding your professional',
+          sub: `We're checking availability for your ${serviceKey === 'plumbing' ? 'plumbing' : 'service'} booking.`,
+        }
+      : baseHero;
   const shortId = String(o.order_number ?? id.slice(0, 8));
 
   const slotMatch = /Slot:\s*([^|]+)/.exec(String(o.note ?? ''));
@@ -638,8 +657,8 @@ export default function TrackOrderPage() {
           </div>
         </section>
 
-        {/* Supplier matching state */}
-        {unassignedPending ? (
+        {/* Role-aware provider matching state: home services use technicians, water delivery uses suppliers. */}
+        {(isTechnicianService ? status === 'PENDING' && !technicianId : unassignedPending) ? (
           <section className="mt-5 overflow-hidden rounded-[1.75rem] border border-cyan-100 bg-white shadow-sm">
             <div className="flex items-start gap-4 p-5 sm:p-6">
               <div className="relative mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-xl">
@@ -649,7 +668,9 @@ export default function TrackOrderPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="font-extrabold text-slate-900">Finding your supplier</h2>
+                    <h2 className="font-extrabold text-slate-900">
+                      {isTechnicianService ? `Finding your ${providerLabel.toLowerCase()}` : 'Finding your supplier'}
+                    </h2>
                     <p className="mt-1 text-sm leading-5 text-slate-500">
                       We&apos;re checking nearby availability. You can leave this page safely.
                     </p>
@@ -666,7 +687,7 @@ export default function TrackOrderPage() {
                     rel="noreferrer"
                     className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl bg-cyan-600 px-4 text-sm font-bold text-white transition hover:bg-cyan-700"
                   >
-                    Need help finding a supplier?
+                    {isTechnicianService ? 'Need help finding a professional?' : 'Need help finding a supplier?'}
                   </a>
                 ) : null}
               </div>
@@ -735,7 +756,7 @@ export default function TrackOrderPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-700">Your service partner</p>
-                  <h2 className="mt-1 text-lg font-black text-slate-900">Supplier</h2>
+                  <h2 className="mt-1 text-lg font-black text-slate-900">{isTechnicianService ? 'Service provider' : 'Supplier'}</h2>
                 </div>
                 {supplierRating != null ? (
                   <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
@@ -780,7 +801,7 @@ export default function TrackOrderPage() {
           {tech && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status) ? (
             <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">Assigned professional</p>
-              <h2 className="mt-1 text-lg font-black text-slate-900">Technician</h2>
+              <h2 className="mt-1 text-lg font-black text-slate-900">{providerLabel}</h2>
               <div className="mt-5 flex items-center gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-lg font-black text-emerald-800">
                   {(tech.full_name ?? '?').slice(0, 1).toUpperCase()}
