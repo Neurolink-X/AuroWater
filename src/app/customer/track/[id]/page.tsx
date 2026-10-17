@@ -528,13 +528,15 @@ export default function TrackOrderPage() {
   const emerg = Number(o.emergency_charge ?? 0);
   const canCancel = status === 'PENDING' || status === 'ASSIGNED';
   const baseHero = HERO[status];
+  const apiTechnician = (o.technician_profile as ProfileLite | null | undefined) ?? null;
+  const technicianName = tech?.full_name?.trim() || apiTechnician?.full_name?.trim() || '';
   const hero = isTechnicianService && status === 'ASSIGNED'
     ? {
         ...baseHero,
         emoji: '🧑‍🔧',
         title: `${providerLabel} assigned`,
-        sub: (tech?.full_name ?? (order as Record<string, unknown>).technician_profile && ((order as Record<string, unknown>).technician_profile as ProfileLite)?.full_name)
-          ? `${tech?.full_name ?? (((order as Record<string, unknown>).technician_profile as ProfileLite | null)?.full_name)} has been assigned to your booking.`
+        sub: technicianName
+          ? `${technicianName} has been assigned to your booking.`
           : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
       }
     : isTechnicianService && status === 'PENDING'
