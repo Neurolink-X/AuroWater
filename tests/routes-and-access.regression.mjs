@@ -171,6 +171,8 @@ assert.ok(referralMigration.includes('Referral codes must be applied before your
 assert.ok(referralMigration.includes('orders_award_referral_reward'));
 assert.ok(referralMigration.includes('orders_sync_referral_reward'));
 assert.ok(referralMigration.includes('referral_discount_amount'));
+assert.ok(referralMigration.includes('address_fingerprint'));
+assert.ok(referralMigration.includes('referral_reward_once_per_address'));
 assert.ok(referralMigration.includes('ORDER_EARNING'));
 assert.ok(referralMigration.includes('guard_profile_referral_fields'));
 assert.ok(referralMigration.includes('guard_order_referral_fields'));
