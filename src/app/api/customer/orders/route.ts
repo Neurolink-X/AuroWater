@@ -380,16 +380,50 @@ export async function POST(req: NextRequest) {
     base_amount = round2(serviceBase + (allowedOptions?.[optionKey] ?? 0));
   }
 
+  // Referral rewards are server-validated and limited to a single standard,
+  // one-time Normal RO can so provider earnings stay at the approved ₹20 gross entitlement.
+  const referralRewardId = str(body.referral_reward_id);
+  let referralReward: { id: string; reward_type: 'discount_25' | 'free_water_can' } | null = null;
+  let referralDiscountAmount = 0;
+  let netBaseAmount = base_amount;
+
+  if (referralRewardId) {
+    if (!isWater || isSubscription || isChilled || qty !== 1) {
+      return jsonErr('Referral rewards can be used on one standard Normal RO can per order. Chilled cans and subscriptions are excluded.', 400, 'REFERRAL_REWARD_NOT_ELIGIBLE');
+    }
+    const referralAdmin = createServiceClient();
+    const { data: reward, error: rewardError } = await referralAdmin
+      .from('referral_reward_events')
+      .select('id, reward_type')
+      .eq('id', referralRewardId)
+      .eq('referrer_id', customerId)
+      .eq('reward_status', 'available')
+      .maybeSingle();
+
+    if (rewardError) {
+      console.error('[orders] referral reward lookup failed', rewardError.message);
+      return jsonErr('Referral rewards are temporarily unavailable. Apply the referral migration and retry.', 503);
+    }
+    if (!reward || !['discount_25', 'free_water_can'].includes(String(reward.reward_type))) {
+      return jsonErr('This referral reward is unavailable or has already been used.', 409, 'REFERRAL_REWARD_UNAVAILABLE');
+    }
+    referralReward = { id: String(reward.id), reward_type: reward.reward_type as 'discount_25' | 'free_water_can' };
+    referralDiscountAmount = referralReward.reward_type === 'free_water_can'
+      ? Math.min(base_amount, waterUnitPrice ?? 20)
+      : round2(base_amount * 0.25);
+    netBaseAmount = round2(Math.max(0, base_amount - referralDiscountAmount));
+  }
+
   const clientTotal = Number(body.total_amount);
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
-  if (!totalsMatch(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0.5)) {
-    const expected = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
-    console.error('[orders] price mismatch', { clientTotal, base_amount, convenience, gstRate, expected });
+  if (!totalsMatch(clientTotal, netBaseAmount, convenience, emergency_charge, gstRate, 0.5)) {
+    const expected = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate);
+    console.error('[orders] price mismatch', { clientTotal, base_amount: netBaseAmount, convenience, gstRate, expected });
     return jsonErr('Pricing changed since this checkout opened. Refresh and review the updated total before placing the order.', 400, 'PRICE_CHANGED');
   }
 
-  const { gst: gst_amount } = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate);
+  const { gst: gst_amount } = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate);
 
   const address_snapshot = {
     label: a.label ?? null,
@@ -449,7 +483,25 @@ export async function POST(req: NextRequest) {
   ].filter(Boolean);
 
   // Persist the server-calculated amount, never the client-provided total.
-  const total = computeExpectedTotal(base_amount, convenience, emergency_charge, gstRate).total;
+  const total = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate).total;
+
+  // Reserve with a conditional update so simultaneous checkout attempts cannot
+  // spend the same reward twice. Release it if order creation fails.
+  if (referralReward) {
+    const referralAdmin = createServiceClient();
+    const { data: reserved, error: reserveError } = await referralAdmin
+      .from('referral_reward_events')
+      .update({ reward_status: 'reserved', reserved_order_id: null })
+      .eq('id', referralReward.id)
+      .eq('referrer_id', customerId)
+      .eq('reward_status', 'available')
+      .select('id')
+      .maybeSingle();
+    if (reserveError || !reserved) {
+      if (reserveError) console.error('[orders] referral reward reservation failed', reserveError.message);
+      return jsonErr('This reward was just used or is no longer available. Refresh your rewards and try again.', 409, 'REFERRAL_REWARD_UNAVAILABLE');
+    }
+  }
 
   // Double-submit guard: an identical order in the last 20 seconds returns the existing one.
   {
@@ -485,17 +537,19 @@ export async function POST(req: NextRequest) {
       total_amount: total,
       platform_fee: convenience,
       final_amount: total,
-      base_amount,
+      base_amount: netBaseAmount,
+      referral_discount_amount: referralDiscountAmount,
+      referral_reward_id: referralReward?.id ?? null,
       convenience_fee: convenience,
       emergency_charge,
       gst_amount,
       address_snapshot,
-      payment_status: 'unpaid',
+      payment_status: referralReward?.reward_type === 'free_water_can' ? 'paid' : 'unpaid',
       payment_method: str(body.payment_method) ?? 'cash',
       address: addressText || null,
       address_id: addr.id,
       is_emergency,
-      note: noteParts.length ? noteParts.join(' | ') : null,
+      note: [...noteParts, ...(referralReward ? [`Referral reward: ${referralReward.reward_type}`] : [])].filter(Boolean).join(' | ') || null,
       scheduled_at: scheduledAt,
       ...(activePricingRow ? {
         pricing_version: Number(activePricingRow.version),
@@ -507,13 +561,16 @@ export async function POST(req: NextRequest) {
           option_key: str(body.sub_option_key),
           quantity: qty,
           unit_price: waterUnitPrice,
-          base_amount,
+          base_amount: netBaseAmount,
+          gross_base_amount: base_amount,
+          referral_discount_amount: referralDiscountAmount,
+          referral_reward_id: referralReward?.id ?? null,
           convenience_fee: convenience,
           emergency_charge,
           gst_rate: gstRate,
           gst_amount,
           total_amount: total,
-          supplier_entitlement: isWater && qty === 1 && total === 20 ? 20 : null,
+          supplier_entitlement: isWater && qty === 1 && round2(total + referralDiscountAmount) === 20 ? 20 : null,
           supplier_entitlement_policy: isWater ? 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule' : 'existing_completion_policy',
           config: activePricingConfig,
         },
@@ -523,11 +580,24 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (oErr || !order) {
+    if (referralReward) {
+      const referralAdmin = createServiceClient();
+      await referralAdmin.from('referral_reward_events')
+        .update({ reward_status: 'available', reserved_order_id: null })
+        .eq('id', referralReward.id).eq('referrer_id', customerId).eq('reward_status', 'reserved');
+    }
     if (oErr) return dbErr(oErr, 'orders', 'Failed to create order');
     return jsonErr('Failed to create order', 500);
   }
 
   const orderId = String(order.id);
+  if (referralReward) {
+    const referralAdmin = createServiceClient();
+    const { error: bindRewardError } = await referralAdmin.from('referral_reward_events')
+      .update({ reserved_order_id: orderId })
+      .eq('id', referralReward.id).eq('referrer_id', customerId).eq('reward_status', 'reserved');
+    if (bindRewardError) console.error('[orders] referral reward order binding failed', bindRewardError.message);
+  }
   const label = typeof st.label === 'string' && st.label.trim()
     ? st.label
     : service_type_key.replace(/_/g, ' ');
