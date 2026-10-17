@@ -1894,7 +1894,7 @@ export default function TechnicianDashboardPage() {
               <div className="space-y-5">
                 <PageHeader
                   title="Available jobs"
-                  description="Accept before the timer ends. Expired offers are removed."
+                  description="Accept before the timer ends. Expired offers are removed. · समय समाप्त होने से पहले job स्वीकार करें।"
                   actions={
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge tone={offers.length > 0 ? 'success' : 'default'}>{offers.length} in queue</Badge>
@@ -1903,7 +1903,7 @@ export default function TechnicianDashboardPage() {
                   }
                 />
                 {loading ? <JobsSkeleton /> : offers.length === 0 ? (
-                  <EmptyState emoji="📭" title="No jobs right now" message={online === 'online' ? 'New requests appear here the moment they’re assigned to you.' : 'Go online to start receiving job requests.'} />
+                  <EmptyState emoji="📭" title="No jobs right now" message={online === 'online' ? 'New requests appear here the moment they’re assigned to you. · नई job मिलने पर यहाँ दिखेगी।' : 'Go online to start receiving job requests. · नई job पाने के लिए Online हों।'} />
                 ) : (
                   <div className="space-y-4">
                     {offers.map((j) => <QueueCard key={j.id} job={j} canAccept={canAccept} reason={acceptReason} busy={busy[j.id]} handlers={handlers} />)}
@@ -1914,7 +1914,7 @@ export default function TechnicianDashboardPage() {
 
             {tab === 'my_jobs' && (
               <div className="space-y-5">
-                <PageHeader title="My jobs" description="Track, navigate to and complete your jobs." />
+                <PageHeader title="My jobs" description="Track, navigate to and complete your jobs. · अपनी job देखें, ग्राहक तक पहुँचें और काम पूरा करें।" />
                 <div className="flex flex-wrap gap-2" role="group" aria-label="Filter jobs">
                   {(['all', 'upcoming', 'in_progress', 'completed', 'cancelled'] as const).map((f) => (
                     <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${ringFocus} ${filter === f ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`}>
@@ -3918,6 +3918,11 @@ export default function TechnicianDashboardPage() {
 //             )}
 
 //             {tab === 'overview' && (
+              <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">
+                <p className="font-bold">काम शुरू करने के लिए</p>
+                <p>Online रहें, नई job का पता और समय देखें, job स्वीकार करने के बाद ग्राहक से संपर्क करें। काम पूरा होने पर ही Complete दबाएँ।</p>
+                <p className="mt-1 text-xs text-emerald-800">Go online, review the job location and time, contact the customer after accepting, and mark complete only when the work is finished.</p>
+              </div>
  //               <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-950">
  //                 <p className="font-bold">काम शुरू करने के लिए</p>
  //                 <p>Online रहें, नई job का पता और समय देखें, job स्वीकार करने के बाद ग्राहक से संपर्क करें। काम पूरा होने पर ही Complete दबाएँ।</p>
