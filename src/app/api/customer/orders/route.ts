@@ -388,7 +388,7 @@ export async function POST(req: NextRequest) {
   let netBaseAmount = base_amount;
 
   if (referralRewardId) {
-    if (!isWater || isSubscription || isChilled || qty !== 1) {
+    if (!isWater || isSubscription || str(body.sub_option_key) === 'chilled_ro' || qty !== 1) {
       return jsonErr('Referral rewards can be used on one standard Normal RO can per order. Chilled cans and subscriptions are excluded.', 400, 'REFERRAL_REWARD_NOT_ELIGIBLE');
     }
     const referralAdmin = createServiceClient();
