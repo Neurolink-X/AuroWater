@@ -4537,6 +4537,7 @@ CREATE TABLE IF NOT EXISTS public.referral_reward_events (
   referred_customer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   qualifying_order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   address_id UUID REFERENCES public.addresses(id) ON DELETE SET NULL,
+  address_fingerprint TEXT NOT NULL,
   reward_type TEXT NOT NULL CHECK (reward_type IN ('discount_25', 'free_water_can')),
   reward_status TEXT NOT NULL DEFAULT 'available'
     CHECK (reward_status IN ('available', 'reserved', 'redeemed', 'void')),
@@ -4548,6 +4549,33 @@ CREATE TABLE IF NOT EXISTS public.referral_reward_events (
 
 CREATE UNIQUE INDEX IF NOT EXISTS referral_reward_once_per_order_type
   ON public.referral_reward_events (qualifying_order_id, reward_type);
+
+ALTER TABLE public.referral_reward_events
+  ADD COLUMN IF NOT EXISTS address_fingerprint TEXT;
+
+UPDATE public.referral_reward_events e
+SET address_fingerprint = COALESCE(
+  NULLIF(e.address_fingerprint, ''),
+  (
+    SELECT encode(digest(
+      lower(trim(coalesce(a.house_flat, ''))) || '|' ||
+      lower(trim(coalesce(a.area, ''))) || '|' ||
+      lower(trim(coalesce(a.city, ''))) || '|' ||
+      regexp_replace(coalesce(a.pincode, ''), '[^0-9]', '', 'g'),
+      'sha256'
+    ), 'hex')
+    FROM public.addresses a WHERE a.id = e.address_id
+  ),
+  encode(digest('legacy-order:' || e.qualifying_order_id::text, 'sha256'), 'hex')
+)
+WHERE e.address_fingerprint IS NULL OR e.address_fingerprint = '';
+
+ALTER TABLE public.referral_reward_events
+  ALTER COLUMN address_fingerprint SET NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS referral_reward_once_per_address
+  ON public.referral_reward_events (referrer_id, address_fingerprint, reward_type);
+
 
 CREATE INDEX IF NOT EXISTS referral_rewards_available_idx
   ON public.referral_reward_events (referrer_id, reward_status, created_at);
@@ -4638,6 +4666,7 @@ DECLARE
   referrer UUID;
   first_qualifying_order UUID;
   qualifying_address UUID;
+  qualifying_fingerprint TEXT;
   qualified_count INTEGER;
   reward_kind TEXT;
 BEGIN
@@ -4668,8 +4697,19 @@ BEGIN
   IF first_qualifying_order IS DISTINCT FROM NEW.id THEN RETURN NEW; END IF;
   IF qualifying_address IS NULL THEN RETURN NEW; END IF;
 
-  -- One distinct saved address per referral; prevents counting several accounts
-  -- repeatedly at the same address. The referred account itself is unique too.
+  SELECT encode(digest(
+    lower(trim(coalesce(a.house_flat, ''))) || '|' ||
+    lower(trim(coalesce(a.area, ''))) || '|' ||
+    lower(trim(coalesce(a.city, ''))) || '|' ||
+    regexp_replace(coalesce(a.pincode, ''), '[^0-9]', '', 'g'),
+    'sha256'
+  ), 'hex')
+  INTO qualifying_fingerprint
+  FROM public.addresses a WHERE a.id = qualifying_address;
+  IF qualifying_fingerprint IS NULL THEN RETURN NEW; END IF;
+
+  -- Serialize qualification per referrer and enforce one referral per normalized
+  -- physical address, even if a customer later deletes their saved address.
   PERFORM pg_advisory_xact_lock(hashtext(referrer::text));
 
   IF EXISTS (
@@ -4680,17 +4720,10 @@ BEGIN
   ) THEN RETURN NEW; END IF;
 
   IF EXISTS (
-    SELECT 1
-    FROM public.referral_reward_events e
-    JOIN public.addresses old_addr ON old_addr.id = e.address_id
-    JOIN public.addresses new_addr ON new_addr.id = qualifying_address
+    SELECT 1 FROM public.referral_reward_events e
     WHERE e.referrer_id = referrer
+      AND e.address_fingerprint = qualifying_fingerprint
       AND e.reward_type = 'discount_25'
-      AND lower(trim(old_addr.house_flat)) = lower(trim(new_addr.house_flat))
-      AND lower(trim(old_addr.area)) = lower(trim(new_addr.area))
-      AND lower(trim(old_addr.city)) = lower(trim(new_addr.city))
-      AND regexp_replace(coalesce(old_addr.pincode, ''), '[^0-9]', '', 'g') =
-          regexp_replace(coalesce(new_addr.pincode, ''), '[^0-9]', '', 'g')
   ) THEN RETURN NEW; END IF;
 
   SELECT COUNT(DISTINCT e.referred_customer_id)::INTEGER INTO qualified_count
@@ -4698,9 +4731,9 @@ BEGIN
   WHERE e.referrer_id = referrer AND e.reward_type = 'discount_25';
 
   INSERT INTO public.referral_reward_events (
-    referrer_id, referred_customer_id, qualifying_order_id, address_id, reward_type
+    referrer_id, referred_customer_id, qualifying_order_id, address_id, address_fingerprint, reward_type
   ) VALUES (
-    referrer, NEW.customer_id, NEW.id, qualifying_address, 'discount_25'
+    referrer, NEW.customer_id, NEW.id, qualifying_address, qualifying_fingerprint, 'discount_25'
   ) ON CONFLICT (qualifying_order_id, reward_type) DO NOTHING;
 
   -- Count only distinct-address, successfully paid referral events.
@@ -4717,9 +4750,9 @@ BEGIN
         AND e.qualifying_order_id = NEW.id
     ) THEN
       INSERT INTO public.referral_reward_events (
-        referrer_id, referred_customer_id, qualifying_order_id, address_id, reward_type
+        referrer_id, referred_customer_id, qualifying_order_id, address_id, address_fingerprint, reward_type
       ) VALUES (
-        referrer, NEW.customer_id, NEW.id, qualifying_address, reward_kind
+        referrer, NEW.customer_id, NEW.id, qualifying_address, qualifying_fingerprint, reward_kind
       ) ON CONFLICT DO NOTHING;
     END IF;
   END IF;
