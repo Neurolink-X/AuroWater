@@ -532,15 +532,21 @@ export default function TrackOrderPage() {
   const baseHero = HERO[status];
   const apiTechnician = (o.technician_profile as ProfileLite | null | undefined) ?? null;
   const technicianName = tech?.full_name?.trim() || apiTechnician?.full_name?.trim() || '';
+  const technicianAcceptanceStatus = String(o.technician_acceptance_status ?? '').toUpperCase();
+  const technicianAccepted = technicianAcceptanceStatus === 'ACCEPTED' || Boolean(o.accepted_at);
   const hero = isTechnicianService && status === 'ASSIGNED'
     ? {
         ...baseHero,
         emoji: '🧑‍🔧',
-        title: `${providerLabel} assigned`,
-        sub: technicianName
-          ? `${technicianName} has been assigned to your booking. The professional may still need to accept the job.`
-          : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
-        hindi: 'प्रोफेशनल असाइन हो गया है। उनके द्वारा काम स्वीकार करने की पुष्टि का इंतज़ार हो सकता है।',
+        title: technicianAccepted ? `${providerLabel} confirmed` : `${providerLabel} assigned`,
+        sub: technicianAccepted
+          ? `${technicianName || 'Your professional'} has accepted your booking and will visit in the scheduled time window.`
+          : technicianName
+            ? `${technicianName} has been assigned to your booking. Acceptance is still pending.`
+            : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
+        hindi: technicianAccepted
+          ? 'प्लंबर/टेक्नीशियन ने काम स्वीकार कर लिया है। निर्धारित समय पर आने की तैयारी करें।'
+          : 'प्रोफेशनल असाइन हो गया है। काम स्वीकार करने की पुष्टि अभी बाकी है।',
       }
     : isTechnicianService && status === 'PENDING'
       ? {
