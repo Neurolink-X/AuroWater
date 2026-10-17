@@ -519,7 +519,7 @@ export async function POST(req: NextRequest) {
       dq = dq.eq('can_count', qty).eq('can_price_per_unit', waterUnitPrice);
     }
     const { data: dup } = await dq.order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (dup) return jsonOk(withCompat(dup), 200);
+    if (dup && !referralReward) return jsonOk(withCompat(dup), 200);
   }
 
   const { data: order, error: oErr } = await auth.ctx.supabase
