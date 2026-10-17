@@ -509,6 +509,7 @@ function PageHeader({ title, description, actions }: { title: string; descriptio
       </div>
       {actions}
     </div>
+    </DashboardLanguageContext.Provider>
   );
 }
 
@@ -1898,9 +1899,15 @@ export default function TechnicianDashboardPage() {
               <span aria-live="polite">
                 {lastSynced ? `${isHindi ? 'सिंक हुआ' : 'Synced'} ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : (isHindi ? 'सिंक हो रहा है…' : 'Syncing…')}
               </span>
-              <button type="button" onClick={() => void refresh()} disabled={refreshing} className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-slate-600 hover:bg-white disabled:opacity-60 ${ringFocus}`}>
-                <RefreshCw size={12} aria-hidden className={refreshing ? 'animate-spin' : ''} /> {refreshing ? (isHindi ? 'रीफ़्रेश हो रहा है' : 'Refreshing') : (isHindi ? 'रीफ़्रेश करें' : 'Refresh')}
-              </button>
+              <div className="flex items-center gap-2">
+                <div role="group" aria-label={isHindi ? 'भाषा चुनें' : 'Choose language'} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
+                  <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'en' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="English">EN</button>
+                  <button type="button" aria-pressed={language === 'hi'} onClick={() => setLanguage('hi')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'hi' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="हिंदी">हिंदी</button>
+                </div>
+                <button type="button" onClick={() => void refresh()} disabled={refreshing} className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-slate-600 hover:bg-white disabled:opacity-60 ${ringFocus}`}>
+                  <RefreshCw size={12} aria-hidden className={refreshing ? 'animate-spin' : ''} /> {refreshing ? (isHindi ? 'रीफ़्रेश हो रहा है' : 'Refreshing') : (isHindi ? 'रीफ़्रेश करें' : 'Refresh')}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -1927,7 +1934,7 @@ export default function TechnicianDashboardPage() {
                   }
                 />
                 {loading ? <JobsSkeleton /> : offers.length === 0 ? (
-                  <EmptyState emoji="📭" title={isHindi ? 'अभी कोई जॉब नहीं' : 'No jobs right now'} message={online === 'online' ? 'New requests appear here the moment they’re assigned to you. · नई job मिलने पर यहाँ दिखेगी।' : 'Go online to start receiving job requests. · नई job पाने के लिए Online हों।'} />
+                  <EmptyState emoji="📭" title={isHindi ? 'अभी कोई जॉब नहीं' : 'No jobs right now'} message={online === 'online' ? (isHindi ? 'नई जॉब असाइन होते ही यहाँ दिखेगी।' : 'New requests appear here the moment they’re assigned to you.') : (isHindi ? 'नई जॉब पाने के लिए ऑनलाइन हों।' : 'Go online to start receiving job requests.')} />
                 ) : (
                   <div className="space-y-4">
                     {offers.map((j) => <QueueCard key={j.id} job={j} canAccept={canAccept} reason={acceptReason} busy={busy[j.id]} handlers={handlers} />)}
