@@ -146,8 +146,22 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.referral_reward_events e
     WHERE e.referrer_id = referrer
-      AND e.address_id = qualifying_address
+      AND e.referred_customer_id = NEW.customer_id
       AND e.reward_type = 'discount_25'
+  ) THEN RETURN NEW; END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.referral_reward_events e
+    JOIN public.addresses old_addr ON old_addr.id = e.address_id
+    JOIN public.addresses new_addr ON new_addr.id = qualifying_address
+    WHERE e.referrer_id = referrer
+      AND e.reward_type = 'discount_25'
+      AND lower(trim(old_addr.house_flat)) = lower(trim(new_addr.house_flat))
+      AND lower(trim(old_addr.area)) = lower(trim(new_addr.area))
+      AND lower(trim(old_addr.city)) = lower(trim(new_addr.city))
+      AND regexp_replace(coalesce(old_addr.pincode, ''), '[^0-9]', '', 'g') =
+          regexp_replace(coalesce(new_addr.pincode, ''), '[^0-9]', '', 'g')
   ) THEN RETURN NEW; END IF;
 
   SELECT COUNT(DISTINCT e.referred_customer_id)::INTEGER INTO qualified_count
@@ -193,5 +207,123 @@ CREATE TRIGGER orders_award_referral_reward
 -- Never let customers create or alter reward ledger entries directly.
 REVOKE INSERT, UPDATE, DELETE ON public.referral_reward_events FROM anon, authenticated;
 GRANT SELECT ON public.referral_reward_events TO authenticated;
+
+
+-- Reward lifecycle follows the linked order: cancellation releases the reward;
+-- completion consumes it. A pending booking cannot be used to reuse rewards.
+CREATE OR REPLACE FUNCTION public.sync_referral_reward_order_state()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+BEGIN
+  IF NEW.referral_reward_id IS NULL THEN RETURN NEW; END IF;
+  IF NEW.status = 'CANCELLED' THEN
+    UPDATE public.referral_reward_events
+    SET reward_status = 'available', reserved_order_id = NULL
+    WHERE id = NEW.referral_reward_id AND reward_status = 'reserved'
+      AND (reserved_order_id = NEW.id OR reserved_order_id IS NULL);
+  ELSIF NEW.status = 'COMPLETED' AND lower(coalesce(NEW.payment_status, '')) = 'paid' THEN
+    UPDATE public.referral_reward_events
+    SET reward_status = 'redeemed', reserved_order_id = NEW.id, redeemed_at = COALESCE(redeemed_at, now())
+    WHERE id = NEW.referral_reward_id AND reward_status = 'reserved'
+      AND (reserved_order_id = NEW.id OR reserved_order_id IS NULL);
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS orders_sync_referral_reward ON public.orders;
+CREATE TRIGGER orders_sync_referral_reward
+  AFTER UPDATE OF status, payment_status ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.sync_referral_reward_order_state();
+
+-- Preserve the approved ₹20 supplier entitlement when AuroTap funds a discount.
+CREATE OR REPLACE FUNCTION public.complete_supplier_order_atomic(
+  p_order_id UUID,
+  p_supplier_id UUID,
+  p_payment_confirmed BOOLEAN,
+  p_payment_reference TEXT,
+  p_payment_collector TEXT
+)
+RETURNS SETOF public.orders
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+DECLARE
+  v_role TEXT;
+  v_order public.orders%ROWTYPE;
+  v_now TIMESTAMPTZ := NOW();
+  v_was_paid BOOLEAN;
+  v_method TEXT;
+  v_supplier_entitlement NUMERIC(10,2);
+BEGIN
+  IF auth.uid() IS DISTINCT FROM p_supplier_id THEN
+    RAISE EXCEPTION 'supplier_identity_mismatch' USING ERRCODE = '42501';
+  END IF;
+  SELECT p.role INTO v_role FROM public.profiles p WHERE p.id = auth.uid();
+  IF v_role IS DISTINCT FROM 'supplier' THEN RAISE EXCEPTION 'supplier_role_required' USING ERRCODE = '42501'; END IF;
+
+  SELECT o.* INTO v_order FROM public.orders o
+  WHERE o.id = p_order_id AND o.supplier_id = p_supplier_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'order_not_found_or_forbidden' USING ERRCODE = '42501'; END IF;
+  IF upper(COALESCE(v_order.status, '')) <> 'IN_PROGRESS' THEN
+    RAISE EXCEPTION 'invalid_order_transition' USING ERRCODE = '40001';
+  END IF;
+
+  v_was_paid := lower(COALESCE(v_order.payment_status, 'unpaid')) = 'paid';
+  v_method := lower(COALESCE(v_order.payment_method, 'cash'));
+  IF NOT v_was_paid AND p_payment_confirmed IS DISTINCT FROM TRUE THEN
+    RAISE EXCEPTION 'payment_confirmation_required' USING ERRCODE = '22023';
+  END IF;
+  IF NOT v_was_paid AND v_method = 'upi' AND NULLIF(btrim(COALESCE(p_payment_reference, '')), '') IS NULL THEN
+    RAISE EXCEPTION 'upi_reference_required' USING ERRCODE = '22023';
+  END IF;
+  IF NOT v_was_paid AND (p_payment_collector IS NULL OR p_payment_collector NOT IN ('supplier', 'aurotap')) THEN
+    RAISE EXCEPTION 'payment_collector_required' USING ERRCODE = '22023';
+  END IF;
+
+  v_supplier_entitlement := NULL;
+  IF lower(COALESCE(v_order.service_type, '')) = 'water_can'
+     AND COALESCE(v_order.can_count, 0) = 1
+     AND round(COALESCE(v_order.total_amount, 0) + COALESCE(v_order.referral_discount_amount, 0), 2) = 20 THEN
+    v_supplier_entitlement := 20;
+  END IF;
+
+  UPDATE public.orders
+  SET status = 'COMPLETED',
+      completed_at = v_now,
+      payment_status = CASE WHEN v_was_paid THEN payment_status ELSE 'paid' END,
+      payment_confirmed_at = CASE WHEN v_was_paid THEN payment_confirmed_at ELSE v_now END,
+      payment_reference = CASE WHEN v_was_paid THEN payment_reference ELSE NULLIF(btrim(COALESCE(p_payment_reference, '')), '') END,
+      payment_collector = CASE WHEN v_was_paid THEN payment_collector ELSE p_payment_collector END,
+      payment_collected_by = CASE WHEN v_was_paid THEN payment_collected_by WHEN p_payment_collector = 'supplier' THEN p_supplier_id ELSE NULL END,
+      payment_collected_amount = CASE WHEN v_was_paid THEN payment_collected_amount ELSE total_amount END,
+      payment_collected_at = CASE WHEN v_was_paid THEN payment_collected_at ELSE v_now END,
+      supplier_payout = CASE WHEN v_supplier_entitlement IS NOT NULL AND financials_posted_at IS NULL
+          AND COALESCE(supplier_payout, 0) <> v_supplier_entitlement THEN v_supplier_entitlement ELSE supplier_payout END,
+      payout_status = CASE WHEN v_supplier_entitlement IS NOT NULL AND financials_posted_at IS NULL
+          AND COALESCE(supplier_payout, 0) <> v_supplier_entitlement THEN 'pending' ELSE payout_status END
+  WHERE id = p_order_id AND supplier_id = p_supplier_id RETURNING * INTO v_order;
+
+  IF v_supplier_entitlement IS NOT NULL AND v_order.financials_posted_at IS NULL THEN
+    IF EXISTS (SELECT 1 FROM public.wallet_ledger wl WHERE wl.order_id = p_order_id AND wl.entry_type = 'ORDER_EARNING') THEN
+      RAISE EXCEPTION 'order_earning_ledger_already_exists' USING ERRCODE = '23505';
+    END IF;
+    INSERT INTO public.wallet_ledger (
+      payee_id, payee_role, order_id, entry_type, amount, note, metadata, created_by
+    ) VALUES (
+      p_supplier_id, 'supplier', p_order_id, 'ORDER_EARNING', v_supplier_entitlement,
+      'Supplier entitlement for verified single-can water order; referral discount funded by AuroTap',
+      jsonb_build_object('service_type','water_can','can_count',1,
+        'customer_total',v_order.total_amount,
+        'referral_discount_amount',COALESCE(v_order.referral_discount_amount,0),
+        'gross_can_value',COALESCE(v_order.total_amount,0)+COALESCE(v_order.referral_discount_amount,0)),
+      p_supplier_id
+    );
+    UPDATE public.orders SET financials_posted_at = v_now, financials_payee_id = p_supplier_id
+    WHERE id = p_order_id AND supplier_id = p_supplier_id RETURNING * INTO v_order;
+  END IF;
+  RETURN NEXT v_order;
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
 
 COMMIT;
