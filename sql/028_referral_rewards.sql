@@ -330,7 +330,7 @@ GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOL
 -- Prevent direct PostgREST profile updates from changing referral attribution,
 -- tiers, or credit balances after the authenticated API's validation.
 CREATE OR REPLACE FUNCTION public.guard_profile_referral_fields()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF auth.uid() IS NOT NULL AND auth.uid() = OLD.id AND OLD.role <> 'admin' THEN
     IF NEW.referral_credits IS DISTINCT FROM OLD.referral_credits OR NEW.tier IS DISTINCT FROM OLD.tier THEN
@@ -351,7 +351,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS profiles_guard_referral_fields ON public.profiles;
 CREATE TRIGGER profiles_guard_referral_fields
@@ -361,7 +361,7 @@ CREATE TRIGGER profiles_guard_referral_fields
 -- Referral reward amounts are accepted only from the authenticated server API.
 -- Browser clients cannot forge a discount by inserting/updating orders directly.
 CREATE OR REPLACE FUNCTION public.guard_order_referral_fields()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF auth.uid() IS NOT NULL
      AND auth.uid() = COALESCE(NEW.customer_id, OLD.customer_id) THEN
@@ -376,7 +376,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS orders_guard_referral_fields ON public.orders;
 CREATE TRIGGER orders_guard_referral_fields
