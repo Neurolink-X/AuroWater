@@ -375,6 +375,9 @@ const ActiveOrderCard = memo(function ActiveOrderCard({ order, extra }: { order:
           {message.sub ? (
             <p className="mt-1 text-sm leading-6 text-slate-700">{message.sub}</p>
           ) : null}
+          {message.hindi ? (
+            <p className="mt-1 text-sm leading-6 text-slate-600" lang="hi">{message.hindi}</p>
+          ) : null}
         </div>
 
         <Stepper status={order.status} />
