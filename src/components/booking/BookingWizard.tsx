@@ -959,7 +959,7 @@ export default function BookingWizard() {
         (draft.canQuantity ?? 1) !== 1) return 0;
     return selectedReferralReward.reward_type === 'free_water_can'
       ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
-      : Math.round(baseAmount * 25) / 100;
+      : Math.round(baseAmount * 0.25 * 100) / 100;
   }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
   const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
   const breakdown = useMemo(() => {
@@ -1430,7 +1430,7 @@ export default function BookingWizard() {
         scheduled_time: sv.scheduled_time, is_emergency: draft.isEmergency,
         base_amount: netBaseAmount, convenience_fee: breakdown.convenience,
         gst_amount: breakdown.gst, total_amount: breakdown.total,
-        referral_reward_id: selectedReferralRewardId || undefined,
+        referral_reward_id: referralDiscountAmount > 0 ? selectedReferralRewardId : undefined,
         payment_method: draft.paymentMethod, notes: draft.notes?.trim() || undefined,
         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
