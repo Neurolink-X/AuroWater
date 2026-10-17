@@ -800,17 +800,17 @@ export default function TrackOrderPage() {
             </section>
           ) : null}
 
-          {tech && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status) ? (
+          {isTechnicianService && technicianId && ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].includes(status) ? (
             <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">Assigned professional</p>
               <h2 className="mt-1 text-lg font-black text-slate-900">{providerLabel}</h2>
               <div className="mt-5 flex items-center gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-lg font-black text-emerald-800">
-                  {(tech.full_name ?? '?').slice(0, 1).toUpperCase()}
+                  {(technicianName || '?').slice(0, 1).toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate font-extrabold text-slate-900">{tech.full_name ?? 'Assigned pro'}</p>
-                  <p className="mt-1 text-xs text-slate-500">Verified service professional</p>
+                  <p className="truncate font-extrabold text-slate-900">{technicianName || 'Assigned professional'}</p>
+                  <p className="mt-1 text-xs text-slate-500">{technicianName ? 'Assigned to your booking' : 'Professional details are loading'}</p>
                 </div>
               </div>
               <a
