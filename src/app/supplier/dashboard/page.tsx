@@ -1733,7 +1733,7 @@
 //                       Adjust
 //                     </button>
 //                   </div>
-//                   <div className="sd-help" style={{ marginTop: 7 }}>{isHindi ? 'ऑफ़लाइन बिक्री के लिए ऋणात्मक और रीस्टॉक के लिए धनात्मक संख्या दर्ज करें।' : 'Use negative values for offline sales, positive values for restocking.'}</div>
+//                   <div className="sd-help" style={{ marginTop: 7 }}>{isHindi ? 'ऑफ़लाइन बिक्री के लिए ऋणात्मक और रीस्टॉक के लिए धनात्मक संख्या दर्ज करें।' : '{isHindi ? 'ऑफ़लाइन बिक्री के लिए ऋणात्मक और रीस्टॉक के लिए धनात्मक संख्या दर्ज करें।' : 'Use negative values for offline sales, positive values for restocking.'}'}</div>
 //                 </div>
 //               </div>
 //               <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 16 }}>
@@ -1785,7 +1785,7 @@
 //                 </button>
 //               </div>
 //               <div className="sd-help" style={{ marginTop: 12 }}>
-//                 {isHindi ? 'ऑर्डर के लिए कैन सुरक्षित रखे जाते हैं। ऑफ़लाइन बिक्री से आरक्षित स्टॉक कम नहीं किया जा सकता।' : 'Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.'}
+//                 {isHindi ? 'ऑर्डर के लिए कैन सुरक्षित रखे जाते हैं। ऑफ़लाइन बिक्री से आरक्षित स्टॉक कम नहीं किया जा सकता।' : '{isHindi ? 'ऑर्डर के लिए कैन सुरक्षित रखे जाते हैं। ऑफ़लाइन बिक्री से आरक्षित स्टॉक कम नहीं किया जा सकता।' : 'Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.'}'}
 //               </div>
 //               <button type="button" disabled={locationBusy} onClick={() => void syncDispatchLocation()} className="sd-btn sd-btn--info sd-btn--block" style={{ marginTop: 16 }}>
 //                 {locationBusy ? (isHindi ? 'लोकेशन अपडेट हो रही है…' : 'Updating location…') : (isHindi ? 'ऑर्डर के लिए वर्तमान लोकेशन उपयोग करें' : 'Use current location for dispatch')}
@@ -1854,7 +1854,7 @@
 //                     ? (isHindi ? 'दूसरा नाम, फ़ोन नंबर या फ़िल्टर आज़माएँ।' : 'Try a different name, phone number or filter.')
 //                     : tab === 'active'
 //                       ? (isHindi ? 'नया ऑर्डर मिलने पर वह यहाँ अपने-आप दिखेगा।' : 'New orders will appear here automatically when assigned.')
-//                       : (isHindi ? 'पूरे और रद्द किए गए ऑर्डर यहाँ दिखेंगे।' : 'Completed and cancelled orders will show up here.')}
+//                       : (isHindi ? 'पूरे और रद्द किए गए ऑर्डर यहाँ दिखेंगे।' : (isHindi ? 'पूरे और रद्द किए गए ऑर्डर यहाँ दिखेंगे।' : 'Completed and cancelled orders will show up here.'))}
 //                 </div>
 //                 {hasFilter && (
 //                   <button type="button" onClick={() => { setQuery(''); setFilter('all'); }} className="sd-btn sd-btn--soft" style={{ marginTop: 16 }}>
@@ -1871,6 +1871,7 @@
 //                     onAccept={handleAcceptOrder}
 //                     onUpdateStatus={handleUpdateStatus}
 //                     language={language}
+                    language={language}
                     onRequestComplete={(order) => {
 //                       setCompletionOrder(order);
 //                       setPaymentReference('');
@@ -2033,7 +2034,7 @@
 //           </section>
 //           {earnings.length > 0 && (
 //             <div>
-//               <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>{isHindi ? 'हाल की कमाई (नवीनतम 50 रिकॉर्ड)' : 'Recent Earnings (latest 50 loaded rows)'}</h2>
+//               <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>{isHindi ? 'हाल की कमाई (नवीनतम 50 रिकॉर्ड)' : '{isHindi ? 'हाल की कमाई (नवीनतम 50 रिकॉर्ड)' : 'Recent Earnings (latest 50 loaded rows)'}'}</h2>
 //               <div className="sd-table">
 //                 <div className="sd-earn sd-earn--head">
 //                   {(isHindi ? ['ऑर्डर', 'राशि', 'स्थिति', 'तारीख'] : ['Order', 'Amount', 'Status', 'Date']).map((h) => <div key={h}>{h}</div>)}
@@ -2693,7 +2694,7 @@ function OrderCard({
             <div className="sd-order-id">#{order.booking_id.slice(0, 8).toUpperCase()}</div>
           </div>
           <div className="sd-col sd-end">
-            <span className="sd-chip" style={{ color: sm.color, background: sm.bg }}>{sm.label}</span>
+            <span className="sd-chip" style={{ color: sm.color, background: sm.bg }}>{isHindi ? ({ pending: 'लंबित', assigned: 'असाइन हुआ', in_progress: 'जारी', delivered: 'डिलीवर हुआ', cancelled: 'रद्द' } as Record<OrderStatus, string>)[order.status] : sm.label}</span>
             <span className="sd-amount">{INR(order.amount)}</span>
           </div>
         </div>
@@ -2706,25 +2707,25 @@ function OrderCard({
               <a href={`tel:${order.customer_phone.replace(/[^\d+]/g, '')}`} className="sd-link" aria-label={`Call customer ${order.customer_name}`}>
                 {order.customer_phone}
               </a>
-            ) : <span>{isActive ? 'Contact shown after acceptance' : 'Contact hidden for privacy'}</span>}
+            ) : <span>{isActive ? (isHindi ? 'स्वीकार करने के बाद संपर्क दिखेगा' : 'Contact shown after acceptance') : (isHindi ? 'गोपनीयता के लिए संपर्क छिपा है' : 'Contact hidden for privacy')}</span>}
           </div>
           <div className="sd-row sd-gap6 sd-top sd-addr">
             <span className="sd-muted-ico" style={{ marginTop: 1, flexShrink: 0 }}>{Icon.map(11)}</span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              {canRevealContact ? (fullAddress || 'Address unavailable — refresh order details') : (isActive ? 'Exact address shown after acceptance' : 'Exact address hidden for privacy')}
+              {canRevealContact ? (fullAddress || (isHindi ? 'पता उपलब्ध नहीं — ऑर्डर विवरण रीफ़्रेश करें' : 'Address unavailable — refresh order details')) : (isActive ? (isHindi ? 'स्वीकार करने के बाद पूरा पता दिखेगा' : 'Exact address shown after acceptance') : (isHindi ? 'गोपनीयता के लिए पूरा पता छिपा है' : 'Exact address hidden for privacy'))}
             </span>
             {canRevealContact && fullAddress && (
-              <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" aria-label="Copy delivery address"
+              <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" aria-label={isHindi ? 'डिलीवरी का पता कॉपी करें' : 'Copy delivery address'}
                 onClick={() => {
                   if (!navigator.clipboard?.writeText) {
-                    toast.error('Clipboard access is unavailable in this browser.');
+                    toast.error(isHindi ? 'इस ब्राउज़र में क्लिपबोर्ड उपलब्ध नहीं है।' : 'Clipboard access is unavailable in this browser.');
                     return;
                   }
                   void navigator.clipboard.writeText(fullAddress)
-                    .then(() => toast.success('Delivery address copied'))
-                    .catch(() => toast.error('Could not copy address. Check browser clipboard permissions.'));
+                    .then(() => toast.success(isHindi ? 'डिलीवरी का पता कॉपी हो गया' : 'Delivery address copied'))
+                    .catch(() => toast.error(isHindi ? 'पता कॉपी नहीं हुआ। ब्राउज़र की क्लिपबोर्ड अनुमति जाँचें।' : 'Could not copy address. Check browser clipboard permissions.'));
                 }}>
-                Copy
+                {isHindi ? 'कॉपी करें' : 'Copy'}
               </button>
             )}
           </div>
@@ -2740,12 +2741,12 @@ function OrderCard({
 
         {order.status !== 'cancelled' && (
           <div className="sd-row sd-wrap sd-gap8">
-            {isOverdue && <span className="sd-chip sd-chip--bad">⚠ Overdue</span>}
-            {isToday && <span className="sd-chip sd-chip--warn">● Today</span>}
+            {isOverdue && <span className="sd-chip sd-chip--bad">{isHindi ? '⚠ समय से लंबित' : '⚠ Overdue'}</span>}
+            {isToday && <span className="sd-chip sd-chip--warn">{isHindi ? '● आज' : '● Today'}</span>}
             {isPaid ? (
-              <span className="sd-chip sd-chip--ok">✓ Paid · {payMethod}</span>
+              <span className="sd-chip sd-chip--ok">{isHindi ? '✓ भुगतान हुआ ·' : '✓ Paid ·'} {payMethod}</span>
             ) : (
-              <span className="sd-chip sd-chip--warn">💵 Collect {INR(order.amount)} · {payMethod}</span>
+              <span className="sd-chip sd-chip--warn">💵 {isHindi ? 'वसूलें' : 'Collect'} {INR(order.amount)} · {payMethod}</span>
             )}
           </div>
         )}
@@ -2753,8 +2754,8 @@ function OrderCard({
         {canRevealContact && (hasPhone || fullAddress) && (
           <div className="sd-row sd-gap8">
             {hasPhone && (
-              <a href={`tel:${cleanPhone(order.customer_phone)}`} className="sd-quick" aria-label={`Call ${order.customer_name}`}>
-                📞 Call
+              <a href={`tel:${cleanPhone(order.customer_phone)}`} className="sd-quick" aria-label={isHindi ? `${order.customer_name} को कॉल करें` : `Call ${order.customer_name}`}>
+                📞 {isHindi ? 'कॉल करें' : 'Call'}
               </a>
             )}
             {hasPhone && (
@@ -2763,14 +2764,14 @@ function OrderCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="sd-quick"
-                aria-label={`WhatsApp ${order.customer_name}`}
+                aria-label={isHindi ? `${order.customer_name} को WhatsApp करें` : `WhatsApp ${order.customer_name}`}
               >
                 💬 WhatsApp
               </a>
             )}
             {fullAddress && (
-              <a href={mapsLink(fullAddress)} target="_blank" rel="noopener noreferrer" className="sd-quick" aria-label="Navigate to delivery address">
-                🧭 Navigate
+              <a href={mapsLink(fullAddress)} target="_blank" rel="noopener noreferrer" className="sd-quick" aria-label={isHindi ? 'डिलीवरी के पते पर जाएँ' : 'Navigate to delivery address'}>
+                🧭 {isHindi ? 'रास्ता देखें' : 'Navigate'}
               </a>
             )}
           </div>
@@ -2780,7 +2781,7 @@ function OrderCard({
 
         {isAssignedAndWaiting && (
           <button type="button" disabled={isUpdating} onClick={() => onAccept(order.id)} className="sd-btn sd-btn--info sd-btn--block">
-            {isUpdating ? 'Confirming…' : 'Accept Order'}
+            {isUpdating ? (isHindi ? 'पुष्टि हो रही है…' : 'Confirming…') : (isHindi ? 'ऑर्डर स्वीकार करें' : 'Accept Order')}
           </button>
         )}
 
@@ -2799,7 +2800,7 @@ function OrderCard({
             ) : (
               Icon.check(14)
             )}
-            {isUpdating ? 'Updating…' : nextLabel[order.status]}
+            {isUpdating ? (isHindi ? 'अपडेट हो रहा है…' : 'Updating…') : nextLabel[order.status]}
           </button>
         )}
       </div>
@@ -2844,6 +2845,20 @@ export default function SupplierDashboardPage() {
   const [paymentCollector, setPaymentCollector] = useState<'supplier' | 'aurotap'>('supplier');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('aurotap_supplier_language');
+      if (saved === 'en' || saved === 'hi') setLanguage(saved);
+    } catch { /* English remains the fallback if storage is unavailable. */ }
+  }, []);
+
+  const isHindi = language === 'hi';
+  const changeLanguage = (next: 'en' | 'hi') => {
+    setLanguage(next);
+    try { window.localStorage.setItem('aurotap_supplier_language', next); } catch { /* Apply for this session even without storage. */ }
+  };
   const [language, setLanguage] = useState<'en' | 'hi'>('en');
 
   // Restore language preference without delaying dashboard rendering.
@@ -3576,7 +3591,7 @@ export default function SupplierDashboardPage() {
       <div className="sdash">
         {!networkOnline && (
           <div role="status" aria-live="polite" style={{ position: 'sticky', top: 0, zIndex: 80, padding: '10px 16px', background: '#7F1D1D', color: '#FEF2F2', fontSize: 12, fontWeight: 800, textAlign: 'center' }}>
-            You are offline. Dashboard data may be out of date; it will refresh when connection returns.
+            {isHindi ? 'आप ऑफ़लाइन हैं। डैशबोर्ड का डेटा पुराना हो सकता है; कनेक्शन लौटने पर रीफ़्रेश होगा।' : 'You are offline. Dashboard data may be out of date; it will refresh when connection returns.'}
           </div>
         )}
         {/* ── HEADER ─────────────────────────────────────────────────────── */}
@@ -3586,7 +3601,7 @@ export default function SupplierDashboardPage() {
               <div className="sd-logo">{Icon.drop(19, '#fff')}</div>
               <div>
                 <div className="sd-brand">AuroTap</div>
-                <div className="sd-brand-sub sd-sub">Supplier Portal</div>
+                <div className="sd-brand-sub sd-sub">{isHindi ? 'सप्लायर पोर्टल' : 'Supplier Portal'}</div>
               </div>
             </div>
 
@@ -3598,12 +3613,12 @@ export default function SupplierDashboardPage() {
               <button
                 type="button"
                 title={isHindi ? 'डेटा रीफ़्रेश करें' : 'Refresh data'}
-                aria-label="Refresh data"
+                aria-label={isHindi ? 'डेटा रीफ़्रेश करें' : 'Refresh data'}
                 className="sd-iconbtn"
                 onClick={async () => {
                   const { data: { session } } = await supabase.auth.getSession();
                   if (session?.user) await loadAll(session.user.id);
-                  toast.success('Dashboard refreshed.');
+                  toast.success(isHindi ? 'डैशबोर्ड रीफ़्रेश हो गया।' : 'Dashboard refreshed.');
                 }}
               >
                 {Icon.refresh(15)}
@@ -3677,18 +3692,18 @@ export default function SupplierDashboardPage() {
         <main className="sd-main">
           {!loading && !profile && (
             <div role="alert" className="sd-alert sd-alert--bad" style={{ padding: '20px', display: 'block' }}>
-              <div style={{ fontSize: 15, fontWeight: 800 }}>Supplier account not found</div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>{isHindi ? 'सप्लायर खाता नहीं मिला' : 'Supplier account not found'}</div>
               <p style={{ margin: '6px 0 14px', fontSize: 12, lineHeight: 1.6, fontWeight: 500, color: 'var(--ink2)' }}>
-                We could not load your supplier profile. If your account was recently approved, wait a minute and retry, or contact support.
+                {isHindi ? 'आपकी सप्लायर प्रोफ़ाइल लोड नहीं हो सकी। खाता हाल ही में स्वीकृत हुआ है, तो एक मिनट बाद दोबारा प्रयास करें या सहायता से संपर्क करें।' : 'We could not load your supplier profile. If your account was recently approved, wait a minute and retry, or contact support.'}
               </p>
-              <button type="button" onClick={() => void reloadAll()} className="sd-btn sd-btn--primary">Retry</button>
+              <button type="button" onClick={() => void reloadAll()} className="sd-btn sd-btn--primary">{isHindi ? 'दोबारा प्रयास करें' : 'Retry'}</button>
             </div>
           )}
 
           {ordersStale && !loading && (
             <div role="status" className="sd-alert sd-alert--warn">
-              <span>Live data is delayed. Showing your last loaded orders.</span>
-              <button type="button" onClick={() => void fetchOrders()} className="sd-btn sd-btn--soft sd-btn--sm">Retry now</button>
+              <span>{isHindi ? 'लाइव डेटा में देरी है। पिछली बार लोड किए गए ऑर्डर दिख रहे हैं।' : 'Live data is delayed. Showing your last loaded orders.'}</span>
+              <button type="button" onClick={() => void fetchOrders()} className="sd-btn sd-btn--soft sd-btn--sm">{isHindi ? 'अभी दोबारा प्रयास करें' : 'Retry now'}</button>
             </div>
           )}
 
@@ -3696,15 +3711,15 @@ export default function SupplierDashboardPage() {
           <div className="sd-hero">
             <div style={{ position: 'relative', zIndex: 1, minWidth: 0 }}>
               <div className="sd-eyebrow">
-                {loading ? <Skeleton w={120} h={12} /> : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
+                {loading ? <Skeleton w={120} h={12} /> : isHindi ? `वापसी पर स्वागत${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}` : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
               </div>
-              <h1 className="sd-h1">{loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}</h1>
+              <h1 className="sd-h1">{loading ? <Skeleton w={260} h={32} /> : isHindi ? 'सप्लायर डैशबोर्ड' : 'Supplier Dashboard'}</h1>
               {!loading && profile && (
                 <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 12 }}>
                   <span className={`sd-chip ${profile.is_active ? 'sd-chip--ok' : 'sd-chip--bad'}`}>
-                    {profile.is_active ? '● Active' : '● Inactive'}
+                    {profile.is_active ? (isHindi ? '● सक्रिय' : '● Active') : (isHindi ? '● निष्क्रिय' : '● Inactive')}
                   </span>
-                  {profile.is_verified && <span className="sd-chip sd-chip--info">✓ Verified</span>}
+                  {profile.is_verified && <span className="sd-chip sd-chip--info">✓ {isHindi ? 'सत्यापित' : 'Verified'}</span>}
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)' }}>{profile.city}</span>
                   <button
                     type="button"
@@ -3723,12 +3738,12 @@ export default function SupplierDashboardPage() {
               <div className="sd-tier">
                 <div className="sd-row sd-between">
                   <span style={{ fontSize: 12, fontWeight: 800, color: tier.color }}>🏆 {tier.label} Tier</span>
-                  {effectiveTier !== 'platinum' && <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>Next: {tier.next}</span>}
+                  {effectiveTier !== 'platinum' && <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>{isHindi ? 'अगला स्तर:' : 'Next:'} {tier.next}</span>}
                 </div>
                 <div className="sd-track"><div style={{ width: `${tierProgress}%`, background: tier.color }} /></div>
                 <div className="sd-row sd-between" style={{ fontSize: 11, color: 'var(--ink2)', fontWeight: 600 }}>
-                  <span>{deliveries} deliveries</span>
-                  {effectiveTier !== 'platinum' && <span>{tier.target} needed</span>}
+                  <span>{deliveries} {isHindi ? 'डिलीवरी' : 'deliveries'}</span>
+                  {effectiveTier !== 'platinum' && <span>{tier.target} {isHindi ? 'और चाहिए' : 'needed'}</span>}
                 </div>
               </div>
             )}
@@ -3736,19 +3751,19 @@ export default function SupplierDashboardPage() {
 
           {/* ── STATS GRID ─────────────────────────────────────────────── */}
           <div className="sd-stats">
-            <StatCard icon={Icon.truck(17)} label="Today's Orders" value={stats?.todayOrders.toString() ?? '—'} sub="Scheduled for today" accent="#0B8A60" loading={loading} />
-            <StatCard icon={Icon.drop(17, '#0277B6')} label="Active Orders" value={stats?.pendingOrders.toString() ?? '—'} sub="Pending + In-progress" accent="#0277B6" loading={loading} />
-            <StatCard icon={Icon.wallet(17)} label="This Week" value={stats ? INR(stats.weekEarnings) : '—'} sub="Earnings (7 days)" accent="#6D28D9" loading={loading} />
-            <StatCard icon={Icon.chart(17)} label="This Month" value={stats ? INR(stats.monthEarnings) : '—'} sub={`${stats?.completionRate ?? 0}% completion rate`} accent="#9A5A06" loading={loading} />
+            <StatCard icon={Icon.truck(17)} label={isHindi ? 'आज के ऑर्डर' : "Today's Orders"} value={stats?.todayOrders.toString() ?? '—'} sub={isHindi ? 'आज के लिए निर्धारित' : 'Scheduled for today'} accent="#0B8A60" loading={loading} />
+            <StatCard icon={Icon.drop(17, '#0277B6')} label={isHindi ? 'सक्रिय ऑर्डर' : 'Active Orders'} value={stats?.pendingOrders.toString() ?? '—'} sub={isHindi ? 'लंबित + जारी' : 'Pending + In-progress'} accent="#0277B6" loading={loading} />
+            <StatCard icon={Icon.wallet(17)} label={isHindi ? 'इस सप्ताह' : 'This Week'} value={stats ? INR(stats.weekEarnings) : '—'} sub={isHindi ? 'कमाई (7 दिन)' : 'Earnings (7 days)'} accent="#6D28D9" loading={loading} />
+            <StatCard icon={Icon.chart(17)} label={isHindi ? 'इस महीने' : 'This Month'} value={stats ? INR(stats.monthEarnings) : '—'} sub={`${stats?.completionRate ?? 0}% ${isHindi ? 'पूरा होने की दर' : 'completion rate'}`} accent="#9A5A06" loading={loading} />
             <StatCard
               icon={<>{Icon.star(16)}</>}
-              label="Your Rating"
-              value={!profile || ratingLoadState === 'loading' ? '—' : ratingLoadState === 'error' ? 'Unavailable' : profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : 'No reviews'}
-              sub={ratingLoadState === 'error' ? 'Could not verify review data' : profile && profile.rating_count > 0 ? `Based on ${profile.rating_count} customer reviews` : ratingLoadState === 'loaded' ? 'No customer reviews yet' : 'Loading verified review data'}
+              label={isHindi ? 'आपकी रेटिंग' : 'Your Rating'}
+              value={!profile || ratingLoadState === 'loading' ? '—' : ratingLoadState === 'error' ? (isHindi ? 'उपलब्ध नहीं' : 'Unavailable') : profile.rating_count > 0 ? `${profile.rating.toFixed(1)} ★` : (isHindi ? 'कोई समीक्षा नहीं' : 'No reviews')}
+              sub={ratingLoadState === 'error' ? (isHindi ? 'समीक्षा डेटा सत्यापित नहीं हो सका' : 'Could not verify review data') : profile && profile.rating_count > 0 ? (isHindi ? `${profile.rating_count} ग्राहक समीक्षाओं पर आधारित` : `Based on ${profile.rating_count} customer reviews`) : ratingLoadState === 'loaded' ? (isHindi ? 'अभी ग्राहक समीक्षा नहीं है' : 'No customer reviews yet') : (isHindi ? 'सत्यापित समीक्षा डेटा लोड हो रहा है' : 'Loading verified review data')}
               accent="#B45309"
               loading={loading}
             />
-            <StatCard icon={Icon.truck(17)} label="Total Deliveries" value={profile ? deliveries.toLocaleString('en-IN') : '—'} sub={`${INR(earnedTotal)} earned`} accent="#0B8A60" loading={loading} />
+            <StatCard icon={Icon.truck(17)} label={isHindi ? 'कुल डिलीवरी' : 'Total Deliveries'} value={profile ? deliveries.toLocaleString('en-IN') : '—'} sub={`${INR(earnedTotal)} ${isHindi ? 'कमाए' : 'earned'}`} accent="#0B8A60" loading={loading} />
           </div>
 
           {/* ── TODAY'S ROUTE + ALERTS ─────────────────────────────────── */}
@@ -3765,13 +3780,13 @@ export default function SupplierDashboardPage() {
                   ⚠ Low stock: only {freeCans} free can{freeCans === 1 ? '' : 's'} left (alert level {stock.low_stock_alert}). Restock to keep receiving orders.
                 </div>
               )}
-              <div className="sd-section-label">Today&apos;s route</div>
+              <div className="sd-section-label">{isHindi ? 'आज का डिलीवरी रूट' : "Today's route"}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 14 }}>
-                <MiniStat label="Deliveries today" value={String(route.todays)} tone="var(--ink)" />
-                <MiniStat label="Cans to deliver" value={String(route.cans)} tone="#0277B6" />
-                <MiniStat label="Cash to collect" value={INR(route.cash)} tone="#9A5A06" />
-                <MiniStat label="Needs accept" value={String(route.awaiting)} tone={route.awaiting > 0 ? '#0369A1' : 'var(--ink)'} />
-                {route.overdue > 0 && <MiniStat label="Overdue" value={String(route.overdue)} tone="#B91C1C" />}
+                <MiniStat label={isHindi ? 'आज की डिलीवरी' : 'Deliveries today'} value={String(route.todays)} tone="var(--ink)" />
+                <MiniStat label={isHindi ? 'डिलीवर करने के कैन' : 'Cans to deliver'} value={String(route.cans)} tone="#0277B6" />
+                <MiniStat label={isHindi ? 'वसूलने की नकदी' : 'Cash to collect'} value={INR(route.cash)} tone="#9A5A06" />
+                <MiniStat label={isHindi ? 'स्वीकार करना है' : 'Needs accept'} value={String(route.awaiting)} tone={route.awaiting > 0 ? '#0369A1' : 'var(--ink)'} />
+                {route.overdue > 0 && <MiniStat label={isHindi ? 'समय से लंबित' : 'Overdue'} value={String(route.overdue)} tone="#B91C1C" />}
               </div>
               {route.slots.length > 0 && (
                 <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 14 }}>
@@ -3788,8 +3803,8 @@ export default function SupplierDashboardPage() {
             <div className="sd-card sd-panel">
               <div className="sd-row sd-between sd-wrap sd-top" style={{ gap: 14 }}>
                 <div>
-                  <div className="sd-panel-label" style={{ color: 'var(--aqua)' }}>Live inventory</div>
-                  <div className="sd-big">{stock ? stock.cans_available.toLocaleString('en-IN') : '—'} cans</div>
+                  <div className="sd-panel-label" style={{ color: 'var(--aqua)' }}>{isHindi ? 'लाइव स्टॉक' : 'Live inventory'}</div>
+                  <div className="sd-big">{stock ? stock.cans_available.toLocaleString('en-IN') : '—'} {isHindi ? 'कैन' : 'cans'}</div>
                   <div className="sd-help" style={{ marginTop: 4, fontSize: 12 }}>
                     {stock ? (isHindi ? `${stock.reserved_cans} आरक्षित · बफ़र से पहले ${Math.max(0, stock.cans_available - stock.reserved_cans)} उपलब्ध` : `${stock.reserved_cans} reserved · ${Math.max(0, stock.cans_available - stock.reserved_cans)} free before buffer`) : (isHindi ? 'स्टॉक लोड हो रहा है…' : 'Loading inventory…')}
                   </div>
@@ -3806,8 +3821,8 @@ export default function SupplierDashboardPage() {
                       value={stockDelta}
                       onChange={(e) => setStockDelta(e.target.value.replace(/[^0-9-]/g, ''))}
                       inputMode="numeric"
-                      placeholder="Offline sale / restock"
-                      aria-label="Stock adjustment quantity"
+                      placeholder={isHindi ? 'ऑफ़लाइन बिक्री / रीस्टॉक' : 'Offline sale / restock'}
+                      aria-label={isHindi ? 'स्टॉक समायोजन मात्रा' : 'Stock adjustment quantity'}
                       className="sd-input"
                     />
                     <button
@@ -3823,10 +3838,10 @@ export default function SupplierDashboardPage() {
                 </div>
               </div>
               <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 16 }}>
-                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(-1)} className="sd-btn sd-btn--danger sd-btn--sm">−1 offline sale</button>
-                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(10)} className="sd-btn sd-btn--info sd-btn--sm">+10 restock</button>
+                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(-1)} className="sd-btn sd-btn--danger sd-btn--sm">{isHindi ? '−1 ऑफ़लाइन बिक्री' : '−1 offline sale'}</button>
+                <button type="button" disabled={stockBusy} onClick={() => void adjustStock(10)} className="sd-btn sd-btn--info sd-btn--sm">{isHindi ? '+10 रीस्टॉक' : '+10 restock'}</button>
                 <span style={{ alignSelf: 'center', fontSize: 11, fontWeight: 600, color: stock && stock.cans_available - stock.reserved_cans <= stock.low_stock_alert ? '#9A5A06' : 'var(--ink3)' }}>
-                  Low-stock alert: {stock?.low_stock_alert ?? '—'}
+                  {isHindi ? 'कम स्टॉक अलर्ट:' : 'Low-stock alert:'} {stock?.low_stock_alert ?? '—'}
                 </span>
                 <label className="sd-row sd-gap6 sd-help">
                   {isHindi ? 'अलर्ट' : 'Alert'}
@@ -3851,12 +3866,12 @@ export default function SupplierDashboardPage() {
             </div>
 
             <div className="sd-card sd-panel">
-              <div className="sd-panel-label" style={{ color: 'var(--brand2)' }}>Dispatch control</div>
+              <div className="sd-panel-label" style={{ color: 'var(--brand2)' }}>{isHindi ? 'ऑर्डर उपलब्धता नियंत्रण' : 'Dispatch control'}</div>
               <div className="sd-row sd-between" style={{ marginTop: 10, gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>Accept nearby orders</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{isHindi ? 'पास के ऑर्डर स्वीकार करें' : 'Accept nearby orders'}</div>
                   <div className="sd-help" style={{ marginTop: 4 }}>
-                    {dispatchOnline ? 'You are visible to dispatch.' : 'You are hidden from new dispatch offers.'}
+                    {dispatchOnline ? (isHindi ? 'आपको नए ऑर्डर दिए जा सकते हैं।' : 'You are visible to dispatch.') : (isHindi ? 'आपको नए ऑर्डर नहीं दिए जाएँगे।' : 'You are hidden from new dispatch offers.')}
                   </div>
                 </div>
                 <button
@@ -3867,14 +3882,14 @@ export default function SupplierDashboardPage() {
                   className="sd-toggle"
                   style={{ padding: '9px 16px', fontSize: 12 }}
                 >
-                  {dispatchSettingsBusy ? '…' : dispatchOnline ? 'Online' : 'Offline'}
+                  {dispatchSettingsBusy ? '…' : dispatchOnline ? (isHindi ? 'ऑनलाइन' : 'Online') : (isHindi ? 'ऑफ़लाइन' : 'Offline')}
                 </button>
               </div>
               <div className="sd-help" style={{ marginTop: 12 }}>
                 Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.
               </div>
               <button type="button" disabled={locationBusy} onClick={() => void syncDispatchLocation()} className="sd-btn sd-btn--info sd-btn--block" style={{ marginTop: 16 }}>
-                {locationBusy ? 'Updating location…' : 'Use current location for dispatch'}
+                {locationBusy ? (isHindi ? 'लोकेशन अपडेट हो रही है…' : 'Updating location…') : (isHindi ? 'ऑर्डर के लिए वर्तमान लोकेशन उपयोग करें' : 'Use current location for dispatch')}
               </button>
             </div>
           </section>
@@ -3885,7 +3900,7 @@ export default function SupplierDashboardPage() {
               <div className="sd-seg" role="tablist" aria-label="Order lists">
                 {(['active', 'history'] as const).map((t) => (
                   <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-                    {t === 'active' ? 'Active Orders' : 'History'}
+                    {t === 'active' ? (isHindi ? 'सक्रिय ऑर्डर' : 'Active Orders') : (isHindi ? 'इतिहास' : 'History')}
                     <span className="sd-count">{t === 'active' ? activeOrders.length : historyOrders.length}</span>
                   </button>
                 ))}
@@ -3895,7 +3910,7 @@ export default function SupplierDashboardPage() {
                 {tab === 'active' ? (
                   <span role="status" aria-live="polite" className="sd-live">
                     <span className="sd-dot" style={{ background: realtimeStatus === 'live' ? '#10B981' : realtimeStatus === 'connecting' ? '#F59E0B' : '#EF4444', boxShadow: realtimeStatus === 'live' ? '0 0 8px #10B981' : 'none' }} />
-                    {realtimeStatus === 'live' ? 'Live · instant updates' : realtimeStatus === 'connecting' ? 'Connecting…' : 'Reconnecting · refreshing every 10s'}
+                    {realtimeStatus === 'live' ? (isHindi ? 'लाइव · तुरंत अपडेट' : 'Live · instant updates') : realtimeStatus === 'connecting' ? (isHindi ? 'कनेक्ट हो रहा है…' : 'Connecting…') : (isHindi ? 'फिर से कनेक्ट हो रहा है · हर 10 सेकंड में रीफ़्रेश' : 'Reconnecting · refreshing every 10s')}
                   </span>
                 ) : `${historyOrders.length} completed orders`}
               </div>
@@ -3906,14 +3921,14 @@ export default function SupplierDashboardPage() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name, phone, order ID, area…"
-                aria-label="Search orders"
+                placeholder={isHindi ? 'नाम, फ़ोन, ऑर्डर ID, क्षेत्र खोजें…' : 'Search name, phone, order ID, area…'}
+                aria-label={isHindi ? 'ऑर्डर खोजें' : 'Search orders'}
                 className="sd-input"
                 style={{ flex: '1 1 220px' }}
               />
               {tab === 'active' && (Object.keys(FILTER_LABELS) as OrderFilter[]).map((f) => (
                 <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className="sd-filter">
-                  {FILTER_LABELS[f]}
+                  {isHindi ? ({ all: 'सभी', today: 'आज', tomorrow: 'कल', overdue: 'समय से लंबित', cash: 'वसूलने की नकदी', accept: 'स्वीकार करना है' } as Record<OrderFilter, string>)[f] : FILTER_LABELS[f]}
                 </button>
               ))}
             </div>
@@ -3933,13 +3948,13 @@ export default function SupplierDashboardPage() {
               <div className="sd-empty">
                 <div style={{ fontSize: 38, marginBottom: 12 }}>{tab === 'active' ? '💧' : '📦'}</div>
                 <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 6 }}>
-                  {hasFilter ? 'No orders match your search' : tab === 'active' ? 'No active orders right now' : 'No order history yet'}
+                  {hasFilter ? (isHindi ? 'आपकी खोज से कोई ऑर्डर नहीं मिला' : 'No orders match your search') : tab === 'active' ? (isHindi ? 'अभी कोई सक्रिय ऑर्डर नहीं है' : 'No active orders right now') : (isHindi ? 'अभी ऑर्डर इतिहास नहीं है' : 'No order history yet')}
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--ink2)' }}>
                   {hasFilter
-                    ? 'Try a different name, phone number or filter.'
+                    ? (isHindi ? 'दूसरा नाम, फ़ोन नंबर या फ़िल्टर आज़माएँ।' : 'Try a different name, phone number or filter.')
                     : tab === 'active'
-                      ? 'New orders will appear here automatically when assigned.'
+                      ? (isHindi ? 'नया ऑर्डर मिलने पर वह यहाँ अपने-आप दिखेगा।' : 'New orders will appear here automatically when assigned.')
                       : 'Completed and cancelled orders will show up here.'}
                 </div>
                 {hasFilter && (
@@ -4108,12 +4123,12 @@ export default function SupplierDashboardPage() {
               <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" onClick={() => {
                 if (!exportEarningsCsv(earnings)) toast.info('No recent earnings rows available to export yet.');
               }}>
-                Export recent CSV ({earnings.length})
+                {isHindi ? 'हाल की CSV एक्सपोर्ट करें' : 'Export recent CSV'} ({earnings.length})
               </button>
             </div>
             <div className="sd-stats" style={{ marginBottom: 16 }}>
-              <StatCard icon={Icon.wallet(17)} label="This month" value={earningsSummary ? INR(earningsSummary.gross_amount) : '—'} sub={earningsSummary ? `${earningsSummary.order_count} orders counted by finance ledger` : 'Summary temporarily unavailable'} accent="#6D28D9" loading={loading} />
-              <StatCard icon={Icon.chart(17)} label="Pending payout" value={earningsSummary ? INR(earningsSummary.pending_payout) : '—'} sub="From the supplier earnings ledger" accent="#9A5A06" loading={loading} />
+              <StatCard icon={Icon.wallet(17)} label={isHindi ? 'इस महीने' : 'This month'} value={earningsSummary ? INR(earningsSummary.gross_amount) : '—'} sub={earningsSummary ? (isHindi ? `वित्तीय लेज़र में ${earningsSummary.order_count} ऑर्डर दर्ज` : `${earningsSummary.order_count} orders counted by finance ledger`) : (isHindi ? 'सारांश अस्थायी रूप से उपलब्ध नहीं' : 'Summary temporarily unavailable')} accent="#6D28D9" loading={loading} />
+              <StatCard icon={Icon.chart(17)} label={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={earningsSummary ? INR(earningsSummary.pending_payout) : '—'} sub={isHindi ? 'सप्लायर कमाई लेज़र से' : 'From the supplier earnings ledger'} accent="#9A5A06" loading={loading} />
             </div>
           </section>
           {earnings.length > 0 && (
@@ -4121,7 +4136,7 @@ export default function SupplierDashboardPage() {
               <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Recent Earnings (latest 50 loaded rows)</h2>
               <div className="sd-table">
                 <div className="sd-earn sd-earn--head">
-                  {['Order', 'Amount', 'Status', 'Date'].map((h) => <div key={h}>{h}</div>)}
+                  {(isHindi ? ['ऑर्डर', 'राशि', 'स्थिति', 'तारीख'] : ['Order', 'Amount', 'Status', 'Date']).map((h) => <div key={h}>{h}</div>)}
                 </div>
                 {earnings.slice(0, 10).map((e) => (
                   <div key={e.id} className="sd-earn">
@@ -4129,7 +4144,7 @@ export default function SupplierDashboardPage() {
                     <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#B91C1C' : 'var(--brand2)' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
                     <div>
                       <span className={`sd-chip ${e.status === 'paid' ? 'sd-chip--ok' : e.status === 'review' ? 'sd-chip--bad' : 'sd-chip--warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
-                        {e.status === 'paid' ? 'Paid' : e.status === 'review' ? 'Needs review' : 'Pending'}
+                        {e.status === 'paid' ? (isHindi ? 'भुगतान हुआ' : 'Paid') : e.status === 'review' ? (isHindi ? 'समीक्षा ज़रूरी' : 'Needs review') : (isHindi ? 'लंबित' : 'Pending')}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{e.paid_at ? fmtDate(e.paid_at) : fmtDate(e.created_at)}</div>
