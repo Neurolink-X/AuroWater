@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.referral_reward_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   referrer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   referred_customer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  qualifying_order_id UUID NOT NULL UNIQUE REFERENCES public.orders(id) ON DELETE CASCADE,
+  qualifying_order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
   address_id UUID REFERENCES public.addresses(id) ON DELETE SET NULL,
   reward_type TEXT NOT NULL CHECK (reward_type IN ('discount_25', 'free_water_can')),
   reward_status TEXT NOT NULL DEFAULT 'available'
@@ -17,8 +17,21 @@ CREATE TABLE IF NOT EXISTS public.referral_reward_events (
   CONSTRAINT referral_reward_event_once_per_customer UNIQUE (referred_customer_id, reward_type, qualifying_order_id)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS referral_reward_once_per_order_type
+  ON public.referral_reward_events (qualifying_order_id, reward_type);
+
 CREATE INDEX IF NOT EXISTS referral_rewards_available_idx
   ON public.referral_reward_events (referrer_id, reward_status, created_at);
+
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS referral_reward_id UUID REFERENCES public.referral_reward_events(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS referral_discount_amount NUMERIC(10,2) NOT NULL DEFAULT 0
+    CHECK (referral_discount_amount >= 0);
+
+COMMENT ON COLUMN public.orders.referral_reward_id IS
+  'Referral reward consumed by this order; set only by the authenticated server workflow.';
+COMMENT ON COLUMN public.orders.referral_discount_amount IS
+  'Server-calculated referral discount snapshot in INR.';
 
 ALTER TABLE public.referral_reward_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS referral_reward_events_select_own ON public.referral_reward_events;
