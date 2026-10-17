@@ -533,8 +533,8 @@ export default function TrackOrderPage() {
         ...baseHero,
         emoji: '🧑‍🔧',
         title: `${providerLabel} assigned`,
-        sub: tech?.full_name
-          ? `${tech.full_name} has been assigned to your booking.`
+        sub: (tech?.full_name ?? (order as Record<string, unknown>).technician_profile && ((order as Record<string, unknown>).technician_profile as ProfileLite)?.full_name)
+          ? `${tech?.full_name ?? (((order as Record<string, unknown>).technician_profile as ProfileLite | null)?.full_name)} has been assigned to your booking.`
           : `Your ${providerLabel.toLowerCase()} has been assigned. Professional details are loading.`,
       }
     : isTechnicianService && status === 'PENDING'
