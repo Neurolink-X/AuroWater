@@ -244,7 +244,7 @@ CREATE OR REPLACE FUNCTION public.complete_supplier_order_atomic(
   p_payment_collector TEXT
 )
 RETURNS SETOF public.orders
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_role TEXT;
   v_order public.orders%ROWTYPE;
