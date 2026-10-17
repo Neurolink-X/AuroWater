@@ -551,6 +551,11 @@ export default function TrackOrderPage() {
           hindi: 'हम आपके क्षेत्र में सही प्लंबर/टेक्नीशियन ढूँढ रहे हैं। अपडेट अपने-आप आएगा।',
         }
       : baseHero;
+  const heroHindi = isTechnicianService && status === 'ASSIGNED'
+    ? 'प्रोफेशनल असाइन हो गया है। उनके द्वारा काम स्वीकार करने की पुष्टि का इंतज़ार हो सकता है।'
+    : isTechnicianService && status === 'PENDING'
+      ? 'हम आपके क्षेत्र में सही प्लंबर/टेक्नीशियन ढूँढ रहे हैं। अपडेट अपने-आप आएगा।'
+      : '';
   const shortId = String(o.order_number ?? id.slice(0, 8));
 
   const slotMatch = /Slot:\s*([^|]+)/.exec(String(o.note ?? ''));
@@ -633,8 +638,8 @@ export default function TrackOrderPage() {
                   <p className="mt-1 max-w-xl text-sm leading-6 text-white/65">
                     {hero?.sub ?? 'We are keeping your order updated.'}
                   </p>
-                  {'hindi' in (hero ?? {}) && hero?.hindi ? (
-                    <p className="mt-1 max-w-xl text-sm leading-6 text-white/70" lang="hi">{hero.hindi}</p>
+                  {heroHindi ? (
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-white/70" lang="hi">{heroHindi}</p>
                   ) : null}
                 </div>
               </div>
