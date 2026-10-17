@@ -326,4 +326,61 @@ $$;
 REVOKE ALL ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
 
+
+-- Prevent direct PostgREST profile updates from changing referral attribution,
+-- tiers, or credit balances after the authenticated API's validation.
+CREATE OR REPLACE FUNCTION public.guard_profile_referral_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() = OLD.id AND OLD.role <> 'admin' THEN
+    IF NEW.referral_credits IS DISTINCT FROM OLD.referral_credits OR NEW.tier IS DISTINCT FROM OLD.tier THEN
+      RAISE EXCEPTION 'Referral balances and tiers are system-managed' USING ERRCODE = '42501';
+    END IF;
+    IF NEW.referred_by IS DISTINCT FROM OLD.referred_by THEN
+      IF OLD.referred_by IS NOT NULL OR NEW.referred_by IS NULL OR NEW.referred_by = OLD.id THEN
+        RAISE EXCEPTION 'Referral attribution can only be set once' USING ERRCODE = '42501';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = NEW.referred_by AND p.role = 'customer'
+          AND p.is_active = true AND p.deleted_at IS NULL
+      ) OR EXISTS (SELECT 1 FROM public.orders o WHERE o.customer_id = OLD.id) THEN
+        RAISE EXCEPTION 'Referral attribution is invalid or the account already has orders' USING ERRCODE = '42501';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS profiles_guard_referral_fields ON public.profiles;
+CREATE TRIGGER profiles_guard_referral_fields
+  BEFORE UPDATE OF referred_by, referral_credits, tier ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.guard_profile_referral_fields();
+
+-- Referral reward amounts are accepted only from the authenticated server API.
+-- Browser clients cannot forge a discount by inserting/updating orders directly.
+CREATE OR REPLACE FUNCTION public.guard_order_referral_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+BEGIN
+  IF auth.uid() IS NOT NULL
+     AND auth.uid() = COALESCE(NEW.customer_id, OLD.customer_id) THEN
+    IF TG_OP = 'INSERT' THEN
+      IF NEW.referral_reward_id IS NOT NULL OR COALESCE(NEW.referral_discount_amount, 0) <> 0 THEN
+        RAISE EXCEPTION 'Referral discounts must be applied through checkout' USING ERRCODE = '42501';
+      END IF;
+    ELSIF NEW.referral_reward_id IS DISTINCT FROM OLD.referral_reward_id
+       OR NEW.referral_discount_amount IS DISTINCT FROM OLD.referral_discount_amount THEN
+      RAISE EXCEPTION 'Referral reward details are immutable' USING ERRCODE = '42501';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS orders_guard_referral_fields ON public.orders;
+CREATE TRIGGER orders_guard_referral_fields
+  BEFORE INSERT OR UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.guard_order_referral_fields();
+
 COMMIT;
