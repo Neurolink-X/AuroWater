@@ -133,7 +133,7 @@ BEGIN
   WHERE o.customer_id = NEW.customer_id
     AND o.status = 'COMPLETED'
     AND lower(coalesce(o.payment_status, '')) = 'paid'
-  ORDER BY o.created_at ASC
+  ORDER BY o.created_at ASC, o.id ASC
   LIMIT 1;
 
   IF first_qualifying_order IS DISTINCT FROM NEW.id THEN RETURN NEW; END IF;
@@ -141,14 +141,14 @@ BEGIN
 
   -- One distinct saved address per referral; prevents counting several accounts
   -- repeatedly at the same address. The referred account itself is unique too.
+  PERFORM pg_advisory_xact_lock(hashtext(referrer::text));
+
   IF EXISTS (
     SELECT 1 FROM public.referral_reward_events e
     WHERE e.referrer_id = referrer
       AND e.address_id = qualifying_address
       AND e.reward_type = 'discount_25'
   ) THEN RETURN NEW; END IF;
-
-  PERFORM pg_advisory_xact_lock(hashtext(referrer::text));
 
   SELECT COUNT(DISTINCT e.referred_customer_id)::INTEGER INTO qualified_count
   FROM public.referral_reward_events e
@@ -158,7 +158,7 @@ BEGIN
     referrer_id, referred_customer_id, qualifying_order_id, address_id, reward_type
   ) VALUES (
     referrer, NEW.customer_id, NEW.id, qualifying_address, 'discount_25'
-  ) ON CONFLICT (qualifying_order_id) DO NOTHING;
+  ) ON CONFLICT (qualifying_order_id, reward_type) DO NOTHING;
 
   -- Count only distinct-address, successfully paid referral events.
   SELECT COUNT(DISTINCT e.referred_customer_id)::INTEGER INTO qualified_count
