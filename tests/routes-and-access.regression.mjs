@@ -43,7 +43,7 @@ assert.match(proxySource, /pathname === g\.prefix \|\| pathname\.startsWith\(\`\
 // Pricing integrity guards: the customer API must validate and persist its own total,
 // and public water-can pricing must match the API's launch rates.
 const orderApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
-assert.match(orderApi, /totalsMatch\(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0\.5\)/);
+assert.match(orderApi, /totalsMatch\(clientTotal, netBaseAmount, convenience, emergency_charge, gstRate, 0\.5\)/);
 assert.match(orderApi, /const total = computeExpectedTotal\(base_amount, convenience, emergency_charge, gstRate\)\.total/);
 // Ignore legacy commented-out code when checking the active route implementation.
 const activeOrderApi = orderApi
