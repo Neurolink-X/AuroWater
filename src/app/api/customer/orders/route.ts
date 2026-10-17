@@ -522,7 +522,10 @@ export async function POST(req: NextRequest) {
     if (dup && !referralReward) return jsonOk(withCompat(dup), 200);
   }
 
-  const { data: order, error: oErr } = await auth.ctx.supabase
+  // Reward-bearing orders use the service client only after the customer role,
+  // reward ownership, eligibility, price and reservation have been verified above.
+  const orderWriter = referralReward ? createServiceClient() : auth.ctx.supabase;
+  const { data: order, error: oErr } = await orderWriter
     .from('orders')
     .insert({
       customer_id: customerId,
