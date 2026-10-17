@@ -59,7 +59,7 @@ export default function CustomerReferralsPage() {
         cache: 'no-store',
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result?.message ?? 'Could not load referrals.');
+      if (!response.ok) throw new Error(result?.error ?? result?.message ?? 'Could not load referrals.');
       setData(result.data ?? result);
       setError('');
     } catch (e) {
@@ -98,7 +98,7 @@ export default function CustomerReferralsPage() {
         body: JSON.stringify({ code: code.trim().toUpperCase() }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result?.message ?? 'Could not apply this referral code.');
+      if (!response.ok) throw new Error(result?.error ?? result?.message ?? 'Could not apply this referral code.');
       toast.success('Referral code applied! Invite a friend and start earning rewards.');
       setCode('');
       await load();
