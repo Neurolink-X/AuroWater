@@ -961,6 +961,11 @@ export default function BookingWizard() {
       ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
       : Math.round(baseAmount * 0.25 * 100) / 100;
   }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
+  const canRedeemReferralReward =
+    draft.serviceKey === 'water_can' &&
+    draft.subOptionKey !== 'chilled_ro' &&
+    draft.canOrderType !== 'subscription' &&
+    (draft.canQuantity ?? 1) === 1;
   const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
   const breakdown = useMemo(() => {
     const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
@@ -2234,7 +2239,8 @@ export default function BookingWizard() {
                     aria-label="Choose referral reward"
                     value={selectedReferralRewardId}
                     onChange={(event) => setSelectedReferralRewardId(event.target.value)}
-                    className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800"
+                    disabled={!canRedeemReferralReward}
+                    className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="">No referral reward</option>
                     {referralRewards.map((reward) => (
@@ -2243,8 +2249,8 @@ export default function BookingWizard() {
                       </option>
                     ))}
                   </select>
-                  {selectedReferralRewardId && referralDiscountAmount === 0 ? (
-                    <p className="mt-2 text-xs font-semibold text-amber-800">This reward is available only for one standard Normal RO can in a one-time order. Change your selection to use it.</p>
+                  {!canRedeemReferralReward ? (
+                    <p className="mt-2 text-xs font-semibold text-amber-800">Rewards can be used only on one standard Normal RO can in a one-time order. Select that option to redeem. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।</p>
                   ) : null}
                   {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
                 </div>
