@@ -1607,12 +1607,12 @@
 //                 {loading ? <Skeleton w={120} h={12} /> : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
 //               </div>
 //               <h1 className="sd-h1">{loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}</h1>
-              {!loading && (
-                <p style={{ margin: '8px 0 0', maxWidth: 680, color: 'var(--ink2)', fontSize: 13, lineHeight: 1.65 }}>
-                  Orders लेने के लिए Online रहें। नया order आए तो details देखें, समय पर accept करें और delivery पूरी होने पर ही status update करें।
-                  <span style={{ display: 'block', marginTop: 3, fontSize: 12 }}>Stay online to receive orders. Check the details, accept on time, and update the status only after delivery.</span>
-                </p>
-              )}
+//               {!loading && (
+//                 <p style={{ margin: '8px 0 0', maxWidth: 680, color: 'var(--ink2)', fontSize: 13, lineHeight: 1.65 }}>
+//                   Orders लेने के लिए Online रहें। नया order आए तो details देखें, समय पर accept करें और delivery पूरी होने पर ही status update करें।
+//                   <span style={{ display: 'block', marginTop: 3, fontSize: 12 }}>Stay online to receive orders. Check the details, accept on time, and update the status only after delivery.</span>
+//                 </p>
+//               )}
 //               {!loading && profile && (
 //                 <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 12 }}>
 //                   <span className={`sd-chip ${profile.is_active ? 'sd-chip--ok' : 'sd-chip--bad'}`}>
