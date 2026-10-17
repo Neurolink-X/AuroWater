@@ -43,8 +43,8 @@ assert.match(proxySource, /pathname === g\.prefix \|\| pathname\.startsWith\(\`\
 // Pricing integrity guards: the customer API must validate and persist its own total,
 // and public water-can pricing must match the API's launch rates.
 const orderApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
-assert.match(orderApi, /totalsMatch\(clientTotal, base_amount, convenience, emergency_charge, gstRate, 0\.5\)/);
-assert.match(orderApi, /const total = computeExpectedTotal\(base_amount, convenience, emergency_charge, gstRate\)\.total/);
+assert.match(orderApi, /totalsMatch\(clientTotal, netBaseAmount, convenience, emergency_charge, gstRate, 0\.5\)/);
+assert.match(orderApi, /const total = computeExpectedTotal\(netBaseAmount, convenience, emergency_charge, gstRate\)\.total/);
 // Ignore legacy commented-out code when checking the active route implementation.
 const activeOrderApi = orderApi
   .split('\n')
@@ -161,3 +161,43 @@ const apiClient = readFileSync(join(root, 'src', 'lib', 'api-client.ts'), 'utf8'
 assert.ok(apiClient.includes('await supabase.auth.refreshSession()'));
 assert.ok(apiClient.includes('Do not redirect until a one-time session refresh has been attempted.'));
 assert.ok(apiClient.includes('Your session could not be renewed. Please sign in again.'));
+
+// Referral rewards regression guards: attribution, reservation, cancellation,
+// and supplier payout protection.
+const referralMigration = readFileSync(join(root, 'sql', '028_referral_rewards.sql'), 'utf8');
+assert.ok(referralMigration.includes('CREATE TABLE IF NOT EXISTS public.referral_reward_events'));
+assert.ok(referralMigration.includes('apply_referral_code'));
+assert.ok(referralMigration.includes('Referral codes must be applied before your first booking'));
+assert.ok(referralMigration.includes('orders_award_referral_reward'));
+assert.ok(referralMigration.includes('orders_sync_referral_reward'));
+assert.ok(referralMigration.includes('referral_discount_amount'));
+assert.ok(referralMigration.includes('address_fingerprint'));
+assert.ok(referralMigration.includes('referral_reward_once_per_address'));
+assert.ok(referralMigration.includes('ORDER_EARNING'));
+assert.ok(referralMigration.includes('guard_profile_referral_fields'));
+assert.ok(referralMigration.includes('guard_order_referral_fields'));
+assert.ok(referralMigration.includes('REVOKE INSERT, UPDATE, DELETE ON public.referral_reward_events FROM anon, authenticated'));
+
+const customerReferralsApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'referrals', 'route.ts'), 'utf8');
+assert.ok(customerReferralsApi.includes("requireRole(auth.ctx, 'customer')"));
+assert.ok(customerReferralsApi.includes('apply_referral_code'));
+assert.ok(customerReferralsApi.includes('reward_status'));
+
+const customerReferralPage = readFileSync(join(root, 'src', 'app', 'customer', 'referrals', 'page.tsx'), 'utf8');
+assert.ok(customerReferralPage.includes('Share invite link'));
+assert.ok(customerReferralPage.includes('Apply code'));
+assert.ok(customerReferralPage.includes('free_water_can'));
+
+const referralOrderApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
+assert.ok(referralOrderApi.includes('REFERRAL_REWARD_NOT_ELIGIBLE'));
+assert.ok(referralOrderApi.includes('REFERRAL_REWARD_UNAVAILABLE'));
+assert.ok(referralOrderApi.includes('referral_discount_amount'));
+assert.ok(referralOrderApi.includes(".eq('reward_status', 'available')"));
+
+assert.ok(bookingWizard.includes('Referral rewards'));
+assert.ok(bookingWizard.includes('referral_reward_id'));
+assert.ok(bookingWizard.includes('canRedeemReferralReward'));
+assert.ok(migrationBuilder.includes('028_referral_rewards.sql'));
+const orderedMigrationBundle = readFileSync(join(root, 'sql', 'ALL_MIGRATIONS_ORDERED.sql'), 'utf8');
+assert.ok(orderedMigrationBundle.includes('FILE: sql/028_referral_rewards.sql'));
+assert.ok(orderedMigrationBundle.includes('sync_referral_reward_order_state'));

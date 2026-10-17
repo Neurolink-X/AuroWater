@@ -30,6 +30,7 @@ import {
   customerAddresses,
   customerServiceability,
   customerOrderCreate,
+  getToken,
   forwardGeocodeAddress,
   reverseGeocode,
   type ApiOrder,
@@ -652,6 +653,9 @@ export default function BookingWizard() {
   const [createdOrder, setCreatedOrder] = useState<ApiOrder | null>(null);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const [waitlistCity, setWaitlistCity] = useState('');
+  const [referralRewards, setReferralRewards] = useState<Array<{ id: string; reward_type: 'discount_25' | 'free_water_can'; reward_status: string }>>([]);
+  const [selectedReferralRewardId, setSelectedReferralRewardId] = useState('');
+  const [referralRewardsLoading, setReferralRewardsLoading] = useState(false);
 
   const [serviceability, setServiceability] = useState<{
     serviceable: boolean; status: string;
@@ -914,15 +918,61 @@ export default function BookingWizard() {
     });
   }, [addresses, addressesLoaded]);
 
+  useEffect(() => {
+    if (!session?.loggedIn || session.role !== 'customer') return;
+    let cancelled = false;
+    setReferralRewardsLoading(true);
+    void (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const response = await fetch('/api/customer/referrals', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const payload = await response.json();
+        if (!response.ok) return;
+        const result = payload.data ?? payload;
+        if (!cancelled) {
+          const available = Array.isArray(result.rewards)
+            ? result.rewards.filter((reward: { reward_status?: string; reward_type?: string }) =>
+                reward.reward_status === 'available' &&
+                ['discount_25', 'free_water_can'].includes(String(reward.reward_type)))
+            : [];
+          setReferralRewards(available);
+          setSelectedReferralRewardId((current) => available.some((reward: { id: string }) => reward.id === current) ? current : '');
+        }
+      } catch {
+        // Referral rewards are optional; booking must remain usable if this endpoint is unavailable.
+      } finally {
+        if (!cancelled) setReferralRewardsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.loggedIn, session?.role, session?.userId]);
+
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
-  const breakdown  = useMemo(() => {
-    const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
-    // Before migration 027, preserve the existing no-GST checkout behavior.
-    // After versioned pricing is active, use the published tax rate consistently.
+  const selectedReferralReward = referralRewards.find((reward) => reward.id === selectedReferralRewardId) ?? null;
+  const referralDiscountAmount = useMemo(() => {
+    if (!selectedReferralReward || draft.serviceKey !== 'water_can' ||
+        draft.subOptionKey === 'chilled_ro' || draft.canOrderType === 'subscription' ||
+        (draft.canQuantity ?? 1) !== 1) return 0;
+    return selectedReferralReward.reward_type === 'free_water_can'
+      ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
+      : Math.round(baseAmount * 0.25 * 100) / 100;
+  }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
+  const canRedeemReferralReward =
+    draft.serviceKey === 'water_can' &&
+    draft.subOptionKey !== 'chilled_ro' &&
+    draft.canOrderType !== 'subscription' &&
+    (draft.canQuantity ?? 1) === 1;
+  const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
+  const breakdown = useMemo(() => {
+    const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
     return settings.pricing_version
       ? raw
       : { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
-  }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey, settings.pricing_version]);
+  }, [calcOrderTotal, netBaseAmount, draft.isEmergency, draft.serviceKey, settings.pricing_version]);
 
   /* Itemised lines (sum = baseAmount) so every screen shows the same numbers */
   const priceLines = useMemo<PriceLine[]>(
@@ -1383,8 +1433,9 @@ export default function BookingWizard() {
         sub_option_key: draft.subOptionKey || 'standard',
         scheduled_date: draft.scheduledDate, time_slot: sv.time_slot,
         scheduled_time: sv.scheduled_time, is_emergency: draft.isEmergency,
-        base_amount: baseAmount, convenience_fee: breakdown.convenience,
+        base_amount: netBaseAmount, convenience_fee: breakdown.convenience,
         gst_amount: breakdown.gst, total_amount: breakdown.total,
+        referral_reward_id: referralDiscountAmount > 0 ? selectedReferralRewardId : undefined,
         payment_method: draft.paymentMethod, notes: draft.notes?.trim() || undefined,
         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
@@ -2178,6 +2229,33 @@ export default function BookingWizard() {
 
               <hr className="border-slate-200" />
 
+              {referralRewards.length > 0 && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="font-extrabold text-emerald-900">Referral rewards · रेफरल इनाम</p>
+                  <p className="mt-1 text-xs leading-5 text-emerald-800">
+                    Use one reward on a single standard Normal RO can. Chilled cans, subscriptions and multi-can orders are not eligible.
+                  </p>
+                  <select
+                    aria-label="Choose referral reward"
+                    value={selectedReferralRewardId}
+                    onChange={(event) => setSelectedReferralRewardId(event.target.value)}
+                    disabled={!canRedeemReferralReward}
+                    className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    <option value="">No referral reward</option>
+                    {referralRewards.map((reward) => (
+                      <option key={reward.id} value={reward.id}>
+                        {reward.reward_type === 'free_water_can' ? 'Free standard RO can · अगला कैन मुफ़्त' : '25% off one standard RO can · 25% छूट'}
+                      </option>
+                    ))}
+                  </select>
+                  {!canRedeemReferralReward ? (
+                    <p className="mt-2 text-xs font-semibold text-amber-800">Rewards can be used only on one standard Normal RO can in a one-time order. Select that option to redeem. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।</p>
+                  ) : null}
+                  {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
+                </div>
+              )}
+
               {priceLines.map((l, i) => (
                 <div
                   key={`${l.label}-${i}`}
@@ -2196,6 +2274,12 @@ export default function BookingWizard() {
                 <span className="text-slate-600">Convenience</span>
                 <span>{inr(breakdown.convenience)}</span>
               </div>
+              {referralDiscountAmount > 0 && (
+                <div className="flex justify-between font-bold text-emerald-800">
+                  <span>{selectedReferralReward?.reward_type === 'free_water_can' ? 'Free can reward' : 'Referral discount (25%)'}</span>
+                  <span>−{inr(referralDiscountAmount)}</span>
+                </div>
+              )}
               {breakdown.gst > 0 && (
                 <div className="flex justify-between text-slate-900">
                   <span className="text-slate-600">GST</span>
