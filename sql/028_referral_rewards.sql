@@ -314,7 +314,7 @@ BEGIN
   v_supplier_entitlement := NULL;
   IF lower(COALESCE(v_order.service_type, '')) = 'water_can'
      AND COALESCE(v_order.can_count, 0) = 1
-     AND round(COALESCE(v_order.total_amount, 0) + COALESCE(v_order.referral_discount_amount, 0), 2) = 20 THEN
+     AND round(COALESCE(v_order.base_amount, 0) + COALESCE(v_order.referral_discount_amount, 0), 2) = 20 THEN
     v_supplier_entitlement := 20;
   END IF;
 
@@ -346,7 +346,7 @@ BEGIN
       jsonb_build_object('service_type','water_can','can_count',1,
         'customer_total',v_order.total_amount,
         'referral_discount_amount',COALESCE(v_order.referral_discount_amount,0),
-        'gross_can_value',COALESCE(v_order.total_amount,0)+COALESCE(v_order.referral_discount_amount,0)),
+        'gross_can_value',COALESCE(v_order.base_amount,0)+COALESCE(v_order.referral_discount_amount,0)),
       p_supplier_id
     );
     UPDATE public.orders SET financials_posted_at = v_now, financials_payee_id = p_supplier_id
