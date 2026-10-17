@@ -212,7 +212,7 @@ GRANT SELECT ON public.referral_reward_events TO authenticated;
 -- Reward lifecycle follows the linked order: cancellation releases the reward;
 -- completion consumes it. A pending booking cannot be used to reuse rewards.
 CREATE OR REPLACE FUNCTION public.sync_referral_reward_order_state()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NEW.referral_reward_id IS NULL THEN RETURN NEW; END IF;
   IF NEW.status = 'CANCELLED' THEN
@@ -228,7 +228,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS orders_sync_referral_reward ON public.orders;
 CREATE TRIGGER orders_sync_referral_reward
@@ -321,7 +321,7 @@ BEGIN
   END IF;
   RETURN NEXT v_order;
 END;
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.complete_supplier_order_atomic(UUID, UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
