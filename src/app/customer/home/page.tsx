@@ -1604,6 +1604,14 @@ export default function CustomerHomePage() {
                 />
 
                 <QuickAction
+                  href="/customer/referrals"
+                  icon="🎁"
+                  label="Refer & earn"
+                  description="Invite friends · Get water rewards"
+                  prominent
+                />
+
+                <QuickAction
                   href="/pricing"
                   icon="🏷️"
                   label="Pricing"
