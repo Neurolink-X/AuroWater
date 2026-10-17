@@ -1607,6 +1607,12 @@
 //                 {loading ? <Skeleton w={120} h={12} /> : `Welcome back${profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}`}
 //               </div>
 //               <h1 className="sd-h1">{loading ? <Skeleton w={260} h={32} /> : 'Supplier Dashboard'}</h1>
+              {!loading && (
+                <p style={{ margin: '8px 0 0', maxWidth: 680, color: 'var(--ink2)', fontSize: 13, lineHeight: 1.65 }}>
+                  Orders लेने के लिए Online रहें। नया order आए तो details देखें, समय पर accept करें और delivery पूरी होने पर ही status update करें।
+                  <span style={{ display: 'block', marginTop: 3, fontSize: 12 }}>Stay online to receive orders. Check the details, accept on time, and update the status only after delivery.</span>
+                </p>
+              )}
 //               {!loading && profile && (
 //                 <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 12 }}>
 //                   <span className={`sd-chip ${profile.is_active ? 'sd-chip--ok' : 'sd-chip--bad'}`}>
@@ -1621,7 +1627,7 @@
 //                     aria-pressed={dispatchOnline}
 //                     className="sd-toggle"
 //                   >
-//                     {dispatchOnline ? '● Taking orders' : '○ Offline · tap to go online'}
+//                     {dispatchOnline ? '● Taking orders · ऑर्डर मिल रहे हैं' : '○ Offline · ऑनलाइन होने के लिए दबाएँ'}
 //                   </button>
 //                 </div>
 //               )}
@@ -1699,7 +1705,7 @@
 //                   <div className="sd-panel-label" style={{ color: 'var(--aqua)' }}>Live inventory</div>
 //                   <div className="sd-big">{stock ? stock.cans_available.toLocaleString('en-IN') : '—'} cans</div>
 //                   <div className="sd-help" style={{ marginTop: 4, fontSize: 12 }}>
-//                     {stock ? `${stock.reserved_cans} reserved · ${Math.max(0, stock.cans_available - stock.reserved_cans)} free before buffer` : 'Loading inventory…'}
+//                     {stock ? `${stock.reserved_cans} reserved (बुक हुए) · ${Math.max(0, stock.cans_available - stock.reserved_cans)} free before buffer (उपलब्ध)` : 'Loading inventory… · स्टॉक लोड हो रहा है'}
 //                   </div>
 //                   {stock && stock.cans_available > 0 && (
 //                     <div aria-hidden="true" className="sd-meter">
@@ -2012,7 +2018,7 @@
 //           {/* ── EARNINGS SUMMARY + TABLE ─────────────────────────────────── */}
 //           <section aria-label="Supplier earnings" style={{ marginBottom: 24 }}>
 //             <div className="sd-row sd-between sd-wrap" style={{ gap: 12, marginBottom: 12 }}>
-//               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Earnings summary</h2>
+//               <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, letterSpacing: '-.3px' }}>Earnings summary <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink2)' }}>· कमाई का विवरण</span></h2>
 //               <button type="button" className="sd-btn sd-btn--soft sd-btn--sm" onClick={() => {
 //                 if (!exportEarningsCsv(earnings)) toast.info('No recent earnings rows available to export yet.');
 //               }}>
