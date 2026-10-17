@@ -484,6 +484,9 @@ export async function POST(req: NextRequest) {
 
   // Persist the server-calculated amount, never the client-provided total.
   const total = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate).total;
+  const referralPromoPaidAt = referralReward?.reward_type === 'free_water_can'
+    ? new Date().toISOString()
+    : null;
 
   // Reserve with a conditional update so simultaneous checkout attempts cannot
   // spend the same reward twice. Release it if order creation fails.
@@ -549,7 +552,13 @@ export async function POST(req: NextRequest) {
       emergency_charge,
       gst_amount,
       address_snapshot,
-      payment_status: referralReward?.reward_type === 'free_water_can' ? 'paid' : 'unpaid',
+      payment_status: referralPromoPaidAt ? 'paid' : 'unpaid',
+      ...(referralPromoPaidAt ? {
+        payment_confirmed_at: referralPromoPaidAt,
+        payment_collector: 'aurotap',
+        payment_collected_amount: 0,
+        payment_collected_at: referralPromoPaidAt,
+      } : {}),
       payment_method: str(body.payment_method) ?? 'cash',
       address: addressText || null,
       address_id: addr.id,
