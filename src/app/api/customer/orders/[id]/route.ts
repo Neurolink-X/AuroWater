@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export async function GET(
   req: NextRequest,
@@ -36,11 +37,46 @@ export async function GET(
     return jsonErr('Order not found', 404);
   }
 
+  // Resolve the assigned professional server-side after verifying that this
+  // order belongs to the authenticated customer. This avoids relying on
+  // client-side profile RLS policies to show the provider's name.
+  const row = data as Record<string, unknown>;
+  let technicianProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+  let supplierProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+  const admin = createServiceClient();
+
+  if (typeof row.technician_id === 'string' && row.technician_id.trim()) {
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', row.technician_id)
+      .maybeSingle();
+    if (profileError) {
+      console.error('[orders/:id] technician profile lookup failed:', profileError.message);
+    } else if (profile) {
+      technicianProfile = profile;
+    }
+  }
+
+  if (typeof row.supplier_id === 'string' && row.supplier_id.trim()) {
+    const { data: profile, error: profileError } = await admin
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', row.supplier_id)
+      .maybeSingle();
+    if (profileError) {
+      console.error('[orders/:id] supplier profile lookup failed:', profileError.message);
+    } else if (profile) {
+      supplierProfile = profile;
+    }
+  }
+
   // Orders store the service key directly in `service_type`.
   // Old field names are added so existing frontend code keeps working.
-  const row = data as Record<string, unknown>;
   return jsonOk({
     ...row,
+    technician_profile: technicianProfile,
+    supplier_profile: supplierProfile,
     service_type_key: row.service_type ?? null,
     can_quantity: row.can_count ?? null,
     notes: row.note ?? null,
