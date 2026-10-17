@@ -39,6 +39,8 @@ import React, {
   useRef,
   useState,
   useSyncExternalStore,
+  createContext,
+  useContext,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -168,6 +170,13 @@ interface DayPoint {
 /* ───────────────────────────── Constants ───────────────────────────── */
 
 const ALLOWED_ROLES = ['technician', 'plumber'];
+
+const DashboardLanguageContext = createContext<'en' | 'hi'>('en');
+const useDashboardLanguage = () => useContext(DashboardLanguageContext);
+const TAB_LABEL_HI: Record<TabKey, string> = {
+  overview: 'डैशबोर्ड', queue: 'नई जॉब', my_jobs: 'मेरे काम', earnings: 'कमाई',
+  availability: 'उपलब्धता', profile: 'प्रोफ़ाइल', documents: 'दस्तावेज़',
+};
 const SKILLS: TechSkill[] = ['Plumbing', 'RO Service', 'Borewell', 'Motor Repair', 'Water Tanker', 'Tank Cleaning Service'];
 const DAYS: TechDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_NAMES: Record<TechDay, string> = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
@@ -195,6 +204,7 @@ const KEYS = {
   PROFILE: 'aurowater_tech_profile',
   USER_PROFILE: 'aurowater_profile',
   OBSOLETE: ['aurowater_job_queue', 'aurowater_tech_jobs', 'aurowater_tech_payout_history'],
+  LANGUAGE: 'aurowater_tech_dashboard_language',
 } as const;
 
 const TAB_META: Record<TabKey, { label: string; icon: IconType }> = {
@@ -539,6 +549,7 @@ function Countdown({ expiresAt, className = '' }: { expiresAt: number; className
 }
 
 function StatusToggle({ online, busy, onChange }: { online: TechnicianOnline; busy: boolean; onChange: (v: TechnicianOnline) => void }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const opt = (value: TechnicianOnline, label: string, Icon: IconType, activeClass: string) => (
     <button
       type="button"
@@ -554,9 +565,9 @@ function StatusToggle({ online, busy, onChange }: { online: TechnicianOnline; bu
     </button>
   );
   return (
-    <div role="group" aria-label="Availability status" className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1">
-      {opt('online', 'Online', Wifi, 'bg-emerald-600')}
-      {opt('offline', 'Offline', WifiOff, 'bg-slate-600')}
+    <div role="group" aria-label={isHindi ? 'उपलब्धता स्थिति' : 'Availability status'} className="inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+      {opt('online', isHindi ? 'ऑनलाइन' : 'Online', Wifi, 'bg-emerald-600')}
+      {opt('offline', isHindi ? 'ऑफ़लाइन' : 'Offline', WifiOff, 'bg-slate-600')}
     </div>
   );
 }
@@ -663,6 +674,7 @@ function CompletionDialog({
   onSubmit: (v: { otp: string; paymentConfirmed: boolean; reference: string }) => void;
   onCancel: () => void;
 }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const [otp, setOtp] = useState('');
   const [paid, setPaid] = useState(false);
   const [reference, setReference] = useState('');
@@ -672,9 +684,9 @@ function CompletionDialog({
 
   return (
     <Dialog
-      title="Verify service before closing"
-      description="Ask the customer for the 6-digit service code once the work is finished."
-      confirmLabel="Verify and complete"
+      title={isHindi ? 'काम पूरा करने से पहले सत्यापित करें' : 'Verify service before closing'}
+      description={isHindi ? 'काम पूरा होने पर ग्राहक से 6 अंकों का सर्विस कोड लें।' : 'Ask the customer for the 6-digit service code once the work is finished.'}
+      confirmLabel={isHindi ? 'सत्यापित करें और पूरा करें' : 'Verify and complete'}
       busy={busy}
       error={error}
       confirmDisabled={!valid}
@@ -682,14 +694,14 @@ function CompletionDialog({
       onCancel={onCancel}
     >
       <div>
-        <label htmlFor={otpId} className="text-sm font-semibold text-slate-800">Customer service code</label>
+        <label htmlFor={otpId} className="text-sm font-semibold text-slate-800">{isHindi ? 'ग्राहक का सर्विस कोड' : 'Customer service code'}</label>
         <input
           id={otpId}
           value={otp}
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
           inputMode="numeric"
           autoComplete="one-time-code"
-          placeholder="6-digit code"
+          placeholder={isHindi ? '6 अंकों का कोड' : '6-digit code'}
           className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-center text-xl font-bold tracking-[0.35em] text-slate-900 focus:border-emerald-600 focus:outline-none focus:ring-4 focus:ring-emerald-100"
         />
       </div>
@@ -725,6 +737,7 @@ interface JobHandlers {
 }
 
 const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handlers }: { job: Job; canAccept: boolean; reason: string | null; busy?: string; handlers: JobHandlers }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const now = useNow();
   const urgent = now > 0 && job.offerExpiresAt - now < 5 * 60_000;
   return (
@@ -752,14 +765,14 @@ const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handle
               <dd className="mt-1 text-xs font-semibold text-slate-800">{job.date} · {job.slot}</dd>
             </div>
             <div className="col-span-2 rounded-xl bg-emerald-50 p-3 sm:col-span-1">
-              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><IndianRupee size={11} aria-hidden /> {job.priceIsPayout ? 'Your payout' : 'Order value'}</dt>
+              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700"><IndianRupee size={11} aria-hidden /> {job.priceIsPayout ? (isHindi ? 'आपकी कमाई' : 'Your payout') : (isHindi ? 'ऑर्डर राशि' : 'Order value')}</dt>
               <dd className="mt-1 text-sm font-bold text-emerald-800">{money(job.price)}</dd>
             </div>
           </dl>
         </div>
         <div className="lg:w-56 lg:shrink-0">
           <div className={`mb-3 rounded-xl p-3 text-center ${urgent ? 'border border-red-200 bg-red-50' : 'border border-slate-200 bg-slate-50'}`}>
-            <p className={`text-[11px] font-semibold ${urgent ? 'text-red-600' : 'text-slate-500'}`}>Offer expires in</p>
+            <p className={`text-[11px] font-semibold ${urgent ? 'text-red-600' : 'text-slate-500'}`}>{isHindi ? 'ऑफ़र समाप्त होने में' : 'Offer expires in'}</p>
             <Countdown expiresAt={job.offerExpiresAt} className={`mt-0.5 block text-2xl font-bold ${urgent ? 'text-red-700' : 'text-slate-900'}`} />
           </div>
           <div className="flex gap-2">
@@ -771,7 +784,7 @@ const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handle
               Decline
             </button>
           </div>
-          {reason && <p className="mt-2 text-center text-xs text-slate-500">{reason}</p>}
+          {reason && <p className="mt-2 text-center text-xs text-slate-500">{isHindi ? (reason === 'Get verified to accept jobs.' ? 'जॉब स्वीकार करने के लिए सत्यापन कराएँ।' : reason === 'Go online to accept jobs.' ? 'जॉब स्वीकार करने के लिए ऑनलाइन हों।' : reason) : reason}</p>}
         </div>
       </div>
     </article>
@@ -785,6 +798,7 @@ const STEPS: { stage: MyJobStage; label: string }[] = [
 ];
 
 const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handlers }: { job: Job; expanded: boolean; busy?: string; onToggle: (id: string) => void; handlers: JobHandlers }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const stage = job.stage as MyJobStage;
   const meta = STAGE_META[stage];
   const panelId = `job-panel-${job.id}`;
@@ -813,13 +827,13 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
       {expanded && (
         <div id={panelId} className="border-t border-slate-100 px-4 pb-4 pt-3">
           {stage !== 'cancelled' && (
-            <ol className="mb-4 flex items-center gap-2" aria-label="Job progress">
+            <ol className="mb-4 flex items-center gap-2" aria-label={isHindi ? 'काम की प्रगति' : 'Job progress'}>
               {STEPS.map((s, i) => (
                 <li key={s.stage} className="flex flex-1 items-center gap-2">
                   <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${i <= stepIndex ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`} aria-hidden="true">
                     {i < stepIndex ? '✓' : i + 1}
                   </span>
-                  <span className={`text-xs font-semibold ${i <= stepIndex ? 'text-slate-800' : 'text-slate-400'}`}>{s.label}</span>
+                  <span className={`text-xs font-semibold ${i <= stepIndex ? 'text-slate-800' : 'text-slate-400'}`}>{isHindi ? ({ upcoming: 'स्वीकृत', in_progress: 'शुरू हुआ', completed: 'पूरा', cancelled: 'रद्द' } as Record<MyJobStage, string>)[s.stage] : s.label}</span>
                   {i < STEPS.length - 1 && <span className={`h-px flex-1 ${i < stepIndex ? 'bg-emerald-500' : 'bg-slate-200'}`} aria-hidden="true" />}
                 </li>
               ))}
@@ -828,22 +842,22 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
 
           <dl className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
-              <dt className="text-[11px] font-semibold text-slate-500">Service address</dt>
+              <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'सेवा का पता' : 'Service address'}</dt>
               <dd className="mt-1 text-sm font-medium text-slate-800">{job.address || job.area}</dd>
             </div>
             {(job.customerName || job.customerPhone) && (
               <div className="rounded-xl bg-slate-50 p-3">
-                <dt className="text-[11px] font-semibold text-slate-500">Customer</dt>
+                <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'ग्राहक' : 'Customer'}</dt>
                 <dd className="mt-1 text-sm font-medium text-slate-800">{job.customerName ?? 'Customer'}</dd>
               </div>
             )}
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="text-[11px] font-semibold text-slate-500">Payment</dt>
-              <dd className="mt-1 text-sm font-medium text-slate-800">{job.prepaid ? 'Paid online' : 'Collect on completion'}</dd>
+              <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'भुगतान' : 'Payment'}</dt>
+              <dd className="mt-1 text-sm font-medium text-slate-800">{job.prepaid ? (isHindi ? 'ऑनलाइन भुगतान हुआ' : 'Paid online') : (isHindi ? 'काम पूरा होने पर भुगतान लें' : 'Collect on completion')}</dd>
             </div>
             {job.notes && (
               <div className="rounded-xl bg-amber-50 p-3 sm:col-span-2">
-                <dt className="text-[11px] font-semibold text-amber-800">Customer notes</dt>
+                <dt className="text-[11px] font-semibold text-amber-800">{isHindi ? 'ग्राहक के नोट' : 'Customer notes'}</dt>
                 <dd className="mt-1 text-sm text-amber-950">{job.notes}</dd>
               </div>
             )}
@@ -863,12 +877,12 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
             )}
             {stage === 'in_progress' && (
               <button type="button" className={btnPrimary} disabled={Boolean(busy)} onClick={() => handlers.onComplete(job)}>
-                <CheckCircle size={14} aria-hidden /> Complete
+                <CheckCircle size={14} aria-hidden /> {isHindi ? 'पूरा करें' : 'Complete'}
               </button>
             )}
             {(stage === 'upcoming' || stage === 'in_progress') && (
               <button type="button" className={btnDanger} disabled={Boolean(busy)} onClick={() => handlers.onCancel(job)}>
-                <XCircle size={14} aria-hidden /> Cancel job
+                <XCircle size={14} aria-hidden /> {isHindi ? 'काम रद्द करें' : 'Cancel job'}
               </button>
             )}
           </div>
@@ -879,6 +893,7 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
 });
 
 function UploadArea({ label, required, current, onPick, onRemove }: { label: string; required: boolean; current?: UploadMeta; onPick: (f: File) => void; onRemove: () => void }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const ref = useRef<HTMLInputElement | null>(null);
   const id = useId();
   return (
@@ -886,9 +901,9 @@ function UploadArea({ label, required, current, onPick, onRemove }: { label: str
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-slate-900">{label}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{required ? 'Required' : 'Optional'}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{required ? (isHindi ? 'ज़रूरी' : 'Required') : (isHindi ? 'वैकल्पिक' : 'Optional')}</p>
         </div>
-        <Badge tone={current ? 'success' : 'default'}>{current ? 'Added on this device' : 'Not added'}</Badge>
+        <Badge tone={current ? 'success' : 'default'}>{current ? (isHindi ? 'इस डिवाइस पर जोड़ा गया' : 'Added on this device') : (isHindi ? 'नहीं जोड़ा गया' : 'Not added')}</Badge>
       </div>
       <input
         id={id}
@@ -910,15 +925,15 @@ function UploadArea({ label, required, current, onPick, onRemove }: { label: str
         <span className="flex items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white"><CloudUpload size={16} aria-hidden className="text-emerald-700" /></span>
           <span className="min-w-0 text-left">
-            <span className="block text-sm font-semibold text-slate-700">{current ? 'Replace file' : 'Choose file'}</span>
+            <span className="block text-sm font-semibold text-slate-700">{current ? (isHindi ? 'फ़ाइल बदलें' : 'Replace file') : (isHindi ? 'फ़ाइल चुनें' : 'Choose file')}</span>
             <span className="mt-0.5 block truncate text-xs text-slate-500">
-              {current ? `${current.name} · ${(current.size / 1024).toFixed(1)} KB` : 'JPG, PNG, WebP or PDF, up to 5 MB'}
+              {current ? `${current.name} · ${(current.size / 1024).toFixed(1)} KB` : (isHindi ? 'JPG, PNG, WebP या PDF, अधिकतम 5 MB' : 'JPG, PNG, WebP or PDF, up to 5 MB')}
             </span>
           </span>
         </span>
       </button>
       {current && (
-        <button type="button" onClick={onRemove} className={`mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-red-600 hover:text-red-800 ${ringFocus}`}>Remove</button>
+        <button type="button" onClick={onRemove} className={`mt-2 w-full rounded-lg py-1.5 text-xs font-semibold text-red-600 hover:text-red-800 ${ringFocus}`}>{isHindi ? 'हटाएँ' : 'Remove'}</button>
       )}
     </div>
   );
@@ -931,12 +946,13 @@ const OverviewTab = memo(function OverviewTab({
   onOnline: (v: TechnicianOnline) => void; verification: VerificationStatus; stats: Stats;
   activeJob: Job | null; nextJob: Job | null; offers: Job[]; onTab: (t: TabKey) => void; onComplete: (j: Job) => void;
 }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const banner =
     verification === 'verified'
-      ? { cls: 'bg-emerald-600', text: `Verified AuroWater ${roleLabel.toLowerCase()}. You can accept jobs.`, cta: null as string | null }
+      ? { cls: 'bg-emerald-600', text: isHindi ? `AuroWater ${roleLabel === 'Plumber' ? 'प्लंबर' : 'टेक्नीशियन'} सत्यापित। आप जॉब स्वीकार कर सकते हैं।` : `Verified AuroWater ${roleLabel.toLowerCase()}. You can accept jobs.`, cta: null as string | null }
       : verification === 'pending'
-        ? { cls: 'bg-sky-700', text: 'Your ID is under review. This usually takes 1 to 2 business days.', cta: null }
-        : { cls: 'bg-amber-600', text: 'Complete your profile and add your ID to start accepting jobs.', cta: 'Add documents' };
+        ? { cls: 'bg-sky-700', text: isHindi ? 'आपकी ID की जाँच चल रही है। इसमें आमतौर पर 1 से 2 कार्यदिवस लगते हैं।' : 'Your ID is under review. This usually takes 1 to 2 business days.', cta: null }
+        : { cls: 'bg-amber-600', text: isHindi ? 'जॉब स्वीकार करने के लिए प्रोफ़ाइल पूरी करें और ID जोड़ें।' : 'Complete your profile and add your ID to start accepting jobs.', cta: isHindi ? 'दस्तावेज़ जोड़ें' : 'Add documents' };
 
   return (
     <div className="space-y-5">
@@ -944,7 +960,7 @@ const OverviewTab = memo(function OverviewTab({
         <div>
           <p className="text-sm text-slate-500">{greeting}</p>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">{techName}</h1>
-          <p className="mt-1 text-sm text-slate-500">Here’s your work at a glance.</p>
+          <p className="mt-1 text-sm text-slate-500">{isHindi ? 'आपके काम का संक्षिप्त विवरण।' : 'Here’s your work at a glance.'}</p>
         </div>
         <StatusToggle online={online} busy={onlineBusy} onChange={onOnline} />
       </div>
@@ -957,17 +973,17 @@ const OverviewTab = memo(function OverviewTab({
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Jobs today" value={String(stats.todayCount)} icon={Briefcase} />
-        <StatCard label="Total completed" value={String(stats.totalCompleted)} icon={CheckCircle} />
-        <StatCard label="Average rating" value={stats.avgRating ? `${stats.avgRating.toFixed(1)} ★` : '—'} icon={Star} />
-        <StatCard label="This month" value={money(stats.monthEarnings)} icon={IndianRupee} accent />
+        <StatCard label={isHindi ? 'आज की जॉब' : 'Jobs today'} value={String(stats.todayCount)} icon={Briefcase} />
+        <StatCard label={isHindi ? 'कुल पूरे काम' : 'Total completed'} value={String(stats.totalCompleted)} icon={CheckCircle} />
+        <StatCard label={isHindi ? 'औसत रेटिंग' : 'Average rating'} value={stats.avgRating ? `${stats.avgRating.toFixed(1)} ★` : '—'} icon={Star} />
+        <StatCard label={isHindi ? 'इस महीने' : 'This month'} value={money(stats.monthEarnings)} icon={IndianRupee} accent />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className={`${card} p-4 sm:p-5`} aria-labelledby="active-job-title">
           <div className="mb-4 flex items-center justify-between">
-            <h2 id="active-job-title" className="text-sm font-bold text-slate-700">{activeJob ? 'Active job' : 'Next job'}</h2>
-            {activeJob && <Badge tone="purple">In progress</Badge>}
+            <h2 id="active-job-title" className="text-sm font-bold text-slate-700">{activeJob ? (isHindi ? 'जारी काम' : 'Active job') : (isHindi ? 'अगला काम' : 'Next job')}</h2>
+            {activeJob && <Badge tone="purple">{isHindi ? 'जारी है' : 'In progress'}</Badge>}
           </div>
           {activeJob || nextJob ? (
             (() => {
@@ -982,9 +998,9 @@ const OverviewTab = memo(function OverviewTab({
                     </div>
                   </div>
                   {activeJob ? (
-                    <button type="button" onClick={() => onComplete(j)} className={`${btnPrimary} w-full`}>Mark as completed</button>
+                    <button type="button" onClick={() => onComplete(j)} className={`${btnPrimary} w-full`}>{isHindi ? 'काम पूरा करें' : 'Mark as completed'}</button>
                   ) : (
-                    <button type="button" onClick={() => onTab('my_jobs')} className={`${btnOutline} w-full`}>Open job details</button>
+                    <button type="button" onClick={() => onTab('my_jobs')} className={`${btnOutline} w-full`}>{isHindi ? 'काम का विवरण खोलें' : 'Open job details'}</button>
                   )}
                 </div>
               );
@@ -992,23 +1008,23 @@ const OverviewTab = memo(function OverviewTab({
           ) : (
             <div className="py-4 text-center">
               <p className="mb-2 text-3xl" aria-hidden="true">📭</p>
-              <p className="text-sm font-semibold text-slate-700">No active job</p>
-              <p className="mt-1 text-xs text-slate-500">Accept a job from the queue to get started.</p>
-              <button type="button" onClick={() => onTab('queue')} className={`mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline ${ringFocus}`}>Open job queue <ChevronRight size={12} aria-hidden /></button>
+              <p className="text-sm font-semibold text-slate-700">{isHindi ? 'कोई सक्रिय काम नहीं' : 'No active job'}</p>
+              <p className="mt-1 text-xs text-slate-500">{isHindi ? 'शुरू करने के लिए जॉब सूची से काम स्वीकार करें।' : 'Accept a job from the queue to get started.'}</p>
+              <button type="button" onClick={() => onTab('queue')} className={`mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline ${ringFocus}`}>{isHindi ? 'जॉब सूची खोलें' : 'Open job queue'} <ChevronRight size={12} aria-hidden /></button>
             </div>
           )}
         </section>
 
         <section className={`${card} p-4 sm:p-5`} aria-labelledby="queue-preview-title">
           <div className="mb-4 flex items-center justify-between">
-            <h2 id="queue-preview-title" className="text-sm font-bold text-slate-700">Queue preview</h2>
-            <button type="button" onClick={() => onTab('queue')} className={`inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline ${ringFocus}`}>View all <ChevronRight size={12} aria-hidden /></button>
+            <h2 id="queue-preview-title" className="text-sm font-bold text-slate-700">{isHindi ? 'नई जॉब का पूर्वावलोकन' : 'Queue preview'}</h2>
+            <button type="button" onClick={() => onTab('queue')} className={`inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline ${ringFocus}`}>{isHindi ? 'सभी देखें' : 'View all'} <ChevronRight size={12} aria-hidden /></button>
           </div>
           {offers.length === 0 ? (
             <div className="py-4 text-center">
               <p className="mb-2 text-3xl" aria-hidden="true">🌿</p>
-              <p className="text-sm font-semibold text-slate-700">Queue is clear</p>
-              <p className="mt-1 text-xs text-slate-500">{online === 'online' ? 'New jobs will appear here.' : 'Go online to receive new jobs.'}</p>
+              <p className="text-sm font-semibold text-slate-700">{isHindi ? 'अभी कोई नई जॉब नहीं' : 'Queue is clear'}</p>
+              <p className="mt-1 text-xs text-slate-500">{online === 'online' ? (isHindi ? 'नई जॉब यहाँ दिखाई देंगी।' : 'New jobs will appear here.') : (isHindi ? 'नई जॉब पाने के लिए ऑनलाइन हों।' : 'Go online to receive new jobs.')}</p>
             </div>
           ) : (
             <ul className="space-y-2">
@@ -1039,6 +1055,7 @@ function EarningsTab({
   stats: Stats; week: DayPoint[]; completed: Job[];
   profile: TechProfile; setProfile: React.Dispatch<React.SetStateAction<TechProfile>>;
 }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [upiError, setUpiError] = useState<string | null>(null);
@@ -1083,28 +1100,28 @@ function EarningsTab({
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Earnings"
-        description={stats.anyOrderValueOnly ? 'Based on order value for completed jobs. Your final payout may differ.' : 'Based on your payout for completed jobs.'}
+        title={isHindi ? 'कमाई' : 'Earnings'}
+        description={stats.anyOrderValueOnly ? (isHindi ? 'पूरे किए गए काम की ऑर्डर राशि पर आधारित। अंतिम भुगतान अलग हो सकता है।' : 'Based on order value for completed jobs. Your final payout may differ.') : (isHindi ? 'पूरे किए गए काम की आपकी कमाई पर आधारित।' : 'Based on your payout for completed jobs.')}
         actions={
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={btnOutline} onClick={exportCsv}><Download size={14} aria-hidden /> Export CSV</button>
-            <button type="button" className={btnPrimary} disabled title="Payout requests are not available yet"><IndianRupee size={14} aria-hidden /> Request payout (soon)</button>
+            <button type="button" className={btnOutline} onClick={exportCsv}><Download size={14} aria-hidden /> {isHindi ? 'CSV एक्सपोर्ट करें' : 'Export CSV'}</button>
+            <button type="button" className={btnPrimary} disabled title={isHindi ? 'भुगतान अनुरोध अभी उपलब्ध नहीं हैं' : 'Payout requests are not available yet'}><IndianRupee size={14} aria-hidden /> {isHindi ? 'भुगतान माँगें (जल्द)' : 'Request payout (soon)'}</button>
           </div>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatCard label="Today" value={money(week[week.length - 1]?.value ?? 0)} icon={TrendingUp} />
-        <StatCard label="Last 7 days" value={money(weekTotal)} icon={Calendar} />
-        <StatCard label="This month" value={money(stats.monthEarnings)} icon={Package} />
-        <StatCard label="All time" value={money(stats.totalEarnings)} icon={Award} accent />
+        <StatCard label={isHindi ? 'आज' : 'Today'} value={money(week[week.length - 1]?.value ?? 0)} icon={TrendingUp} />
+        <StatCard label={isHindi ? 'पिछले 7 दिन' : 'Last 7 days'} value={money(weekTotal)} icon={Calendar} />
+        <StatCard label={isHindi ? 'इस महीने' : 'This month'} value={money(stats.monthEarnings)} icon={Package} />
+        <StatCard label={isHindi ? 'अब तक कुल' : 'All time'} value={money(stats.totalEarnings)} icon={Award} accent />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <section className={`${card} p-4 sm:p-5 lg:col-span-2`} aria-labelledby="week-title">
           <div className="mb-5 flex items-center justify-between gap-3">
-            <h2 id="week-title" className="font-bold text-slate-900">Last 7 days</h2>
-            <p className="text-xs text-slate-500">{weekTotal > 0 ? `Best day: ${best.label}, ${money(best.value)}` : 'No completed jobs this week'}</p>
+            <h2 id="week-title" className="font-bold text-slate-900">{isHindi ? 'पिछले 7 दिन' : 'Last 7 days'}</h2>
+            <p className="text-xs text-slate-500">{weekTotal > 0 ? (isHindi ? `सबसे अच्छा दिन: ${best.label}, ${money(best.value)}` : `Best day: ${best.label}, ${money(best.value)}`) : (isHindi ? 'इस सप्ताह कोई काम पूरा नहीं हुआ' : 'No completed jobs this week')}</p>
           </div>
           <ul className="flex h-40 items-end gap-2">
             {week.map((d) => (
@@ -1118,40 +1135,40 @@ function EarningsTab({
         </section>
 
         <section className={`${card} p-4 sm:p-5`} aria-labelledby="payout-title">
-          <h2 id="payout-title" className="mb-4 font-bold text-slate-900">Payout details</h2>
+          <h2 id="payout-title" className="mb-4 font-bold text-slate-900">{isHindi ? 'भुगतान विवरण' : 'Payout details'}</h2>
           {!editing ? (
             <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1 truncate rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700">{profile.upiId || 'No UPI ID added'}</div>
-              <button type="button" aria-label="Edit UPI ID" onClick={() => { setEditing(true); setDraft(profile.upiId); setUpiError(null); }} className={`rounded-xl border border-slate-300 p-2.5 hover:bg-slate-50 ${ringFocus}`}><Edit3 size={14} aria-hidden className="text-slate-600" /></button>
+              <div className="min-w-0 flex-1 truncate rounded-xl bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700">{profile.upiId || (isHindi ? 'UPI ID नहीं जोड़ी गई' : 'No UPI ID added')}</div>
+              <button type="button" aria-label={isHindi ? 'UPI ID संपादित करें' : 'Edit UPI ID'} onClick={() => { setEditing(true); setDraft(profile.upiId); setUpiError(null); }} className={`rounded-xl border border-slate-300 p-2.5 hover:bg-slate-50 ${ringFocus}`}><Edit3 size={14} aria-hidden className="text-slate-600" /></button>
             </div>
           ) : (
             <div className="space-y-2">
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="name@bank" aria-label="UPI ID" aria-invalid={Boolean(upiError)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
+              <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={isHindi ? 'नाम@बैंक' : 'name@bank'} aria-label={isHindi ? 'UPI ID' : 'UPI ID'} aria-invalid={Boolean(upiError)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
               {upiError && <p role="alert" className="text-xs font-medium text-red-700">{upiError}</p>}
               <div className="flex gap-2">
-                <button type="button" onClick={saveUpi} className={`${btnPrimary} flex-1`}><Save size={13} aria-hidden /> Save</button>
-                <button type="button" aria-label="Cancel editing" onClick={() => setEditing(false)} className={`${btnOutline} px-3`}><X size={14} aria-hidden /></button>
+                <button type="button" onClick={saveUpi} className={`${btnPrimary} flex-1`}><Save size={13} aria-hidden /> {isHindi ? 'सेव करें' : 'Save'}</button>
+                <button type="button" aria-label={isHindi ? 'संपादन रद्द करें' : 'Cancel editing'} onClick={() => setEditing(false)} className={`${btnOutline} px-3`}><X size={14} aria-hidden /></button>
               </div>
             </div>
           )}
-          <p className="mt-3 text-xs leading-5 text-slate-500">Stored on this device for now. It isn’t used for payouts until payouts are connected.</p>
+          <p className="mt-3 text-xs leading-5 text-slate-500">{isHindi ? 'अभी यह जानकारी इसी डिवाइस पर सेव है। भुगतान सुविधा जुड़ने तक इसका उपयोग भुगतान के लिए नहीं होगा।' : 'Stored on this device for now. It isn’t used for payouts until payouts are connected.'}</p>
         </section>
       </div>
 
       <section className={`${card} p-4 sm:p-5`} aria-labelledby="completed-title">
-        <h2 id="completed-title" className="mb-1 font-bold text-slate-900">Recent completed jobs</h2>
-        <p className="mb-4 text-xs text-slate-500">Payout history will appear here once payouts are connected.</p>
+        <h2 id="completed-title" className="mb-1 font-bold text-slate-900">{isHindi ? 'हाल ही में पूरे किए गए काम' : 'Recent completed jobs'}</h2>
+        <p className="mb-4 text-xs text-slate-500">{isHindi ? 'भुगतान सुविधा जुड़ने पर भुगतान इतिहास यहाँ दिखेगा।' : 'Payout history will appear here once payouts are connected.'}</p>
         {completed.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-500">Completed jobs will show up here.</p>
+          <p className="py-6 text-center text-sm text-slate-500">{isHindi ? 'पूरे किए गए काम यहाँ दिखेंगे।' : 'Completed jobs will show up here.'}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500">
-                  <th scope="col" className="pb-3 font-semibold">Completed</th>
-                  <th scope="col" className="pb-3 font-semibold">Service</th>
-                  <th scope="col" className="pb-3 font-semibold">Area</th>
-                  <th scope="col" className="pb-3 text-right font-semibold">Amount</th>
+                  <th scope="col" className="pb-3 font-semibold">{isHindi ? 'पूरा हुआ' : 'Completed'}</th>
+                  <th scope="col" className="pb-3 font-semibold">{isHindi ? 'सेवा' : 'Service'}</th>
+                  <th scope="col" className="pb-3 font-semibold">{isHindi ? 'क्षेत्र' : 'Area'}</th>
+                  <th scope="col" className="pb-3 text-right font-semibold">{isHindi ? 'राशि' : 'Amount'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1173,6 +1190,7 @@ function EarningsTab({
 }
 
 function AvailabilityTab({ availability, setAvailability }: { availability: Availability; setAvailability: React.Dispatch<React.SetStateAction<Availability>> }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const toggle = (key: string) => setAvailability((c) => ({ ...c, [key]: !c[key] }));
   const setWeekdays = () => setAvailability((c) => {
     const next = { ...c };
@@ -1189,12 +1207,12 @@ function AvailabilityTab({ availability, setAvailability }: { availability: Avai
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Availability"
+        title={isHindi ? 'उपलब्धता' : 'Availability'}
         description="Choose when you can take bookings. Changes save automatically on this device."
         actions={
           <div className="flex flex-wrap gap-2">
             <button type="button" className={btnOutline} onClick={setWeekdays}>Weekdays, daytime</button>
-            <button type="button" className={btnOutline} onClick={clearAll}>Clear all</button>
+            <button type="button" className={btnOutline} onClick={clearAll}>{isHindi ? 'सब हटाएँ' : 'Clear all'}</button>
           </div>
         }
       />
@@ -1235,6 +1253,7 @@ function AvailabilityTab({ availability, setAvailability }: { availability: Avai
 }
 
 function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile: React.Dispatch<React.SetStateAction<TechProfile>> }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const toggleIn = <K extends 'skills' | 'serviceCities'>(field: K, value: TechProfile[K][number]) =>
     setProfile((c) => {
       const list = c[field] as string[];
@@ -1254,14 +1273,14 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Profile" description="Skills and areas you cover. Changes save automatically on this device." />
+      <PageHeader title={isHindi ? 'प्रोफ़ाइल' : 'Profile'} description="Skills and areas you cover. Changes save automatically on this device." />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className={`${card} p-4 sm:p-5`}>
           <h2 className="mb-3 font-bold text-slate-900">Skills</h2>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Skills">
             {SKILLS.map((s) => <button key={s} type="button" aria-pressed={profile.skills.includes(s)} onClick={() => toggleIn('skills', s)} className={chip(profile.skills.includes(s))}>{s}</button>)}
           </div>
-          <h2 className="mb-3 mt-6 font-bold text-slate-900">Service cities</h2>
+          <h2 className="mb-3 mt-6 font-bold text-slate-900">{isHindi ? 'सेवा वाले शहर' : 'Service cities'}</h2>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Service cities">
             {UP_CITIES.map((c) => <button key={c} type="button" aria-pressed={profile.serviceCities.includes(c)} onClick={() => toggleIn('serviceCities', c)} className={chip(profile.serviceCities.includes(c))}>{c}</button>)}
           </div>
@@ -1295,6 +1314,7 @@ function DocumentsTab({
   docs: TechDocs; setDocs: React.Dispatch<React.SetStateAction<TechDocs>>;
   verification: VerificationStatus; onSubmit: () => void; submitting: boolean;
 }) {
+  const isHindi = useDashboardLanguage() === 'hi';
   const set = (field: keyof TechDocs) => ({
     current: docs[field],
     onPick: (f: File) => setDocs((c) => ({ ...c, [field]: { name: f.name, size: f.size, status: 'uploaded' as const } })),
@@ -1304,11 +1324,11 @@ function DocumentsTab({
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Documents" description="Required: Aadhaar front, Aadhaar back and a profile photo. A skill certificate is optional." />
+      <PageHeader title={isHindi ? 'दस्तावेज़' : 'Documents'} description={isHindi ? 'ज़रूरी: आधार कार्ड आगे-पीछे और प्रोफ़ाइल फ़ोटो। कौशल प्रमाणपत्र वैकल्पिक है।' : 'Required: Aadhaar front, Aadhaar back and a profile photo. A skill certificate is optional.'} />
       {!DOCUMENT_REVIEW_LIVE && (
         <div role="status" className="flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
           <AlertCircle size={16} aria-hidden className="mt-0.5 shrink-0 text-amber-700" />
-          <p className="text-sm text-amber-950"><strong className="font-semibold">Document review isn’t live yet.</strong> Files you choose here stay on this device and are not uploaded or reviewed. Please contact support to get verified.</p>
+          <p className="text-sm text-amber-950"><strong className="font-semibold">{isHindi ? 'दस्तावेज़ सत्यापन अभी लाइव नहीं है।' : 'Document review isn’t live yet.'}</strong> {isHindi ? 'यहाँ चुनी गई फ़ाइलें इसी डिवाइस पर रहेंगी; अपलोड या समीक्षा नहीं होंगी। सत्यापन के लिए सहायता से संपर्क करें।' : 'Files you choose here stay on this device and are not uploaded or reviewed. Please contact support to get verified.'}</p>
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-2">
@@ -1319,22 +1339,22 @@ function DocumentsTab({
       </div>
       <div className={`${card} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
         <div className="flex items-center gap-3">
-          <p className="text-sm font-semibold text-slate-700">Verification status</p>
+          <p className="text-sm font-semibold text-slate-700">{isHindi ? 'सत्यापन स्थिति' : 'Verification status'}</p>
           <Badge tone={verification === 'verified' ? 'success' : verification === 'pending' ? 'info' : 'warning'}>
-            {verification === 'verified' ? 'Verified' : verification === 'pending' ? 'Under review' : 'Not verified'}
+            {verification === 'verified' ? (isHindi ? 'सत्यापित' : 'Verified') : verification === 'pending' ? (isHindi ? 'जाँच जारी' : 'Under review') : (isHindi ? 'सत्यापित नहीं' : 'Not verified')}
           </Badge>
         </div>
         <button type="button" className={btnPrimary} disabled={!canSubmit} onClick={onSubmit}>
           {submitting && <Loader2 size={14} aria-hidden className="animate-spin" />}
-          {DOCUMENT_REVIEW_LIVE ? 'Submit for verification' : 'Submission not available yet'}
+          {DOCUMENT_REVIEW_LIVE ? (isHindi ? 'सत्यापन के लिए भेजें' : 'Submit for verification') : (isHindi ? 'भेजना अभी उपलब्ध नहीं' : 'Submission not available yet')}
         </button>
       </div>
       {verification === 'pending' && (
         <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
           <Clock3 size={16} aria-hidden className="mt-0.5 shrink-0 text-sky-700" />
           <div>
-            <p className="text-sm font-semibold text-sky-900">Under review</p>
-            <p className="mt-0.5 text-xs text-sky-800">Reviews usually take 1 to 2 business days. You can update documents any time.</p>
+            <p className="text-sm font-semibold text-sky-900">{isHindi ? 'जाँच जारी' : 'Under review'}</p>
+            <p className="mt-0.5 text-xs text-sky-800">{isHindi ? 'समीक्षा में आमतौर पर 1 से 2 कार्यदिवस लगते हैं। आप कभी भी दस्तावेज़ अपडेट कर सकते हैं।' : 'Reviews usually take 1 to 2 business days. You can update documents any time.'}</p>
           </div>
         </div>
       )}
@@ -1461,6 +1481,8 @@ export default function TechnicianDashboardPage() {
   const userId = session?.userId;
 
   const [tab, setTab] = useState<TabKey>('overview');
+  const [language, setLanguage] = usePersisted<'en' | 'hi'>(KEYS.LANGUAGE, 'en', (raw) => raw === 'hi' ? 'hi' : 'en');
+  const isHindi = language === 'hi';
   const [moreOpen, setMoreOpen] = useState(false);
   const [online, setOnline] = useState<TechnicianOnline>('offline');
   const [onlineBusy, setOnlineBusy] = useState(false);
@@ -1814,9 +1836,9 @@ export default function TechnicianDashboardPage() {
       <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
         <div className={`${card} w-full max-w-sm p-8 text-center`}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50"><AlertCircle size={24} aria-hidden className="text-emerald-700" /></div>
-          <h1 className="text-xl font-bold text-slate-900">Technician access</h1>
-          <p className="mt-2 text-sm text-slate-500">Sign in with a technician or plumber account to view this dashboard.</p>
-          <button type="button" onClick={() => router.push('/auth/login')} className={`${btnPrimary} mt-6 w-full`}>Go to sign in</button>
+          <h1 className="text-xl font-bold text-slate-900">{isHindi ? 'टेक्नीशियन / प्लंबर लॉगिन' : 'Technician access'}</h1>
+          <p className="mt-2 text-sm text-slate-500">{isHindi ? 'यह डैशबोर्ड देखने के लिए टेक्नीशियन या प्लंबर खाते से साइन इन करें।' : 'Sign in with a technician or plumber account to view this dashboard.'}</p>
+          <button type="button" onClick={() => router.push('/auth/login')} className={`${btnPrimary} mt-6 w-full`}>{isHindi ? 'साइन इन करें' : 'Go to sign in'}</button>
         </div>
       </main>
     );
@@ -1830,8 +1852,9 @@ export default function TechnicianDashboardPage() {
   const badgeFor = (key: TabKey) => (key === 'queue' ? offers.length : key === 'my_jobs' ? inProgressCount : 0);
 
   return (
+    <DashboardLanguageContext.Provider value={language}>
     <div className="min-h-screen bg-slate-100 font-sans text-slate-900">
-      <a href="#tech-main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:shadow-lg">Skip to content</a>
+      <a href="#tech-main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:shadow-lg">{isHindi ? 'मुख्य सामग्री पर जाएँ' : 'Skip to content'}</a>
 
       <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
         <div className="flex gap-6">
@@ -1844,14 +1867,15 @@ export default function TechnicianDashboardPage() {
                     <p className="truncate text-sm font-bold text-slate-900">{displayName}</p>
                     <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
                       <span className={`h-2 w-2 rounded-full ${online === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`} aria-hidden="true" />
-                      {roleLabel}, {online}
+                      {isHindi ? (roleLabel === 'Plumber' ? 'प्लंबर' : 'टेक्नीशियन') : roleLabel}, {isHindi ? (online === 'online' ? 'ऑनलाइन' : 'ऑफ़लाइन') : online}
                     </p>
                   </div>
                 </div>
               </div>
-              <nav aria-label="Dashboard sections" className="space-y-0.5 p-2" role="tablist" aria-orientation="vertical" onKeyDown={onTabKeyDown}>
+              <nav aria-label={isHindi ? 'डैशबोर्ड अनुभाग' : 'Dashboard sections'} className="space-y-0.5 p-2" role="tablist" aria-orientation="vertical" onKeyDown={onTabKeyDown}>
                 {TAB_KEYS.map((key) => {
-                  const { label, icon: Icon } = TAB_META[key];
+                  const { icon: Icon } = TAB_META[key];
+                  const label = isHindi ? TAB_LABEL_HI[key] : TAB_META[key].label;
                   const active = tab === key;
                   const badge = badgeFor(key);
                   return (
@@ -1872,17 +1896,17 @@ export default function TechnicianDashboardPage() {
           <main id="tech-main" role="tabpanel" aria-labelledby={`tech-tab-${tab}`} tabIndex={-1} className="min-w-0 flex-1 pb-24 outline-none lg:pb-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
               <span aria-live="polite">
-                {lastSynced ? `Synced ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : 'Syncing…'}
+                {lastSynced ? `${isHindi ? 'सिंक हुआ' : 'Synced'} ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : (isHindi ? 'सिंक हो रहा है…' : 'Syncing…')}
               </span>
               <button type="button" onClick={() => void refresh()} disabled={refreshing} className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-semibold text-slate-600 hover:bg-white disabled:opacity-60 ${ringFocus}`}>
-                <RefreshCw size={12} aria-hidden className={refreshing ? 'animate-spin' : ''} /> {refreshing ? 'Refreshing' : 'Refresh'}
+                <RefreshCw size={12} aria-hidden className={refreshing ? 'animate-spin' : ''} /> {refreshing ? (isHindi ? 'रीफ़्रेश हो रहा है' : 'Refreshing') : (isHindi ? 'रीफ़्रेश करें' : 'Refresh')}
               </button>
             </div>
 
             {error && (
               <div className="mb-5 space-y-2" role="alert">
                 <DatabaseErrorBanner message={error} />
-                <div className="flex justify-end"><button type="button" onClick={() => void refresh()} className={btnPrimary}>Retry</button></div>
+                <div className="flex justify-end"><button type="button" onClick={() => void refresh()} className={btnPrimary}>{isHindi ? 'दोबारा प्रयास करें' : 'Retry'}</button></div>
               </div>
             )}
 
@@ -1893,17 +1917,17 @@ export default function TechnicianDashboardPage() {
             {tab === 'queue' && (
               <div className="space-y-5">
                 <PageHeader
-                  title="Available jobs"
-                  description="Accept before the timer ends. Expired offers are removed. · समय समाप्त होने से पहले job स्वीकार करें।"
+                  title={isHindi ? 'उपलब्ध जॉब' : 'Available jobs'}
+                  description={isHindi ? 'समय समाप्त होने से पहले जॉब स्वीकार करें। समय पूरा होने पर ऑफ़र हट जाता है।' : 'Accept before the timer ends. Expired offers are removed.'}
                   actions={
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={offers.length > 0 ? 'success' : 'default'}>{offers.length} in queue</Badge>
+                      <Badge tone={offers.length > 0 ? 'success' : 'default'}>{offers.length} {isHindi ? 'कतार में' : 'in queue'}</Badge>
                       <StatusToggle online={online} busy={onlineBusy} onChange={handleOnline} />
                     </div>
                   }
                 />
                 {loading ? <JobsSkeleton /> : offers.length === 0 ? (
-                  <EmptyState emoji="📭" title="No jobs right now" message={online === 'online' ? 'New requests appear here the moment they’re assigned to you. · नई job मिलने पर यहाँ दिखेगी।' : 'Go online to start receiving job requests. · नई job पाने के लिए Online हों।'} />
+                  <EmptyState emoji="📭" title={isHindi ? 'अभी कोई जॉब नहीं' : 'No jobs right now'} message={online === 'online' ? 'New requests appear here the moment they’re assigned to you. · नई job मिलने पर यहाँ दिखेगी।' : 'Go online to start receiving job requests. · नई job पाने के लिए Online हों।'} />
                 ) : (
                   <div className="space-y-4">
                     {offers.map((j) => <QueueCard key={j.id} job={j} canAccept={canAccept} reason={acceptReason} busy={busy[j.id]} handlers={handlers} />)}
@@ -1914,17 +1938,17 @@ export default function TechnicianDashboardPage() {
 
             {tab === 'my_jobs' && (
               <div className="space-y-5">
-                <PageHeader title="My jobs" description="Track, navigate to and complete your jobs. · अपनी job देखें, ग्राहक तक पहुँचें और काम पूरा करें।" />
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Filter jobs">
+                <PageHeader title={isHindi ? 'मेरे काम' : 'My jobs'} description={isHindi ? 'अपने काम देखें, ग्राहक तक पहुँचें और काम पूरा करें।' : 'Track, navigate to and complete your jobs.'} />
+                <div className="flex flex-wrap gap-2" role="group" aria-label={isHindi ? 'काम फ़िल्टर करें' : 'Filter jobs'}>
                   {(['all', 'upcoming', 'in_progress', 'completed', 'cancelled'] as const).map((f) => (
                     <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={`rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors ${ringFocus} ${filter === f ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'}`}>
-                      {f === 'all' ? 'All' : STAGE_META[f].label}
+                      {f === 'all' ? (isHindi ? 'सभी' : 'All') : isHindi ? ({ upcoming: 'आने वाले', in_progress: 'जारी', completed: 'पूरे', cancelled: 'रद्द' } as Record<MyJobStage, string>)[f] : STAGE_META[f].label}
                       <span className="ml-1.5 tabular-nums opacity-70">{f === 'all' ? myJobs.length : stageCounts[f]}</span>
                     </button>
                   ))}
                 </div>
                 {loading ? <JobsSkeleton /> : visibleMyJobs.length === 0 ? (
-                  <EmptyState emoji="📅" title="No jobs here yet" message="Accepted jobs show up here." action={<button type="button" className={btnPrimary} onClick={() => changeTab('queue')}>Open job queue</button>} />
+                  <EmptyState emoji="📅" title={isHindi ? 'अभी यहाँ कोई काम नहीं' : 'No jobs here yet'} message={isHindi ? 'स्वीकार किए गए काम यहाँ दिखेंगे।' : 'Accepted jobs show up here.'} action={<button type="button" className={btnPrimary} onClick={() => changeTab('queue')}>{isHindi ? 'जॉब सूची खोलें' : 'Open job queue'}</button>} />
                 ) : (
                   <div className="space-y-3">
                     {visibleMyJobs.map((j) => <MyJobCard key={j.id} job={j} expanded={expandedId === j.id} busy={busy[j.id]} onToggle={toggleExpanded} handlers={handlers} />)}
@@ -1941,11 +1965,12 @@ export default function TechnicianDashboardPage() {
         </div>
       </div>
 
-      <nav aria-label="Dashboard sections" className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
+      <nav aria-label={isHindi ? 'डैशबोर्ड अनुभाग' : 'Dashboard sections'} className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
         {moreOpen && (
           <div className="absolute inset-x-3 bottom-[calc(100%+8px)] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
             {(['availability', 'documents'] as TabKey[]).map((key) => {
-              const { label, icon: Icon } = TAB_META[key];
+              const { icon: Icon } = TAB_META[key];
+              const label = isHindi ? TAB_LABEL_HI[key] : TAB_META[key].label;
               return (
                 <button key={key} type="button" onClick={() => changeTab(key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 ${ringFocus}`}>
                   <Icon size={16} aria-hidden className="text-slate-400" /> {label}
@@ -1959,7 +1984,8 @@ export default function TechnicianDashboardPage() {
         )}
         <div className="flex">
           {MOBILE_PRIMARY.map((key) => {
-            const { label, icon: Icon } = TAB_META[key];
+            const { icon: Icon } = TAB_META[key];
+            const label = isHindi ? TAB_LABEL_HI[key] : TAB_META[key].label;
             const active = tab === key;
             const badge = badgeFor(key);
             return (
