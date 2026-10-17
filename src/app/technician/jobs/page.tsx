@@ -430,11 +430,14 @@ export default function TechnicianJobs() {
 
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Job queue
+                  Job queue · काम की सूची
                 </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-slate-600">
                   Your assigned service requests and next actions.
+                </p>
+                <p className="mt-1 text-sm text-slate-500" lang="hi">
+                  नए काम यहाँ देखें। समय पर स्वीकार करें और ग्राहक को स्थिति अपडेट देते रहें।
                 </p>
               </div>
 
@@ -607,7 +610,7 @@ export default function TechnicianJobs() {
                               >
                                 {busy
                                   ? 'Updating…'
-                                  : 'Accept job'}
+                                  : 'Accept job · काम स्वीकार करें'}
                               </button>
 
                               <button
@@ -621,7 +624,7 @@ export default function TechnicianJobs() {
                                 }
                                 className="flex-1 rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
                               >
-                                Reject
+                                Reject · मना करें
                               </button>
                             </>
                           )}

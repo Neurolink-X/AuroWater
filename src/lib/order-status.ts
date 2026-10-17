@@ -152,23 +152,54 @@ export function scheduleLabel(o: CustomerOrder): string {
   return [day, slot].filter(Boolean).join(' · ');
 }
 
-/** What the customer should be told right now. */
-export function liveMessage(o: CustomerOrder): { title: string; sub: string } {
+const TECHNICIAN_SERVICE_KEYS = new Set([
+  'plumbing',
+  'ro_service',
+  'borewell',
+  'motor_pump',
+  'tank_cleaning',
+]);
+
+export function isTechnicianServiceKey(serviceKey: string | null | undefined): boolean {
+  return Boolean(serviceKey && TECHNICIAN_SERVICE_KEYS.has(serviceKey.toLowerCase()));
+}
+
+/** What the customer should be told right now. Keep wording service-aware across Home and History. */
+export function liveMessage(o: CustomerOrder): { title: string; sub: string; hindi: string } {
+  const technicianService = isTechnicianServiceKey(o.serviceKey);
+  const provider = o.serviceKey === 'plumbing' ? 'plumber' : 'technician';
   switch (o.status) {
     case 'PENDING':
+      if (technicianService) {
+        return {
+          title: 'Finding your professional',
+          sub: `We are checking availability for a ${provider}. This updates automatically.`,
+          hindi: 'हम आपके क्षेत्र में सही प्लंबर/टेक्नीशियन ढूँढ रहे हैं।',
+        };
+      }
       return o.supplierId
-        ? { title: 'Order received', sub: 'Your supplier is confirming the delivery.' }
-        : { title: 'Finding your supplier', sub: 'We are checking nearby suppliers. This updates automatically.' };
+        ? { title: 'Order received', sub: 'Your supplier is confirming the delivery.', hindi: 'आपका ऑर्डर मिल गया है। सप्लायर की पुष्टि का इंतज़ार है।' }
+        : { title: 'Finding your supplier', sub: 'We are checking nearby suppliers. This updates automatically.', hindi: 'हम आपके क्षेत्र में पानी सप्लायर ढूँढ रहे हैं।' };
     case 'ASSIGNED':
-      return { title: 'Supplier assigned', sub: 'Your supplier is getting ready for your delivery.' };
+      return technicianService
+        ? {
+            title: `${o.serviceKey === 'plumbing' ? 'Plumber' : 'Technician'} assigned`,
+            sub: 'Your professional has been assigned. They may still need to accept the job.',
+            hindi: 'प्रोफेशनल असाइन हो गया है। काम स्वीकार होने की पुष्टि का इंतज़ार हो सकता है।',
+          }
+        : { title: 'Supplier assigned', sub: 'Your supplier is getting ready for your delivery.', hindi: 'सप्लायर असाइन हो गया है और डिलीवरी की तैयारी कर रहा है।' };
     case 'IN_PROGRESS':
-      return { title: 'Delivery in progress', sub: 'Keep your phone nearby.' };
+      return technicianService
+        ? { title: 'Service in progress', sub: 'Your professional is working on your service. Keep your phone nearby.', hindi: 'आपकी सर्विस का काम चल रहा है। कृपया फ़ोन पास रखें।' }
+        : { title: 'Delivery in progress', sub: 'Keep your phone nearby.', hindi: 'डिलीवरी के समय फ़ोन पास रखें।' };
     case 'COMPLETED':
-      return { title: 'Delivered', sub: 'Thanks for choosing AuroWater.' };
+      return technicianService
+        ? { title: 'Service completed', sub: 'Your service is complete. Please review your experience.', hindi: 'काम पूरा हो गया है। कृपया अपना अनुभव साझा करें।' }
+        : { title: 'Delivered', sub: 'Thanks for choosing AuroWater.', hindi: 'AuroTap चुनने के लिए धन्यवाद।' };
     case 'CANCELLED':
-      return { title: 'Order cancelled', sub: 'You can book again anytime.' };
+      return { title: 'Order cancelled', sub: 'You can book again anytime.', hindi: 'ऑर्डर रद्द हो गया है। आप कभी भी दोबारा बुक कर सकते हैं।' };
     default:
-      return { title: statusMeta(o.status).label, sub: '' };
+      return { title: statusMeta(o.status).label, sub: '', hindi: '' };
   }
 }
 
