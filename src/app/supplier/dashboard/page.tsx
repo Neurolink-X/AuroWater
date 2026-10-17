@@ -3588,8 +3588,8 @@ export default function SupplierDashboardPage() {
 
             <div className="sd-row" style={{ gap: 8, flexShrink: 0 }}>
               <div role="group" aria-label="Dashboard language / डैशबोर्ड की भाषा" className="sd-row" style={{ gap: 2, padding: 3, borderRadius: 12, background: 'var(--bg)', boxShadow: 'var(--inset)' }}>
-                <button type="button" onClick={() => changeLanguage('en')} aria-pressed={language === 'en'} style={{ minHeight: 34, padding: '0 9px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'en' ? 'var(--brand)' : 'transparent', color: language === 'en' ? '#fff' : 'var(--ink2)' }}>English</button>
-                <button type="button" onClick={() => changeLanguage('hi')} aria-pressed={language === 'hi'} style={{ minHeight: 34, padding: '0 9px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'hi' ? 'var(--brand)' : 'transparent', color: language === 'hi' ? '#fff' : 'var(--ink2)' }}>हिंदी</button>
+                <button type="button" title="English" aria-label="Switch dashboard to English" onClick={() => changeLanguage('en')} aria-pressed={language === 'en'} style={{ minHeight: 34, padding: '0 8px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'en' ? 'var(--brand)' : 'transparent', color: language === 'en' ? '#fff' : 'var(--ink2)' }}>EN</button>
+                <button type="button" title="हिंदी" aria-label="डैशबोर्ड हिंदी में दिखाएँ" onClick={() => changeLanguage('hi')} aria-pressed={language === 'hi'} style={{ minHeight: 34, padding: '0 8px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'hi' ? 'var(--brand)' : 'transparent', color: language === 'hi' ? '#fff' : 'var(--ink2)' }}>हिंदी</button>
               </div>
               <button
                 type="button"
@@ -3620,12 +3620,12 @@ export default function SupplierDashboardPage() {
                 {showNotifs && (
                   <div className="sd-notif">
                     <div className="sd-notif-head">
-                      Notifications
-                      <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>{notifications.length} total</span>
+                      {isHindi ? 'सूचनाएँ' : 'Notifications'}
+                      <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>{notifications.length} {isHindi ? 'कुल' : 'total'}</span>
                     </div>
                     <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                       {notifications.length === 0 ? (
-                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 12 }}>No notifications yet</div>
+                        <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink3)', fontSize: 12 }}>{isHindi ? 'अभी कोई सूचना नहीं' : 'No notifications yet'}</div>
                       ) : notifications.map((n) => (
                         <div key={n.id} className={`sd-notif-item${n.is_read ? '' : ' unread'}`}>
                           <b>
@@ -3650,7 +3650,7 @@ export default function SupplierDashboardPage() {
                   </div>
                   <div className="sd-pill-name">
                     <b>{profile?.full_name?.split(' ')[0] ?? 'Supplier'}</b>
-                    <i style={{ color: tier?.color ?? 'var(--brand)' }}>{tier?.label ?? '—'} Tier</i>
+                    <i style={{ color: tier?.color ?? 'var(--brand)' }}>{tier?.label ?? '—'} {isHindi ? 'स्तर' : 'Tier'}</i>
                   </div>
                 </div>
               )}
@@ -3718,7 +3718,7 @@ export default function SupplierDashboardPage() {
             {!loading && profile && tier && (
               <div className="sd-tier">
                 <div className="sd-row sd-between">
-                  <span style={{ fontSize: 12, fontWeight: 800, color: tier.color }}>🏆 {tier.label} Tier</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: tier.color }} >🏆 {tier.label} {isHindi ? 'स्तर' : 'Tier'}</span>
                   {effectiveTier !== 'platinum' && <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>{isHindi ? 'अगला स्तर:' : 'Next:'} {tier.next}</span>}
                 </div>
                 <div className="sd-track"><div style={{ width: `${tierProgress}%`, background: tier.color }} /></div>
@@ -3752,13 +3752,13 @@ export default function SupplierDashboardPage() {
             <section aria-label="Today's delivery route" style={{ marginBottom: 28 }}>
               {!dispatchOnline && (
                 <div role="status" className="sd-alert sd-alert--warn">
-                  <span>You are offline, so new orders will not be offered to you.</span>
-                  <button type="button" disabled={dispatchSettingsBusy} onClick={() => void toggleDispatchAvailability()} className="sd-btn sd-btn--primary sd-btn--sm">Go online</button>
+                  <span>{isHindi ? 'आप ऑफ़लाइन हैं, इसलिए नए ऑर्डर नहीं मिलेंगे।' : 'You are offline, so new orders will not be offered to you.'}</span>
+                  <button type="button" disabled={dispatchSettingsBusy} onClick={() => void toggleDispatchAvailability()} className="sd-btn sd-btn--primary sd-btn--sm">{isHindi ? 'ऑनलाइन हों' : 'Go online'}</button>
                 </div>
               )}
               {lowStock && stock && (
                 <div role="alert" className="sd-alert sd-alert--bad">
-                  ⚠ Low stock: only {freeCans} free can{freeCans === 1 ? '' : 's'} left (alert level {stock.low_stock_alert}). Restock to keep receiving orders.
+                  {isHindi ? `⚠ स्टॉक कम है: केवल ${freeCans} कैन उपलब्ध हैं (अलर्ट स्तर ${stock.low_stock_alert})। ऑर्डर मिलते रहने के लिए स्टॉक भरें।` : `⚠ Low stock: only ${freeCans} free can${freeCans === 1 ? '' : 's'} left (alert level ${stock.low_stock_alert}). Restock to keep receiving orders.`}
                 </div>
               )}
               <div className="sd-section-label">{isHindi ? 'आज का डिलीवरी रूट' : "Today's route"}</div>
@@ -3981,15 +3981,15 @@ export default function SupplierDashboardPage() {
               <div className="sd-modal">
                 <div className="sd-row sd-between sd-top" style={{ gap: 16 }}>
                   <div>
-                    <div className="sd-eyebrow" style={{ marginBottom: 0 }}>Final delivery step</div>
-                    <h2 id="complete-order-title" style={{ margin: '6px 0 0', fontSize: 21, fontWeight: 800 }}>Confirm completion</h2>
+                    <div className="sd-eyebrow" style={{ marginBottom: 0 }}>{isHindi ? 'डिलीवरी का अंतिम चरण' : 'Final delivery step'}</div>
+                    <h2 id="complete-order-title" style={{ margin: '6px 0 0', fontSize: 21, fontWeight: 800 }}>{isHindi ? 'काम पूरा होने की पुष्टि करें' : 'Confirm completion'}</h2>
                     <p style={{ margin: '7px 0 0', fontSize: 12, lineHeight: 1.6, color: 'var(--ink2)' }}>
-                      Confirm the service is complete and record payment before closing this order.
+                      {isHindi ? 'ऑर्डर बंद करने से पहले काम पूरा होने की पुष्टि करें और भुगतान दर्ज करें।' : 'Confirm the service is complete and record payment before closing this order.'}
                     </p>
                   </div>
                   <button
                     type="button"
-                    aria-label="Close completion dialog"
+                    aria-label={isHindi ? 'पुष्टि विंडो बंद करें' : 'Close completion dialog'}
                     disabled={Boolean(updatingOrder)}
                     onClick={() => setCompletionOrder(null)}
                     className="sd-iconbtn"
@@ -4010,11 +4010,11 @@ export default function SupplierDashboardPage() {
                     <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand2)' }}>{INR(completionOrder.amount)}</div>
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12, color: 'var(--ink2)' }}>
-                    Payment method: <strong style={{ color: 'var(--ink)' }}>{completionOrder.payment_method?.toUpperCase() || 'CASH'}</strong>
+                    {isHindi ? 'भुगतान का तरीका:' : 'Payment method:'} <strong style={{ color: 'var(--ink)' }}>{completionOrder.payment_method?.toUpperCase() || 'CASH'}</strong>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink2)' }}>
-                    Payment status: <strong style={{ color: completionOrder.payment_status === 'paid' ? '#047857' : '#9A5A06' }}>
-                      {completionOrder.payment_status === 'paid' ? 'Already paid' : 'Confirmation required'}
+                    {isHindi ? 'भुगतान की स्थिति:' : 'Payment status:'} <strong style={{ color: completionOrder.payment_status === 'paid' ? '#047857' : '#9A5A06' }}>
+                      {completionOrder.payment_status === 'paid' ? (isHindi ? 'पहले ही भुगतान हो चुका' : 'Already paid') : (isHindi ? 'पुष्टि आवश्यक' : 'Confirmation required')}
                     </strong>
                   </div>
                 </div>
@@ -4022,7 +4022,7 @@ export default function SupplierDashboardPage() {
                 {completionOrder.payment_status !== 'paid' && (
                   <>
                     <label>
-                      <span className="sd-label">Who collected the payment?</span>
+                      <span className="sd-label">{isHindi ? 'भुगतान किसने लिया?' : 'Who collected the payment?'}</span>
                       <select
                         value={paymentCollector}
                         onChange={(event) => setPaymentCollector(event.target.value === 'aurotap' ? 'aurotap' : 'supplier')}
@@ -4030,17 +4030,17 @@ export default function SupplierDashboardPage() {
                         className="sd-input"
                         style={{ minHeight: 46 }}
                       >
-                        <option value="supplier">Supplier collected directly</option>
-                        <option value="aurotap">AuroTap collected</option>
+                        <option value="supplier">{isHindi ? 'सप्लायर ने सीधे लिया' : 'Supplier collected directly'}</option>
+                        <option value="aurotap">{isHindi ? 'AuroTap ने लिया' : 'AuroTap collected'}</option>
                       </select>
                     </label>
                     {completionOrder.payment_method?.toLowerCase() === 'upi' && (
                       <label>
-                        <span className="sd-label">UPI transaction reference</span>
+                        <span className="sd-label">{isHindi ? 'UPI लेन-देन संदर्भ' : 'UPI transaction reference'}</span>
                         <input
                           value={paymentReference}
                           onChange={(event) => setPaymentReference(event.target.value.slice(0, 100))}
-                          placeholder="Enter UPI / transaction ID"
+                          placeholder={isHindi ? 'UPI / लेन-देन ID दर्ज करें' : 'Enter UPI / transaction ID'}
                           maxLength={100}
                           disabled={Boolean(updatingOrder)}
                           autoComplete="off"
@@ -4057,14 +4057,14 @@ export default function SupplierDashboardPage() {
                         onChange={(event) => setPaymentConfirmed(event.target.checked)}
                         disabled={Boolean(updatingOrder)}
                       />
-                      <span>I confirm the customer has paid the order amount and the payment details are accurate.</span>
+                      <span>{isHindi ? 'मैं पुष्टि करता/करती हूँ कि ग्राहक ने ऑर्डर की राशि चुका दी है और भुगतान विवरण सही हैं।' : 'I confirm the customer has paid the order amount and the payment details are accurate.'}</span>
                     </label>
                   </>
                 )}
 
                 <div className="sd-row" style={{ gap: 12, marginTop: 22 }}>
                   <button type="button" disabled={Boolean(updatingOrder)} onClick={() => setCompletionOrder(null)} className="sd-btn sd-btn--soft" style={{ flex: 1, minHeight: 48 }}>
-                    Cancel
+                    {isHindi ? 'रद्द करें' : 'Cancel'}
                   </button>
                   <button
                     type="button"
@@ -4091,7 +4091,7 @@ export default function SupplierDashboardPage() {
                     className="sd-btn sd-btn--primary"
                     style={{ flex: 1.35, minHeight: 48 }}
                   >
-                    {updatingOrder ? 'Completing…' : 'Confirm & Complete'}
+                    {updatingOrder ? (isHindi ? 'पूरा किया जा रहा है…' : 'Completing…') : (isHindi ? 'पुष्टि करें और पूरा करें' : 'Confirm & Complete')}
                   </button>
                 </div>
               </div>
