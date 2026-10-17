@@ -757,11 +757,11 @@ const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handle
           </div>
           <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><MapPin size={11} aria-hidden /> Area</dt>
+              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><MapPin size={11} aria-hidden /> {isHindi ? 'क्षेत्र' : 'Area'}</dt>
               <dd className="mt-1 text-xs font-semibold leading-tight text-slate-800">{job.area}</dd>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
-              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Calendar size={11} aria-hidden /> Schedule</dt>
+              <dt className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Calendar size={11} aria-hidden /> {isHindi ? 'समय' : 'Schedule'}</dt>
               <dd className="mt-1 text-xs font-semibold text-slate-800">{job.date} · {job.slot}</dd>
             </div>
             <div className="col-span-2 rounded-xl bg-emerald-50 p-3 sm:col-span-1">
@@ -778,10 +778,10 @@ const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handle
           <div className="flex gap-2">
             <button type="button" className={`${btnPrimary} flex-1`} disabled={!canAccept || Boolean(busy)} onClick={() => handlers.onAccept(job)}>
               {busy === 'accept' && <Loader2 size={14} aria-hidden className="animate-spin" />}
-              Accept
+              {isHindi ? 'स्वीकार करें' : 'Accept'}
             </button>
             <button type="button" className={`${btnDanger} flex-1`} disabled={Boolean(busy)} onClick={() => handlers.onDecline(job)}>
-              Decline
+              {isHindi ? 'मना करें' : 'Decline'}
             </button>
           </div>
           {reason && <p className="mt-2 text-center text-xs text-slate-500">{isHindi ? (reason === 'Get verified to accept jobs.' ? 'जॉब स्वीकार करने के लिए सत्यापन कराएँ।' : reason === 'Go online to accept jobs.' ? 'जॉब स्वीकार करने के लिए ऑनलाइन हों।' : reason) : reason}</p>}
@@ -865,14 +865,14 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
 
           <div className="mt-4 flex flex-wrap gap-2">
             {job.customerPhone && stage !== 'completed' && stage !== 'cancelled' && (
-              <a href={`tel:${job.customerPhone.replace(/[^\d+]/g, '')}`} className={btnOutline}><Phone size={14} aria-hidden /> Call customer</a>
+              <a href={`tel:${job.customerPhone.replace(/[^\d+]/g, '')}`} className={btnOutline}><Phone size={14} aria-hidden /> {isHindi ? 'ग्राहक को कॉल करें' : 'Call customer'}</a>
             )}
             {maps && stage !== 'completed' && stage !== 'cancelled' && (
-              <a href={maps} target="_blank" rel="noopener noreferrer" className={btnOutline}><Navigation size={14} aria-hidden /> Navigate</a>
+              <a href={maps} target="_blank" rel="noopener noreferrer" className={btnOutline}><Navigation size={14} aria-hidden /> {isHindi ? 'रास्ता देखें' : 'Navigate'}</a>
             )}
             {stage === 'upcoming' && (
               <button type="button" className={btnPrimary} disabled={Boolean(busy)} onClick={() => handlers.onStart(job)}>
-                {busy === 'start' ? <Loader2 size={14} aria-hidden className="animate-spin" /> : <Play size={14} aria-hidden />} Start job
+                {busy === 'start' ? <Loader2 size={14} aria-hidden className="animate-spin" /> : <Play size={14} aria-hidden />} {isHindi ? 'काम शुरू करें' : 'Start job'}
               </button>
             )}
             {stage === 'in_progress' && (
@@ -2012,10 +2012,10 @@ export default function TechnicianDashboardPage() {
 
       {cancelling && (
         <Dialog
-          title="Cancel this job?"
-          description={`${cap(cancelling.service)} at ${cancelling.area}. The customer will be notified and the job may be reassigned. Frequent cancellations can affect your account.`}
+          title={isHindi ? 'क्या यह काम रद्द करें?' : 'Cancel this job?'}
+          description={isHindi ? `${cap(cancelling.service)} · ${cancelling.area}। ग्राहक को सूचित किया जाएगा और काम किसी अन्य को दिया जा सकता है। बार-बार रद्द करने से खाते पर असर पड़ सकता है।` : `${cap(cancelling.service)} at ${cancelling.area}. The customer will be notified and the job may be reassigned. Frequent cancellations can affect your account.`}
           tone="danger"
-          confirmLabel="Cancel job"
+          confirmLabel={isHindi ? 'काम रद्द करें' : 'Cancel job'}
           busy={cancelBusy}
           onConfirm={() => void confirmCancel()}
           onCancel={() => !cancelBusy && setCancelling(null)}
@@ -2857,22 +2857,22 @@ export default function TechnicianDashboardPage() {
 
 //           <dl className="grid gap-3 sm:grid-cols-2">
 //             <div className="rounded-xl bg-slate-50 p-3 sm:col-span-2">
-//               <dt className="text-[11px] font-semibold text-slate-500">Service address</dt>
+//               <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'सेवा का पता' : 'Service address'}</dt>
 //               <dd className="mt-1 text-sm font-medium text-slate-800">{job.address || job.area}</dd>
 //             </div>
 //             {(job.customerName || job.customerPhone) && (
 //               <div className="rounded-xl bg-slate-50 p-3">
-//                 <dt className="text-[11px] font-semibold text-slate-500">Customer</dt>
+//                 <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'ग्राहक' : 'Customer'}</dt>
 //                 <dd className="mt-1 text-sm font-medium text-slate-800">{job.customerName ?? 'Customer'}</dd>
 //               </div>
 //             )}
 //             <div className="rounded-xl bg-slate-50 p-3">
-//               <dt className="text-[11px] font-semibold text-slate-500">Payment</dt>
+//               <dt className="text-[11px] font-semibold text-slate-500">{isHindi ? 'भुगतान' : 'Payment'}</dt>
 //               <dd className="mt-1 text-sm font-medium text-slate-800">{job.prepaid ? 'Paid online' : 'Collect on completion'}</dd>
 //             </div>
 //             {job.notes && (
 //               <div className="rounded-xl bg-amber-50 p-3 sm:col-span-2">
-//                 <dt className="text-[11px] font-semibold text-amber-800">Customer notes</dt>
+//                 <dt className="text-[11px] font-semibold text-amber-800">{isHindi ? 'ग्राहक के नोट' : 'Customer notes'}</dt>
 //                 <dd className="mt-1 text-sm text-amber-950">{job.notes}</dd>
 //               </div>
 //             )}
@@ -2892,12 +2892,12 @@ export default function TechnicianDashboardPage() {
 //             )}
 //             {stage === 'in_progress' && (
 //               <button type="button" className={btnPrimary} disabled={Boolean(busy)} onClick={() => handlers.onComplete(job)}>
-//                 <CheckCircle size={14} aria-hidden /> Complete
+//                 <CheckCircle size={14} aria-hidden /> {isHindi ? 'पूरा करें' : 'Complete'}
 //               </button>
 //             )}
 //             {(stage === 'upcoming' || stage === 'in_progress') && (
 //               <button type="button" className={btnDanger} disabled={Boolean(busy)} onClick={() => handlers.onCancel(job)}>
-//                 <XCircle size={14} aria-hidden /> Cancel job
+//                 <XCircle size={14} aria-hidden /> {isHindi ? 'काम रद्द करें' : 'Cancel job'}
 //               </button>
 //             )}
 //           </div>
