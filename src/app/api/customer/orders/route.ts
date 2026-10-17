@@ -575,7 +575,7 @@ export async function POST(req: NextRequest) {
           gst_rate: gstRate,
           gst_amount,
           total_amount: total,
-          supplier_entitlement: isWater && qty === 1 && round2(total + referralDiscountAmount) === 20 ? 20 : null,
+          supplier_entitlement: isWater && qty === 1 && round2(netBaseAmount + referralDiscountAmount) === 20 ? 20 : null,
           supplier_entitlement_policy: isWater ? 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule' : 'existing_completion_policy',
           config: activePricingConfig,
         },
