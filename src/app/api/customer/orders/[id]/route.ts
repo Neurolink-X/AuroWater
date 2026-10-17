@@ -43,18 +43,35 @@ export async function GET(
   const row = data as Record<string, unknown>;
   let technicianProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
   let supplierProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+  let technicianAcceptanceStatus: string | null = null;
   const admin = createServiceClient();
 
   if (typeof row.technician_id === 'string' && row.technician_id.trim()) {
-    const { data: profile, error: profileError } = await admin
-      .from('profiles')
-      .select('id, full_name, avatar_url')
-      .eq('id', row.technician_id)
-      .maybeSingle();
-    if (profileError) {
-      console.error('[orders/:id] technician profile lookup failed:', profileError.message);
-    } else if (profile) {
-      technicianProfile = profile;
+    const [profileResult, dispatchResult] = await Promise.all([
+      admin
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', row.technician_id)
+        .maybeSingle(),
+      admin
+        .from('technician_job_dispatch')
+        .select('status')
+        .eq('order_id', id)
+        .eq('technician_id', row.technician_id)
+        .maybeSingle(),
+    ]);
+
+    if (profileResult.error) {
+      console.error('[orders/:id] technician profile lookup failed:', profileResult.error.message);
+    } else if (profileResult.data) {
+      technicianProfile = profileResult.data;
+    }
+
+    if (dispatchResult.error) {
+      // Keep tracking resilient if dispatch metadata is temporarily unavailable.
+      console.error('[orders/:id] technician acceptance lookup failed:', dispatchResult.error.message);
+    } else if (dispatchResult.data?.status) {
+      technicianAcceptanceStatus = String(dispatchResult.data.status).toUpperCase();
     }
   }
 
@@ -76,6 +93,7 @@ export async function GET(
   return jsonOk({
     ...row,
     technician_profile: technicianProfile,
+    technician_acceptance_status: technicianAcceptanceStatus,
     supplier_profile: supplierProfile,
     service_type_key: row.service_type ?? null,
     can_quantity: row.can_count ?? null,
