@@ -157,6 +157,10 @@ export default function CustomerReferralsPage() {
           <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">जब आपका दोस्त पहली बुकिंग पूरी करके भुगतान कर देगा, तब आपका referral reward qualify होगा। हर referral के लिए 25% off और 5 अलग-अलग qualifying addresses पर एक free standard RO can का reward।</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
+              <p className="text-xs text-sky-100">Invited accounts</p>
+              <p className="text-2xl font-black">{data?.invited_count ?? 0}</p>
+            </div>
+            <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3">
               <p className="text-xs text-sky-100">Successful referrals</p>
               <p className="text-2xl font-black">{data?.qualified_count ?? 0}</p>
             </div>
