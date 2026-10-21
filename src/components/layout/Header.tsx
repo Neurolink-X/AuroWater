@@ -6,8 +6,7 @@
 // import { clearSession, useAuth } from '@/hooks/useAuth';
 // import { authLogout, getToken } from '@/lib/api-client';
 // import { createClient } from '@/utils/supabase/client';
-// import { FALLBACK_CITIES, type City } from '@/lib/cities';
-// import { safeGet, safeSet } from '@/lib/storage';
+// // import { safeSet } from '@/lib/storage';
 // import Image from "next/image";
 
 // /* ───────────── Navigation data ───────────── */
@@ -91,41 +90,6 @@
 //       <path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6" />
 //     </svg>
 //   );
-// }
-
-// /** Accepts a bare array or the API envelope `{ data: [...] }`; keeps live and coming-soon cities. */
-// function usableCities(data: unknown): City[] {
-//   const list: unknown[] = Array.isArray(data)
-//     ? data
-//     : data && typeof data === 'object' && Array.isArray((data as { data?: unknown }).data)
-//       ? (data as { data: unknown[] }).data
-//       : [];
-//   return (list as City[]).filter(
-//     (c) =>
-//       !!c &&
-//       typeof c.name === 'string' &&
-//       (c.status === 'active' || c.status === 'coming_soon')
-//   );
-// }
-
-// function readCitiesCache(): City[] {
-//   try {
-//     const raw = safeGet(CITIES_CACHE_KEY);
-//     if (!raw) return [];
-//     const parsed = JSON.parse(raw) as { t?: number; v?: unknown };
-//     if (!parsed || typeof parsed.t !== 'number' || Date.now() - parsed.t > CITIES_TTL_MS) return [];
-//     return usableCities(parsed.v);
-//   } catch {
-//     return [];
-//   }
-// }
-
-// function writeCitiesCache(list: City[]) {
-//   try {
-//     safeSet(CITIES_CACHE_KEY, JSON.stringify({ t: Date.now(), v: list }));
-//   } catch {
-//     /* storage unavailable or full: caching is optional */
-//   }
 // }
 
 // /** Run work after first paint so it never slows page load. Returns a cancel function. */
@@ -273,48 +237,6 @@
 //     if (role === 'technician') return '/technician/dashboard';
 //     return '/customer/home';
 //   }, [role]);
-
-//   // Remember the city the customer picked (other pages read the same key).
-//   useEffect(() => {
-//     const stored = safeGet(CITY_KEY);
-//     if (stored) setCity(stored);
-//     setCityReady(true);
-//   }, []);
-
-//   const onCityChange = useCallback((value: string) => {
-//     setCity(value);
-//     safeSet(CITY_KEY, value);
-//   }, []);
-
-//   // City list: cached for 10 minutes, fetched after first paint.
-//   useEffect(() => {
-//     const cached = readCitiesCache();
-//     if (cached.length) {
-//       setCities(cached);
-//       return;
-//     }
-//     const controller = new AbortController();
-//     const cancel = whenIdle(() => {
-//       void fetch('/api/cities', { signal: controller.signal })
-//         .then(async (res) => (res.ok ? ((await res.json()) as unknown) : null))
-//         .then((data) => {
-//           if (controller.signal.aborted) return;
-//           const list = usableCities(data);
-//           if (list.length) {
-//             setCities(list);
-//             writeCitiesCache(list);
-//           }
-//         })
-//         .catch(() => {
-//           /* keep the built-in list */
-//         });
-//     });
-//     return () => {
-//       controller.abort();
-//       cancel();
-//     };
-
-//   }, []);
 
 //   // PWA install: keep the browser prompt available for our own UI instead of relying on a one-time popup.
 //   useEffect(() => {
@@ -649,41 +571,6 @@
 //                 <span className="xl:hidden">Install</span>
 //               </button>
 //             ) : null}
-
-//             {/* City: a native select. It opens the phone's own picker, so it can never be clipped. */}
-//             <div
-//               className={`relative min-w-0 transition-opacity duration-150 ${cityReady ? 'opacity-100' : 'opacity-0'}`}
-//             >
-//               <svg
-//                 className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-cyan-400"
-//                 viewBox="0 0 24 24"
-//                 fill="none"
-//                 stroke="currentColor"
-//                 strokeWidth={2}
-//                 aria-hidden="true"
-//               >
-//                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s7-5.2 7-11a7 7 0 10-14 0c0 5.8 7 11 7 11z" />
-//                 <circle cx="12" cy="10" r="2.5" />
-//               </svg>
-//               <label htmlFor="header-city" className="sr-only">
-//                 Delivery city
-//               </label>
-//               <select
-//                 id="header-city"
-//                 value={city}
-//                 onChange={(e) => onCityChange(e.target.value)}
-//                 className="h-10 w-full max-w-[8.5rem] cursor-pointer appearance-none truncate rounded-xl border border-white/10 bg-white/5 pl-8 pr-7 text-sm font-medium text-white outline-none transition-colors hover:border-cyan-500/30 focus-visible:ring-2 focus-visible:ring-cyan-400 sm:max-w-[10rem]"
-//               >
-//                 {cityOptions.map((c) => (
-//                   <option key={c.id ?? c.name} value={c.name} className="bg-[#0A1628] text-white">
-//                     {c.status === 'coming_soon' ? `${c.name} (soon)` : c.name}
-//                   </option>
-//                 ))}
-//               </select>
-//               <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400">
-//                 <Chevron open={false} />
-//               </span>
-//             </div>
 
 //             {!hydrated ? (
 //               /* Reserve the space so nothing jumps when the session loads */
@@ -1190,11 +1077,6 @@ const ORDER_LABEL: Record<string, string> = {
 
 const WHATSAPP_HREF = 'https://wa.me/919889305803?text=Hi%20AuroWater%2C%20I%20need%20help';
 
-const CITY_KEY = 'aw_city';
-const DEFAULT_CITY = 'Kanpur';
-const CITIES_CACHE_KEY = 'aw_cities_v2';
-const CITIES_TTL_MS = 10 * 60 * 1000;
-
 /* ───────────── Install app (PWA) store ─────────────
  * The browser fires `beforeinstallprompt` only once and often BEFORE React mounts.
  * We capture it at module load so it is never missed, then expose it to any component.
@@ -1662,11 +1544,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [installHelpOpen, setInstallHelpOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [city, setCity] = useState<string>(DEFAULT_CITY);
-  const [cityReady, setCityReady] = useState(false);
-  const [cities, setCities] = useState<City[]>(() =>
-    FALLBACK_CITIES.filter((c) => c.status !== 'waitlist')
-  );
 
   const servicesRef = useRef<HTMLDivElement | null>(null);
   const moreRef = useRef<HTMLDivElement | null>(null);
@@ -1830,10 +1707,6 @@ export default function Header() {
 
   const menuItem =
     'block rounded-xl px-3 py-2.5 text-sm text-neutral-200 transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none';
-
-  const cityOptions = cities.some((c) => c.name === city)
-    ? cities
-    : [{ id: '__current', name: city, status: 'active' } as City, ...cities];
 
   const drawerLinks = [{ label: 'All services', href: '/services', hint: 'Everything we offer' }, ...PRIMARY_LINKS, ...MORE_LINKS];
 
