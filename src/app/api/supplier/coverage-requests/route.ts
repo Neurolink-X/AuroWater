@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     body.service_keys.length <= 30 &&
     body.service_keys.every((x) => typeof x === 'string' && /^[a-z0-9_-]{1,60}$/.test(x))
       ? [...new Set(body.service_keys as string[])] : null;
-  if (serviceKeys === null) return jsonErr('Choose valid service types.', 422);
+  if (serviceKeys === null || serviceKeys.length === 0) return jsonErr('Choose at least one valid service type.', 422);
   const note = typeof body.supplier_note === 'string' ? body.supplier_note.trim().slice(0, 500) : '';
 
   const db = createServiceClient();
