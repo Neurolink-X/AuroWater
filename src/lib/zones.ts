@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
+import { isPostgrestTableUnavailableError } from '@/lib/supabase/postgrest-errors';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 
 /**
@@ -34,7 +35,7 @@ export type ZoneRow = {
 
 export type Serviceability = {
   serviceable: boolean;
-  status: ZoneStatus | 'NO_ZONES' | 'NO_MATCH';
+  status: ZoneStatus | 'NO_ZONES' | 'NO_MATCH' | 'LOOKUP_ERROR';
   zone: { id: string; name: string; city: string } | null;
   message: string;
   services: string[] | null;
@@ -83,6 +84,14 @@ export async function resolveServiceability(
     };
   };
 
+  const lookupError = (): Serviceability => ({
+    serviceable: false,
+    status: 'LOOKUP_ERROR',
+    zone: null,
+    message: 'We could not verify service availability right now. Please try again shortly.',
+    services: null,
+  });
+
   let zones: ZoneRow[] = [];
   try {
     const db: any = createServiceClient();
@@ -90,11 +99,17 @@ export async function resolveServiceability(
       .from('service_zones')
       .select('*')
       .ilike('city', city.replace(/[%_]/g, (m) => `\\${m}`));
-    if (error) return legacy(); // zones table not created yet
+    if (error) {
+      // Preserve legacy behavior only when the zone table is genuinely unavailable
+      // during rollout. Transient DB/permission errors must fail closed.
+      if (isPostgrestTableUnavailableError(error)) return legacy();
+      console.error('[zones] service-zone lookup failed:', { code: error.code, message: error.message });
+      return lookupError();
+    }
     zones = (data ?? []) as ZoneRow[];
   } catch (e) {
-    console.error('[zones] lookup failed, using legacy check:', e);
-    return legacy();
+    console.error('[zones] lookup failed; failing closed:', e);
+    return lookupError();
   }
 
   if (!zones.length) return legacy();

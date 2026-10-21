@@ -214,6 +214,10 @@ export async function POST(req: NextRequest) {
   const serviceability = await resolveServiceability(
     addressForServiceability
   );
+  if (serviceability.status === 'LOOKUP_ERROR') {
+    return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
+  }
+
 
   if (isAddressRejected(serviceability)) {
     return jsonErr(
