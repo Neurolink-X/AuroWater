@@ -160,6 +160,10 @@ export async function GET(req: NextRequest) {
       service,
     );
 
+    if (result.status === 'LOOKUP_ERROR') {
+      return jsonErr(result.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
+    }
+
     const location = geo.ok
       ? {
           source: geo.source,
