@@ -119,7 +119,7 @@ html[data-splash] #app-splash{
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   transition:opacity .35s ease,visibility 0s linear .35s;
 }
-html[data-splash="show"] #app-splash{animation:sp-failsafe .01s linear 2.6s forwards}
+html[data-splash="show"] #app-splash{animation:sp-failsafe .01s linear 1.8s forwards}
 html[data-splash="done"] #app-splash{opacity:0;visibility:hidden;animation:none}
 .sp-stage{display:flex;flex-direction:column;align-items:center;text-align:center}
 .sp-orb{position:relative;display:grid;place-items:center;width:132px;height:132px}
