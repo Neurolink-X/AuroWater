@@ -368,6 +368,7 @@ export default function AdminZonesPage() {
         <p className="mt-1 text-sm text-slate-500">
           Open or close an area instantly. Changes apply to new bookings right away, with no deployment.
         </p>
+        <p className="mt-3"><a href="/admin/coverage-requests" className="inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Review supplier coverage requests</a></p>
       </header>
 
       {error ? (
