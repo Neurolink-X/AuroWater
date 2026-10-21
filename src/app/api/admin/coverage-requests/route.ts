@@ -52,6 +52,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof b.request_id !== 'string' || !['APPROVED', 'REJECTED'].includes(String(b.status))) {
     return jsonErr('request_id and status APPROVED or REJECTED are required.', 422);
   }
+
   const adminNote = typeof b.admin_note === 'string' ? b.admin_note.trim().slice(0, 500) : null;
   const db = createServiceClient();
   const { data: request, error: loadError } = await db.from('supplier_zone_requests')
@@ -63,34 +64,46 @@ export async function PATCH(req: NextRequest) {
   if (request.status !== 'PENDING') return jsonErr('This request has already been reviewed. Refresh the list.', 409);
 
   if (b.status === 'APPROVED') {
-    const { data: zone, error: zoneError } = await db.from('service_zones').select('id, name, status').eq('id', request.zone_id).maybeSingle();
+    const { data: zone, error: zoneError } = await db.from('service_zones')
+      .select('id, name, status').eq('id', request.zone_id).maybeSingle();
     if (zoneError || !zone) return jsonErr('The selected service area no longer exists.', 409);
-    const { error: linkError } = await db.from('supplier_zones')
-      .upsert({ supplier_id: request.supplier_id, zone_id: request.zone_id, service_keys: request.service_keys }, { onConflict: 'supplier_id,zone_id' });
-    if (linkError) {
-      console.error('[admin/coverage-requests] supplier-zone mapping failed', linkError);
-      return jsonErr('Could not map supplier to this service area.', 502);
-    }
   }
 
+  // Claim the pending request first. This prevents a mapping from being created by a
+  // concurrent/rejected review. If mapping fails, restore PENDING so an admin can retry.
+  const now = new Date().toISOString();
   const { data: updated, error: updateError } = await db.from('supplier_zone_requests')
     .update({
       status: b.status, admin_note: adminNote, reviewed_by: auth.ctx.profile.id,
-      reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      reviewed_at: now, updated_at: now,
     })
     .eq('id', request.id).eq('status', 'PENDING')
     .select('id, status, supplier_id, zone_id').maybeSingle();
   if (updateError || !updated) {
-    console.error('[admin/coverage-requests] review update failed', updateError);
-    return jsonErr('Could not save the review. Check the request and refresh.', 502);
+    if (updateError) console.error('[admin/coverage-requests] review update failed', updateError);
+    return jsonErr('This request was reviewed by another admin or could not be saved. Refresh and try again.', 409);
+  }
+
+  if (b.status === 'APPROVED') {
+    const { error: linkError } = await db.from('supplier_zones')
+      .upsert({ supplier_id: request.supplier_id, zone_id: request.zone_id, service_keys: request.service_keys }, { onConflict: 'supplier_id,zone_id' });
+    if (linkError) {
+      console.error('[admin/coverage-requests] supplier-zone mapping failed', linkError);
+      const { error: rollbackError } = await db.from('supplier_zone_requests').update({
+        status: 'PENDING', admin_note: null, reviewed_by: null, reviewed_at: null, updated_at: new Date().toISOString(),
+      }).eq('id', request.id).eq('status', 'APPROVED');
+      if (rollbackError) console.error('[admin/coverage-requests] rollback failed', rollbackError);
+      return jsonErr('Could not map supplier to this service area. The request remains pending for retry.', 502);
+    }
   }
 
   try {
-    await db.from('audit_logs').insert({
+    const { error: auditError } = await db.from('audit_logs').insert({
       actor_id: auth.ctx.profile.id, action: 'supplier.coverage_request.review',
       entity: 'supplier_zone_requests', entity_id: request.id,
       meta: { supplier_id: request.supplier_id, zone_id: request.zone_id, status: b.status, admin_note: adminNote },
     });
+    if (auditError) console.error('[admin/coverage-requests] audit log failed', auditError);
   } catch (e) {
     console.error('[admin/coverage-requests] audit log failed', e);
   }
