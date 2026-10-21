@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-import { FALLBACK_CITIES } from '@/lib/cities';
+import { FALLBACK_CITIES, type City } from '@/lib/cities';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 
 export const revalidate = 300;
@@ -13,6 +13,24 @@ const CACHE_HEADERS = {
 
 const CITY_SELECT =
   'id, name, slug, status, lat, lng, radius_km, is_featured, sort_order';
+
+/** Keep the database as the source of truth, but retain fallback cities missing from it.
+ * This makes expansion cities discoverable during partial DB configuration/outages without
+ * upgrading their fallback status to bookable.
+ */
+function mergeWithFallback(data: City[]): City[] {
+  const merged = new Map<string, City>();
+  for (const city of data) {
+    if (!city || typeof city.name !== 'string' || !['active', 'coming_soon', 'waitlist'].includes(city.status)) continue;
+    const key = String(city.slug || city.name).trim().toLowerCase();
+    if (key) merged.set(key, city);
+  }
+  for (const city of FALLBACK_CITIES) {
+    const key = city.slug.toLowerCase();
+    if (!merged.has(key)) merged.set(key, city);
+  }
+  return [...merged.values()].sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
+}
 
 function ok(data: unknown) {
   return NextResponse.json(
@@ -94,7 +112,7 @@ export async function GET() {
       );
     }
 
-    return ok(data);
+    return ok(mergeWithFallback(data as City[]));
   } catch {
     /*
      * Public city discovery should remain

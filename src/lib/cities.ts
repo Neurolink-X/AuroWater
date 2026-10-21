@@ -23,6 +23,9 @@ export const FALLBACK_CITIES: City[] = [
   { id: 'mathura', name: 'Mathura', slug: 'mathura', status: 'waitlist', is_featured: false, sort_order: 8 },
   { id: 'bareilly', name: 'Bareilly', slug: 'bareilly', status: 'waitlist', is_featured: false, sort_order: 9 },
   { id: 'aligarh', name: 'Aligarh', slug: 'aligarh', status: 'waitlist', is_featured: false, sort_order: 10 },
+  // Visible for expansion discovery; these cities remain non-bookable until operations enable them.
+  { id: 'delhi', name: 'Delhi', slug: 'delhi', status: 'coming_soon', is_featured: false, sort_order: 11 },
+  { id: 'noida', name: 'Noida', slug: 'noida', status: 'coming_soon', is_featured: false, sort_order: 12 },
 ];
 
 export const ACTIVE_CITY_NAMES = FALLBACK_CITIES.filter((c) => c.status === 'active').map((c) => c.name);

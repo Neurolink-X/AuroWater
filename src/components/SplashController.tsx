@@ -21,8 +21,8 @@ import { useEffect } from 'react';
  * components/pwa/ServiceWorkerRegistration.tsx, so it is registered only once.
  */
 
-const MIN_SPLASH_MS = 600;
-const MAX_SPLASH_MS = 2200;
+const MIN_SPLASH_MS = 350;
+const MAX_SPLASH_MS = 1400;
 
 export default function SplashController() {
   useEffect(() => {
