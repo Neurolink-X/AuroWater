@@ -11,16 +11,33 @@ export async function GET(req: NextRequest) {
   if (!requireRole(auth.ctx, 'admin')) return jsonErr('Forbidden', 403);
 
   const db = createServiceClient();
-  const { data, error } = await db
+  const { data: requests, error } = await db
     .from('supplier_zone_requests')
-    .select('id, supplier_id, zone_id, service_keys, status, supplier_note, admin_note, created_at, updated_at, profiles:supplier_id(full_name, phone, city), service_zones:zone_id(city, name, status, pincodes)')
+    .select('id, supplier_id, zone_id, service_keys, status, supplier_note, admin_note, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) {
     console.error('[admin/coverage-requests] load failed', error);
     return jsonErr('Could not load coverage requests.', 502);
   }
-  return jsonOk(data ?? []);
+
+  const supplierIds = [...new Set((requests ?? []).map((r: { supplier_id: string }) => String(r.supplier_id)))];
+  const zoneIds = [...new Set((requests ?? []).map((r: { zone_id: string }) => String(r.zone_id)))];
+  const [profilesRes, zonesRes] = await Promise.all([
+    supplierIds.length ? db.from('profiles').select('id, full_name, phone, city').in('id', supplierIds) : Promise.resolve({ data: [], error: null }),
+    zoneIds.length ? db.from('service_zones').select('id, city, name, status, pincodes').in('id', zoneIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (profilesRes.error || zonesRes.error) {
+    console.error('[admin/coverage-requests] related data load failed', profilesRes.error ?? zonesRes.error);
+    return jsonErr('Could not load supplier or zone details.', 502);
+  }
+  const profiles = new Map((profilesRes.data ?? []).map((p: { id: string }) => [String(p.id), p]));
+  const zones = new Map((zonesRes.data ?? []).map((z: { id: string }) => [String(z.id), z]));
+  return jsonOk((requests ?? []).map((r: { supplier_id: string; zone_id: string }) => ({
+    ...r,
+    profiles: profiles.get(String(r.supplier_id)) ?? null,
+    service_zones: zones.get(String(r.zone_id)) ?? null,
+  })));
 }
 
 export async function PATCH(req: NextRequest) {
