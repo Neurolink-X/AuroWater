@@ -241,6 +241,9 @@ export async function POST(req: NextRequest) {
     service_type_key
   );
 
+  if (serviceability.status === 'LOOKUP_ERROR') {
+    return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
+  }
   if (!serviceability.serviceable) {
     return jsonErr(serviceability.message, 400);
   }
