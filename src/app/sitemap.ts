@@ -31,6 +31,7 @@ const publicPages = [
   '/water-delivery/lucknow',
   '/water-delivery/gorakhpur',
   '/services',
+  '/service-areas',
   '/pricing',
   '/how-it-works',
   '/technicians',
@@ -87,10 +88,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     ...publicPages.map((path) =>
       page(path, {
-        lastModified: path === '/services' || path === '/pricing' || path.startsWith('/water-delivery') ? SITE_UPDATED : CONTENT_UPDATED,
+        lastModified: path === '/services' || path === '/service-areas' || path === '/pricing' || path.startsWith('/water-delivery') ? SITE_UPDATED : CONTENT_UPDATED,
         changeFrequency: path === '/contact' ? 'monthly' : 'weekly',
         priority:
-          path === '/services'
+          path === '/services' || path === '/service-areas'
             ? 0.9
             : path === '/water-delivery'
               ? 0.9
