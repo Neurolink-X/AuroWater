@@ -153,6 +153,7 @@ export default function SupplierSectionPage() {
 
       <nav className="sp-nav" aria-label="Supplier sections">
         <Link href="/supplier/dashboard" className="sp-tab">Dashboard</Link>
+        <Link href="/supplier/coverage" className="sp-tab">My service areas</Link>
         {ORDER.map((s) => (
           <Link key={s} href={`/supplier/${s}`} className="sp-tab" aria-current={s === section ? 'page' : undefined}>
             {SECTIONS[s].nav}
