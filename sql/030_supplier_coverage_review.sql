@@ -22,6 +22,8 @@ BEGIN
 END
 $preflight$;
 
+ALTER TABLE public.supplier_zones ADD COLUMN IF NOT EXISTS service_keys text[];
+
 CREATE TABLE IF NOT EXISTS public.supplier_zone_requests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   supplier_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
