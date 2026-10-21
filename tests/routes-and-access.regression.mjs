@@ -35,6 +35,24 @@ for (const page of collectPages(appRoot)) {
 const duplicates = [...byRoute.entries()].filter(([, pages]) => pages.length > 1);
 assert.deepEqual(duplicates, [], `Duplicate App Router pages:\n${JSON.stringify(duplicates, null, 2)}`);
 
+// Serviceability must fail closed when the zone lookup is unavailable; a database
+// outage must never silently turn an unverified address into a bookable one.
+const zonesSource = readFileSync(join(root, 'src', 'lib', 'zones.ts'), 'utf8');
+assert.match(zonesSource, /status: 'LOOKUP_ERROR'/);
+assert.match(zonesSource, /return lookupError\(\)/);
+assert.match(zonesSource, /isPostgrestTableUnavailableError\(error\)/);
+
+for (const [file, label] of [
+  ['src/app/api/customer/serviceability/route.ts', 'customer serviceability'],
+  ['src/app/api/customer/orders/route.ts', 'customer order creation'],
+  ['src/app/api/admin/orders/route.ts', 'admin order creation'],
+  ['src/app/api/customer/addresses/route.ts', 'customer address creation'],
+]) {
+  const source = readFileSync(join(root, file), 'utf8');
+  assert.ok(source.includes('SERVICEABILITY_LOOKUP_FAILED'), `${label} must return a retryable error if serviceability cannot be verified`);
+  assert.ok(source.includes("status === 'LOOKUP_ERROR'"), `${label} must fail closed on zone lookup failure`);
+}
+
 const proxySource = readFileSync(join(root, 'src', 'proxy.ts'), 'utf8');
 assert.doesNotMatch(proxySource, /['"]\/supplier\/['"]/);
 assert.match(proxySource, /prefix:\s*'\/supplier'/);
