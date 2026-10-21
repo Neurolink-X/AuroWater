@@ -223,7 +223,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -244,6 +244,30 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     }
 
     const geo = await orderGeo(db, order);
+
+    // Enforce service-specific coverage for orders linked to a configured service zone.
+    // Legacy orders without zone_id, and manually mapped supplier zones with NULL service_keys,
+    // retain their existing behavior. A missing lookup fails closed for new zone-linked orders.
+    let coverageBySupplier: Map<string, string[] | null> | null = null;
+    if (order.zone_id) {
+      const [typeRes, coverageRes] = await Promise.all([
+        db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle(),
+        db.from('supplier_zones').select('supplier_id, service_keys').eq('zone_id', order.zone_id),
+      ]);
+      if (typeRes.error || coverageRes.error || !typeRes.data?.key) {
+        console.error('[dispatch] service coverage lookup failed', typeRes.error ?? coverageRes.error);
+        await markAttempt(db, orderId);
+        await alertAdmins(db, orderId, 'Could not verify supplier service-area coverage for this order.', 'coverage_lookup_failed');
+        return { supplierId: null, reason: 'error' };
+      }
+      const serviceKey = String(typeRes.data.key);
+      coverageBySupplier = new Map(
+        ((coverageRes.data ?? []) as { supplier_id: string; service_keys: string[] | null }[])
+          .map((link) => [String(link.supplier_id), link.service_keys ?? null]),
+      );
+      // Keep the normalized key on the order object for candidate filtering below.
+      (order as any).__serviceKey = serviceKey;
+    }
 
     const { data: tried } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
     const triedSet = new Set(((tried ?? []) as { supplier_id: string }[]).map((r) => String(r.supplier_id)));
@@ -306,6 +330,12 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       if (p.role && String(p.role) !== 'supplier') continue;
       if (p.is_active === false) continue;
       if (p.status && BLOCKED_STATUS.has(String(p.status).toLowerCase())) continue;
+
+      if (coverageBySupplier) {
+        const offered = coverageBySupplier.get(id);
+        if (offered === undefined) continue; // no approved mapping to this zone
+        if (offered !== null && !offered.includes(String((order as any).__serviceKey))) continue;
+      }
 
       const load = activeLoad.get(id) ?? 0;
       if (load >= cfg.maxActive) continue;
