@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest) {
   const adminNote = typeof b.admin_note === 'string' ? b.admin_note.trim().slice(0, 500) : null;
   const db = createServiceClient();
   const { data: request, error: loadError } = await db.from('supplier_zone_requests')
-    .select('id, supplier_id, zone_id, status').eq('id', b.request_id).maybeSingle();
+    .select('id, supplier_id, zone_id, service_keys, status').eq('id', b.request_id).maybeSingle();
   if (loadError || !request) {
     if (loadError) console.error('[admin/coverage-requests] request lookup failed', loadError);
     return jsonErr('Coverage request not found.', 404);
@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest) {
     const { data: zone, error: zoneError } = await db.from('service_zones').select('id, name, status').eq('id', request.zone_id).maybeSingle();
     if (zoneError || !zone) return jsonErr('The selected service area no longer exists.', 409);
     const { error: linkError } = await db.from('supplier_zones')
-      .upsert({ supplier_id: request.supplier_id, zone_id: request.zone_id }, { onConflict: 'supplier_id,zone_id' });
+      .upsert({ supplier_id: request.supplier_id, zone_id: request.zone_id, service_keys: request.service_keys }, { onConflict: 'supplier_id,zone_id' });
     if (linkError) {
       console.error('[admin/coverage-requests] supplier-zone mapping failed', linkError);
       return jsonErr('Could not map supplier to this service area.', 502);
