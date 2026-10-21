@@ -4946,3 +4946,161 @@ CREATE TRIGGER orders_guard_referral_fields
   FOR EACH ROW EXECUTE FUNCTION public.guard_order_referral_fields();
 
 COMMIT;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/029_ncr_coming_soon_zones.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap NCR expansion staging: add non-bookable catch-all zones.
+-- Safe to run repeatedly. This does NOT activate NCR bookings.
+-- Existing slugs are left untouched so manually managed zone settings are not overwritten.
+-- Apply only after reviewing the target Supabase schema; this repository's runtime already
+-- expects these columns, but the service_zones DDL is managed outside the checked-in migrations.
+
+BEGIN;
+
+DO $preflight$
+DECLARE
+  required_column TEXT;
+BEGIN
+  IF to_regclass('public.service_zones') IS NULL THEN
+    RAISE EXCEPTION 'public.service_zones is missing; stop and verify the deployed Supabase schema before applying this seed';
+  END IF;
+
+  FOREACH required_column IN ARRAY ARRAY[
+    'city', 'name', 'slug', 'status', 'pincodes',
+    'center_lat', 'center_lng', 'radius_km', 'services',
+    'is_catch_all', 'notes'
+  ]
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'service_zones'
+        AND column_name = required_column
+    ) THEN
+      RAISE EXCEPTION 'public.service_zones.% is missing; stop and verify the deployed Supabase schema', required_column;
+    END IF;
+  END LOOP;
+END
+$preflight$;
+
+INSERT INTO public.service_zones
+  (city, name, slug, status, pincodes, center_lat, center_lng, radius_km, services, is_catch_all, notes)
+VALUES
+  ('Delhi', 'Delhi NCR — Delhi', 'delhi-delhi-ncr-delhi', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only. All localities are non-bookable until service capacity and pincode coverage are verified.'),
+  ('New Delhi', 'Delhi NCR — New Delhi', 'new-delhi-delhi-ncr-new-delhi', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only. All localities are non-bookable until service capacity and pincode coverage are verified.'),
+  ('Noida', 'Delhi NCR — Noida', 'noida-delhi-ncr-noida', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only; includes sectors as waitlist interest, not confirmed service coverage.'),
+  ('Greater Noida', 'Delhi NCR — Greater Noida', 'greater-noida-delhi-ncr-greater-noida', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only; includes sectors as waitlist interest, not confirmed service coverage.'),
+  ('Gautam Buddha Nagar', 'Delhi NCR — Gautam Buddha Nagar', 'gautam-buddha-nagar-delhi-ncr-gautam-buddha-nagar', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only. District/city aliases are staged as non-bookable.'),
+  ('Ghaziabad', 'Delhi NCR — Ghaziabad', 'ghaziabad-delhi-ncr-ghaziabad', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only; all localities remain non-bookable until service capacity and pincode coverage are verified.'),
+  ('Gurugram', 'Delhi NCR — Gurugram', 'gurugram-delhi-ncr-gurugram', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only; all localities remain non-bookable until service capacity and pincode coverage are verified.'),
+  ('Gurgaon', 'Delhi NCR — Gurgaon', 'gurgaon-delhi-ncr-gurgaon', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'City-name alias for Gurugram; expansion interest only and non-bookable.'),
+  ('Faridabad', 'Delhi NCR — Faridabad', 'faridabad-delhi-ncr-faridabad', 'COMING_SOON', ARRAY[]::text[], NULL, NULL, NULL, NULL, TRUE,
+   'Expansion interest only; all localities remain non-bookable until service capacity and pincode coverage are verified.')
+ON CONFLICT (slug) DO NOTHING;
+
+-- Post-apply verification: all expected labels should exist. This does not change existing rows.
+DO $verify$
+DECLARE
+  expected_count INTEGER := 9;
+  actual_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO actual_count
+  FROM public.service_zones
+  WHERE slug IN (
+    'delhi-delhi-ncr-delhi',
+    'new-delhi-delhi-ncr-new-delhi',
+    'noida-delhi-ncr-noida',
+    'greater-noida-delhi-ncr-greater-noida',
+    'gautam-buddha-nagar-delhi-ncr-gautam-buddha-nagar',
+    'ghaziabad-delhi-ncr-ghaziabad',
+    'gurugram-delhi-ncr-gurugram',
+    'gurgaon-delhi-ncr-gurgaon',
+    'faridabad-delhi-ncr-faridabad'
+  );
+
+  IF actual_count <> expected_count THEN
+    RAISE EXCEPTION 'NCR zone seed verification failed: expected % rows, found %', expected_count, actual_count;
+  END IF;
+END
+$verify$;
+
+COMMIT;
+
+-- Review after applying:
+-- SELECT city, name, status, is_catch_all, pincodes
+-- FROM public.service_zones
+-- WHERE slug LIKE '%delhi-ncr%'
+-- ORDER BY city;
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/030_supplier_coverage_review.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- Supplier-selected service-area requests with admin review.
+-- Safe additive migration: does not change existing serviceability or activate any zone.
+BEGIN;
+
+DO $preflight$
+BEGIN
+  IF to_regclass('public.profiles') IS NULL THEN
+    RAISE EXCEPTION 'public.profiles is missing; stop and verify the deployed schema';
+  END IF;
+  IF to_regclass('public.service_zones') IS NULL THEN
+    RAISE EXCEPTION 'public.service_zones is missing; apply the service-zone schema first';
+  END IF;
+  IF to_regclass('public.supplier_zones') IS NULL THEN
+    RAISE EXCEPTION 'public.supplier_zones is missing; apply the supplier-zone schema first';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='service_zones' AND column_name='id'
+  ) THEN
+    RAISE EXCEPTION 'public.service_zones.id is missing; verify schema before continuing';
+  END IF;
+END
+$preflight$;
+
+CREATE TABLE IF NOT EXISTS public.supplier_zone_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  zone_id uuid NOT NULL REFERENCES public.service_zones(id) ON DELETE CASCADE,
+  service_keys text[] NOT NULL DEFAULT ARRAY[]::text[],
+  status text NOT NULL DEFAULT 'PENDING'
+    CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+  supplier_note text,
+  admin_note text,
+  reviewed_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reviewed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (supplier_id, zone_id)
+);
+
+CREATE INDEX IF NOT EXISTS supplier_zone_requests_status_created_idx
+  ON public.supplier_zone_requests (status, created_at DESC);
+CREATE INDEX IF NOT EXISTS supplier_zone_requests_supplier_idx
+  ON public.supplier_zone_requests (supplier_id, updated_at DESC);
+
+ALTER TABLE public.supplier_zone_requests ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.supplier_zone_requests FROM anon, authenticated;
+GRANT ALL ON TABLE public.supplier_zone_requests TO service_role;
+
+COMMIT;
+
+-- Verification:
+-- SELECT status, count(*) FROM public.supplier_zone_requests GROUP BY status;
+-- Important: approving a request maps the supplier to a zone, but does not make a
+-- COMING_SOON zone bookable. An admin must separately verify capacity and change the zone status.
