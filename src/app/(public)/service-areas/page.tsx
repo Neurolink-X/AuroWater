@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { NCR_EXPANSION_REGIONS } from '@/lib/expansion-regions';
+import NcrWaitlistForm from '@/components/public/NcrWaitlistForm';
 
 export const metadata: Metadata = {
   title: 'Delhi NCR Service Areas — Expansion Waitlist | AuroTap',
@@ -72,6 +73,10 @@ export default function ServiceAreasPage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
+        <NcrWaitlistForm />
       </section>
 
       <section className="border-t border-slate-200 bg-white px-5 py-10">
