@@ -82,17 +82,47 @@ async function pincodeCentroid(pin: string): Promise<Centroid | null> {
       .eq('pincode', pin)
       .not('lat', 'is', null)
       .not('lng', 'is', null)
-      .limit(50);
+      .order('id', { ascending: true })
+      .limit(1000);
 
     if (!dir.error && Array.isArray(dir.data) && dir.data.length) {
       const pts = (dir.data as any[])
         .map((r) => ({ lat: Number(r.lat), lng: Number(r.lng), name: String(r.office_name ?? '') }))
         .filter((p) => isValidCoord(p.lat, p.lng));
       if (pts.length) {
+        // Start with a robust centre, then reject only clear spatial outliers.
+        // A minimum 5 km tolerance avoids over-filtering legitimate wide PIN areas.
+        const initialLat = median(pts.map((p) => p.lat));
+        const initialLng = median(pts.map((p) => p.lng));
+        const distances = pts.map((p) =>
+          haversineKm(p.lat, p.lng, initialLat, initialLng),
+        );
+        const medianDistance = median(distances);
+        const distanceMad = median(
+          distances.map((distance) => Math.abs(distance - medianDistance)),
+        );
+        const outlierLimitKm = Math.max(
+          5,
+          medianDistance + 3 * 1.4826 * distanceMad,
+        );
+        const nearby = pts.filter((_, index) => distances[index] <= outlierLimitKm);
+
+        // If the filter would discard half or more of the source points, retain
+        // the complete set rather than making an unsafe assumption about geography.
+        const selected =
+          nearby.length >= Math.ceil(pts.length / 2) ? nearby : pts;
+        const lat = median(selected.map((p) => p.lat));
+        const lng = median(selected.map((p) => p.lng));
+        const nearest = [...selected].sort(
+          (a, b) =>
+            haversineKm(a.lat, a.lng, lat, lng) -
+            haversineKm(b.lat, b.lng, lat, lng),
+        )[0];
+
         value = {
-          lat: median(pts.map((p) => p.lat)),
-          lng: median(pts.map((p) => p.lng)),
-          label: pts[0].name || pin,
+          lat,
+          lng,
+          label: nearest?.name || pin,
         };
       }
     } else if (dir.error && !/does not exist|schema cache|relation/i.test(String(dir.error.message ?? ''))) {
