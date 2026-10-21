@@ -261,10 +261,10 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         return { supplierId: null, reason: 'error' };
       }
       const serviceKey = String(typeRes.data.key);
-      coverageBySupplier = new Map(
-        ((coverageRes.data ?? []) as { supplier_id: string; service_keys: string[] | null }[])
-          .map((link) => [String(link.supplier_id), link.service_keys ?? null]),
-      );
+      coverageBySupplier = new Map<string, string[] | null>();
+      for (const link of (coverageRes.data ?? []) as { supplier_id: string; service_keys: string[] | null }[]) {
+        coverageBySupplier.set(String(link.supplier_id), link.service_keys ?? null);
+      }
       // Keep the normalized key on the order object for candidate filtering below.
       (order as any).__serviceKey = serviceKey;
     }
