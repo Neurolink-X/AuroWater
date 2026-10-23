@@ -695,7 +695,7 @@ export default function HomePage() {
                     className="hero-eyebrow"
                   >
                     <span className="aw-live shrink-0" aria-hidden="true" />
-                    Now serving eligible areas of Kanpur, Lucknow , Gorakhpur &amp; NCR
+                    Now serving eligible areas of Kanpur, Lucknow &amp; Gorakhpur
                   </motion.div>
 
                   <motion.p
@@ -761,7 +761,7 @@ export default function HomePage() {
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-sm font-extrabold text-white">3+ service cities</div>
-                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur and NCR</div>
+                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur · Delhi NCR waitlist</div>
                     </div>
                   </div>
                 </motion.div>
