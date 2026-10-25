@@ -2,7 +2,7 @@ import { NextRequest, after } from 'next/server';
 import { z } from 'zod';
 
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
-import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { requireRole, requireSupabaseAuth, type AuthedContext } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
 import { dispatchOrder } from '@/lib/dispatch';
 
@@ -124,7 +124,7 @@ type SnapshotResult =
   | { ok: false; error: { message: string } }
   | { ok: true; data: Row };
 
-async function loadSnapshot(sb: any, userId: string): Promise<SnapshotResult> {
+async function loadSnapshot(sb: AuthedContext['supabase'], userId: string): Promise<SnapshotResult> {
   const service = createServiceClient();
   const [settingsRes, profileRes] = await Promise.all([
     sb.from('supplier_settings').select('*').eq('user_id', userId).maybeSingle(),
