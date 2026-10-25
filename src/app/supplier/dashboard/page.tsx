@@ -1217,7 +1217,7 @@
 //     const weekAgo = Date.now() - 7 * 864e5;
 //     const monthAgo = Date.now() - 30 * 864e5;
 
-//     const todayOrders = orders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === today).length;
+//     const todayOrders = orders.filter((o) => toISTDateKey(o.created_at) === today).length;
 //     const pendingOrders = orders.filter((o) =>
 //       ['pending', 'assigned', 'in_progress'].includes(o.status)
 //     ).length;
@@ -1409,7 +1409,7 @@
 //       activeOrders
 //         .filter((o) => {
 //           if (!matchesQuery(o, q)) return false;
-//           if (filter === 'today') return (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr;
+//           if (filter === 'today') return toISTDateKey(o.created_at) === todayStr;
 //           if (filter === 'tomorrow') return o.scheduled_date === tomorrowStr;
 //           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
 //           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -1431,7 +1431,7 @@
 //   const hasFilter = q !== '' || (tab === 'active' && filter !== 'all');
 
 //   const route = useMemo(() => {
-//     const todays = activeOrders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr);
+//     const todays = activeOrders.filter((o) => o.scheduled_date === todayStr);
 //     const slots = new Map<string, number>();
 //     todays.forEach((o) => {
 //       const key = o.scheduled_slot || 'Anytime';
@@ -2089,6 +2089,7 @@ import {
   supplierSettingsUpdate,
   supplierEarningsSummary,
   supplierRatingGet,
+  type SupplierDispatchSettings,
 } from '@/lib/api-client';
 import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
 
@@ -2825,6 +2826,7 @@ export default function SupplierDashboardPage() {
   const [stockBusy, setStockBusy] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [dispatchOnline, setDispatchOnline] = useState(false);
+  const [dispatchSettings, setDispatchSettings] = useState<SupplierDispatchSettings | null>(null);
   const [dispatchSettingsBusy, setDispatchSettingsBusy] = useState(false);
 
   const [tab, setTab] = useState<'active' | 'history'>('active');
@@ -3153,6 +3155,7 @@ export default function SupplierDashboardPage() {
   const fetchDispatchSettings = async () => {
     try {
       const data = await supplierSettingsGet();
+      setDispatchSettings(data);
       setDispatchOnline(Boolean(data?.is_online));
     } catch (error) {
       console.error('[supplier] dispatch settings load failed:', error);
@@ -3164,6 +3167,7 @@ export default function SupplierDashboardPage() {
     setDispatchSettingsBusy(true);
     try {
       const data = await supplierSettingsUpdate({ is_online: !dispatchOnline });
+      setDispatchSettings(data);
       setDispatchOnline(Boolean(data.is_online));
       toast.success(data.is_online ? 'You are now available for nearby orders.' : 'You are offline for new orders.');
     } catch (error) {
@@ -3228,34 +3232,17 @@ export default function SupplierDashboardPage() {
       toast.error('Location is not available in this browser.');
       return;
     }
-
+    const confirmed = window.confirm(
+      'This saves your CURRENT device location as your supplier dispatch base. Dispatch uses it to match customer orders. If your business base is in Kanpur but you are currently in Noida, cancel and do not update it.'
+    );
+    if (!confirmed) return;
     setLocationBusy(true);
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          const token = await supabase.auth.getSession();
-          if (!token.data.session) {
-            toast.error('Your session has expired.');
-            return;
-          }
-
-          const response = await fetch('/api/supplier/settings', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token.data.session.access_token}`,
-            },
-            body: JSON.stringify({
-              base_lat: position.coords.latitude,
-              base_lng: position.coords.longitude,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error('Location update failed');
-          }
-
-          toast.success('Dispatch location updated.');
+          const data = await supplierSettingsUpdate({ base_lat: position.coords.latitude, base_lng: position.coords.longitude });
+          setDispatchSettings(data);
+          toast.success('Dispatch base location saved.');
         } catch (error) {
           console.error('[supplier] dispatch location update failed:', error);
           toast.error('Could not update dispatch location.');
@@ -3309,7 +3296,7 @@ export default function SupplierDashboardPage() {
     const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
 
-    const todayOrders = orders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === today).length;
+    const todayOrders = orders.filter((o) => toISTDateKey(o.created_at) === today).length;
     const pendingOrders = orders.filter((o) =>
       ['pending', 'assigned', 'in_progress'].includes(o.status)
     ).length;
@@ -3500,7 +3487,7 @@ export default function SupplierDashboardPage() {
       activeOrders
         .filter((o) => {
           if (!matchesQuery(o, q)) return false;
-          if (filter === 'today') return (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr;
+          if (filter === 'today') return toISTDateKey(o.created_at) === todayStr;
           if (filter === 'tomorrow') return o.scheduled_date === tomorrowIST();
           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -3522,7 +3509,7 @@ export default function SupplierDashboardPage() {
   const hasFilter = q !== '' || (tab === 'active' && filter !== 'all');
 
   const route = useMemo(() => {
-    const todays = activeOrders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr);
+    const todays = activeOrders.filter((o) => o.scheduled_date === todayStr);
     const slots = new Map<string, number>();
     todays.forEach((o) => {
       const key = o.scheduled_slot || 'Anytime';
@@ -3762,7 +3749,7 @@ export default function SupplierDashboardPage() {
 
           {/* ── STATS GRID ─────────────────────────────────────────────── */}
           <div className="sd-stats">
-            <StatCard icon={Icon.truck(17)} label={isHindi ? 'आज के ऑर्डर' : "Today's Orders"} value={stats?.todayOrders.toString() ?? '—'} sub={isHindi ? 'आज के लिए निर्धारित' : 'Scheduled for today'} accent="#0B8A60" loading={loading} />
+            <StatCard icon={Icon.truck(17)} label={isHindi ? 'आज बुक हुए ऑर्डर' : 'Orders booked today'} value={stats?.todayOrders.toString() ?? '—'} sub={isHindi ? 'आज (IST) बनाए गए ऑर्डर' : 'Bookings created today (IST)'} accent="#0B8A60" loading={loading} />
             <StatCard icon={Icon.drop(17, '#0277B6')} label={isHindi ? 'सक्रिय ऑर्डर' : 'Active Orders'} value={stats?.pendingOrders.toString() ?? '—'} sub={isHindi ? 'लंबित + जारी' : 'Pending + In-progress'} accent="#0277B6" loading={loading} />
             <StatCard icon={Icon.wallet(17)} label={isHindi ? 'इस सप्ताह' : 'This Week'} value={stats ? INR(stats.weekEarnings) : '—'} sub={isHindi ? 'कमाई (7 दिन)' : 'Earnings (7 days)'} accent="#6D28D9" loading={loading} />
             <StatCard icon={Icon.chart(17)} label={isHindi ? 'इस महीने' : 'This Month'} value={stats ? INR(stats.monthEarnings) : '—'} sub={`${stats?.completionRate ?? 0}% ${isHindi ? 'पूरा होने की दर' : 'completion rate'}`} accent="#9A5A06" loading={loading} />
@@ -3899,6 +3886,13 @@ export default function SupplierDashboardPage() {
               <div className="sd-help" style={{ marginTop: 12 }}>
                 {isHindi ? 'ऑर्डर के लिए कैन सुरक्षित रखे जाते हैं। ऑफ़लाइन बिक्री से आरक्षित स्टॉक कम नहीं किया जा सकता।' : 'Orders reserve cans atomically. Offline sales cannot reduce inventory below reserved stock.'}
               </div>
+              <div className="sd-help" style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--surface2, rgba(100,116,139,0.08))' }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>{isHindi ? 'सेव किया गया सप्लायर बेस' : 'Saved supplier dispatch base'}</div>
+                {dispatchSettings?.base_lat != null && dispatchSettings?.base_lng != null
+                  ? <div>{dispatchSettings.base_lat.toFixed(5)}, {dispatchSettings.base_lng.toFixed(5)} · {dispatchSettings.zone_radius_km ?? 5} km {isHindi ? 'रेडियस' : 'radius'}</div>
+                  : <div>{isHindi ? 'अभी कोई बेस लोकेशन सेव नहीं है।' : 'No dispatch base location is saved yet.'}</div>}
+                <div style={{ marginTop: 5 }}>{isHindi ? 'यह आपके व्यवसाय/डिलीवरी बेस की लोकेशन होनी चाहिए, लैपटॉप की मौजूदा लोकेशन नहीं।' : 'Use your actual business/delivery base—not your laptop location if you are travelling.'}</div>
+              </div>
               <button type="button" disabled={locationBusy} onClick={() => void syncDispatchLocation()} className="sd-btn sd-btn--info sd-btn--block" style={{ marginTop: 16 }}>
                 {locationBusy ? (isHindi ? 'लोकेशन अपडेट हो रही है…' : 'Updating location…') : (isHindi ? 'ऑर्डर के लिए वर्तमान लोकेशन उपयोग करें' : 'Use current location for dispatch')}
               </button>
@@ -3965,7 +3959,7 @@ export default function SupplierDashboardPage() {
                   {hasFilter
                     ? (isHindi ? 'दूसरा नाम, फ़ोन नंबर या फ़िल्टर आज़माएँ।' : 'Try a different name, phone number or filter.')
                     : tab === 'active'
-                      ? (isHindi ? 'नया ऑर्डर मिलने पर वह यहाँ अपने-आप दिखेगा।' : 'New orders will appear here automatically when assigned.')
+                      ? (isHindi ? 'यहाँ केवल आपके सप्लायर खाते को असाइन किए गए ऑर्डर दिखते हैं। बिना सप्लायर वाले PENDING ऑर्डर डिस्पैच/एडमिन जाँच माँगते हैं।' : 'This list shows orders assigned to your supplier account only. Customer orders still PENDING without a supplier need dispatch/admin review and will not appear here yet.')
                       : (isHindi ? 'पूरे और रद्द किए गए ऑर्डर यहाँ दिखेंगे।' : 'Completed and cancelled orders will show up here.')}
                 </div>
                 {hasFilter && (
