@@ -350,7 +350,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         const links = coverageBySupplier.get(id) ?? [];
         const matching = links.find((link) => link.zoneId === String(order.zone_id));
         if (matching) {
-          if (matching.serviceKeys !== null && matching.serviceKeys.length > 0 &&
+          if (matching.serviceKeys !== null &&
               !matching.serviceKeys.includes(String((order as any).__serviceKey))) continue;
         } else {
           // Mapped suppliers for another zone may still be considered as a controlled
