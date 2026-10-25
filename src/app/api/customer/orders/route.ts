@@ -235,24 +235,27 @@ export async function POST(req: NextRequest) {
   const addrLng = geo.ok ? geo.lng : NaN;
   const geoSource = geo.ok ? geo.source : null;
 
-  // Zone rules always receive valid coordinates now
-  // const serviceability = await resolveServiceability(
-  //   geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
-  //   service_type_key
-  // );
-  if (serviceability.status === 'LOOKUP_ERROR') {
-  return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
-}
-if (!serviceability.serviceable) {
-  return jsonErr(serviceability.message, 400);
-}
+
+  // Resolve serviceability before creating the order.
+
+  // Resolve serviceability before creating the order.
+  const serviceability = await resolveServiceability(
+    geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
+    service_type_key
+  );
 
   if (serviceability.status === 'LOOKUP_ERROR') {
-    return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
+    return jsonErr(
+      serviceability.message,
+      503,
+      'SERVICEABILITY_LOOKUP_FAILED'
+    );
   }
+
   if (!serviceability.serviceable) {
     return jsonErr(serviceability.message, 400);
   }
+
 
   // Self-heal: remember the derived point so this address works everywhere next time
   if (geo.ok && geo.quality >= MIN_QUALITY_FOR_WATER && !isValidCoord(a.lat, a.lng)) {
