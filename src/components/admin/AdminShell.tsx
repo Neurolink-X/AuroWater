@@ -107,6 +107,16 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/dispatch',
+    label: 'Dispatch',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 5h16v14H4z" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M8 9h8M8 12h5M8 15h8" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/settings',
     label: 'Settings',
     icon: (
