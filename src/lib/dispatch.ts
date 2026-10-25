@@ -217,8 +217,9 @@ async function markAttempt(db: any, orderId: string) {
 
 /** Try to assign the best available supplier to a PENDING order. Safe to call repeatedly. */
 export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
+  let db: any = null;
   try {
-    const db: any = createServiceClient();
+    db = createServiceClient();
     const cfg = await loadCfg(db);
 
     const { data: order } = await db
@@ -466,7 +467,20 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     return noCandidates();
   } catch (e) {
-    console.error('[dispatch] dispatchOrder failed:', e);
+    console.error('[dispatch] dispatchOrder failed:', { orderId, error: e instanceof Error ? e.message : e });
+    // Make an unhandled dispatch failure visible to the recovery sweep instead of
+    // leaving last_dispatch_at NULL forever. The sweep can retry after its interval.
+    if (db) {
+      await markAttempt(db, orderId).catch((markError) => {
+        console.error('[dispatch] failed to record unhandled dispatch failure:', markError);
+      });
+      await alertAdmins(
+        db,
+        orderId,
+        'Automatic supplier dispatch hit an unexpected error. The order remains pending and will be retried.',
+        'dispatch_unhandled_error',
+      );
+    }
     return { supplierId: null, reason: 'error' };
   }
 }
