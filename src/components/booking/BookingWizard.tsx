@@ -177,35 +177,30 @@ async function fetchPostOffices(query: string, city: string, strictCity: boolean
   if (q.length < 3) return [];
   const variants = Array.from(new Set([q, q.replace(/[\s-]*\d+$/, '').trim(), q.split(/\s+/)[0] ?? '']))
     .filter((v) => v.length >= 3);
-  const cityKey = city.trim().toLowerCase();
   for (const v of variants) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5_000);
     try {
-      const res = await fetch(`https://api.postalpincode.in/postoffice/${encodeURIComponent(v)}`, { signal: ctrl.signal });
-      const json = (await res.json()) as Array<{ Status?: string; PostOffice?: Array<{ Name?: string; Pincode?: string; District?: string }> | null }>;
-      const offices = json?.[0]?.Status === 'Success' ? json[0].PostOffice ?? [] : [];
-      const all: PostHit[] = [];
-      const seen = new Set<string>();
-      for (const o of offices) {
-        const name = String(o.Name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim();
-        const pincode = String(o.Pincode ?? '').trim();
-        if (!name || !/^\d{6}$/.test(pincode)) continue;
-        const key = `${name}-${pincode}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        all.push({ key, name, pincode, district: String(o.District ?? '') });
-      }
-      const inCity = cityKey ? all.filter((h) => h.district.toLowerCase().includes(cityKey)) : [];
-      const picked = inCity.length > 0 ? inCity : strictCity ? [] : all;
-      if (picked.length > 0) return picked.slice(0, 8);
-    } catch { /* try next variant */ } finally {
-      clearTimeout(timer);
-    }
+      const params = new URLSearchParams({ office: v, city: city.trim(), strictCity: String(strictCity) });
+      const res = await fetch(`/api/geo/postal?${params.toString()}`, {
+        signal: ctrl.signal, headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      if (!res.ok) continue;
+      const payload = await res.json() as { results?: Array<{ name?: string; pincode?: string; district?: string }> };
+      const hits: PostHit[] = (Array.isArray(payload.results) ? payload.results : [])
+        .map((o) => ({
+          key: `${String(o.name ?? '').trim()}-${String(o.pincode ?? '').trim()}`,
+          name: String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim(),
+          pincode: String(o.pincode ?? '').trim(),
+          district: String(o.district ?? ''),
+        }))
+        .filter((h) => h.name && /^\d{6}$/.test(h.pincode));
+      if (hits.length) return hits.slice(0, 8);
+    } catch { /* optional suggestions never block address entry */ }
+    finally { clearTimeout(timer); }
   }
   return [];
 }
-
 function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
   return d.canOrderType === 'subscription' ? MAX_CANS_SUBSCRIPTION : MAX_CANS_ONE_TIME;
 }
@@ -221,6 +216,8 @@ const SERVICE_LIST = [
 ];
 
 const LIVE_CITIES: readonly string[] = ACTIVE_CITY_NAMES;
+// Candidate cities are selectable for address entry; server-side coverage still controls booking.
+const ADDRESS_CITIES: readonly string[] = Array.from(new Set([...ACTIVE_CITY_NAMES, 'Noida', 'Delhi']));
 
 /* ───────── Premium presentation helpers ───────── */
 
@@ -1053,26 +1050,26 @@ export default function BookingWizard() {
     });
   }, []);
 
-  /** Suggests real area names for a pincode (India Post data). Fails silently, never blocks booking. */
+  /** Suggest real area names from the server-side PIN directory. Optional; never blocks booking. */
   const lookupPincode = useCallback(async (pin: string) => {
     const id = ++pinReq.current;
     if (pin.length !== 6) { setPinAreas([]); return; }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5_000);
     try {
-      const res = await fetch(`https://api.postalpincode.in/pincode/${pin}`, { signal: ctrl.signal });
-      const json = (await res.json()) as Array<{ Status?: string; PostOffice?: Array<{ Name?: string }> | null }>;
+      const res = await fetch(`/api/geo/postal?pincode=${encodeURIComponent(pin)}`, {
+        signal: ctrl.signal, headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      if (!res.ok) throw new Error('postal lookup unavailable');
+      const payload = await res.json() as { results?: Array<{ name?: string }> };
       if (id !== pinReq.current) return;
-      const offices = json?.[0]?.Status === 'Success' ? json[0].PostOffice ?? [] : [];
       const names = Array.from(new Set(
-        offices.map((o) => String(o.Name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
+        (payload.results ?? []).map((o) => String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
       )).slice(0, 8);
       setPinAreas(names);
     } catch {
       if (id === pinReq.current) setPinAreas([]);
-    } finally {
-      clearTimeout(timer);
-    }
+    } finally { clearTimeout(timer); }
   }, []);
 
   /** Type an area ("Barra") and get its real pincode from India Post. This is the accurate path
@@ -2100,7 +2097,7 @@ export default function BookingWizard() {
                     <select className={`${selectCls}${flashCls}`} aria-label="City"
                       value={draft.newAddress?.city ?? LIVE_CITIES[0] ?? ''}
                       onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, city: e.target.value } }))}>
-                      {LIVE_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {ADDRESS_CITIES.map((c) => <option key={c} value={c}>{c}{!LIVE_CITIES.includes(c) ? ' · availability check required' : ''}</option>)}
                     </select>
 
                     <div>

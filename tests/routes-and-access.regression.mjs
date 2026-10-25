@@ -219,3 +219,31 @@ assert.ok(migrationBuilder.includes('028_referral_rewards.sql'));
 const orderedMigrationBundle = readFileSync(join(root, 'sql', 'ALL_MIGRATIONS_ORDERED.sql'), 'utf8');
 assert.ok(orderedMigrationBundle.includes('FILE: sql/028_referral_rewards.sql'));
 assert.ok(orderedMigrationBundle.includes('sync_referral_reward_order_state'));
+
+
+// Location regression guards: postal lookup must stay same-origin (the production CSP
+// intentionally blocks direct browser requests to third-party postal APIs), and reverse
+// geocoding must not replace accurate GPS coordinates with a distant provider centroid.
+const postalApi = readFileSync(join(root, 'src', 'app', 'api', 'geo', 'postal', 'route.ts'), 'utf8');
+assert.match(postalApi, /from\('pincode_directory'\)/);
+assert.match(postalApi, /strictCity/);
+assert.doesNotMatch(bookingWizard, /https:\/\/api\.postalpincode\.in/);
+assert.match(bookingWizard, /\/api\/geo\/postal\?/);
+assert.match(bookingWizard, /ADDRESS_CITIES.*Noida.*Delhi/);
+const reverseGeo = readFileSync(join(root, 'src', 'app', 'api', 'geocode', 'reverse', 'route.ts'), 'utf8');
+assert.match(reverseGeo, /distMeters\(lat, lng, point\.lat, point\.lng\) <= 5_000/);
+assert.match(reverseGeo, /const coordinateCity = regionCity\(lat, lng\)/);
+assert.match(reverseGeo, /    lat,\n    lng,/);
+const stagedNoidaZone = readFileSync(join(root, 'sql', '031_noida_sector_73_pilot_staged.sql'), 'utf8');
+assert.match(stagedNoidaZone, /noida-sector-73-pilot/);
+assert.match(stagedNoidaZone, /'COMING_SOON'/);
+assert.match(stagedNoidaZone, /ARRAY\['water_can'\]::text\[\]/);
+assert.match(stagedNoidaZone, /ON CONFLICT \(slug\) DO NOTHING/);
+assert.match(migrationBuilder, /031_noida_sector_73_pilot_staged\.sql/);
+assert.match(apiClient, /No stored Supabase session means there is no refresh token to refresh/);
+assert.match(apiClient, /Network changes are common on mobile\/Wi-Fi handoffs/);
+
+const supplierRealtime = readFileSync(join(root, 'src', 'hooks', 'useSupplierRealtime.ts'), 'utf8');
+assert.match(supplierRealtime, /Safety-net polling while the tab is visible/);
+assert.match(supplierRealtime, /window\.setInterval/);
+assert.doesNotMatch(supplierRealtime, /if \(!supplierId \|\| status === 'live'\) return/);

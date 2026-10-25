@@ -5106,3 +5106,94 @@ COMMIT;
 -- SELECT status, count(*) FROM public.supplier_zone_requests GROUP BY status;
 -- Important: approving a request maps the supplier to a zone, but does not make a
 -- COMING_SOON zone bookable. An admin must separately verify capacity and change the zone status.
+
+
+-- ═══════════════════════════════════════════════════════════════
+-- FILE: sql/031_noida_sector_73_pilot_staged.sql
+-- ═══════════════════════════════════════════════════════════════
+
+-- AuroTap Noida Sector 73 pilot zone (staged, NOT live by default).
+-- Apply only after reviewing the production schema. This migration deliberately leaves
+-- the zone COMING_SOON. Admin should approve a real supplier mapping and verify stock
+-- before manually changing this one zone to AVAILABLE.
+-- Do not activate the Noida catch-all zone; other Noida sectors must remain unavailable.
+
+BEGIN;
+
+DO $preflight$
+DECLARE
+  required_column TEXT;
+BEGIN
+  IF to_regclass('public.service_zones') IS NULL THEN
+    RAISE EXCEPTION 'public.service_zones is missing; stop and verify the deployed schema';
+  END IF;
+
+  FOREACH required_column IN ARRAY ARRAY[
+    'city', 'name', 'slug', 'status', 'pincodes',
+    'center_lat', 'center_lng', 'radius_km', 'services',
+    'is_catch_all', 'notes'
+  ]
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'service_zones'
+        AND column_name = required_column
+    ) THEN
+      RAISE EXCEPTION 'public.service_zones.% is missing; stop and verify the deployed schema', required_column;
+    END IF;
+  END LOOP;
+END
+$preflight$;
+
+INSERT INTO public.service_zones
+  (city, name, slug, status, pincodes, center_lat, center_lng, radius_km, services, is_catch_all, notes)
+VALUES
+  (
+    'Noida',
+    'Noida Sector 73 Pilot',
+    'noida-sector-73-pilot',
+    'COMING_SOON',
+    ARRAY[]::text[],
+    28.5865,
+    77.3871,
+    1.5,
+    ARRAY['water_can']::text[],
+    FALSE,
+    'Pilot boundary only. Confirm exact customer GPS, local PIN mapping, supplier approval, stock and dispatch before activating.'
+  )
+ON CONFLICT (slug) DO NOTHING;
+
+DO $verify$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.service_zones
+    WHERE slug = 'noida-sector-73-pilot'
+      AND city = 'Noida'
+      AND status = 'COMING_SOON'
+      AND is_catch_all = FALSE
+  ) THEN
+    RAISE EXCEPTION 'Noida Sector 73 pilot verification failed; inspect the existing row before proceeding';
+  END IF;
+END
+$verify$;
+
+COMMIT;
+
+-- After a real supplier is approved for this exact zone and has confirmed stock,
+-- verify the mapping first:
+-- SELECT z.city, z.name, z.status, sz.supplier_id, sz.service_keys
+-- FROM public.service_zones z
+-- LEFT JOIN public.supplier_zones sz ON sz.zone_id = z.id
+-- WHERE z.slug = 'noida-sector-73-pilot';
+--
+-- Once the supplier mapping, online status, GPS/base location and stock are verified,
+-- activate the pilot for one controlled test order:
+-- UPDATE public.service_zones SET status = 'AVAILABLE'
+-- WHERE slug = 'noida-sector-73-pilot' AND status = 'COMING_SOON';
+--
+-- Place one test order from an address physically in Sector 73 and confirm it is
+-- assigned to the approved supplier and visible on that supplier's dashboard.
+-- If dispatch fails, immediately disable the pilot again while investigating:
+-- UPDATE public.service_zones SET status = 'COMING_SOON'
+-- WHERE slug = 'noida-sector-73-pilot' AND status = 'AVAILABLE';

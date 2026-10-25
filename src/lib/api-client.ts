@@ -44,14 +44,15 @@ export async function getToken(): Promise<string | null> {
 
     const session = sessionData.session;
 
+    // No stored Supabase session means there is no refresh token to refresh.
+    // Calling refreshSession() here caused repeated "Invalid Refresh Token" console
+    // errors after browser storage was cleared or a previous session expired.
     if (!session) {
-      const { data: refreshed } =
-        await supabase.auth.refreshSession();
-
-      return (
-        refreshed.session?.access_token ??
-        null
-      );
+      clearToken();
+      clearUser();
+      clearAuthGateCookies();
+      safeRemove('aurowater_session');
+      return null;
     }
 
     const expiresAtMs =
@@ -64,13 +65,18 @@ export async function getToken(): Promise<string | null> {
       !expiresAtMs ||
       expiresAtMs - Date.now() <= refreshBeforeMs
     ) {
-      const { data: refreshed } =
+      const { data: refreshed, error } =
         await supabase.auth.refreshSession();
 
-      return (
-        refreshed.session?.access_token ??
-        null
-      );
+      if (error || !refreshed.session?.access_token) {
+        clearToken();
+        clearUser();
+        clearAuthGateCookies();
+        safeRemove('aurowater_session');
+        return null;
+      }
+
+      return refreshed.session.access_token;
     }
 
     return session.access_token;
@@ -130,6 +136,12 @@ async function fetchWithRetryParse(
       }
       return last;
     } catch {
+      // Network changes are common on mobile/Wi-Fi handoffs. Retry once rather
+      // than failing the first same-origin request immediately.
+      if (attempt === 0) {
+        await new Promise<void>((r) => setTimeout(r, 350));
+        continue;
+      }
       throw new ApiError('Network error', 503, 'NETWORK');
     }
   }
@@ -165,6 +177,10 @@ async function fetchWithRetryRaw(
       }
       return last;
     } catch {
+      if (attempt === 0) {
+        await new Promise<void>((r) => setTimeout(r, 350));
+        continue;
+      }
       throw new ApiError('Network error', 503, 'NETWORK');
     }
   }

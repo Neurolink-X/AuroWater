@@ -27,7 +27,10 @@ const REGIONS: Array<{ city: string; minLat: number; maxLat: number; minLng: num
   { city: 'Kanpur', minLat: 26.28, maxLat: 26.62, minLng: 80.1, maxLng: 80.55 },
   { city: 'Lucknow', minLat: 26.7, maxLat: 27.0, minLng: 80.8, maxLng: 81.1 },
   { city: 'Gorakhpur', minLat: 26.7, maxLat: 26.9, minLng: 83.3, maxLng: 83.5 },
-  { city: 'NCR', minLat: 28.4, maxLat: 28.7, minLng: 77.0, maxLng: 77.4 },
+  // More specific NCR boxes are checked before Delhi so a Noida GPS fix cannot be labelled only "NCR".
+  { city: 'Noida', minLat: 28.40, maxLat: 28.66, minLng: 77.30, maxLng: 77.52 },
+  { city: 'Ghaziabad', minLat: 28.55, maxLat: 28.85, minLng: 77.32, maxLng: 77.55 },
+  { city: 'Delhi', minLat: 28.40, maxLat: 28.90, minLng: 76.82, maxLng: 77.30 },
 ];
 
 /** Block/category labels such as "Ews", "LIG", "A-12" are not areas a customer would recognise. */
@@ -265,14 +268,40 @@ async function resolveLocation(lat: number, lng: number) {
     return value;
   }
 
-  const results = [...(data?.results ?? [])].sort((a, b) => score(b) - score(a));
+  // Reverse-geocoder providers occasionally return a stale/distant match. Only accept
+  // results whose own geometry is close to the user's GPS point; never replace the
+  // original GPS coordinates with a geocoder's centroid.
+  const nearbyResults = (data?.results ?? []).filter((r) => {
+    const point = r.geometry?.location;
+    return typeof point?.lat === 'number' && typeof point?.lng === 'number' &&
+      distMeters(lat, lng, point.lat, point.lng) <= 5_000;
+  });
+  if (!nearbyResults.length) {
+    const osm = await osmReverse(lat, lng);
+    const placeName = osm?.area ? '' : await nearestPlaceName(lat, lng);
+    const localCity = regionCity(lat, lng) || osm?.city || '';
+    const value = build({
+      lat, lng, formattedAddress: osm?.display ?? '', area: osm?.area || placeName,
+      city: localCity, state: localCity ? 'Uttar Pradesh' : '', pincode: '', street: '',
+    }, osm || placeName ? 'osm' : 'fallback', osm?.area || placeName ? 'area' : localCity ? 'city' : 'none',
+    { ...diag, rejected_distant_geocoder_result: 'true' });
+    cache.set(key, { at: Date.now(), value });
+    return value;
+  }
+
+  const results = [...nearbyResults].sort((a, b) => score(b) - score(a));
   const top = results[0];
 
   let area = pickArea(results);
-  const city =
-    pickAcross(results, 'long', 'locality', 'postal_town', 'administrative_area_level_2') || regionCity(lat, lng);
-  const state = pickAcross(results, 'long', 'administrative_area_level_1') || (city ? 'Uttar Pradesh' : '');
-  const pincode = /^\d{6}$/.test(pickAcross(results, 'short', 'postal_code')) ? pickAcross(results, 'short', 'postal_code') : '';
+  const geocodedCity = pickAcross(results, 'long', 'locality', 'postal_town', 'administrative_area_level_2');
+  // Coordinates win over a contradictory city label; don't retain a mismatched postal code.
+  const coordinateCity = regionCity(lat, lng);
+  const city = coordinateCity || geocodedCity;
+  const state = coordinateCity === 'Delhi' ? 'Delhi' : pickAcross(results, 'long', 'administrative_area_level_1') || (city ? 'Uttar Pradesh' : '');
+  const candidatePin = pickAcross(results, 'short', 'postal_code');
+  const pincode = /^\d{6}$/.test(candidatePin) &&
+    (!coordinateCity || !geocodedCity || coordinateCity.toLowerCase() === geocodedCity.toLowerCase())
+      ? candidatePin : '';
   let source: 'google' | 'google+osm' = 'google';
   if (!area) {
     // Google answered but left a gap: fill only the gap from OpenStreetMap.
@@ -291,8 +320,8 @@ async function resolveLocation(lat: number, lng: number) {
     topScore >= 90 ? 'exact' : topScore >= 70 ? 'street' : topScore >= 55 ? 'area' : 'city';
 
   const value = build({
-    lat: top.geometry?.location?.lat ?? lat,
-    lng: top.geometry?.location?.lng ?? lng,
+    lat,
+    lng,
     formattedAddress: (top.formatted_address ?? '').replace(PLUS_CODE, '').trim(),
     area, city, state, pincode, street,
   }, source, precision, diag);
