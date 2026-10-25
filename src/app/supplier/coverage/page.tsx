@@ -72,7 +72,15 @@ export default function SupplierCoveragePage() {
       {loading ? <p className="py-6 text-sm text-slate-500">Loading configured service areas…</p> : payload.zones.length === 0 ? <p className="py-4 text-sm text-slate-500">No service areas are configured yet. Contact AuroTap support.</p> :
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{payload.zones.map(z => <label key={z.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
         <input type="checkbox" className="mt-1" checked={selected.includes(z.id)} onChange={e => setSelected(old => e.target.checked ? [...old,z.id] : old.filter(id => id !== z.id))}/>
-        <span><span className="block font-semibold">{z.name}</span><span className="block text-xs text-slate-500">{z.city} · {z.status.replaceAll('_',' ')}</span>{z.pincodes?.length ? <span className="mt-1 block text-xs text-slate-600">Configured PINs: {z.pincodes.join(', ')}</span> : <span className="mt-1 block text-xs text-amber-700">No PIN codes configured; request exact coverage below.</span></span>
+        <div className="min-w-0">
+          <div className="font-semibold">{z.name}</div>
+          <div className="text-xs text-slate-500">{z.city} · {z.status.replaceAll('_', ' ')}</div>
+          {z.pincodes?.length ? (
+            <div className="mt-1 text-xs text-slate-600">Configured PINs: {z.pincodes.join(', ')}</div>
+          ) : (
+            <div className="mt-1 text-xs text-amber-700">No PIN codes configured; request exact coverage below.</div>
+          )}
+        </div>
       </label>)}</div>}
       <h2 className="mt-6 text-lg font-bold">2. Services you can fulfil</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="text-sm">{label}</span></label>)}</div>
