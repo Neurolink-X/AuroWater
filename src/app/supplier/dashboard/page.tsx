@@ -2976,7 +2976,7 @@ export default function SupplierDashboardPage() {
     // Do not query the legacy supplier_profiles table (it is not deployed).
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, phone, city, is_active, status, role')
+      .select('id, full_name, phone, city, is_active, status, verification_status, role')
       .eq('id', userId)
       .eq('role', 'supplier')
       .maybeSingle();
