@@ -188,13 +188,16 @@ async function runSweep(req: NextRequest) {
 
   let supplierRetried = 0;
   let supplierDispatchErrors = 0;
+  const supplierDispatchReasons: Record<string, number> = {};
 
   for (const order of pendingSupplierOrders ?? []) {
     if (Date.now() - startedAt >= MAX_RUNTIME_MS) break;
 
     try {
       const result = await dispatchOrder(String(order.id));
+      supplierDispatchReasons[result.reason] = (supplierDispatchReasons[result.reason] ?? 0) + 1;
       if (result.supplierId) supplierRetried += 1;
+      if (result.reason === 'error') supplierDispatchErrors += 1;
     } catch (error) {
       supplierDispatchErrors += 1;
       console.error(
@@ -218,6 +221,7 @@ async function runSweep(req: NextRequest) {
     pending_checked: pending?.length ?? 0,
     supplier_retried: supplierRetried,
     supplier_dispatch_errors: supplierDispatchErrors,
+    supplier_dispatch_reasons: supplierDispatchReasons,
     supplier_pending_checked: pendingSupplierOrders?.length ?? 0,
     duration_ms: durationMs,
     checked_at: new Date().toISOString(),
