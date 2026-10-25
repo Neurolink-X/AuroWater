@@ -954,7 +954,7 @@
 //       const flat: Order[] = rows.map((row) => {
 //         const noteText = String(row.note ?? row.notes ?? '');
 //         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-//         const scheduledValue = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? '';
+//         const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
 //         const scheduledDate = toISTDateKey(scheduledValue);
 
 //         return {
@@ -1217,7 +1217,7 @@
 //     const weekAgo = Date.now() - 7 * 864e5;
 //     const monthAgo = Date.now() - 30 * 864e5;
 
-//     const todayOrders = orders.filter((o) => o.scheduled_date === today).length;
+//     const todayOrders = orders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === today).length;
 //     const pendingOrders = orders.filter((o) =>
 //       ['pending', 'assigned', 'in_progress'].includes(o.status)
 //     ).length;
@@ -1409,7 +1409,7 @@
 //       activeOrders
 //         .filter((o) => {
 //           if (!matchesQuery(o, q)) return false;
-//           if (filter === 'today') return o.scheduled_date === todayStr;
+//           if (filter === 'today') return (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr;
 //           if (filter === 'tomorrow') return o.scheduled_date === tomorrowStr;
 //           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
 //           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -1431,7 +1431,7 @@
 //   const hasFilter = q !== '' || (tab === 'active' && filter !== 'all');
 
 //   const route = useMemo(() => {
-//     const todays = activeOrders.filter((o) => o.scheduled_date === todayStr);
+//     const todays = activeOrders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr);
 //     const slots = new Map<string, number>();
 //     todays.forEach((o) => {
 //       const key = o.scheduled_slot || 'Anytime';
@@ -3046,7 +3046,7 @@ export default function SupplierDashboardPage() {
       const flat: Order[] = rows.map((row) => {
         const noteText = String(row.note ?? row.notes ?? '');
         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-        const scheduledValue = row.scheduled_date ?? row.scheduled_at ?? row.scheduled_time ?? '';
+        const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
         const scheduledDate = toISTDateKey(scheduledValue);
 
         return {
@@ -3309,7 +3309,7 @@ export default function SupplierDashboardPage() {
     const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
 
-    const todayOrders = orders.filter((o) => o.scheduled_date === today).length;
+    const todayOrders = orders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === today).length;
     const pendingOrders = orders.filter((o) =>
       ['pending', 'assigned', 'in_progress'].includes(o.status)
     ).length;
@@ -3500,7 +3500,7 @@ export default function SupplierDashboardPage() {
       activeOrders
         .filter((o) => {
           if (!matchesQuery(o, q)) return false;
-          if (filter === 'today') return o.scheduled_date === todayStr;
+          if (filter === 'today') return (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr;
           if (filter === 'tomorrow') return o.scheduled_date === tomorrowIST();
           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -3522,7 +3522,7 @@ export default function SupplierDashboardPage() {
   const hasFilter = q !== '' || (tab === 'active' && filter !== 'all');
 
   const route = useMemo(() => {
-    const todays = activeOrders.filter((o) => o.scheduled_date === todayStr);
+    const todays = activeOrders.filter((o) => (o.scheduled_date || toISTDateKey(o.created_at)) === todayStr);
     const slots = new Map<string, number>();
     todays.forEach((o) => {
       const key = o.scheduled_slot || 'Anytime';
