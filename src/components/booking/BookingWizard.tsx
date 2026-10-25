@@ -175,7 +175,7 @@ type PostHit = { key: string; name: string; pincode: string; district: string };
 async function fetchPostOffices(query: string, city: string, strictCity: boolean): Promise<PostHit[]> {
   const q = query.trim();
   if (q.length < 3) return [];
-  const variants = Array.from(new Set([q, q.replace(/[\\s-]*\\d+$/, '').trim(), q.split(/\\s+/)[0] ?? '']))
+  const variants = Array.from(new Set([q, q.replace(/[\s-]*\d+$/, '').trim(), q.split(/\s+/)[0] ?? '']))
     .filter((v) => v.length >= 3);
   for (const v of variants) {
     const ctrl = new AbortController();
@@ -190,11 +190,11 @@ async function fetchPostOffices(query: string, city: string, strictCity: boolean
       const hits: PostHit[] = (Array.isArray(payload.results) ? payload.results : [])
         .map((o) => ({
           key: `${String(o.name ?? '').trim()}-${String(o.pincode ?? '').trim()}`,
-          name: String(o.name ?? '').replace(/\\s*\\(.*?\\)\\s*/g, '').trim(),
+          name: String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim(),
           pincode: String(o.pincode ?? '').trim(),
           district: String(o.district ?? ''),
         }))
-        .filter((h) => h.name && /^\\d{6}$/.test(h.pincode));
+        .filter((h) => h.name && /^\d{6}$/.test(h.pincode));
       if (hits.length) return hits.slice(0, 8);
     } catch { /* optional suggestions never block address entry */ }
     finally { clearTimeout(timer); }
@@ -1064,7 +1064,7 @@ export default function BookingWizard() {
       const payload = await res.json() as { results?: Array<{ name?: string }> };
       if (id !== pinReq.current) return;
       const names = Array.from(new Set(
-        (payload.results ?? []).map((o) => String(o.name ?? '').replace(/\\s*\\(.*?\\)\\s*/g, '').trim()).filter(Boolean),
+        (payload.results ?? []).map((o) => String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
       )).slice(0, 8);
       setPinAreas(names);
     } catch {
