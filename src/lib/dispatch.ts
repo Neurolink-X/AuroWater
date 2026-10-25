@@ -352,10 +352,11 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         if (matching) {
           if (matching.serviceKeys !== null && matching.serviceKeys.length > 0 &&
               !matching.serviceKeys.includes(String((order as any).__serviceKey))) continue;
-        } else if (links.length > 0) {
-          continue; // explicitly mapped elsewhere; never cross the supplier's configured coverage
         } else {
-          coverageTier = 1; // no configured zones: eligible only as a same-city fallback below
+          // Mapped suppliers for another zone may still be considered as a controlled
+          // same-city fallback if this zone's mapped suppliers cannot fulfil the order.
+          // The matching-zone suppliers always rank first; cross-city fallback is blocked below.
+          coverageTier = 1;
         }
       }
 
