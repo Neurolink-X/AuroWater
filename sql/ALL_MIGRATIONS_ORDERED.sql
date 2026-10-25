@@ -5187,6 +5187,13 @@ COMMIT;
 -- LEFT JOIN public.supplier_zones sz ON sz.zone_id = z.id
 -- WHERE z.slug = 'noida-sector-73-pilot';
 --
--- Activate only after a live test order reaches the supplier:
+-- Once the supplier mapping, online status, GPS/base location and stock are verified,
+-- activate the pilot for one controlled test order:
 -- UPDATE public.service_zones SET status = 'AVAILABLE'
 -- WHERE slug = 'noida-sector-73-pilot' AND status = 'COMING_SOON';
+--
+-- Place one test order from an address physically in Sector 73 and confirm it is
+-- assigned to the approved supplier and visible on that supplier's dashboard.
+-- If dispatch fails, immediately disable the pilot again while investigating:
+-- UPDATE public.service_zones SET status = 'COMING_SOON'
+-- WHERE slug = 'noida-sector-73-pilot' AND status = 'AVAILABLE';
