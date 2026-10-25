@@ -297,7 +297,7 @@ async function resolveLocation(lat: number, lng: number) {
   // Coordinates win over a contradictory city label; don't retain a mismatched postal code.
   const coordinateCity = regionCity(lat, lng);
   const city = coordinateCity || geocodedCity;
-  const state = pickAcross(results, 'long', 'administrative_area_level_1') || (city ? 'Uttar Pradesh' : '');
+  const state = coordinateCity === 'Delhi' ? 'Delhi' : pickAcross(results, 'long', 'administrative_area_level_1') || (city ? 'Uttar Pradesh' : '');
   const candidatePin = pickAcross(results, 'short', 'postal_code');
   const pincode = /^\d{6}$/.test(candidatePin) &&
     (!coordinateCity || !geocodedCity || coordinateCity.toLowerCase() === geocodedCity.toLowerCase())
