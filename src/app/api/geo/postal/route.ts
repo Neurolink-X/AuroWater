@@ -16,7 +16,7 @@ const DISTRICT_BY_CITY: Record<string, string> = {
   delhi: 'delhi',
 };
 
-function response(results: unknown[], status = 200) {
+function response(results: unknown[]) {
   return NextResponse.json(
     { results },
     {
