@@ -247,3 +247,30 @@ const supplierRealtime = readFileSync(join(root, 'src', 'hooks', 'useSupplierRea
 assert.match(supplierRealtime, /Safety-net polling while the tab is visible/);
 assert.match(supplierRealtime, /window\.setInterval/);
 assert.doesNotMatch(supplierRealtime, /if \(!supplierId \|\| status === 'live'\) return/);
+
+
+// Serviceability and supplier approval regression guards:
+// address book saving is separate from booking eligibility; order creation still
+// validates serviceability, while dispatch must not offer work to pending/unverified suppliers.
+const customerAddressApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'addresses', 'route.ts'), 'utf8');
+assert.match(customerAddressApi, /Saving an address and booking a service are separate operations/);
+assert.match(customerAddressApi, /status === 'NO_MATCH'/);
+assert.match(customerAddressApi, /serviceability:\s*\{/);
+assert.match(customerAddressApi, /serviceable: serviceability\.serviceable/);
+const activeAddressApi = customerAddressApi.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+assert.match(activeAddressApi, /resolveServiceability\(/);
+assert.match(activeAddressApi, /SERVICEABILITY_LOOKUP_FAILED/);
+
+const dispatchApi = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
+assert.match(dispatchApi, /verification_status/);
+assert.match(dispatchApi, /profileStatus !== 'active'/);
+assert.match(dispatchApi, /verificationStatus !== 'approved'/);
+assert.match(dispatchApi, /'pending_approval'/);
+
+const activeSupplierDashboard = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8')
+  .split('\n')
+  .filter((line) => !line.trim().startsWith('//'))
+  .join('\n');
+assert.match(activeSupplierDashboard, /Pending admin approval/);
+assert.match(activeSupplierDashboard, /application_status/);
+assert.match(activeSupplierDashboard, /Admin approval is required before you can receive orders/);
