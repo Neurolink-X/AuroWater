@@ -222,11 +222,18 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     db = createServiceClient();
     const cfg = await loadCfg(db);
 
-    const { data: order } = await db
+    const { data: order, error: orderError } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id, service_type')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type')
       .eq('id', orderId)
       .maybeSingle();
+
+    if (orderError) {
+      console.error('[dispatch] order lookup failed:', { orderId, error: orderError.message, code: orderError.code });
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not load the pending order for supplier dispatch. The order remains pending and will be retried.', 'order_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
 
     if (!order || order.status !== 'PENDING' || order.supplier_id) {
       return { supplierId: null, reason: 'not_pending' };
@@ -253,9 +260,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
     if (order.zone_id) {
       const [typeRes, coverageRes] = await Promise.all([
-        order.service_type_id
-          ? db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle()
-          : db.from('service_types').select('key').eq('key', order.service_type).maybeSingle(),
+        db.from('service_types').select('key').eq('key', order.service_type).maybeSingle(),
         db.from('supplier_zones').select('supplier_id, zone_id, service_keys'),
       ]);
       if (typeRes.error || coverageRes.error || !typeRes.data?.key) {
