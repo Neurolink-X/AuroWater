@@ -41,7 +41,7 @@ export default function SupplierCoveragePage() {
   const submit = async () => {
     if (!selected.length) { setError('Choose at least one city or service area.'); return; }
     if (!services.length) { setError('Choose at least one service.'); return; }
-    const pinList = requestedPincodes.split(/[\\s,]+/).map(p => p.trim()).filter(Boolean);
+    const pinList = requestedPincodes.split(/[\s,]+/).map(p => p.trim()).filter(Boolean);
     if (pinList.some(p => !/^[0-9]{6}$/.test(p))) { setError('Enter valid 6-digit PIN codes, separated by commas or spaces.'); return; }
     const requestNote = [pinList.length ? 'Requested PIN codes: ' + [...new Set(pinList)].join(', ') : '', note.trim()].filter(Boolean).join('\n');
     setSaving(true); setError(''); setMessage('');
