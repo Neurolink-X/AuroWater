@@ -888,7 +888,7 @@
 //     // Do not query the legacy supplier_profiles table (it is not deployed).
 //     const { data, error } = await supabase
 //       .from('profiles')
-//       .select('id, full_name, phone, city, is_active, status, role')
+//       .select('id, full_name, phone, city, is_active, status, verification_status, role')
 //       .eq('id', userId)
 //       .eq('role', 'supplier')
 //       .maybeSingle();
@@ -2103,6 +2103,7 @@ type SupplierProfile = {
   tier: 'bronze' | 'silver' | 'gold' | 'platinum';
   is_active: boolean;
   is_verified: boolean;
+  application_status: string;
   total_deliveries: number;
   total_earnings: number;
   rating: number;
@@ -2975,7 +2976,7 @@ export default function SupplierDashboardPage() {
     // Do not query the legacy supplier_profiles table (it is not deployed).
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, phone, city, is_active, status, role')
+      .select('id, full_name, phone, city, is_active, status, verification_status, role')
       .eq('id', userId)
       .eq('role', 'supplier')
       .maybeSingle();
@@ -2993,8 +2994,14 @@ export default function SupplierDashboardPage() {
       phone: data.phone ?? '',
       city: data.city ?? '',
       tier: 'bronze',
-      is_active: data.is_active === true && data.status === 'active',
-      is_verified: data.status === 'active',
+      is_active: data.is_active === true && data.status === 'active' &&
+        (!data.verification_status || String(data.verification_status).toLowerCase() === 'approved'),
+      is_verified: data.status === 'active' &&
+        (!data.verification_status || String(data.verification_status).toLowerCase() === 'approved'),
+      application_status: String(data.status ?? 'pending').toLowerCase() === 'active' &&
+        data.verification_status && String(data.verification_status).toLowerCase() !== 'approved'
+        ? 'pending_approval'
+        : String(data.status ?? 'pending').toLowerCase(),
       total_deliveries: 0,
       total_earnings: 0,
       rating: 0,
@@ -3671,6 +3678,19 @@ export default function SupplierDashboardPage() {
 
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main className="sd-main">
+          {!loading && profile && (profile.application_status === 'pending' || profile.application_status === 'pending_approval') && (
+            <section role="status" aria-live="polite" className="sd-alert sd-alert--warn" style={{ padding: 20, marginBottom: 18, display: 'block' }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>
+                {isHindi ? 'आपका सप्लायर आवेदन एडमिन की समीक्षा में है' : 'Your supplier application is awaiting admin approval'}
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: 13, lineHeight: 1.65, color: 'var(--ink2)' }}>
+                {isHindi
+                  ? 'आपकी प्रोफ़ाइल सेव है। एडमिन द्वारा मंज़ूरी मिलने और आपके क्षेत्र/स्टॉक की पुष्टि होने तक नए ऑर्डर नहीं मिलेंगे। बाद में इस पेज को रीफ़्रेश करें।'
+                  : 'Your profile is saved. New orders stay disabled until an admin approves your account and your service area and stock are verified. Refresh this page after approval.'}
+              </p>
+            </section>
+          )}
+
           {!loading && !profile && (
             <div role="alert" className="sd-alert sd-alert--bad" style={{ padding: '20px', display: 'block' }}>
               <div style={{ fontSize: 15, fontWeight: 800 }}>{isHindi ? 'सप्लायर खाता नहीं मिला' : 'Supplier account not found'}</div>
@@ -3697,15 +3717,25 @@ export default function SupplierDashboardPage() {
               <h1 className="sd-h1">{loading ? <Skeleton w={260} h={32} /> : isHindi ? 'सप्लायर डैशबोर्ड' : 'Supplier Dashboard'}</h1>
               {!loading && profile && (
                 <div className="sd-row sd-wrap sd-gap8" style={{ marginTop: 12 }}>
-                  <span className={`sd-chip ${profile.is_active ? 'sd-chip--ok' : 'sd-chip--bad'}`}>
-                    {profile.is_active ? (isHindi ? '● सक्रिय' : '● Active') : (isHindi ? '● निष्क्रिय' : '● Inactive')}
+                  <span className={`sd-chip ${profile.is_active ? 'sd-chip--ok' : profile.application_status === 'pending' || profile.application_status === 'pending_approval' ? 'sd-chip--warn' : 'sd-chip--bad'}`}>
+                    {profile.is_active
+                      ? (isHindi ? '● सक्रिय' : '● Active')
+                      : profile.application_status === 'pending' || profile.application_status === 'pending_approval'
+                        ? (isHindi ? '● प्रशासनिक मंज़ूरी लंबित' : '● Pending admin approval')
+                        : (isHindi ? '● निष्क्रिय' : '● Inactive')}
                   </span>
                   {profile.is_verified && <span className="sd-chip sd-chip--info">✓ {isHindi ? 'सत्यापित' : 'Verified'}</span>}
                   <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink2)' }}>{profile.city}</span>
                   <button
                     type="button"
-                    disabled={dispatchSettingsBusy}
-                    onClick={() => void toggleDispatchAvailability()}
+                    disabled={dispatchSettingsBusy || !profile.is_active}
+                    onClick={() => {
+                      if (!profile.is_active) {
+                        toast.info(isHindi ? 'ऑर्डर लेने से पहले एडमिन की मंज़ूरी ज़रूरी है।' : 'Admin approval is required before you can receive orders.');
+                        return;
+                      }
+                      void toggleDispatchAvailability();
+                    }}
                     aria-pressed={dispatchOnline}
                     className="sd-toggle"
                   >
