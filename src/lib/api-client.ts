@@ -749,6 +749,27 @@ export async function customerReviewCreate(body: { order_id: string; rating: num
 
 /* ─── Admin ────────────────────────────────────────────────────────── */
 
+/** Read-only supplier dispatch diagnosis; uses the normal authenticated admin API client. */
+export async function adminDispatchDiagnose(orderId: string): Promise<unknown> {
+  const id = orderId.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new ApiError('Enter a valid order UUID.', 400, 'INVALID_ORDER_ID');
+  }
+  return apiFetchAuth<unknown>(`/admin/dispatch/diagnose?orderId=${encodeURIComponent(id)}`);
+}
+
+/** Explicitly runs the normal dispatch attempt; this can change order assignment. */
+export async function adminDispatchRetry(orderId: string): Promise<unknown> {
+  const id = orderId.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new ApiError('Enter a valid order UUID.', 400, 'INVALID_ORDER_ID');
+  }
+  return apiFetchAuth<unknown>('/admin/dispatch/diagnose', {
+    method: 'POST',
+    body: JSON.stringify({ orderId: id }),
+  });
+}
+
 export async function adminDashboard(): Promise<unknown> {
   return apiFetchAuth('/admin/dashboard');
 }
