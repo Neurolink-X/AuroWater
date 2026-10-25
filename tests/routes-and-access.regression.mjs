@@ -242,3 +242,8 @@ assert.match(stagedNoidaZone, /ON CONFLICT \(slug\) DO NOTHING/);
 assert.match(migrationBuilder, /031_noida_sector_73_pilot_staged\.sql/);
 assert.match(apiClient, /No stored Supabase session means there is no refresh token to refresh/);
 assert.match(apiClient, /Network changes are common on mobile\/Wi-Fi handoffs/);
+
+const supplierRealtime = readFileSync(join(root, 'src', 'hooks', 'useSupplierRealtime.ts'), 'utf8');
+assert.match(supplierRealtime, /Safety-net polling while the tab is visible/);
+assert.match(supplierRealtime, /window\.setInterval/);
+assert.doesNotMatch(supplierRealtime, /if \(!supplierId \|\| status === 'live'\) return/);
