@@ -236,10 +236,16 @@ export async function POST(req: NextRequest) {
   const geoSource = geo.ok ? geo.source : null;
 
   // Zone rules always receive valid coordinates now
-  const serviceability = await resolveServiceability(
-    geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
-    service_type_key
-  );
+  // const serviceability = await resolveServiceability(
+  //   geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
+  //   service_type_key
+  // );
+  if (serviceability.status === 'LOOKUP_ERROR') {
+  return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
+}
+if (!serviceability.serviceable) {
+  return jsonErr(serviceability.message, 400);
+}
 
   if (serviceability.status === 'LOOKUP_ERROR') {
     return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
@@ -776,8 +782,16 @@ export async function POST(req: NextRequest) {
   let technicianId: string | null = null;
 
   if (isWater) {
+   
     const d = await dispatchOrder(orderId);
-    supplierId = d.supplierId;
+supplierId = d.supplierId;
+
+if (!supplierId) {
+  console.warn('[orders] supplier dispatch did not assign order', {
+    orderId,
+    reason: d.reason,
+  });
+}
     if (supplierId) {
       (order as Record<string, unknown>).supplier_id = supplierId;
       (order as Record<string, unknown>).status = 'ASSIGNED';
