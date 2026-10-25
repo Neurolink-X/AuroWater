@@ -223,7 +223,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id, service_type')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -253,7 +253,9 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
     if (order.zone_id) {
       const [typeRes, coverageRes] = await Promise.all([
-        db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle(),
+        order.service_type_id
+          ? db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle()
+          : db.from('service_types').select('key').eq('key', order.service_type).maybeSingle(),
         db.from('supplier_zones').select('supplier_id, zone_id, service_keys'),
       ]);
       if (typeRes.error || coverageRes.error || !typeRes.data?.key) {
@@ -367,8 +369,10 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       let group = 2;
       let distance: number | null = null;
 
-      const supplierCity = String(p.city ?? '').trim().toLowerCase();
-      const sameCity = Boolean(supplierCity && geo.city && supplierCity === geo.city);
+      const supplierCity = String(p.city ?? '').trim().toLowerCase().replace(/\s+(nagar|district)$/i, '');
+      const orderCity = geo.city.replace(/\s+(nagar|district)$/i, '');
+      const sameCity = Boolean(supplierCity && orderCity && supplierCity === orderCity);
+      if (coverageTier === 1 && !sameCity) continue;
       if (geo.hasCoords && Number.isFinite(sLat) && Number.isFinite(sLng)) {
         distance = haversineKm(geo.lat, geo.lng, sLat, sLng);
         if (distance <= radius) {
