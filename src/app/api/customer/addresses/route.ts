@@ -58,24 +58,13 @@ function isAddressRejected(serviceability: {
   status: string;
   zone: unknown;
 }): boolean {
-  if (serviceability.status === 'NO_MATCH') {
-    return true;
-  }
-
   /*
-   * A zoned city can legitimately resolve to a non-bookable zone.
-   * Those addresses are allowed to be saved.
+   * Saving an address and booking a service are separate operations.
+   * Customers may save an out-of-area address for later availability or
+   * waitlist updates; POST /api/customer/orders independently re-checks
+   * serviceability and must continue to reject unserviceable bookings.
    */
-  if (serviceability.zone) {
-    return false;
-  }
-
-  /*
-   * For cities without zones, resolveServiceability preserves the existing
-   * legacy city/geofence behavior. If that legacy resolution fails and there
-   * is no zone, reject the address.
-   */
-  return !serviceability.serviceable;
+  return serviceability.status === 'NO_MATCH';
 }
 
 export async function GET(req: NextRequest) {
@@ -340,7 +329,15 @@ export async function POST(req: NextRequest) {
   /* ───────────────────────────── Response ────────────────────────────── */
 
   return jsonOk(
-    withFormFields(created as Record<string, unknown>),
+    withFormFields({
+      ...(created as Record<string, unknown>),
+      serviceability: {
+        serviceable: serviceability.serviceable,
+        status: serviceability.status,
+        message: serviceability.message,
+        zone: serviceability.zone,
+      },
+    }),
     201
   );
 }
