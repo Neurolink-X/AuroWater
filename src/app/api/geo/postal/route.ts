@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
   const pincode = (params.get('pincode') ?? '').trim();
   const office = (params.get('office') ?? '').trim().replace(/[^a-z0-9 .'-]/gi, '').slice(0, 80);
   const city = (params.get('city') ?? '').trim().toLowerCase().slice(0, 60);
+  const strictCity = params.get('strictCity') === 'true';
 
   if (pincode && !PINCODE.test(pincode)) {
     return NextResponse.json({ error: 'pincode must be 6 digits' }, { status: 400 });
@@ -60,13 +61,25 @@ export async function GET(req: NextRequest) {
     } else {
       query = query.ilike('office_name', `%${office}%`);
       const district = DISTRICT_BY_CITY[city];
-      if (district) query = query.ilike('district', `%${district}%`);
+      if (strictCity && district) query = query.ilike('district', `%${district}%`);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
     if (error) {
       console.error('[geo/postal] directory lookup failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: 'Postal lookup is temporarily unavailable' }, { status: 503 });
+    }
+
+    // Strict mode prevents a similarly named office in another district from
+    // filling an address. Non-strict autocomplete can fall back to all matches.
+    if (!pincode && !strictCity && (!data || data.length === 0) && DISTRICT_BY_CITY[city]) {
+      const fallback = await db
+        .from('pincode_directory')
+        .select('office_name, pincode, district, state')
+        .ilike('office_name', `%${office}%`)
+        .order('office_name', { ascending: true })
+        .limit(MAX_RESULTS);
+      if (!fallback.error) data = fallback.data;
     }
 
     const seen = new Set<string>();
