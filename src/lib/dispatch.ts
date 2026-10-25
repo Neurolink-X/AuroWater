@@ -245,11 +245,10 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const geo = await orderGeo(db, order);
 
-    // Prefer suppliers explicitly mapped to this service zone. If a supplier has
-    // no zone mappings at all, allow a same-city fallback candidate; suppliers
-    // explicitly mapped to other zones remain excluded. This prevents a missing
-    // mapping from silently stranding legacy-city orders while preserving explicit
-    // coverage boundaries.
+    // Prefer suppliers explicitly mapped to this service zone. If those suppliers
+    // cannot fulfil the order, allow an eligible same-city fallback from another
+    // zone (or with no mapping). The order must already have passed customer-side
+    // serviceability checks; fallback never enables an unavailable customer zone.
     let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
     if (order.zone_id) {
       const [typeRes, coverageRes] = await Promise.all([
