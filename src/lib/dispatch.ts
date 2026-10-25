@@ -245,14 +245,16 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const geo = await orderGeo(db, order);
 
-    // Enforce service-specific coverage for orders linked to a configured service zone.
-    // Legacy orders without zone_id, and manually mapped supplier zones with NULL service_keys,
-    // retain their existing behavior. A missing lookup fails closed for new zone-linked orders.
-    let coverageBySupplier: Map<string, string[] | null> | null = null;
+    // Prefer suppliers explicitly mapped to this service zone. If a supplier has
+    // no zone mappings at all, allow a same-city fallback candidate; suppliers
+    // explicitly mapped to other zones remain excluded. This prevents a missing
+    // mapping from silently stranding legacy-city orders while preserving explicit
+    // coverage boundaries.
+    let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
     if (order.zone_id) {
       const [typeRes, coverageRes] = await Promise.all([
         db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle(),
-        db.from('supplier_zones').select('supplier_id, service_keys').eq('zone_id', order.zone_id),
+        db.from('supplier_zones').select('supplier_id, zone_id, service_keys'),
       ]);
       if (typeRes.error || coverageRes.error || !typeRes.data?.key) {
         console.error('[dispatch] service coverage lookup failed', typeRes.error ?? coverageRes.error);
@@ -261,11 +263,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         return { supplierId: null, reason: 'error' };
       }
       const serviceKey = String(typeRes.data.key);
-      coverageBySupplier = new Map<string, string[] | null>();
-      for (const link of (coverageRes.data ?? []) as { supplier_id: string; service_keys: string[] | null }[]) {
-        coverageBySupplier.set(String(link.supplier_id), link.service_keys ?? null);
+      coverageBySupplier = new Map();
+      for (const link of (coverageRes.data ?? []) as { supplier_id: string; zone_id: string; service_keys: string[] | null }[]) {
+        const id = String(link.supplier_id);
+        const links = coverageBySupplier.get(id) ?? [];
+        links.push({ zoneId: String(link.zone_id), serviceKeys: link.service_keys ?? null });
+        coverageBySupplier.set(id, links);
       }
-      // Keep the normalized key on the order object for candidate filtering below.
       (order as any).__serviceKey = serviceKey;
     }
 
@@ -320,6 +324,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       distance: number | null;
       tier: number;
       load: number;
+      coverageTier: number; // explicitly mapped first; unconfigured suppliers are fallback only
     };
 
     const cands: Cand[] = [];
@@ -338,10 +343,18 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       const verificationStatus = String(p.verification_status ?? '').trim().toLowerCase();
       if (verificationStatus && verificationStatus !== 'approved') continue;
 
+      let coverageTier = 0;
       if (coverageBySupplier) {
-        const offered = coverageBySupplier.get(id);
-        if (offered === undefined) continue; // no approved mapping to this zone
-        if (offered !== null && !offered.includes(String((order as any).__serviceKey))) continue;
+        const links = coverageBySupplier.get(id) ?? [];
+        const matching = links.find((link) => link.zoneId === String(order.zone_id));
+        if (matching) {
+          if (matching.serviceKeys !== null && matching.serviceKeys.length > 0 &&
+              !matching.serviceKeys.includes(String((order as any).__serviceKey))) continue;
+        } else if (links.length > 0) {
+          continue; // explicitly mapped elsewhere; never cross the supplier's configured coverage
+        } else {
+          coverageTier = 1; // no configured zones: eligible only as a same-city fallback below
+        }
       }
 
       const load = activeLoad.get(id) ?? 0;
@@ -354,15 +367,24 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       let group = 2;
       let distance: number | null = null;
 
+      const supplierCity = String(p.city ?? '').trim().toLowerCase();
+      const sameCity = Boolean(supplierCity && geo.city && supplierCity === geo.city);
       if (geo.hasCoords && Number.isFinite(sLat) && Number.isFinite(sLng)) {
         distance = haversineKm(geo.lat, geo.lng, sLat, sLng);
-        if (distance > radius) continue;
-        group = 0;
-      } else {
-        const sCity = String(p.city ?? '').trim().toLowerCase();
-        if (sCity && geo.city) {
-          if (sCity !== geo.city) continue;
+        if (distance <= radius) {
+          group = 0;
+        } else {
+          // Controlled nearby fallback: expand up to 3x the supplier radius (max 20 km),
+          // but only within the same city. This never bypasses the customer's zone check.
+          const fallbackRadius = Math.min(20, Math.max(radius, radius * 3));
+          if (!sameCity || distance > fallbackRadius) continue;
           group = 1;
+        }
+      } else {
+        if (sameCity) {
+          group = 2;
+        } else {
+          continue;
         }
       }
 
@@ -373,6 +395,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         distance,
         tier: TIER_RANK[String(p.milestone_tier ?? 'starter').toLowerCase()] ?? 0,
         load,
+        coverageTier,
       });
     }
 
@@ -380,6 +403,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     cands.sort(
       (a, b) =>
+        a.coverageTier - b.coverageTier ||
         a.group - b.group ||
         (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY) ||
         Number(b.favourite) - Number(a.favourite) ||
