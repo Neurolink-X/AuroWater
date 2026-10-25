@@ -181,7 +181,7 @@ async function fetchPostOffices(query: string, city: string, strictCity: boolean
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5_000);
     try {
-      const params = new URLSearchParams({ office: v, city: city.trim() });
+      const params = new URLSearchParams({ office: v, city: city.trim(), strictCity: String(strictCity) });
       const res = await fetch(`/api/geo/postal?${params.toString()}`, {
         signal: ctrl.signal, headers: { Accept: 'application/json' }, cache: 'no-store',
       });
