@@ -954,7 +954,7 @@
 //       const flat: Order[] = rows.map((row) => {
 //         const noteText = String(row.note ?? row.notes ?? '');
 //         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-//         const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || row.delivery_date || '';
+//         const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
 //         const scheduledDate = toISTDateKey(scheduledValue);
 
 //         return {
@@ -3046,7 +3046,7 @@ export default function SupplierDashboardPage() {
       const flat: Order[] = rows.map((row) => {
         const noteText = String(row.note ?? row.notes ?? '');
         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-        const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || row.delivery_date || '';
+        const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
         const scheduledDate = toISTDateKey(scheduledValue);
 
         return {
