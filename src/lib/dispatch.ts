@@ -50,7 +50,7 @@ const TIER_RANK: Record<string, number> = {
   platinum: 4,
 };
 
-const BLOCKED_STATUS = new Set(['pending', 'rejected', 'suspended', 'blocked', 'banned', 'inactive', 'disabled']);
+const BLOCKED_STATUS = new Set(['pending', 'pending_approval', 'rejected', 'suspended', 'blocked', 'banned', 'inactive', 'disabled']);
 
 /* ───────────────────────── Helpers ───────────────────────── */
 
@@ -290,7 +290,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     if (!ids.length) return noCandidates();
 
     const [profRes, loadRes, lastRes] = await Promise.all([
-      db.from('profiles').select('id, role, city, is_active, status, milestone_tier').in('id', ids),
+      db.from('profiles').select('id, role, city, is_active, status, verification_status, milestone_tier').in('id', ids),
       db.from('orders').select('supplier_id').in('supplier_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       db
         .from('orders')
@@ -329,7 +329,14 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       if (!p) continue;
       if (p.role && String(p.role) !== 'supplier') continue;
       if (p.is_active === false) continue;
-      if (p.status && BLOCKED_STATUS.has(String(p.status).toLowerCase())) continue;
+      const profileStatus = String(p.status ?? '').trim().toLowerCase();
+      if (profileStatus && profileStatus !== 'active') continue;
+      if (profileStatus && BLOCKED_STATUS.has(profileStatus)) continue;
+      // When the verification field is configured, only an explicit admin
+      // approval is eligible for automatic dispatch. NULL remains compatible
+      // with older active supplier records that predate this field.
+      const verificationStatus = String(p.verification_status ?? '').trim().toLowerCase();
+      if (verificationStatus && verificationStatus !== 'approved') continue;
 
       if (coverageBySupplier) {
         const offered = coverageBySupplier.get(id);
