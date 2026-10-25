@@ -20,7 +20,6 @@ function response(results: unknown[]) {
   return NextResponse.json(
     { results },
     {
-      status,
       headers: {
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
       },
