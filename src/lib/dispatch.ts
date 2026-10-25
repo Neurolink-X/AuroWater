@@ -223,7 +223,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const { data: order } = await db
       .from('orders')
-      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id')
+      .select('id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type_id, service_type')
       .eq('id', orderId)
       .maybeSingle();
 
@@ -245,14 +245,17 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     const geo = await orderGeo(db, order);
 
-    // Enforce service-specific coverage for orders linked to a configured service zone.
-    // Legacy orders without zone_id, and manually mapped supplier zones with NULL service_keys,
-    // retain their existing behavior. A missing lookup fails closed for new zone-linked orders.
-    let coverageBySupplier: Map<string, string[] | null> | null = null;
+    // Prefer suppliers explicitly mapped to this service zone. If those suppliers
+    // cannot fulfil the order, allow an eligible same-city fallback from another
+    // zone (or with no mapping). The order must already have passed customer-side
+    // serviceability checks; fallback never enables an unavailable customer zone.
+    let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
     if (order.zone_id) {
       const [typeRes, coverageRes] = await Promise.all([
-        db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle(),
-        db.from('supplier_zones').select('supplier_id, service_keys').eq('zone_id', order.zone_id),
+        order.service_type_id
+          ? db.from('service_types').select('key').eq('id', order.service_type_id).maybeSingle()
+          : db.from('service_types').select('key').eq('key', order.service_type).maybeSingle(),
+        db.from('supplier_zones').select('supplier_id, zone_id, service_keys'),
       ]);
       if (typeRes.error || coverageRes.error || !typeRes.data?.key) {
         console.error('[dispatch] service coverage lookup failed', typeRes.error ?? coverageRes.error);
@@ -261,22 +264,36 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         return { supplierId: null, reason: 'error' };
       }
       const serviceKey = String(typeRes.data.key);
-      coverageBySupplier = new Map<string, string[] | null>();
-      for (const link of (coverageRes.data ?? []) as { supplier_id: string; service_keys: string[] | null }[]) {
-        coverageBySupplier.set(String(link.supplier_id), link.service_keys ?? null);
+      coverageBySupplier = new Map();
+      for (const link of (coverageRes.data ?? []) as { supplier_id: string; zone_id: string; service_keys: string[] | null }[]) {
+        const id = String(link.supplier_id);
+        const links = coverageBySupplier.get(id) ?? [];
+        links.push({ zoneId: String(link.zone_id), serviceKeys: link.service_keys ?? null });
+        coverageBySupplier.set(id, links);
       }
-      // Keep the normalized key on the order object for candidate filtering below.
       (order as any).__serviceKey = serviceKey;
     }
 
-    const { data: tried } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
+    const { data: tried, error: triedError } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
+    if (triedError) {
+      console.error('[dispatch] tried-supplier lookup failed:', triedError.message);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not check prior supplier offers; dispatch needs retry.', 'dispatch_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
     const triedSet = new Set(((tried ?? []) as { supplier_id: string }[]).map((r) => String(r.supplier_id)));
 
-    const { data: online } = await db
+    const { data: online, error: onlineError } = await db
       .from('supplier_settings')
       .select('user_id, zone_radius_km, base_lat, base_lng')
       .eq('is_online', true)
       .limit(ONLINE_SCAN_LIMIT);
+    if (onlineError) {
+      console.error('[dispatch] online-supplier lookup failed:', onlineError.message);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not load online suppliers; dispatch needs investigation.', 'supplier_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
 
     const rows = ((online ?? []) as any[]).filter((r) => r.user_id && !triedSet.has(String(r.user_id)));
     const ids = rows.map((r) => String(r.user_id));
@@ -303,6 +320,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         .maybeSingle(),
     ]);
 
+    if (profRes.error || loadRes.error || lastRes.error) {
+      console.error('[dispatch] supplier eligibility lookup failed:', profRes.error ?? loadRes.error ?? lastRes.error);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not verify supplier eligibility or workload; dispatch needs retry.', 'supplier_eligibility_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
+
     const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
     const activeLoad = new Map<string, number>();
     for (const r of (loadRes.data ?? []) as { supplier_id: string }[]) {
@@ -320,6 +344,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       distance: number | null;
       tier: number;
       load: number;
+      coverageTier: number; // explicitly mapped first; unconfigured suppliers are fallback only
     };
 
     const cands: Cand[] = [];
@@ -338,10 +363,19 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       const verificationStatus = String(p.verification_status ?? '').trim().toLowerCase();
       if (verificationStatus && verificationStatus !== 'approved') continue;
 
+      let coverageTier = 0;
       if (coverageBySupplier) {
-        const offered = coverageBySupplier.get(id);
-        if (offered === undefined) continue; // no approved mapping to this zone
-        if (offered !== null && !offered.includes(String((order as any).__serviceKey))) continue;
+        const links = coverageBySupplier.get(id) ?? [];
+        const matching = links.find((link) => link.zoneId === String(order.zone_id));
+        if (matching) {
+          if (matching.serviceKeys !== null &&
+              !matching.serviceKeys.includes(String((order as any).__serviceKey))) continue;
+        } else {
+          // Mapped suppliers for another zone may still be considered as a controlled
+          // same-city fallback if this zone's mapped suppliers cannot fulfil the order.
+          // The matching-zone suppliers always rank first; cross-city fallback is blocked below.
+          coverageTier = 1;
+        }
       }
 
       const load = activeLoad.get(id) ?? 0;
@@ -354,15 +388,26 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       let group = 2;
       let distance: number | null = null;
 
+      const supplierCity = String(p.city ?? '').trim().toLowerCase().replace(/\s+(nagar|district)$/i, '');
+      const orderCity = geo.city.replace(/\s+(nagar|district)$/i, '');
+      const sameCity = Boolean(supplierCity && orderCity && supplierCity === orderCity);
+      if (coverageTier === 1 && !sameCity) continue;
       if (geo.hasCoords && Number.isFinite(sLat) && Number.isFinite(sLng)) {
         distance = haversineKm(geo.lat, geo.lng, sLat, sLng);
-        if (distance > radius) continue;
-        group = 0;
-      } else {
-        const sCity = String(p.city ?? '').trim().toLowerCase();
-        if (sCity && geo.city) {
-          if (sCity !== geo.city) continue;
+        if (distance <= radius) {
+          group = 0;
+        } else {
+          // Controlled nearby fallback: expand up to 3x the supplier radius (max 20 km),
+          // but only within the same city. This never bypasses the customer's zone check.
+          const fallbackRadius = Math.min(20, Math.max(radius, radius * 3));
+          if (!sameCity || distance > fallbackRadius) continue;
           group = 1;
+        }
+      } else {
+        if (sameCity) {
+          group = 2;
+        } else {
+          continue;
         }
       }
 
@@ -373,6 +418,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         distance,
         tier: TIER_RANK[String(p.milestone_tier ?? 'starter').toLowerCase()] ?? 0,
         load,
+        coverageTier,
       });
     }
 
@@ -380,6 +426,7 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
 
     cands.sort(
       (a, b) =>
+        a.coverageTier - b.coverageTier ||
         a.group - b.group ||
         (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY) ||
         Number(b.favourite) - Number(a.favourite) ||

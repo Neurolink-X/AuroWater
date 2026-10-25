@@ -35,7 +35,7 @@ export function useSupplierRealtime({
   supplierId,
   onOrdersChange,
   onNotification,
-  fallbackPollMs = 15_000,
+  fallbackPollMs = 10_000,
   debounceMs = 400,
 }: Options): { status: RealtimeStatus; refresh: () => void } {
   const [status, setStatus] = useState<RealtimeStatus>('connecting');

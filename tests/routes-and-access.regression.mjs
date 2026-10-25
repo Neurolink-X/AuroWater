@@ -274,3 +274,22 @@ const activeSupplierDashboard = readFileSync(join(root, 'src', 'app', 'supplier'
 assert.match(activeSupplierDashboard, /Pending admin approval/);
 assert.match(activeSupplierDashboard, /application_status/);
 assert.match(activeSupplierDashboard, /Admin approval is required before you can receive orders/);
+
+
+// Supplier dispatch recovery: prefer explicitly mapped suppliers, but allow
+// same-city fallback suppliers when mapped suppliers cannot fulfil an order.
+const dispatchSource = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
+assert.match(dispatchSource, /coverageTier - b\.coverageTier/);
+assert.match(dispatchSource, /fallbackRadius = Math\.min\(20, Math\.max\(radius, radius \* 3\)\)/);
+assert.match(dispatchSource, /if \(coverageTier === 1 && !sameCity\) continue/);
+assert.match(dispatchSource, /eq\('key', order\.service_type\)/);
+
+const supplierSection = readFileSync(join(root, 'src', 'app', 'supplier', '\[section\]', 'page.tsx'), 'utf8');
+assert.match(supplierSection, /const POLL_MS = 10_000/);
+const supplierRealtimeSource = readFileSync(join(root, 'src', 'hooks', 'useSupplierRealtime.ts'), 'utf8');
+assert.match(supplierRealtimeSource, /fallbackPollMs = 10_000/);
+
+const supplierCoverage = readFileSync(join(root, 'src', 'app', 'supplier', 'coverage', 'page.tsx'), 'utf8');
+assert.match(supplierCoverage, /Requested PIN codes:/);
+assert.match(supplierCoverage, /valid 6-digit PIN codes/);
+assert.match(supplierCoverage, /Configured PINs:/);
