@@ -22,7 +22,7 @@ const SECTIONS: Record<Section, { nav: string; title: string; subtitle: string; 
 };
 const ORDER = Object.keys(SECTIONS) as Section[];
 
-const POLL_MS = 30_000;
+const POLL_MS = 10_000;
 const UPI_RE = /^[a-z0-9._-]{2,256}@[a-z][a-z0-9]{1,63}$/i;
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const ACCOUNT_RE = /^\d{9,18}$/;
