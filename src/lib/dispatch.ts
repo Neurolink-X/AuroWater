@@ -275,14 +275,26 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       (order as any).__serviceKey = serviceKey;
     }
 
-    const { data: tried } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
+    const { data: tried, error: triedError } = await db.from('order_dispatch').select('supplier_id').eq('order_id', orderId);
+    if (triedError) {
+      console.error('[dispatch] tried-supplier lookup failed:', triedError.message);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not check prior supplier offers; dispatch needs retry.', 'dispatch_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
     const triedSet = new Set(((tried ?? []) as { supplier_id: string }[]).map((r) => String(r.supplier_id)));
 
-    const { data: online } = await db
+    const { data: online, error: onlineError } = await db
       .from('supplier_settings')
       .select('user_id, zone_radius_km, base_lat, base_lng')
       .eq('is_online', true)
       .limit(ONLINE_SCAN_LIMIT);
+    if (onlineError) {
+      console.error('[dispatch] online-supplier lookup failed:', onlineError.message);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not load online suppliers; dispatch needs investigation.', 'supplier_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
 
     const rows = ((online ?? []) as any[]).filter((r) => r.user_id && !triedSet.has(String(r.user_id)));
     const ids = rows.map((r) => String(r.user_id));
@@ -308,6 +320,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         .limit(1)
         .maybeSingle(),
     ]);
+
+    if (profRes.error || loadRes.error || lastRes.error) {
+      console.error('[dispatch] supplier eligibility lookup failed:', profRes.error ?? loadRes.error ?? lastRes.error);
+      await markAttempt(db, orderId);
+      await alertAdmins(db, orderId, 'Could not verify supplier eligibility or workload; dispatch needs retry.', 'supplier_eligibility_lookup_failed');
+      return { supplierId: null, reason: 'error' };
+    }
 
     const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
     const activeLoad = new Map<string, number>();
