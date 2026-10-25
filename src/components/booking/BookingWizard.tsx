@@ -12,14 +12,18 @@
  *  - Premium pass: price-vs-market savings, trust signals, sticky total bar,
  *    FAQ, share-to-WhatsApp, reduced-motion support, Sora + Plus Jakarta Sans
  *  - Pricing pass: one price table for plumbing / RO service / tanker, every
- *    extra charge visible, same itemised lines on Step 2 and Step 5
+ *    extra charge visible, same itemised lines on Step 1 and Step 3
+ *  - Flow pass: 6 steps -> 3 steps + confirmation.
+ *      1 Service & options  ·  2 Address & time  ·  3 Review & pay  ·  Done
+ *    Same validation, draft restore, pricing and order call as before; old saved
+ *    drafts (step 1-5) are mapped onto the new pages automatically.
+ *  - Speed pass: no animation library (CSS only), addresses prefetched on load
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { motion, useReducedMotion } from 'framer-motion';
 
 import BookingProgress from '@/components/booking/BookingProgress';
 import TimeSlotPicker from '@/components/booking/TimeSlotPicker';
@@ -98,7 +102,10 @@ export interface BookingDraft {
 
 const DRAFT_KEY = 'aw_booking_draft_v2';
 const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'guest'}`;
-const MAX_FORM_STEP = 5;
+const MAX_FORM_STEP = 3;
+/** Draft payload version: 3 = three-page flow. Older drafts (no flow) used five form steps. */
+const DRAFT_FLOW = 3;
+const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3 };
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
@@ -294,7 +301,7 @@ function FaqList({ emergencySurcharge }: { emergencySurcharge: number }) {
     ['Can I pause or cancel a subscription?',
       'Yes. You can pause or cancel future deliveries later. Each delivery is billed separately and there is no automatic debit.'],
     ['Which cities do you serve?',
-      `We currently deliver in ${LIVE_CITIES.join(', ')}. Not listed? Join the waitlist on the address step.`],
+      `We currently deliver in ${LIVE_CITIES.join(', ')}. Not listed? Join the waitlist on the address & time step.`],
     ['How fast can I get water?',
       `Choose a 3-hour delivery window, or tick Emergency for ASAP delivery (${inr(emergencySurcharge)} surcharge).`],
   ];
@@ -682,8 +689,21 @@ export default function BookingWizard() {
   const stepRef        = useRef<HTMLDivElement | null>(null);
   const addressFormRef = useRef<HTMLDivElement | null>(null);
   const houseInputRef  = useRef<HTMLInputElement | null>(null);
+  const optionsRef     = useRef<HTMLDivElement | null>(null);
 
-  const view    = createdOrder ? 6 : Math.min(step, MAX_FORM_STEP);
+  /** After picking a service, bring its options into view (only when they are below the fold). */
+  const revealOptions = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      const el = optionsRef.current;
+      if (!el) return;
+      if (el.getBoundingClientRect().top > window.innerHeight * 0.55) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
+  }, []);
+
+  const view    = createdOrder ? 4 : Math.min(step, MAX_FORM_STEP);
   const minDate = getMinDate();
   const datePills = useMemo(() => nextFourteenIsoDates(minDate), [minDate]);
   const todayOpen = useMemo(
@@ -692,15 +712,6 @@ export default function BookingWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [minDate, draft.isEmergency, view],
   );
-
-  const reduceMotion = useReducedMotion();
-  const cardMotion = reduceMotion
-    ? {}
-    : {
-        initial: { opacity: 0, y: 10 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.22, ease: 'easeOut' as const },
-      };
 
   const goTo = useCallback((n: number) => {
     const clamped = Math.min(MAX_FORM_STEP, Math.max(1, n));
@@ -722,11 +733,13 @@ export default function BookingWizard() {
       const draftKey = bookingDraftKey(session?.userId ?? session?.aurotapId ?? null);
       const raw = safeSessionGet(draftKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number };
-        const s = Number(parsed?.step);
-        if (parsed?.draft && typeof parsed.draft === 'object' && s >= 1 && s <= MAX_FORM_STEP) {
+        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number; flow?: number };
+        const s = Math.floor(Number(parsed?.step));
+        // Drafts saved by the old 5-step form are mapped onto the new 3 pages.
+        const page = parsed?.flow === DRAFT_FLOW ? s : (LEGACY_STEP_TO_PAGE[s] ?? 0);
+        if (parsed?.draft && typeof parsed.draft === 'object' && page >= 1 && page <= MAX_FORM_STEP) {
           restored = sanitizeDraft(parsed.draft);
-          restoredStep = Math.floor(s);
+          restoredStep = page;
         } else { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); }
       }
     } catch { try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ } }
@@ -768,7 +781,8 @@ export default function BookingWizard() {
     if (hm) {
       const h = parseInt(hm[1], 10);
       if (h >= 1 && h <= MAX_FORM_STEP) start = Math.min(h, restored ? restoredStep : 1);
-    } else if (serviceOk && start === 1) { start = 2; }
+    }
+    // A service chosen via the URL stays on page 1: its options now sit right under the service picker.
 
     /* Re-validate the schedule: a draft from earlier today/yesterday may be stale */
     const min = getMinDate();
@@ -779,7 +793,7 @@ export default function BookingWizard() {
       base.scheduledDate = n.date;
       base.slotId = n.slotId;
       sv = buildSlotValue(n.date, n.slotId);
-      if (start > 4) start = 4;
+      if (start > 2) start = 2;
     }
     base.startTime = sv.startTime;
     base.endTime = sv.endTime;
@@ -795,7 +809,7 @@ export default function BookingWizard() {
 
   useEffect(() => {
     if (!hydrated || createdOrder) return;
-    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP) })); } catch { /* quota */ }
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP), flow: DRAFT_FLOW })); } catch { /* quota */ }
   }, [draft, step, hydrated, createdOrder, session?.userId, session?.aurotapId]);
 
   useEffect(() => {
@@ -875,7 +889,7 @@ export default function BookingWizard() {
   }, [session?.loggedIn, session?.role]);
 
   useEffect(() => {
-    if (!session?.loggedIn || !draft.addressId || view !== 3) {
+    if (!session?.loggedIn || !draft.addressId || view !== 2) {
            setServiceability(null); setLocationOk(null); setCheckingServiceability(false); return;
     }
     let cancelled = false;
@@ -892,15 +906,14 @@ export default function BookingWizard() {
   }, [draft.addressId, draft.serviceKey, session?.loggedIn, view]);
 
   useEffect(() => {
+    // Prefetch saved addresses as soon as a customer is signed in, so page 2 opens instantly.
     if (
-      view >= 3 &&
       session?.loggedIn &&
       session.role === 'customer'
     ) {
       void loadAddresses();
     }
   }, [
-    view,
     session?.loggedIn,
     session?.role,
     loadAddresses,
@@ -1031,8 +1044,8 @@ export default function BookingWizard() {
   };
 
   const goLoginForCheckout = () => {
-    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 3 })); } catch { /* */ }
-    router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-3')}`);
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 2, flow: DRAFT_FLOW })); } catch { /* */ }
+    router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-2')}`);
   };
 
   const onSlotChange = useCallback((v: TimeSlotPickerValue) => {
@@ -1270,7 +1283,7 @@ export default function BookingWizard() {
 
   const flashCls = flashFields ? ' ring-2 ring-emerald-400 border-emerald-400 bg-emerald-50' : '';
 
-  const validateStep = (s: number): boolean => {
+  const validateInner = (s: number): boolean => {
     if (s === 1) { if (!draft.serviceKey) { toast.error('Pick a service.'); return false; } return true; }
     if (s === 2) {
       if (draft.serviceKey === 'water_can') {
@@ -1313,6 +1326,13 @@ export default function BookingWizard() {
       if (!draft.slotValid || !v.valid) { toast.error('Pick an available delivery window.'); return false; }
       return true;
     }
+    return true;
+  };
+
+  /** Page 1 = service + options, page 2 = address + schedule, page 3 = review. */
+  const validateStep = (page: number): boolean => {
+    if (page === 1) return validateInner(1) && validateInner(2);
+    if (page === 2) return validateInner(3) && validateInner(4);
     return true;
   };
 
@@ -1413,12 +1433,12 @@ export default function BookingWizard() {
       return;
     }
 
-    /* Re-validate the window right before submitting (time has passed since step 4) */
+    /* Re-validate the window right before submitting (time has passed since the schedule was picked) */
     const sv = buildSlotValue(draft.scheduledDate, draft.slotId);
     if (!sv.valid) {
       setDraft((d) => ({ ...d, slotValid: false }));
       toast.error('Your delivery window is no longer available. Please pick another.');
-      goTo(4);
+      goTo(2);
       return;
     }
 
@@ -1446,8 +1466,8 @@ export default function BookingWizard() {
     } catch (e) {
       submitLock.current = false;
       if (e instanceof ApiError && e.status === 401) {
-        try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 5 })); } catch { /* */ }
-        router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-5')}`);
+        try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: 3, flow: DRAFT_FLOW })); } catch { /* */ }
+        router.push(`/auth/login?returnTo=${encodeURIComponent('/book#step-3')}`);
         return;
       }
             const errCode =
@@ -1463,7 +1483,7 @@ export default function BookingWizard() {
       if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
         const m = 'We could not place this address on the map. Please tap "Detect my location", or add the address again with your area and 6-digit pincode.';
         setSubmitError(m); toast.error(m);
-        goTo(3);
+        goTo(2);
         return;
       }
       const msg = e instanceof ApiError ? e.message : 'Booking failed. Please try again.';
@@ -1484,6 +1504,16 @@ export default function BookingWizard() {
   const newPinHint      = pinHint(draft.newAddress?.city, draft.newAddress?.pincode);
   const orderStatus     = String((createdOrder as unknown as Record<string, unknown> | null)?.status ?? '');
   const supplierSearching = (createdOrder as unknown as Record<string, unknown> | null)?.supplier_status === 'searching' || orderStatus === 'PENDING';
+  /** Tells the customer exactly what is missing before they can continue. */
+  const pageHint: string | null =
+    view === 2
+      ? !session?.loggedIn ? 'Sign in to add your delivery address'
+        : !draft.addressId ? 'Select or add a delivery address'
+        : checkingServiceability || !serviceability ? 'Checking service availability…'
+        : !serviceability.serviceable ? 'This address is not serviceable yet'
+        : !draft.slotValid ? 'Pick an available delivery window'
+        : null
+      : null;
   const windowText = draft.startTime && draft.endTime
     ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
@@ -1493,28 +1523,29 @@ export default function BookingWizard() {
       className={`min-h-screen bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 pb-28 text-slate-900 ${bookingBody.variable} ${bookingDisplay.variable}`}
       style={{ fontFamily: 'var(--font-bk-body, system-ui, sans-serif)' }}
     >
+      <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
 
         <header className="text-center mb-6">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
-            <span aria-hidden>💧</span> {view === 6 ? 'Order confirmed' : 'Book in under a minute'}
+            <span aria-hidden>💧</span> {view === 4 ? 'Order confirmed' : 'Book in under a minute'}
           </p>
           <h2 className="mt-3 text-[1.65rem] leading-tight sm:text-4xl font-extrabold tracking-tight text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
-            {view === 6 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing solutions - right at your door.'}
+            {view === 4 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing solutions - right at your door.'}
           </h2>
-          {view < 6 && (
+          {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
               Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · delivery included · pay when it arrives.
             </p>
           )}
-          {view > 1 && view < 6 && (
+          {view > 1 && view < 4 && (
             <button type="button" onClick={resetWizard} className="mt-2 text-xs font-semibold text-slate-400 hover:text-slate-700 underline underline-offset-2">
               Start over
             </button>
           )}
         </header>
 
-        {view < 6 && <TrustChips />}
+        {view < 4 && <TrustChips />}
 
         {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > CAN_PRICES.normal && (
           <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-5 text-white shadow-lg shadow-emerald-900/10">
@@ -1534,7 +1565,7 @@ export default function BookingWizard() {
               </div>
               <button
                 type="button"
-                onClick={() => { setDraft((d) => ({ ...d, serviceKey: 'water_can' })); goTo(2); }}
+                onClick={() => { setDraft((d) => ({ ...d, serviceKey: 'water_can' })); goTo(1); revealOptions(); }}
                 className="rounded-xl bg-white px-5 py-3 text-sm font-extrabold text-emerald-700 transition hover:bg-emerald-50 active:scale-95"
               >
                 Order water now →
@@ -1549,14 +1580,14 @@ export default function BookingWizard() {
         {/* Focus target for step changes */}
         <div ref={stepRef} tabIndex={-1} className="outline-none" aria-live="polite">
 
-        {/* STEP 1 */}
         {view === 1 && (
-          <div className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
-            <h2 className="text-base font-bold text-slate-900">1 · Choose service</h2>
+          <>
+          <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-slate-900">1 · What do you need?</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SERVICE_LIST.map((s) => (
                 <button key={s.key} type="button" aria-pressed={draft.serviceKey === s.key}
-                  onClick={() => setDraft((d) => ({ ...d, serviceKey: s.key }))}
+                  onClick={() => { setDraft((d) => ({ ...d, serviceKey: s.key })); revealOptions(); }}
                   className={[
                     'relative rounded-2xl border p-4 text-left transition-all hover:shadow-md',
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
@@ -1580,31 +1611,10 @@ export default function BookingWizard() {
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" checked={draft.isEmergency}
-                onChange={(e) => setDraft((d) => ({ ...d, isEmergency: e.target.checked }))}
-                className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
-              <span className="text-sm text-slate-700">
-                Emergency booking (+ {inr(settings.emergency_surcharge)} surcharge) · arrives ASAP, even outside {to12h(`${OPEN_HOUR}:00`)}–{to12h(`${CLOSE_HOUR}:00`)}
-              </span>
-            </label>
-            <div className="flex justify-end">
-              <button type="button" onClick={nextStep} className={btnPrimary}>Continue →</button>
-            </div>
           </div>
-        )}
-
-        {view === 1 && (
-          <>
-            <WhyChooseUs />
-            <FaqList emergencySurcharge={settings.emergency_surcharge} />
-          </>
-        )}
-
-        {/* STEP 2 */}
-        {view === 2 && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
-            <h2 className="text-base font-bold text-slate-900">2 · Options · {serviceLabel(draft.serviceKey)}</h2>
+        {/* Options for the chosen service (same page as the service picker) */}
+        <div ref={optionsRef} className="bk-in scroll-mt-4 rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-slate-900">Customise · {serviceLabel(draft.serviceKey)}</h2>
 
             {draft.serviceKey === 'water_can' && (
               <div className="space-y-4">
@@ -1890,17 +1900,22 @@ export default function BookingWizard() {
               />
             )}
 
-            <div className="flex justify-between gap-3">
-              <button type="button" onClick={prevStep} className={btnGhost}>Back</button>
-              <button type="button" onClick={nextStep} className={btnPrimary}>Continue</button>
-            </div>
-          </motion.div>
+          </div>
+          </>
         )}
 
-        {/* STEP 3 */}
-        {view === 3 && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
-            <h2 className="text-base font-bold text-slate-900">3 · Delivery address</h2>
+        {view === 1 && (
+          <>
+            <WhyChooseUs />
+            <FaqList emergencySurcharge={settings.emergency_surcharge} />
+          </>
+        )}
+
+        {/* STEP 2 · address & time */}
+        {view === 2 && (
+          <>
+        <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-slate-900">2 · Delivery address</h2>
             <p className="text-sm text-slate-500">We deliver in: {LIVE_CITIES.join(', ')}</p>
 
             <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -2143,22 +2158,21 @@ export default function BookingWizard() {
               </>
             )}
 
-            <div className="flex justify-between gap-3 pt-2">
-              <button type="button" onClick={prevStep} className={btnGhost}>Back</button>
-              <button type="button" onClick={nextStep}
-                disabled={!session?.loggedIn || !draft.addressId || checkingServiceability || !serviceability?.serviceable}
-                className={btnPrimary}>Continue</button>
-            </div>
-          </motion.div>
-        )}
-
-        {/* STEP 4 */}
-        {view === 4 && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
-            <h2 className="text-base font-bold text-slate-900">4 · Schedule</h2>
+          </div>
+        <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-slate-900">Delivery time</h2>
             <p className="text-sm text-slate-500">
               Pick a date and a delivery window ({to12h(`${OPEN_HOUR}:00`)} – {to12h(`${CLOSE_HOUR}:00`)}).
             </p>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={draft.isEmergency}
+                onChange={(e) => setDraft((d) => ({ ...d, isEmergency: e.target.checked }))}
+                className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+              <span className="text-sm text-slate-700">
+                Emergency booking (+ {inr(settings.emergency_surcharge)} surcharge) · arrives ASAP, even outside {to12h(`${OPEN_HOUR}:00`)}–{to12h(`${CLOSE_HOUR}:00`)}
+              </span>
+            </label>
 
             <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Delivery date">
               {datePills.map((iso) => {
@@ -2197,17 +2211,13 @@ export default function BookingWizard() {
             <p className="text-sm text-slate-500">
               Total so far: <span className="font-bold text-emerald-700">{inr(breakdown.total)}</span>
             </p>
-            <div className="flex justify-between gap-3">
-              <button type="button" onClick={prevStep} className={btnGhost}>Back</button>
-              <button type="button" onClick={nextStep} disabled={!draft.slotValid} className={btnPrimary}>Continue</button>
-            </div>
-          </motion.div>
+          </div>
+          </>
         )}
 
-        {/* STEP 5 */}
-        {view === 5 && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
-            <h2 className="text-base font-bold text-slate-900">5 · Review &amp; payment</h2>
+        {view === 3 && (
+          <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
+            <h2 className="text-base font-bold text-slate-900">3 · Review &amp; payment</h2>
 
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-5 space-y-3 text-sm">
               {[
@@ -2357,45 +2367,50 @@ export default function BookingWizard() {
               <div role="alert" className="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm px-4 py-3">{submitError}</div>
             )}
 
-            <div className="flex justify-between gap-3 flex-wrap">
-              <button type="button" onClick={prevStep} disabled={submitting} className={btnGhost}>Back</button>
-              <button type="button" disabled={submitting || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
-                {submitting ? 'Placing your order…' : 'Confirm booking →'}
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {view === 5 && (
-          <div className="fixed left-0 right-0 bottom-3 z-40 px-4 pointer-events-none">
-            <div className="mx-auto max-w-3xl rounded-xl border border-blue-200 bg-blue-50 text-blue-800 px-4 py-3 text-xs font-semibold">
+            <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">
               🛡 Delivery slots depend on your address and local provider availability. Review the full order total before confirming.
-            </div>
+            </p>
           </div>
         )}
 
-        {view >= 2 && view <= 4 && (
+        {view >= 1 && view <= 3 && (
           <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/80">
-            <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-slate-500">
-                  {selectedServiceLabel(draft)}{isCan ? ` × ${canQty}` : ''}
-                </p>
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-lg font-extrabold text-slate-900" style={{ fontFamily: DISPLAY_FONT }}>{inr(breakdown.total)}</span>
-                  {youSave > 0 && <span className="text-[11px] font-bold text-emerald-700">You save {inr(youSave)}</span>}
-                </p>
+            <div className="mx-auto max-w-3xl">
+              {pageHint && (
+                <p className="mb-2 text-center text-[11px] font-bold text-amber-700" role="status">{pageHint}</p>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-500">
+                    {selectedServiceLabel(draft)}{isCan ? ` × ${canQty}` : ''}
+                  </p>
+                  <p className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-lg font-extrabold text-slate-900" style={{ fontFamily: DISPLAY_FONT }}>{inr(breakdown.total)}</span>
+                    {youSave > 0 && <span className="text-[11px] font-bold text-emerald-700">You save {inr(youSave)}</span>}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {view > 1 && (
+                    <button type="button" onClick={prevStep} disabled={submitting} className={btnGhost}>Back</button>
+                  )}
+                  {view < 3 ? (
+                    <button type="button" onClick={nextStep} className={btnPrimary}>
+                      {view === 1 ? 'Continue →' : 'Review order →'}
+                    </button>
+                  ) : (
+                    <button type="button" disabled={submitting || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
+                      {submitting ? 'Placing your order…' : 'Confirm booking →'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <button type="button" onClick={nextStep} disabled={view === 4 && !draft.slotValid} className={btnPrimary}>
-                Continue →
-              </button>
             </div>
           </div>
         )}
 
-        {/* STEP 6 */}
-        {view === 6 && createdOrder && (
-          <motion.div {...cardMotion} className="rounded-3xl bg-white border border-slate-100 shadow-sm p-7 sm:p-10 text-center space-y-6" role="status">
+        {/* DONE */}
+        {view === 4 && createdOrder && (
+          <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-7 sm:p-10 text-center space-y-6" role="status">
             <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-3xl" aria-hidden>✓</div>
             <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest">You&apos;re booked</p>
             <div className="text-4xl sm:text-5xl font-extrabold text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
@@ -2462,17 +2477,13 @@ export default function BookingWizard() {
               <Link href={ROUTES.home} className={`${btnGhost} text-center`}>Home</Link>
               <Link href={ROUTES.orders} className={`${btnGhost} text-center`}>My orders</Link>
             </div>
-          </motion.div>
+          </div>
         )}
         </div>
       </div>
     </div>
   );
 }
-
-
-
-
 
 
 
@@ -2515,6 +2526,7 @@ export default function BookingWizard() {
 //   customerAddresses,
 //   customerServiceability,
 //   customerOrderCreate,
+//   getToken,
 //   forwardGeocodeAddress,
 //   reverseGeocode,
 //   type ApiOrder,
@@ -2586,10 +2598,7 @@ export default function BookingWizard() {
 // const MAX_CANS_ONE_TIME = 50;
 // const MAX_CANS_SUBSCRIPTION = 200;
 // // Approved launch prices for 20L RO cans.
-// const NORMAL_RO_CAN_PRICE: number = CAN_PRICES.normal;
-// const CHILLED_RO_CAN_PRICE: number = CAN_PRICES.chilled;
 // const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
-// const BULK_RO_CAN_PRICE: number = CAN_PRICES.bulk;
 // const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 // const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -2646,9 +2655,48 @@ export default function BookingWizard() {
 //   'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, or just enter your area and 6-digit pincode below. लोकेशन बंद है, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
 // const MSG_TIMEOUT =
 //   'GPS could not find you (it often fails indoors). Please enter your area and 6-digit pincode below. GPS डिटेक्ट नहीं हो पाया, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+// /** Longest we keep listening for a better GPS fix. */
+// const GEO_MAX_WAIT_MS = 12_000;
+// /** Above this (metres) the browser only gave a Wi-Fi/IP guess, so street-level fields are not trusted. */
+// const GEO_TRUST_M = 1_500;
+// /** Above this we still fill the form but ask the customer to double-check. */
+// const GEO_CHECK_M = 150;
+
 // const MSG_UNAVAILABLE =
 //   'Your device could not detect its location. Please enter your area and 6-digit pincode below. कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
 
+// type PostHit = { key: string; name: string; pincode: string; district: string };
+
+// /** India Post lookup by area name. Tries "Barra 2" → "Barra" → first word. Never throws. */
+// async function fetchPostOffices(query: string, city: string, strictCity: boolean): Promise<PostHit[]> {
+//   const q = query.trim();
+//   if (q.length < 3) return [];
+//   const variants = Array.from(new Set([q, q.replace(/[\s-]*\d+$/, '').trim(), q.split(/\s+/)[0] ?? '']))
+//     .filter((v) => v.length >= 3);
+//   for (const v of variants) {
+//     const ctrl = new AbortController();
+//     const timer = setTimeout(() => ctrl.abort(), 5_000);
+//     try {
+//       const params = new URLSearchParams({ office: v, city: city.trim(), strictCity: String(strictCity) });
+//       const res = await fetch(`/api/geo/postal?${params.toString()}`, {
+//         signal: ctrl.signal, headers: { Accept: 'application/json' }, cache: 'no-store',
+//       });
+//       if (!res.ok) continue;
+//       const payload = await res.json() as { results?: Array<{ name?: string; pincode?: string; district?: string }> };
+//       const hits: PostHit[] = (Array.isArray(payload.results) ? payload.results : [])
+//         .map((o) => ({
+//           key: `${String(o.name ?? '').trim()}-${String(o.pincode ?? '').trim()}`,
+//           name: String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim(),
+//           pincode: String(o.pincode ?? '').trim(),
+//           district: String(o.district ?? ''),
+//         }))
+//         .filter((h) => h.name && /^\d{6}$/.test(h.pincode));
+//       if (hits.length) return hits.slice(0, 8);
+//     } catch { /* optional suggestions never block address entry */ }
+//     finally { clearTimeout(timer); }
+//   }
+//   return [];
+// }
 // function maxCansFor(d: { canOrderType?: 'one_time' | 'subscription' }): number {
 //   return d.canOrderType === 'subscription' ? MAX_CANS_SUBSCRIPTION : MAX_CANS_ONE_TIME;
 // }
@@ -2664,6 +2712,8 @@ export default function BookingWizard() {
 // ];
 
 // const LIVE_CITIES: readonly string[] = ACTIVE_CITY_NAMES;
+// // Candidate cities are selectable for address entry; server-side coverage still controls booking.
+// const ADDRESS_CITIES: readonly string[] = Array.from(new Set([...ACTIVE_CITY_NAMES, 'Noida', 'Delhi']));
 
 // /* ───────── Premium presentation helpers ───────── */
 
@@ -2846,7 +2896,11 @@ export default function BookingWizard() {
 
 // function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
 //   if (draft.serviceKey === 'plumbing') {
-//     return PLUMBER_PRICES[draft.plumberType ?? 'labour'];
+//     return settings.pricing_version
+//       ? draft.plumberType === 'mistri'
+//         ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri)
+//         : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour)
+//       : PLUMBER_PRICES[draft.plumberType ?? 'labour'];
 //   }
 //   return settings.service_base_prices[draft.serviceKey as ServiceKey] ?? 0;
 // }
@@ -2894,12 +2948,12 @@ export default function BookingWizard() {
 //       Math.max(1, draft.canQuantity ?? 1)
 //     );
 //     const per = draft.subOptionKey === 'chilled_ro'
-//       ? CHILLED_RO_CAN_PRICE
+//       ? settings.chilled_can_price
 //       : draft.canOrderType === 'subscription'
-//         ? SUBSCRIPTION_RO_CAN_PRICE
+//         ? settings.subscription_can_price
 //         : qty >= settings.bulk_threshold
-//           ? BULK_RO_CAN_PRICE
-//           : NORMAL_RO_CAN_PRICE;
+//           ? settings.bulk_can_price
+//           : settings.default_can_price;
 //     return Math.round(qty * per);
 //   }
 
@@ -3077,7 +3131,7 @@ export default function BookingWizard() {
 // export default function BookingWizard() {
 //   const router       = useRouter();
 //   const searchParams = useSearchParams();
-//   const { settings, calcOrderTotal, whatsappHref } = useSettings();
+//   const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings();
 //   const { session }  = useAuth();
 
 //   const [step, setStep]           = useState(1);
@@ -3092,6 +3146,9 @@ export default function BookingWizard() {
 //   const [createdOrder, setCreatedOrder] = useState<ApiOrder | null>(null);
 //   const [submitError, setSubmitError]   = useState<string | null>(null);
 //   const [waitlistCity, setWaitlistCity] = useState('');
+//   const [referralRewards, setReferralRewards] = useState<Array<{ id: string; reward_type: 'discount_25' | 'free_water_can'; reward_status: string }>>([]);
+//   const [selectedReferralRewardId, setSelectedReferralRewardId] = useState('');
+//   const [referralRewardsLoading, setReferralRewardsLoading] = useState(false);
 
 //   const [serviceability, setServiceability] = useState<{
 //     serviceable: boolean; status: string;
@@ -3107,8 +3164,13 @@ export default function BookingWizard() {
 //   const [flashFields, setFlashFields]   = useState(false);
 //   const [detectedLocation, setDetectedLocation] = useState<{
 //     formattedAddress: string | null; city: string | null; area: string | null;
-//     pincode: string | null; accuracy: number | null;
+//     pincode: string | null; accuracy: number | null; coarse: boolean;
 //   } | null>(null);
+//   const [pinAreas, setPinAreas] = useState<string[]>([]);
+//   const pinReq = useRef(0);
+//   const areaReq = useRef(0);
+//   const areaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+//   const [areaHits, setAreaHits] = useState<PostHit[]>([]);
 
 //   const submitLock     = useRef(false);
 //   const firstScroll    = useRef(true);
@@ -3349,11 +3411,61 @@ export default function BookingWizard() {
 //     });
 //   }, [addresses, addressesLoaded]);
 
+//   useEffect(() => {
+//     if (!session?.loggedIn || session.role !== 'customer') return;
+//     let cancelled = false;
+//     setReferralRewardsLoading(true);
+//     void (async () => {
+//       try {
+//         const token = await getToken();
+//         if (!token) return;
+//         const response = await fetch('/api/customer/referrals', {
+//           headers: { Authorization: `Bearer ${token}` },
+//           cache: 'no-store',
+//         });
+//         const payload = await response.json();
+//         if (!response.ok) return;
+//         const result = payload.data ?? payload;
+//         if (!cancelled) {
+//           const available = Array.isArray(result.rewards)
+//             ? result.rewards.filter((reward: { reward_status?: string; reward_type?: string }) =>
+//                 reward.reward_status === 'available' &&
+//                 ['discount_25', 'free_water_can'].includes(String(reward.reward_type)))
+//             : [];
+//           setReferralRewards(available);
+//           setSelectedReferralRewardId((current) => available.some((reward: { id: string }) => reward.id === current) ? current : '');
+//         }
+//       } catch {
+//         // Referral rewards are optional; booking must remain usable if this endpoint is unavailable.
+//       } finally {
+//         if (!cancelled) setReferralRewardsLoading(false);
+//       }
+//     })();
+//     return () => { cancelled = true; };
+//   }, [session?.loggedIn, session?.role, session?.userId]);
+
 //   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
-//   const breakdown  = useMemo(() => {
-//     const raw = calcOrderTotal(baseAmount, draft.isEmergency, draft.serviceKey);
-//     return { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
-//   }, [calcOrderTotal, baseAmount, draft.isEmergency, draft.serviceKey]);
+//   const selectedReferralReward = referralRewards.find((reward) => reward.id === selectedReferralRewardId) ?? null;
+//   const referralDiscountAmount = useMemo(() => {
+//     if (!selectedReferralReward || draft.serviceKey !== 'water_can' ||
+//         draft.subOptionKey === 'chilled_ro' || draft.canOrderType === 'subscription' ||
+//         (draft.canQuantity ?? 1) !== 1) return 0;
+//     return selectedReferralReward.reward_type === 'free_water_can'
+//       ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
+//       : Math.round(baseAmount * 0.25 * 100) / 100;
+//   }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
+//   const canRedeemReferralReward =
+//     draft.serviceKey === 'water_can' &&
+//     draft.subOptionKey !== 'chilled_ro' &&
+//     draft.canOrderType !== 'subscription' &&
+//     (draft.canQuantity ?? 1) === 1;
+//   const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
+//   const breakdown = useMemo(() => {
+//     const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
+//     return settings.pricing_version
+//       ? raw
+//       : { ...raw, gst: 0, total: Math.round((raw.total - raw.gst) * 100) / 100 };
+//   }, [calcOrderTotal, netBaseAmount, draft.isEmergency, draft.serviceKey, settings.pricing_version]);
 
 //   /* Itemised lines (sum = baseAmount) so every screen shows the same numbers */
 //   const priceLines = useMemo<PriceLine[]>(
@@ -3369,18 +3481,18 @@ export default function BookingWizard() {
 //     !!subOptionMeta(draft.serviceKey, draft.subOptionKey)?.quoteAfterVisit;
 
 //   const fromPrice = useCallback((key: string) => {
-//     if (key === 'water_can') return NORMAL_RO_CAN_PRICE;
-//     if (key === 'plumbing') return PLUMBER_PRICES.labour;
+//     if (key === 'water_can') return settings.default_can_price;
+//     if (key === 'plumbing') return settings.pricing_version ? (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES.labour;
 //     return settings.service_base_prices[key as ServiceKey] ?? 0;
 //   }, [settings]);
 
 //   const perCan = draft.subOptionKey === 'chilled_ro'
-//     ? CHILLED_RO_CAN_PRICE
+//     ? settings.chilled_can_price
 //     : draft.canOrderType === 'subscription'
-//       ? SUBSCRIPTION_RO_CAN_PRICE
+//       ? settings.subscription_can_price
 //       : (draft.canQuantity ?? 1) >= settings.bulk_threshold
-//         ? BULK_RO_CAN_PRICE
-//         : NORMAL_RO_CAN_PRICE;
+//         ? settings.bulk_can_price
+//         : settings.default_can_price;
 
 //   const isSubscription =
 //     draft.serviceKey === 'water_can' &&
@@ -3395,7 +3507,7 @@ export default function BookingWizard() {
 //   const offPct = showCompare ? pctOff(marketPerCan, perCan) : 0;
 //   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
 //   const subSave =
-//     isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > SUBSCRIPTION_RO_CAN_PRICE
+//     isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > settings.subscription_can_price
 //       ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
 //       : 0;
 
@@ -3434,6 +3546,41 @@ export default function BookingWizard() {
 //     });
 //   }, []);
 
+//   /** Suggest real area names from the server-side PIN directory. Optional; never blocks booking. */
+//   const lookupPincode = useCallback(async (pin: string) => {
+//     const id = ++pinReq.current;
+//     if (pin.length !== 6) { setPinAreas([]); return; }
+//     const ctrl = new AbortController();
+//     const timer = setTimeout(() => ctrl.abort(), 5_000);
+//     try {
+//       const res = await fetch(`/api/geo/postal?pincode=${encodeURIComponent(pin)}`, {
+//         signal: ctrl.signal, headers: { Accept: 'application/json' }, cache: 'no-store',
+//       });
+//       if (!res.ok) throw new Error('postal lookup unavailable');
+//       const payload = await res.json() as { results?: Array<{ name?: string }> };
+//       if (id !== pinReq.current) return;
+//       const names = Array.from(new Set(
+//         (payload.results ?? []).map((o) => String(o.name ?? '').replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean),
+//       )).slice(0, 8);
+//       setPinAreas(names);
+//     } catch {
+//       if (id === pinReq.current) setPinAreas([]);
+//     } finally { clearTimeout(timer); }
+//   }, []);
+
+//   /** Type an area ("Barra") and get its real pincode from India Post. This is the accurate path
+//    *  when GPS/map data gives no area or a wrong pincode. Fails silently; never blocks booking. */
+//   const searchArea = useCallback((text: string, city: string) => {
+//     if (areaTimer.current) clearTimeout(areaTimer.current);
+//     const q = text.trim();
+//     const id = ++areaReq.current;
+//     if (q.length < 3) { setAreaHits([]); return; }
+//     areaTimer.current = setTimeout(async () => {
+//       const hits = await fetchPostOffices(q, city, false);
+//       if (id === areaReq.current) setAreaHits(hits);
+//     }, 350);
+//   }, []);
+
 //   /* ───────────────────────── Location ─────────────────────────
 //    * 1. Pre-check permission (instant message if blocked)
 //    * 2. Network location first (fast on phones), GPS only as fallback
@@ -3466,7 +3613,7 @@ export default function BookingWizard() {
 
 //     setLocating(true);
 //     setLocationError(null);
-//     setLocationStep('network');
+//     setLocationStep('gps');
 
 //     try {
 //       const perm = await navigator.permissions?.query({ name: 'geolocation' as PermissionName });
@@ -3478,16 +3625,48 @@ export default function BookingWizard() {
 //         navigator.geolocation.getCurrentPosition(resolve, reject, opts);
 //       });
 
+//     /* The first fix a browser returns is often a coarse Wi-Fi/IP guess (laptops especially),
+//      * which is how a customer in one area got another area's address. So we keep listening
+//      * for a few seconds and use the MOST ACCURATE fix, stopping early once it is good. */
+//     const collectBestFix = () =>
+//       new Promise<GeolocationPosition>((resolve, reject) => {
+//         let best: GeolocationPosition | null = null;
+//         let finished = false;
+//         let watchId = -1;
+//         const startedAt = Date.now();
+//         const hardStop = setTimeout(() => finish(), GEO_MAX_WAIT_MS);
+//         function finish(err?: GeolocationPositionError | Error) {
+//           if (finished) return;
+//           finished = true;
+//           clearTimeout(hardStop);
+//           if (watchId !== -1) navigator.geolocation.clearWatch(watchId);
+//           if (best) resolve(best);
+//           else reject(err ?? new Error('no-fix'));
+//         }
+//         watchId = navigator.geolocation.watchPosition(
+//           (p) => {
+//             if (stale()) { finish(); return; }
+//             if (!best || p.coords.accuracy < best.coords.accuracy) best = p;
+//             const acc = best.coords.accuracy;
+//             const waited = Date.now() - startedAt;
+//             if (acc <= 40 || (acc <= 120 && waited > 4_000)) finish();
+//           },
+//           (e) => { if (e.code === 1 || !best) finish(e); },
+//           { enableHighAccuracy: true, maximumAge: 0, timeout: GEO_MAX_WAIT_MS },
+//         );
+//       });
+
 //     const acquire = async (): Promise<GeolocationPosition | null> => {
+//       setLocationStep('gps');
 //       try {
-//         return await getPos({ enableHighAccuracy: false, timeout: 6_000, maximumAge: 60_000 });
+//         return await collectBestFix();
 //       } catch (e) {
 //         if ((e as GeolocationPositionError).code === 1) { fail(MSG_DENIED); return null; }
 //       }
 //       if (stale()) return null;
-//       setLocationStep('gps');
+//       setLocationStep('network');
 //       try {
-//         return await getPos({ enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 });
+//         return await getPos({ enableHighAccuracy: false, timeout: 8_000, maximumAge: 0 });
 //       } catch (e) {
 //         const code = (e as GeolocationPositionError).code;
 //         fail(code === 1 ? MSG_DENIED : code === 3 ? MSG_TIMEOUT : MSG_UNAVAILABLE);
@@ -3499,6 +3678,9 @@ export default function BookingWizard() {
 //     if (!pos || stale()) return;
 
 //     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+//     const accuracyM = Number.isFinite(accuracy) ? Math.round(accuracy) : null;
+//     // Coarse fix = Wi-Fi/IP guess. Never trust it for area, pincode or supplier matching.
+//     const coarse = accuracyM !== null && accuracyM > GEO_TRUST_M;
 //     setLocationStep('geocoding');
 
 //     try {
@@ -3511,26 +3693,42 @@ export default function BookingWizard() {
 //       const matchedCity =
 //         LIVE_CITIES.find((c) => c.toLowerCase() === (result.city ?? '').trim().toLowerCase()) ?? null;
 
+//       // If the map found the area but no reliable pincode, derive it from India Post by area name.
+//       // One distinct pincode in the city = auto-fill. Several = show them as tap-to-choose chips.
+//       let finalPin = coarse ? '' : (result.pincode || '');
+//       if (!coarse && result.area && !finalPin) {
+//         const hits = await fetchPostOffices(result.area, matchedCity ?? result.city ?? '', true);
+//         if (stale()) return;
+//         const pins = Array.from(new Set(hits.map((h) => h.pincode)));
+//         if (pins.length === 1) finalPin = pins[0];
+//         else if (pins.length > 1) setAreaHits(hits);
+//       }
+
 //       setDraft((d) => ({
 //         ...d,
 //         newAddress: {
 //           ...d.newAddress,
-//           lat,
-//           lng,
-//           area:    result.area || d.newAddress?.area || '',
+//           lat: coarse ? undefined : lat,
+//           lng: coarse ? undefined : lng,
+//           area:    coarse ? (d.newAddress?.area ?? '') : (result.area || d.newAddress?.area || ''),
 //           city:    matchedCity ?? result.city ?? d.newAddress?.city ?? '',
-//           pincode: result.pincode || d.newAddress?.pincode || '',
+//           pincode: coarse ? (d.newAddress?.pincode ?? '') : (finalPin || d.newAddress?.pincode || ''),
 //         },
 //       }));
 //       setDetectedLocation({
 //         formattedAddress: result.formattedAddress,
-//         city: result.city, area: result.area, pincode: result.pincode,
-//         accuracy: Number.isFinite(accuracy) ? accuracy : null,
+//         city: result.city, area: result.area, pincode: finalPin || null,
+//         accuracy: accuracyM,
+//         coarse,
 //       });
 //       setLocationStep('done');
 //       setLocating(false);
+//       // Always offer real area names for the detected pincode, so the area is never left blank.
+//       if (!coarse && finalPin) void lookupPincode(finalPin);
 
-//       if (!matchedCity && result.city) {
+//       if (coarse) {
+//         toast.warning('Only an approximate location was available. Please enter your pincode and pick your area.');
+//       } else if (!matchedCity && result.city) {
 //         toast.warning(`We detected "${result.city}", which isn't live yet. Please check the city.`);
 //       } else {
 //         toast.success('Location detected — add flat/house no. and save.');
@@ -3545,7 +3743,7 @@ export default function BookingWizard() {
 //     } catch (e) {
 //       if (stale()) return;
 //       // Keep the GPS point so the nearest supplier can still be assigned
-//       setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, lat, lng } }));
+//       if (!coarse) setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, lat, lng } }));
 //       setLocating(false);
 //       setLocationStep('error');
 //       const msg =
@@ -3555,7 +3753,7 @@ export default function BookingWizard() {
 //       setLocationError(msg);
 //       toast.warning(msg);
 //     }
-//   }, [session?.loggedIn, locating]);
+//   }, [session?.loggedIn, locating, lookupPincode]);
 
 //   const locationButtonLabel = () => {
 //     if (locationStep === 'network')   return 'Checking network…';
@@ -3728,8 +3926,9 @@ export default function BookingWizard() {
 //         sub_option_key: draft.subOptionKey || 'standard',
 //         scheduled_date: draft.scheduledDate, time_slot: sv.time_slot,
 //         scheduled_time: sv.scheduled_time, is_emergency: draft.isEmergency,
-//         base_amount: baseAmount, convenience_fee: breakdown.convenience,
+//         base_amount: netBaseAmount, convenience_fee: breakdown.convenience,
 //         gst_amount: breakdown.gst, total_amount: breakdown.total,
+//         referral_reward_id: referralDiscountAmount > 0 ? selectedReferralRewardId : undefined,
 //         payment_method: draft.paymentMethod, notes: draft.notes?.trim() || undefined,
 //         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
 //         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
@@ -3750,6 +3949,13 @@ export default function BookingWizard() {
 //             const errCode =
 //         (e as { code?: string; details?: { code?: string } } | null)?.code ??
 //         (e as { details?: { code?: string } } | null)?.details?.code;
+//       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
+//         await refreshSettings();
+//         const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
+//         setSubmitError(m);
+//         toast.error(m);
+//         return;
+//       }
 //       if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
 //         const m = 'We could not place this address on the map. Please tap "Detect my location", or add the address again with your area and 6-digit pincode.';
 //         setSubmitError(m); toast.error(m);
@@ -3901,13 +4107,13 @@ export default function BookingWizard() {
 //                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Water type">
 //                   <button type="button" aria-pressed={draft.subOptionKey !== 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'normal_ro' }))} className={optionBtn(draft.subOptionKey !== 'chilled_ro')}>
 //                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
-//                     <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(NORMAL_RO_CAN_PRICE)} / 20L</span>
+//                     <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(settings.default_can_price)} / 20L</span>
 //                     <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
 //                     <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
 //                   </button>
 //                   <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
 //                     <span className="block text-sm font-extrabold">Chilled RO Water</span>
-//                     <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(CHILLED_RO_CAN_PRICE)} / 20L</span>
+//                     <span className="mt-1 block text-lg font-extrabold text-sky-700">{inr(settings.chilled_can_price)} / 20L</span>
 //                     <span className="mt-1 block text-xs text-slate-500">For parties, weddings &amp; events</span>
 //                     <span className="mt-1 block text-[11px] text-slate-500">Chilled &amp; delivered</span>
 //                   </button>
@@ -3958,10 +4164,10 @@ export default function BookingWizard() {
 //                   >
 //                     <span className="block text-sm font-extrabold">One-time</span>
 //                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-//                       {inr(draft.subOptionKey === 'chilled_ro' ? CHILLED_RO_CAN_PRICE : NORMAL_RO_CAN_PRICE)} per can
+//                       {inr(draft.subOptionKey === 'chilled_ro' ? settings.chilled_can_price : settings.default_can_price)} per can
 //                     </span>
 //                     <span className="mt-1 block text-[11px] text-slate-400">
-//                       {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(BULK_RO_CAN_PRICE)} per can from ${settings.bulk_threshold} cans`}
+//                       {draft.subOptionKey === 'chilled_ro' ? 'Chilled price applies per can' : `${inr(settings.bulk_can_price)} per can from ${settings.bulk_threshold} cans`}
 //                     </span>
 //                   </button>
 
@@ -3988,11 +4194,11 @@ export default function BookingWizard() {
 //                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
 //                         {(draft.canQuantity ?? 1) >= settings.bulk_threshold
 //                           ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-//                           : `Save 10% · ₹${SUBSCRIPTION_RO_CAN_PRICE}/can`}
+//                           : `Save 10% · ₹${settings.subscription_can_price}/can`}
 //                       </span>
 //                     </span>
 //                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-//                       {inr(SUBSCRIPTION_RO_CAN_PRICE)} per can · Save 10% vs one-time Normal RO
+//                       {inr(settings.subscription_can_price)} per can · Save 10% vs one-time Normal RO
 //                     </span>
 //                     {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
 //                     <span className="mt-1 block text-[11px] text-slate-400">
@@ -4110,7 +4316,7 @@ export default function BookingWizard() {
 //                       >
 //                         <span className="block font-bold">{PLUMBER_LABELS[type]}</span>
 //                         <span className="mt-1 block text-sm">
-//                           {inr(PLUMBER_PRICES[type])} starting
+//                           {inr(settings.pricing_version ? type === 'mistri' ? (settings.service_base_prices.plumbing_mistri ?? PLUMBER_PRICES.mistri) : (settings.service_base_prices.plumbing ?? PLUMBER_PRICES.labour) : PLUMBER_PRICES[type])} starting
 //                         </span>
 //                         <span className="mt-1 block text-xs text-slate-500">
 //                           Final quote depends on scope and materials.
@@ -4309,22 +4515,43 @@ export default function BookingWizard() {
 //                     )}
 
 //                     {detectedLocation && locationStep === 'done' && (
-//                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-//                         <p className="text-sm font-semibold text-emerald-900">📍 Location filled below</p>
-//                         <p className="text-xs text-emerald-700 mt-1">
-//                           {[detectedLocation.area, detectedLocation.city].filter(Boolean).join(', ')}
-//                           {detectedLocation.pincode ? ` · ${detectedLocation.pincode}` : ''}
-//                         </p>
-//                         {detectedLocation.formattedAddress && (
-//                           <p className="text-xs text-emerald-700 mt-1 break-words">{detectedLocation.formattedAddress}</p>
-//                         )}
-//                         <p className="text-xs text-emerald-600 mt-1">
-//                           {detectedLocation.accuracy !== null && detectedLocation.accuracy > 500
-//                             ? 'Location is approximate — please check the area and pincode. '
-//                             : ''}
-//                           Add your flat/house no., then tap Save address.
-//                         </p>
-//                       </div>
+//                       detectedLocation.coarse ? (
+//                         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3" role="status">
+//                           <p className="text-sm font-semibold text-amber-900">📍 Only an approximate location was found</p>
+//                           <p className="text-xs text-amber-800 mt-1">
+//                             Your device reported about ±{detectedLocation.accuracy !== null ? (detectedLocation.accuracy / 1000).toFixed(1) : '?'} km
+//                             (common on laptops and Wi-Fi), so we did not guess your area.
+//                             Enter your <b>pincode</b> below and tap your area, or retry on your phone for exact GPS.
+//                           </p>
+//                         </div>
+//                       ) : (
+//                         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+//                           <p className="text-sm font-semibold text-emerald-900">
+//                             📍 Location filled below
+//                             {detectedLocation.accuracy !== null && (
+//                               <span className="ml-2 text-[11px] font-bold text-emerald-700">±{detectedLocation.accuracy} m</span>
+//                             )}
+//                           </p>
+//                           <p className="text-xs text-emerald-700 mt-1">
+//                             {[detectedLocation.area, detectedLocation.city].filter(Boolean).join(', ')}
+//                             {detectedLocation.pincode ? ` · ${detectedLocation.pincode}` : ''}
+//                           </p>
+//                           {detectedLocation.formattedAddress && (
+//                             <p className="text-xs text-emerald-700 mt-1 break-words">{detectedLocation.formattedAddress}</p>
+//                           )}
+//                           {!detectedLocation.pincode && (
+//                             <p className="text-xs text-amber-700 mt-1 font-semibold">
+//                               We could not read a reliable pincode. Type your area (for example &quot;Barra&quot;) below and tap it to fill the correct pincode.
+//                             </p>
+//                           )}
+//                           <p className="text-xs text-emerald-700 mt-1">
+//                             {detectedLocation.accuracy !== null && detectedLocation.accuracy > GEO_CHECK_M
+//                               ? <b>Not your area? Please correct the area and pincode below. </b>
+//                               : null}
+//                             Add your flat/house no., then tap Save address.
+//                           </p>
+//                         </div>
+//                       )
 //                     )}
 //                   </div>
 
@@ -4339,25 +4566,69 @@ export default function BookingWizard() {
 
 //                     <input className={`sm:col-span-2 ${inputCls}${flashCls}`} placeholder="Area / locality *" aria-label="Area" required
 //                       value={draft.newAddress?.area ?? ''}
-//                       onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: e.target.value } }))} />
+//                       onChange={(e) => {
+//                         const v = e.target.value;
+//                         setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: v } }));
+//                         searchArea(v, draft.newAddress?.city ?? '');
+//                       }} />
+
+//                     {areaHits.length > 0 && (
+//                       <div className="sm:col-span-2" role="group" aria-label="Matching areas">
+//                         <p className="text-xs font-semibold text-slate-600 mb-1.5">Tap your area to fill the correct pincode</p>
+//                         <div className="flex flex-wrap gap-2">
+//                           {areaHits.map((h) => (
+//                             <button key={h.key} type="button"
+//                               onClick={() => {
+//                                 setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: h.name, pincode: h.pincode } }));
+//                                 setAreaHits([]); setPinAreas([]);
+//                               }}
+//                               className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-emerald-300 hover:bg-emerald-50 transition-colors">
+//                               {h.name} · {h.pincode}{h.district && !h.district.toLowerCase().includes((draft.newAddress?.city ?? '').trim().toLowerCase()) ? ` (${h.district})` : ''}
+//                             </button>
+//                           ))}
+//                         </div>
+//                       </div>
+//                     )}
 
 //                     <select className={`${selectCls}${flashCls}`} aria-label="City"
 //                       value={draft.newAddress?.city ?? LIVE_CITIES[0] ?? ''}
 //                       onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, city: e.target.value } }))}>
-//                       {LIVE_CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
+//                       {ADDRESS_CITIES.map((c) => <option key={c} value={c}>{c}{!LIVE_CITIES.includes(c) ? ' · availability check required' : ''}</option>)}
 //                     </select>
 
 //                     <div>
 //                       <input className={`${inputCls}${flashCls}`} placeholder="Pincode *" aria-label="Pincode"
 //                         inputMode="numeric" pattern="[0-9]{6}" autoComplete="postal-code" required
 //                         value={draft.newAddress?.pincode ?? ''}
-//                         onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) } }))} />
+//                         onChange={(e) => {
+//                           const pin = e.target.value.replace(/\D/g, '').slice(0, 6);
+//                           setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, pincode: pin } }));
+//                           void lookupPincode(pin);
+//                         }} />
 //                       {newPinHint && <p className="mt-1 text-xs text-amber-700">{newPinHint}</p>}
 //                     </div>
 
 //                     <input className={`sm:col-span-2 ${inputCls}`} placeholder="Landmark (optional)" aria-label="Landmark"
 //                       value={draft.newAddress?.landmark ?? ''}
 //                       onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, landmark: e.target.value } }))} />
+
+//                     {pinAreas.length > 0 && (
+//                       <div className="sm:col-span-2" role="group" aria-label="Areas for this pincode">
+//                         <p className="text-xs font-semibold text-slate-600 mb-1.5">Tap your area · pincode {draft.newAddress?.pincode}</p>
+//                         <div className="flex flex-wrap gap-2">
+//                           {pinAreas.map((name) => (
+//                             <button key={name} type="button"
+//                               onClick={() => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, area: name } }))}
+//                               className={'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ' +
+//                                 (draft.newAddress?.area === name
+//                                   ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+//                                   : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300')}>
+//                               {name}
+//                             </button>
+//                           ))}
+//                         </div>
+//                       </div>
+//                     )}
 //                   </div>
 
 //                   <button type="button" onClick={() => void saveInlineAddress()} disabled={savingAddress}
@@ -4451,6 +4722,33 @@ export default function BookingWizard() {
 
 //               <hr className="border-slate-200" />
 
+//               {referralRewards.length > 0 && (
+//                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+//                   <p className="font-extrabold text-emerald-900">Referral rewards · रेफरल इनाम</p>
+//                   <p className="mt-1 text-xs leading-5 text-emerald-800">
+//                     Use one reward on a single standard Normal RO can. Chilled cans, subscriptions and multi-can orders are not eligible.
+//                   </p>
+//                   <select
+//                     aria-label="Choose referral reward"
+//                     value={selectedReferralRewardId}
+//                     onChange={(event) => setSelectedReferralRewardId(event.target.value)}
+//                     disabled={!canRedeemReferralReward}
+//                     className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+//                   >
+//                     <option value="">No referral reward</option>
+//                     {referralRewards.map((reward) => (
+//                       <option key={reward.id} value={reward.id}>
+//                         {reward.reward_type === 'free_water_can' ? 'Free standard RO can · अगला कैन मुफ़्त' : '25% off one standard RO can · 25% छूट'}
+//                       </option>
+//                     ))}
+//                   </select>
+//                   {!canRedeemReferralReward ? (
+//                     <p className="mt-2 text-xs font-semibold text-amber-800">Rewards can be used only on one standard Normal RO can in a one-time order. Select that option to redeem. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।</p>
+//                   ) : null}
+//                   {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
+//                 </div>
+//               )}
+
 //               {priceLines.map((l, i) => (
 //                 <div
 //                   key={`${l.label}-${i}`}
@@ -4469,6 +4767,12 @@ export default function BookingWizard() {
 //                 <span className="text-slate-600">Convenience</span>
 //                 <span>{inr(breakdown.convenience)}</span>
 //               </div>
+//               {referralDiscountAmount > 0 && (
+//                 <div className="flex justify-between font-bold text-emerald-800">
+//                   <span>{selectedReferralReward?.reward_type === 'free_water_can' ? 'Free can reward' : 'Referral discount (25%)'}</span>
+//                   <span>−{inr(referralDiscountAmount)}</span>
+//                 </div>
+//               )}
 //               {breakdown.gst > 0 && (
 //                 <div className="flex justify-between text-slate-900">
 //                   <span className="text-slate-600">GST</span>
@@ -4661,3 +4965,4 @@ export default function BookingWizard() {
 //     </div>
 //   );
 // }
+
