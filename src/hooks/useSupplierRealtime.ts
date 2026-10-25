@@ -11,7 +11,7 @@ type Options = {
   onOrdersChange: () => void | Promise<void>;
   /** Called immediately when a notification is inserted for this supplier. */
   onNotification?: (row: Record<string, unknown>) => void;
-  /** Fallback polling interval used ONLY while realtime is not live. */
+  /** Safety-net refresh interval. Polling continues even if realtime says connected but DB events are not delivered. */
   fallbackPollMs?: number;
   /** Debounce window to coalesce bursts of row changes into one refetch. */
   debounceMs?: number;
@@ -22,7 +22,8 @@ type Options = {
  *
  *  - single channel, always cleaned up (no leaks on supplier change)
  *  - debounced refetch (a burst of updates = one network call)
- *  - polling runs ONLY while the websocket is down
+ *  - realtime gives fast updates, with low-frequency polling as a safety net
+ *    (a connected channel can still miss events if database publication/filter setup is wrong)
  *  - refetches immediately on tab focus / network regain
  *  - exposes `status` so the UI can show a Live / Reconnecting badge
  *
@@ -34,7 +35,7 @@ export function useSupplierRealtime({
   supplierId,
   onOrdersChange,
   onNotification,
-  fallbackPollMs = 10_000,
+  fallbackPollMs = 15_000,
   debounceMs = 400,
 }: Options): { status: RealtimeStatus; refresh: () => void } {
   const [status, setStatus] = useState<RealtimeStatus>('connecting');
@@ -91,14 +92,16 @@ export function useSupplierRealtime({
     };
   }, [supabase, supplierId, refresh]);
 
-  // Fallback polling only while offline
+  // Safety-net polling while the tab is visible. A channel can report SUBSCRIBED
+  // even when Postgres changes are not enabled for a table or a row filter misses
+  // an event; periodic reads prevent the supplier dashboard from silently going stale.
   useEffect(() => {
-    if (!supplierId || status === 'live') return;
+    if (!supplierId) return;
     const id = window.setInterval(() => {
       if (document.visibilityState === 'visible') void ordersCb.current();
     }, fallbackPollMs);
     return () => window.clearInterval(id);
-  }, [supplierId, status, fallbackPollMs]);
+  }, [supplierId, fallbackPollMs]);
 
   // Instant refresh on focus / reconnect
   useEffect(() => {
