@@ -120,20 +120,27 @@ function buildReadiness(row: Row | null, profile: Row | null) {
   return { ready_for_orders: ready, checks };
 }
 
-async function loadSnapshot(sb: any, userId: string) {
+type SnapshotResult =
+  | { ok: false; error: { message: string } }
+  | { ok: true; data: Row };
+
+async function loadSnapshot(sb: any, userId: string): Promise<SnapshotResult> {
   const service = createServiceClient();
   const [settingsRes, profileRes] = await Promise.all([
     sb.from('supplier_settings').select('*').eq('user_id', userId).maybeSingle(),
     service.from('profiles').select('full_name, phone, city, status, verification_status').eq('id', userId).maybeSingle(),
   ]);
 
-  if (settingsRes.error) return { error: settingsRes.error as { message: string } };
+  if (settingsRes.error) {
+    return { ok: false, error: { message: settingsRes.error.message } };
+  }
   if (profileRes.error) console.error('[supplier/settings] profile lookup failed', profileRes.error.message);
 
   const row = (settingsRes.data as Row | null) ?? null;
   const profile = (profileRes.data as Row | null) ?? null;
 
   return {
+    ok: true,
     data: {
       ...(row ? sanitize(row) : DEFAULTS),
       profile: profile
@@ -182,7 +189,7 @@ export async function GET(req: NextRequest) {
   if (!requireRole(auth.ctx, 'supplier')) return jsonErr('Forbidden', 403);
 
   const snap = await loadSnapshot(auth.ctx.supabase, auth.ctx.profile.id);
-  if ('error' in snap) {
+  if (!snap.ok) {
     console.error('[supplier/settings] load failed', snap.error.message);
     return jsonErr('Could not load your settings. Please try again.', 502);
   }
@@ -242,7 +249,7 @@ export async function PUT(req: NextRequest) {
   if (becameOnline) after(recoverWaitingOrders);
 
   const snap = await loadSnapshot(sb, userId);
-  if ('error' in snap) {
+  if (!snap.ok) {
     console.error('[supplier/settings] reload failed', snap.error.message);
     return jsonErr('Saved, but could not reload your settings. Please refresh.', 502);
   }
