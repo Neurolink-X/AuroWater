@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   const supplierId = auth.ctx.profile.id;
   const [profileRes, settingsRes, coverageRes] = await Promise.all([
     db.from('profiles').select('id, full_name, email, phone, city, business_name, status, is_active, created_at').eq('id', supplierId).maybeSingle(),
-    db.from('supplier_settings').select('*').eq('supplier_id', supplierId).maybeSingle(),
-    db.from('supplier_zones').select('zone_id, service_keys, service_zones(id, city, name, status, pincodes)').eq('supplier_id', supplierId),
+    db.from('supplier_settings').select('*').eq('user_id', supplierId).maybeSingle(),
+    db.from('supplier_zones').select('zone_id, service_keys, service_zones(id, city, name, status, pincodes)').eq('user_id', supplierId),
   ]);
   if (profileRes.error || settingsRes.error || coverageRes.error) {
     console.error('[supplier/profile] load failed', profileRes.error ?? settingsRes.error ?? coverageRes.error);
@@ -65,7 +65,7 @@ export async function PATCH(req: NextRequest) {
     return jsonErr('Could not verify your current profile.', 502);
   }
   const { data: settings, error: settingsError } = await db.from('supplier_settings')
-    .select('*').eq('supplier_id', supplierId).maybeSingle();
+    .select('*').eq('user_id', supplierId).maybeSingle();
   if (settingsError) {
     console.error('[supplier/profile] settings read failed', settingsError);
     return jsonErr('Could not verify your current service address.', 502);
