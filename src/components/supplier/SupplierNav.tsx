@@ -14,6 +14,7 @@ const links = [
   { href: '/supplier/inventory', label: 'Inventory' },
   { href: '/supplier/earnings', label: 'Earnings' },
   { href: '/supplier/settings', label: 'Dispatch' },
+  { href: '/supplier/profile', label: 'My Profile' },
   { href: '/supplier/analytics', label: 'Performance' },
   { href: '/supplier/support', label: 'Support' },
 ];

@@ -141,12 +141,12 @@ export async function GET(
   if (row.service_type_id != null) {
     const { data: service } = await sb
       .from('service_types')
-      .select('key, name')
+      .select('key, label')
       .eq('id', row.service_type_id as number)
       .maybeSingle();
 
-    if (service?.name != null) {
-      service_name = String(service.name);
+    if (service?.label != null) {
+      service_name = String(service.label);
     }
 
     if (service?.key != null) {
@@ -273,7 +273,7 @@ export async function PUT(
   const { data: before, error: beforeErr } = await sb
     .from('orders')
     .select(
-      'id, status, supplier_id, customer_id, can_quantity, total_amount, payment_status, payment_method',
+      'id, status, supplier_id, customer_id, can_count, total_amount, payment_status, payment_method',
     )
     .eq('id', id)
     .maybeSingle();
