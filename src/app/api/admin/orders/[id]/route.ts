@@ -338,19 +338,39 @@ export async function PUT(
     patch.completed_at = new Date().toISOString();
   }
 
-  const { data, error } = await sb
-    .from('orders')
-    .update(patch)
-    .eq('id', id)
-    .select('*')
-    .maybeSingle();
+  let updateResult: { data: Record<string, unknown> | null; error: { code?: string; message: string; details?: string | null; hint?: string | null } | null };
+  try {
+    updateResult = await sb
+      .from('orders')
+      .update(patch)
+      .eq('id', id)
+      .select('*')
+      .maybeSingle();
+  } catch (caught) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    console.error('[admin/orders] update threw unexpectedly', {
+      orderId: id, attemptedFields: Object.keys(patch), message,
+    });
+    return jsonErr('Order update failed unexpectedly. Reference the order ID in server logs.', 502);
+  }
+
+  const { data, error } = updateResult;
 
   if (error) {
+    // The caller is already verified as an admin. Include the database error code and
+    // message in the admin-only response so the failure is actionable without exposing
+    // it to customer/supplier sessions. Keep full details in server logs.
     console.error('[admin/orders] update failed', {
       orderId: id, attemptedFields: Object.keys(patch), code: error.code,
       message: error.message, details: error.details, hint: error.hint,
     });
-    return jsonErr('Order update failed because of a database error. Check server logs for the exact cause.', 502);
+    const diagnostic = [error.code, error.message].filter(Boolean).join(': ');
+    return jsonErr(
+      diagnostic
+        ? `Order update failed [${diagnostic}]. Check the order's database trigger/constraint if this persists.`
+        : 'Order update failed because of a database error. Check server logs for the exact cause.',
+      502,
+    );
   }
 
   if (!data) {
