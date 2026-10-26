@@ -174,8 +174,8 @@ export default function AdminOrdersPage() {
         toast.success(`Status updated to ${newStatus}`);
         setDrawerOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
         void load();
-      } catch {
-        toast.error('Failed to update status.');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to update status.');
       }
     },
     [drawerOrder?.id, load]
@@ -193,8 +193,8 @@ export default function AdminOrdersPage() {
       setCancelNote('');
       setDrawerOrder((prev) => (prev ? { ...prev, status: 'CANCELLED', notes } : null));
       void load();
-    } catch {
-      toast.error('Cancel failed.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Cancel failed.');
     }
   }, [drawerOrder, cancelNote, load]);
 
