@@ -267,7 +267,8 @@ export async function PUT(
     patch[key] = Number(patch[key]);
   }
 
-  const sb = auth.ctx.supabase;
+  // Admin authorization was verified above; bypass user-scoped RLS for this admin mutation.
+  const sb = createServiceClient();
 
   /*
    * Fetch current order before update.
