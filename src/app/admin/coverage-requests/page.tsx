@@ -42,6 +42,7 @@ export default function AdminCoverageRequestsPage() {
   const pending = rows.filter(r => r.status === 'PENDING');
   return <main className="mx-auto max-w-5xl px-4 py-8 text-slate-900">
     <Link href="/admin/zones" className="text-sm font-semibold text-emerald-700 hover:underline">← Service zones</Link>
+    <Link href="/admin/supplier-profile-requests" className="ml-4 text-sm font-semibold text-emerald-700 hover:underline">Review supplier profile changes →</Link>
     <h1 className="mt-4 text-3xl font-extrabold">Supplier coverage review</h1>
     <p className="mt-2 text-sm text-slate-600">Review requested cities, pincodes/sectors, and service categories before mapping a supplier. Approval maps coverage only; it never automatically opens a Coming soon area for customer bookings.</p>
     {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
