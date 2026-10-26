@@ -184,14 +184,15 @@ export default function AdminOrdersPage() {
   const handleCancelOrder = useCallback(async () => {
     if (!drawerOrder?.id) return;
     try {
-      const prevNotes = typeof drawerOrder.notes === 'string' ? drawerOrder.notes : '';
-      const stamp = `[Admin cancel ${new Date().toISOString()}] ${cancelNote.trim() || 'no note'}`;
-      const notes = prevNotes ? `${prevNotes}\n${stamp}` : stamp;
-      await adminOrderUpdate(drawerOrder.id, { status: 'CANCELLED', notes });
+      const reason = cancelNote.trim();
+      await adminOrderUpdate(drawerOrder.id, {
+        status: 'CANCELLED',
+        ...(reason ? { cancel_reason: reason } : {}),
+      });
       toast.success('Order cancelled.');
       setCancelOpen(false);
       setCancelNote('');
-      setDrawerOrder((prev) => (prev ? { ...prev, status: 'CANCELLED', notes } : null));
+      setDrawerOrder((prev) => (prev ? { ...prev, status: 'CANCELLED', cancel_reason: reason || null } : null));
       void load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Cancel failed.');

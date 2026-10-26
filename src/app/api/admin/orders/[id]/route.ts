@@ -28,7 +28,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'payment_status',
   'payment_collector',
   'payment_reference',
-  'notes',
+  'cancel_reason',
   'total_amount',
   'base_amount',
   'gst_amount',
