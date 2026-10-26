@@ -17,18 +17,55 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient();
   const supplierId = auth.ctx.profile.id;
   const [profileRes, settingsRes, coverageRes] = await Promise.all([
-    db.from('profiles').select('id, full_name, email, phone, city, business_name, status, is_active, created_at').eq('id', supplierId).maybeSingle(),
+    db.from('profiles')
+      .select('id, full_name, phone, city, business_name, status, is_active, verification_status, created_at')
+      .eq('id', supplierId).maybeSingle(),
     db.from('supplier_settings').select('*').eq('user_id', supplierId).maybeSingle(),
-    db.from('supplier_zones').select('zone_id, service_keys, service_zones(id, city, name, status, pincodes)').eq('user_id', supplierId),
+    // supplier_zones is keyed by supplier_id (not user_id).
+    db.from('supplier_zones').select('supplier_id, zone_id, service_keys').eq('supplier_id', supplierId),
   ]);
-  if (profileRes.error || settingsRes.error || coverageRes.error) {
-    console.error('[supplier/profile] load failed', profileRes.error ?? settingsRes.error ?? coverageRes.error);
-    return jsonErr('Supplier profile is temporarily unavailable.', 502);
+
+  if (profileRes.error) {
+    console.error('[supplier/profile] profile query failed', {
+      code: profileRes.error.code, message: profileRes.error.message, details: profileRes.error.details,
+    });
+    return jsonErr('Could not load your account details. Please try again.', 502);
   }
+
+  if (settingsRes.error) console.error('[supplier/profile] settings query failed', {
+    code: settingsRes.error.code, message: settingsRes.error.message, details: settingsRes.error.details,
+  });
+  if (coverageRes.error) console.error('[supplier/profile] coverage query failed', {
+    code: coverageRes.error.code, message: coverageRes.error.message, details: coverageRes.error.details,
+  });
+
+  const links = coverageRes.error ? [] : (coverageRes.data ?? []);
+  const zoneIds = [...new Set(links.map((link) => String(link.zone_id)).filter(Boolean))];
+  let zones: Array<{ id: string; city: string; name: string; status: string; pincodes: string[] | null }> = [];
+  if (zoneIds.length) {
+    const { data: zoneRows, error: zonesError } = await db.from('service_zones')
+      .select('id, city, name, status, pincodes').in('id', zoneIds);
+    if (zonesError) {
+      console.error('[supplier/profile] service-zone query failed', {
+        code: zonesError.code, message: zonesError.message, details: zonesError.details,
+      });
+    } else {
+      zones = (zoneRows ?? []) as typeof zones;
+    }
+  }
+  const zoneMap = new Map(zones.map((zone) => [String(zone.id), zone]));
+  const coverage = links.map((link) => ({
+    zone_id: String(link.zone_id),
+    service_keys: link.service_keys ?? [],
+    service_zones: zoneMap.get(String(link.zone_id)) ?? null,
+  }));
+
   return jsonOk({
-    profile: profileRes.data,
-    settings: settingsRes.data,
-    coverage: coverageRes.data ?? [],
+    profile: profileRes.data ? { ...profileRes.data, email: auth.ctx.user.email ?? null } : null,
+    settings: settingsRes.error ? null : settingsRes.data,
+    coverage,
+    settings_warning: Boolean(settingsRes.error),
+    coverage_warning: Boolean(coverageRes.error),
   });
 }
 

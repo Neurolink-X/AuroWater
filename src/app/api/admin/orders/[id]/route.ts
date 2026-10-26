@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { checkAndUpgradeMilestone } from '@/lib/milestone';
+import { createServiceClient } from '@/utils/supabase/server';
 
 const VALID_STATUSES = new Set([
   'PENDING',
@@ -69,7 +70,9 @@ export async function GET(
     return jsonErr('Order id is required', 400);
   }
 
-  const sb = auth.ctx.supabase;
+  // This route has already verified the caller is an admin. Use the service-role
+  // client for the admin write so user-level RLS cannot turn valid admin updates into 502s.
+  const sb = createServiceClient();
 
   const { data: order, error } = await sb
     .from('orders')
@@ -264,7 +267,8 @@ export async function PUT(
     patch[key] = Number(patch[key]);
   }
 
-  const sb = auth.ctx.supabase;
+  // Admin authorization was verified above; bypass user-scoped RLS for this admin mutation.
+  const sb = createServiceClient();
 
   /*
    * Fetch current order before update.
@@ -272,14 +276,16 @@ export async function PUT(
    */
   const { data: before, error: beforeErr } = await sb
     .from('orders')
-    .select(
-      'id, status, supplier_id, customer_id, can_count, total_amount, payment_status, payment_method',
-    )
+    .select('*')
     .eq('id', id)
     .maybeSingle();
 
   if (beforeErr) {
-    return jsonErr(beforeErr.message, 502);
+    console.error('[admin/orders] pre-update lookup failed', {
+      orderId: id, code: beforeErr.code, message: beforeErr.message,
+      details: beforeErr.details, hint: beforeErr.hint,
+    });
+    return jsonErr('Could not read this order before updating it. Check server logs for the database error.', 502);
   }
 
   if (!before) {
@@ -340,7 +346,11 @@ export async function PUT(
     .maybeSingle();
 
   if (error) {
-    return jsonErr(error.message, 502);
+    console.error('[admin/orders] update failed', {
+      orderId: id, attemptedFields: Object.keys(patch), code: error.code,
+      message: error.message, details: error.details, hint: error.hint,
+    });
+    return jsonErr('Order update failed because of a database error. Check server logs for the exact cause.', 502);
   }
 
   if (!data) {
