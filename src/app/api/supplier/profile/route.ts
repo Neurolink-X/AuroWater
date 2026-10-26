@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const supplierId = auth.ctx.profile.id;
   const [profileRes, settingsRes, coverageRes] = await Promise.all([
     db.from('profiles')
-      .select('id, full_name, phone, city, business_name, status, is_active, verification_status, created_at')
+      .select('*') // Normalize to an explicit response below; deployments may differ in optional columns.
       .eq('id', supplierId).maybeSingle(),
     db.from('supplier_settings').select('*').eq('user_id', supplierId).maybeSingle(),
     // supplier_zones is keyed by supplier_id (not user_id).
@@ -61,7 +61,18 @@ export async function GET(req: NextRequest) {
   }));
 
   return jsonOk({
-    profile: profileRes.data ? { ...profileRes.data, email: auth.ctx.user.email ?? null } : null,
+    profile: profileRes.data ? {
+      id: profileRes.data.id,
+      full_name: profileRes.data.full_name ?? null,
+      phone: profileRes.data.phone ?? null,
+      city: profileRes.data.city ?? null,
+      business_name: profileRes.data.business_name ?? null,
+      status: profileRes.data.status ?? null,
+      is_active: profileRes.data.is_active ?? null,
+      verification_status: profileRes.data.verification_status ?? null,
+      created_at: profileRes.data.created_at ?? null,
+      email: auth.ctx.user.email ?? null,
+    } : null,
     settings: settingsRes.error ? null : settingsRes.data,
     coverage,
     settings_warning: Boolean(settingsRes.error),
