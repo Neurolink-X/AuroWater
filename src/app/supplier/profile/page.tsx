@@ -8,6 +8,8 @@ type Data = {
   profile: { id: string; full_name: string | null; email: string | null; phone: string | null; city: string | null; business_name: string | null; status: string; is_active: boolean | null; created_at: string } | null;
   settings: Record<string, unknown> | null;
   coverage: Array<{ zone_id: string; service_keys: string[]; service_zones: { city: string; name: string; status: string; pincodes: string[] | null } | null }>;
+  settings_warning?: boolean;
+  coverage_warning?: boolean;
 };
 const value = (v: unknown) => typeof v === 'string' ? v : '';
 
@@ -68,6 +70,8 @@ export default function SupplierProfilePage() {
     </div>
     {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
     {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+    {data?.settings_warning && <p role="status" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Your account loaded, but registered address settings could not be read. Approved coverage PIN codes are shown below where available. Please contact admin if your registered address is missing.</p>}
+    {data?.coverage_warning && <p role="status" className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Approved service coverage could not be fully loaded. Refresh later or contact admin; this does not change your dispatch eligibility.</p>}
     {loading ? <p className="mt-6 rounded-2xl border bg-white p-6 text-sm text-slate-600">Loading your supplier details…</p> : <>
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">Current account & approval</h2>
@@ -75,7 +79,7 @@ export default function SupplierProfilePage() {
           <div><dt className="text-xs text-slate-500">Account status</dt><dd className="mt-1 font-semibold">{data?.profile?.status ?? 'Unknown'}{data?.profile?.is_active === false ? ' · Inactive' : ''}</dd></div>
           <div><dt className="text-xs text-slate-500">Email (managed by sign-in)</dt><dd className="mt-1 break-all font-semibold">{data?.profile?.email ?? 'Not available'}</dd></div>
           <div><dt className="text-xs text-slate-500">Registered address</dt><dd className="mt-1 font-semibold">{value(settings.business_address) || value(settings.address) || 'No business address on file'}</dd></div>
-          <div><dt className="text-xs text-slate-500">Registered PIN code</dt><dd className="mt-1 font-semibold">{value(settings.pincode) || 'No PIN code on file'}</dd></div>
+          <div><dt className="text-xs text-slate-500">Registered PIN code</dt><dd className="mt-1 font-semibold">{value(settings.pincode) || (data?.coverage.flatMap(c => c.service_zones?.pincodes ?? []).filter(Boolean).length ? `Not registered · approved coverage: ${[...new Set(data.coverage.flatMap(c => c.service_zones?.pincodes ?? []))].join(', ')}` : 'No PIN code on file')}</dd></div>
           <div><dt className="text-xs text-slate-500">Base location coordinates</dt><dd className="mt-1 font-semibold">{settings.base_lat != null && settings.base_lng != null ? `${settings.base_lat}, ${settings.base_lng}` : 'Not configured'}</dd></div>
         </dl>
       </section>
