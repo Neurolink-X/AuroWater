@@ -61,7 +61,18 @@ export async function GET(req: NextRequest) {
   }));
 
   return jsonOk({
-    profile: profileRes.data ? { ...profileRes.data, email: auth.ctx.user.email ?? null } : null,
+    profile: profileRes.data ? {
+      id: profileRes.data.id,
+      full_name: profileRes.data.full_name ?? null,
+      phone: profileRes.data.phone ?? null,
+      city: profileRes.data.city ?? null,
+      business_name: profileRes.data.business_name ?? null,
+      status: profileRes.data.status ?? null,
+      is_active: profileRes.data.is_active ?? null,
+      verification_status: profileRes.data.verification_status ?? null,
+      created_at: profileRes.data.created_at ?? null,
+      email: auth.ctx.user.email ?? null,
+    } : null,
     settings: settingsRes.error ? null : settingsRes.data,
     coverage,
     settings_warning: Boolean(settingsRes.error),
