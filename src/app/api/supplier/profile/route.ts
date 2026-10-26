@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const supplierId = auth.ctx.profile.id;
   const [profileRes, settingsRes, coverageRes] = await Promise.all([
     db.from('profiles')
-      .select('id, full_name, phone, city, business_name, status, is_active, verification_status, created_at')
+      .select('*') // Normalize to an explicit response below; deployments may differ in optional columns.
       .eq('id', supplierId).maybeSingle(),
     db.from('supplier_settings').select('*').eq('user_id', supplierId).maybeSingle(),
     // supplier_zones is keyed by supplier_id (not user_id).
