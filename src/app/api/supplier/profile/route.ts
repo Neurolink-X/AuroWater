@@ -38,14 +38,29 @@ export async function GET(req: NextRequest) {
     ...row,
     service_zones: zonesById.get(String(row.zone_id)) ?? null,
   }));
-  if (profileRes.error || settingsRes.error || coverageRes.error || zonesRes.error) {
-    console.error('[supplier/profile] load failed', profileRes.error ?? settingsRes.error ?? coverageRes.error ?? zonesRes.error);
-    return jsonErr('Supplier profile is temporarily unavailable.', 502);
+  if (profileRes.error) {
+    console.error('[supplier/profile] profile query failed', {
+      code: profileRes.error.code, message: profileRes.error.message, details: profileRes.error.details,
+    });
+    return jsonErr('Could not load your account details. Please try again.', 502);
   }
+  // Optional supplier settings/coverage must not blank the entire profile page.
+  // Keep the profile usable while logging missing migrations/schema mismatches.
+  if (settingsRes.error) console.error('[supplier/profile] settings query failed', {
+    code: settingsRes.error.code, message: settingsRes.error.message, details: settingsRes.error.details,
+  });
+  if (coverageRes.error) console.error('[supplier/profile] supplier-zone query failed', {
+    code: coverageRes.error.code, message: coverageRes.error.message, details: coverageRes.error.details,
+  });
+  if (zonesRes.error) console.error('[supplier/profile] service-zone query failed', {
+    code: zonesRes.error.code, message: zonesRes.error.message, details: zonesRes.error.details,
+  });
   return jsonOk({
     profile: profileRes.data,
-    settings: settingsRes.data,
-    coverage,
+    settings: settingsRes.error ? null : settingsRes.data,
+    coverage: coverageRes.error || zonesRes.error ? [] : coverage,
+    coverage_warning: Boolean(coverageRes.error || zonesRes.error),
+    settings_warning: Boolean(settingsRes.error),
   });
 }
 
