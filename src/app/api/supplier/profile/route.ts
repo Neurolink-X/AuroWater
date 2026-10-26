@@ -17,18 +17,35 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient();
   const supplierId = auth.ctx.profile.id;
   const [profileRes, settingsRes, coverageRes] = await Promise.all([
-    db.from('profiles').select('id, full_name, email, phone, city, business_name, status, is_active, created_at').eq('id', supplierId).maybeSingle(),
+    db.from('profiles')
+      .select('id, full_name, email, phone, city, business_name, status, is_active, created_at')
+      .eq('id', supplierId)
+      .maybeSingle(),
     db.from('supplier_settings').select('*').eq('user_id', supplierId).maybeSingle(),
-    db.from('supplier_zones').select('zone_id, service_keys, service_zones(id, city, name, status, pincodes)').eq('user_id', supplierId),
+    // supplier_zones is keyed by supplier_id (not user_id). Keep this query
+    // separate from service_zones so a missing PostgREST relationship cache
+    // cannot make the whole profile unavailable.
+    db.from('supplier_zones').select('zone_id, service_keys').eq('supplier_id', supplierId),
   ]);
-  if (profileRes.error || settingsRes.error || coverageRes.error) {
-    console.error('[supplier/profile] load failed', profileRes.error ?? settingsRes.error ?? coverageRes.error);
+  const zoneIds = (coverageRes.data ?? [])
+    .map((row) => row.zone_id)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const zonesRes = zoneIds.length
+    ? await db.from('service_zones').select('id, city, name, status, pincodes').in('id', zoneIds)
+    : { data: [], error: null };
+  const zonesById = new Map((zonesRes.data ?? []).map((zone) => [String(zone.id), zone]));
+  const coverage = (coverageRes.data ?? []).map((row) => ({
+    ...row,
+    service_zones: zonesById.get(String(row.zone_id)) ?? null,
+  }));
+  if (profileRes.error || settingsRes.error || coverageRes.error || zonesRes.error) {
+    console.error('[supplier/profile] load failed', profileRes.error ?? settingsRes.error ?? coverageRes.error ?? zonesRes.error);
     return jsonErr('Supplier profile is temporarily unavailable.', 502);
   }
   return jsonOk({
     profile: profileRes.data,
     settings: settingsRes.data,
-    coverage: coverageRes.data ?? [],
+    coverage,
   });
 }
 
