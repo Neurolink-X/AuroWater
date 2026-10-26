@@ -279,7 +279,10 @@ export async function PUT(
     .maybeSingle();
 
   if (beforeErr) {
-    return jsonErr(beforeErr.message, 502);
+    console.error('[admin/orders] failed to read order before update', {
+      orderId: id, code: beforeErr.code, message: beforeErr.message, details: beforeErr.details, hint: beforeErr.hint,
+    });
+    return jsonErr('Could not read this order before updating it. Check server logs for the database error.', 502);
   }
 
   if (!before) {
@@ -340,7 +343,11 @@ export async function PUT(
     .maybeSingle();
 
   if (error) {
-    return jsonErr(error.message, 502);
+    console.error('[admin/orders] order update failed', {
+      orderId: id, attemptedFields: Object.keys(patch), code: error.code,
+      message: error.message, details: error.details, hint: error.hint,
+    });
+    return jsonErr('Order update failed because of a database error. Check server logs for the exact cause.', 502);
   }
 
   if (!data) {
