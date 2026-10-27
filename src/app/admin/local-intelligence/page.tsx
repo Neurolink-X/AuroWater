@@ -18,6 +18,9 @@ type DemandRow = {
 type Summary = {
   windowDays: number;
   ordersReviewed: number;
+  uniqueCustomers: number;
+  repeatCustomers: number;
+  repeatCustomerRate: number;
   ordersWithPincode: number;
   ordersWithoutPincode: number;
   cancelledOrders: number;
@@ -38,6 +41,17 @@ type Summary = {
     totalReservedCans: number | null;
     totalBufferCans: number | null;
   };
+  supplierOutcomes: Array<{
+    supplierId: string;
+    supplierName: string;
+    city: string;
+    assignedOrders: number;
+    completedOrders: number;
+    cancelledOrFailedOrders: number;
+    completionRate: number;
+    averageRating: number | null;
+    ratedOrders: number;
+  }>;
   stockBySupplier: Array<{
     supplierId: string;
     supplierName: string;
@@ -124,12 +138,13 @@ export default function LocalIntelligencePage() {
             The report reached its 1,000-order cap. Counts describe the latest records returned, not necessarily every order in the full 30-day window.
           </div>}
 
-          <section aria-label="Demand overview" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section aria-label="Demand overview" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {[
               { label: 'Orders reviewed', value: count(summary.ordersReviewed), note: 'Latest 30-day records' },
               { label: 'Cancel / failure rate', value: `${summary.cancellationRate}%`, note: `${count(summary.cancelledOrders)} cancelled or failed` },
               { label: 'Unassigned pending', value: count(summary.unassignedOrders), note: 'Pending orders without supplier' },
               { label: 'Peak order hour', value: hourLabel(summary.peakHour), note: `${count(summary.peakHourOrders)} orders in busiest hour` },
+              { label: 'Repeat customers', value: count(summary.repeatCustomers), note: `${summary.repeatCustomerRate}% of customers ordered 2+ times in this window` },
             ].map((card) => <article key={card.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
               <p className="text-sm text-slate-400">{card.label}</p>
               <p className="mt-2 text-2xl font-bold tracking-tight text-white">{card.value}</p>
@@ -182,6 +197,31 @@ export default function LocalIntelligencePage() {
               </table>
               {!summary.stockBySupplier.length && <p className="p-4 text-sm text-slate-400">No dispatch-eligible supplier profiles were returned.</p>}
             </div>
+          </section>
+
+          <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+            <div className="border-b border-white/10 p-5">
+              <h2 className="text-lg font-bold">Supplier outcomes — assigned orders only</h2>
+              <p className="mt-1 text-sm text-slate-400">Shows completed work and customer ratings for orders actually assigned in the reporting window. Suppliers being offline or unavailable is not counted as poor performance. Cancellation/failure is a review signal only because customer-initiated cancellations may also be included. Do not use this table as an automatic penalty or ranking rule.</p>
+            </div>
+            {summary.supplierOutcomes.length ? <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
+                  <tr>{['Supplier','City','Assigned','Completed','Completion rate','Cancelled / failed','Average rating'].map((label) => <th key={label} className="px-4 py-3 font-semibold">{label}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {summary.supplierOutcomes.slice(0, 30).map((row) => <tr key={row.supplierId} className="hover:bg-white/[0.03]">
+                    <td className="px-4 py-3 font-semibold">{row.supplierName}</td>
+                    <td className="px-4 py-3">{row.city || '—'}</td>
+                    <td className="px-4 py-3">{count(row.assignedOrders)}</td>
+                    <td className="px-4 py-3">{count(row.completedOrders)}</td>
+                    <td className="px-4 py-3">{row.completionRate}%</td>
+                    <td className="px-4 py-3">{count(row.cancelledOrFailedOrders)}</td>
+                    <td className="px-4 py-3">{row.averageRating === null ? 'Not rated' : `${row.averageRating.toFixed(2)} / 5 (${count(row.ratedOrders)})`}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div> : <p className="p-5 text-sm text-slate-400">No assigned supplier orders were found in this window.</p>}
           </section>
 
           <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
