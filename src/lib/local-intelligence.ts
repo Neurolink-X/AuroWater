@@ -3,6 +3,8 @@ export type IntelligenceOrder = {
   created_at?: string | null;
   status?: string | null;
   supplier_id?: string | null;
+  customer_id?: string | null;
+  rating?: number | string | null;
   total_amount?: number | string | null;
   service_type?: string | null;
   address?: string | null;
@@ -46,6 +48,9 @@ export type LocalDemandRow = {
 export type LocalIntelligenceSummary = {
   windowDays: number;
   ordersReviewed: number;
+  uniqueCustomers: number;
+  repeatCustomers: number;
+  repeatCustomerRate: number;
   ordersWithPincode: number;
   ordersWithoutPincode: number;
   cancelledOrders: number;
@@ -117,9 +122,12 @@ export function summarizeLocalDemand(
   const hours = new Map<number, number>();
   let ordersWithPincode = 0;
   let cancelledOrders = 0;
+  const customerOrderCounts = new Map<string, number>();
   let unassignedOrders = 0;
 
   for (const order of orders) {
+    const customerId = normalizeText(order.customer_id);
+    if (customerId) customerOrderCounts.set(customerId, (customerOrderCounts.get(customerId) ?? 0) + 1);
     const status = normalizeText(order.status).toUpperCase();
     const location = locationFromOrder(order);
     if (location.pincode) {
@@ -158,6 +166,11 @@ export function summarizeLocalDemand(
   return {
     windowDays,
     ordersReviewed: orders.length,
+    uniqueCustomers: customerOrderCounts.size,
+    repeatCustomers: [...customerOrderCounts.values()].filter((count) => count >= 2).length,
+    repeatCustomerRate: customerOrderCounts.size
+      ? Math.round(([...customerOrderCounts.values()].filter((count) => count >= 2).length / customerOrderCounts.size) * 1000) / 10
+      : 0,
     ordersWithPincode,
     ordersWithoutPincode: orders.length - ordersWithPincode,
     cancelledOrders,
@@ -170,4 +183,70 @@ export function summarizeLocalDemand(
       .map(([service, count]) => ({ service, orders: count }))
       .sort((a, b) => b.orders - a.orders),
   };
+}
+
+
+export type SupplierOutcomeRow = {
+  supplierId: string;
+  supplierName: string;
+  city: string;
+  assignedOrders: number;
+  completedOrders: number;
+  cancelledOrFailedOrders: number;
+  completionRate: number;
+  averageRating: number | null;
+  ratedOrders: number;
+};
+
+/** Descriptive outcomes for orders actually assigned; never used to penalize offline suppliers. */
+export function summarizeSupplierOutcomes(
+  orders: IntelligenceOrder[],
+  supplierInfo: Map<string, { name: string; city: string }>,
+): SupplierOutcomeRow[] {
+  const rows = new Map<string, {
+    assignedOrders: number; completedOrders: number; cancelledOrFailedOrders: number;
+    ratingTotal: number; ratedOrders: number;
+  }>();
+  for (const order of orders) {
+    const supplierId = normalizeText(order.supplier_id);
+    if (!supplierId) continue;
+    const row = rows.get(supplierId) ?? {
+      assignedOrders: 0, completedOrders: 0, cancelledOrFailedOrders: 0,
+      ratingTotal: 0, ratedOrders: 0,
+    };
+    row.assignedOrders += 1;
+    const status = normalizeText(order.status).toUpperCase();
+    if (status === 'COMPLETED') {
+      row.completedOrders += 1;
+      const rating = Number(order.rating);
+      if (Number.isFinite(rating) && rating >= 1 && rating <= 5) {
+        row.ratingTotal += rating;
+        row.ratedOrders += 1;
+      }
+    } else if (CANCELLED.has(status)) {
+      row.cancelledOrFailedOrders += 1;
+    }
+    rows.set(supplierId, row);
+  }
+  return [...rows.entries()].map(([supplierId, row]) => {
+    const info = supplierInfo.get(supplierId);
+    return {
+      supplierId,
+      supplierName: info?.name || 'Supplier',
+      city: info?.city || '',
+      assignedOrders: row.assignedOrders,
+      completedOrders: row.completedOrders,
+      cancelledOrFailedOrders: row.cancelledOrFailedOrders,
+      completionRate: row.assignedOrders
+        ? Math.round((row.completedOrders / row.assignedOrders) * 1000) / 10
+        : 0,
+      averageRating: row.ratedOrders
+        ? Math.round((row.ratingTotal / row.ratedOrders) * 100) / 100
+        : null,
+      ratedOrders: row.ratedOrders,
+    };
+  }).sort((a, b) => b.completedOrders - a.completedOrders
+    || (b.averageRating ?? 0) - (a.averageRating ?? 0)
+    || b.assignedOrders - a.assignedOrders
+    || a.supplierId.localeCompare(b.supplierId));
 }
