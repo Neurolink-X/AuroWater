@@ -126,15 +126,15 @@ const ROLES = [
 ] as const;
 
 const WHY_CARDS = [
-  { icon: '⚡', title: 'Same-day Service',    desc: 'Book by 2 PM, get service today in most areas.',           accent: '#f59e0b' },
-  { icon: '💰', title: 'No Hidden Charges',   desc: 'Price shown = Price paid. Every single time, guaranteed.', accent: '#10b981' },
-  { icon: '✅', title: 'Verified Pros',        desc: 'Every technician background-checked & ID-verified.',       accent: '#0ea5e9' },
-  { icon: '📱', title: 'Live Tracking',        desc: 'Real-time updates from booking all the way to delivery.',  accent: '#8b5cf6' },
+  { icon: '📍', title: 'Local Availability', desc: 'Available slots depend on your address and local supplier capacity.', accent: '#f59e0b' },
+  { icon: '💰', title: 'Clear Pricing', desc: 'Review the order total before confirming your booking.', accent: '#10b981' },
+  { icon: '✅', title: 'Supplier Verification', desc: 'Supplier and technician onboarding includes verification steps.', accent: '#0ea5e9' },
+  { icon: '📱', title: 'Order Updates', desc: 'Follow order status updates as your booking progresses.', accent: '#8b5cf6' },
 ] as const;
 
 const TRUST_BADGES = [
   '💧 Water delivery + home services', '💳 Cash + UPI per delivery',
-  '📍 3+ live service zones', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access',
+  '📍 3 active service cities', '🧾 Clear order totals', '🗓️ Recurring delivery options', '🔒 Protected account access',
 ] as const;
 
 const SERVE_ITEMS = [
@@ -168,11 +168,11 @@ const STEPS = [
   },
   {
     n: '02', icon: '🚚', title: 'Auto-assignment',
-    body: 'Nearest verified supplier or plumber is assigned automatically and notified instantly.',
+    body: 'An eligible supplier or technician is selected based on service area and availability.',
   },
   {
     n: '03', icon: '✅', title: 'Done — pay easy',
-    body: 'Track live on the map, pay via cash or UPI on completion, then rate your experience.',
+    body: 'Check booking status, pay using the methods available for your order, then rate your experience.',
   },
 ] as const;
 
@@ -695,7 +695,7 @@ export default function HomePage() {
                     className="hero-eyebrow"
                   >
                     <span className="aw-live shrink-0" aria-hidden="true" />
-                    Now serving eligible areas of Kanpur, Lucknow , Gorakhpur &amp; NCR
+                    Now serving eligible areas of Kanpur, Lucknow &amp; Gorakhpur
                   </motion.div>
 
                   <motion.p
@@ -760,8 +760,8 @@ export default function HomePage() {
                       <div className="mt-1 text-xs text-slate-300">Chilled RO · 20L can</div>
                     </div>
                     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-sm font-extrabold text-white">3+ service cities</div>
-                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur and NCR</div>
+                      <div className="text-sm font-extrabold text-white">3 service cities</div>
+                      <div className="mt-1 text-xs text-slate-300">Kanpur · Lucknow · Gorakhpur</div>
                     </div>
                   </div>
                 </motion.div>
@@ -807,7 +807,7 @@ export default function HomePage() {
       />
       {/* Floating Badge */}
       <div className="absolute top-3 left-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-md border border-white/15">
-        ✨ 100% Sealed & Hygienic
+        ✨ 20L RO Water Options
       </div>
     </div>
     <figcaption className="p-4 flex items-center justify-between text-xs text-slate-300/80">
