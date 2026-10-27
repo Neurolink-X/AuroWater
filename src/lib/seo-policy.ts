@@ -14,36 +14,12 @@ export type RobotsPolicy = {
 };
 
 const PRIVATE_PATHS = [
-  '/admin',
-  '/admin/',
-  '/customer',
-  '/customer/',
-  '/supplier',
-  '/supplier/',
-  '/technician',
-  '/technician/',
-  '/dashboard',
-  '/dashboard/',
-  '/auth',
-  '/auth/',
-  '/login',
-  '/login/',
-  '/signup',
-  '/signup/',
-  '/register',
-  '/register/',
-  '/forgot-password',
-  '/forgot-password/',
-  '/reset-password',
-  '/reset-password/',
-  '/verify',
-  '/verify/',
-  '/api',
-  '/api/',
-  '/internal',
-  '/internal/',
-  '/private',
-  '/private/',
+  '/admin', '/admin/', '/customer', '/customer/', '/supplier', '/supplier/',
+  '/technician', '/technician/', '/dashboard', '/dashboard/', '/auth', '/auth/',
+  '/login', '/login/', '/signup', '/signup/', '/register', '/register/',
+  '/forgot-password', '/forgot-password/', '/reset-password', '/reset-password/',
+  '/verify', '/verify/', '/api', '/api/', '/internal', '/internal/',
+  '/private', '/private/',
 ] as const;
 
 /**
@@ -59,24 +35,12 @@ export function canIndexDeployment(environment: IndexingEnvironment): boolean {
 }
 
 /** Build robots rules without blocking Next.js assets needed to render public pages. */
-export function createRobotsPolicy(
-  canIndex: boolean,
-  baseUrl: string,
-): RobotsPolicy {
-  if (!canIndex) {
-    return {
-      rules: [{ userAgent: '*', disallow: '/' }],
-    };
-  }
+export function createRobotsPolicy(canIndex: boolean, baseUrl: string): RobotsPolicy {
+  if (!canIndex) return { rules: [{ userAgent: '*', disallow: '/' }] };
 
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, '');
   return {
-    rules: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: [...PRIVATE_PATHS],
-      },
-    ],
-    ...(baseUrl ? { sitemap: `${baseUrl.replace(/\\/+$/, '')}/sitemap.xml` } : {}),
+    rules: [{ userAgent: '*', allow: '/', disallow: [...PRIVATE_PATHS] }],
+    ...(normalizedBaseUrl ? { sitemap: `${normalizedBaseUrl}/sitemap.xml` } : {}),
   };
 }
