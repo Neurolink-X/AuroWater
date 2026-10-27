@@ -93,14 +93,14 @@ export async function GET(req: NextRequest) {
     const zoneStatus = String(zone.status ?? '').trim().toUpperCase();
     // Coverage is only considered operational when the admin has marked the zone Available/Limited.
     if (!['AVAILABLE', 'LIMITED'].includes(zoneStatus)) continue;
-    const pins = Array.isArray(zone.pincodes) ? zone.pincodes : [];
-    for (const rawPin of pins) {
+    const zonePins = Array.isArray(zone.pincodes) ? zone.pincodes : [];
+    for (const rawPin of zonePins) {
       const pincode = normalizePincode(rawPin);
       if (!pincode) continue;
       const key = `${supplierId}:${pincode}`;
-      const pins = supplierPinsById.get(supplierId) ?? new Set<string>();
-      pins.add(pincode);
-      supplierPinsById.set(supplierId, pins);
+      const supplierPins = supplierPinsById.get(supplierId) ?? new Set<string>();
+      supplierPins.add(pincode);
+      supplierPinsById.set(supplierId, supplierPins);
       if (seenSupplierPin.has(key)) continue;
       seenSupplierPin.add(key);
       mappedSupplierCountByPincode.set(
