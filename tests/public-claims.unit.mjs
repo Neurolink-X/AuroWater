@@ -8,13 +8,19 @@ const howItWorks = readFileSync(new URL('../src/app/(public)/how-it-works/page.t
 test('homepage does not advertise NCR as an active service area', () => {
   assert.doesNotMatch(home, /Now serving eligible areas[^\n]*NCR/i);
   assert.doesNotMatch(home, /Kanpur\s*·\s*Lucknow\s*·\s*Gorakhpur and NCR/i);
-  assert.match(home, /Operational cities: Kanpur, Lucknow &amp; Gorakhpur/);\n  assert.match(home, /NCR: approved PIN codes only/);
+  assert.match(home, /Operational cities: Kanpur, Lucknow &amp; Gorakhpur/);
+  assert.match(home, /NCR: approved PIN codes only/);
 });
 
 test('public marketing avoids unverified real-time and guaranteed service claims', () => {
   assert.doesNotMatch(home, /title:\s*'Live Tracking'/);
   assert.doesNotMatch(home, /Real-time updates from booking/i);
-  assert.doesNotMatch(home, /Book by 2 PM, get service today in most areas/i);\n  assert.match(home, /Same-day Service Where Available/);\n  assert.match(home, /Same-day slots depend on your PIN code/);\n  assert.doesNotMatch(home, /Trusted and recognized operations worldwide/i);\n  assert.doesNotMatch(home, /Lifetime 10% discount on water and services/i);\n  assert.doesNotMatch(home, /First order free \(up to ₹200\)/i);
+  assert.doesNotMatch(home, /Book by 2 PM, get service today in most areas/i);
+  assert.match(home, /Same-day Service Where Available/);
+  assert.match(home, /Same-day slots depend on your PIN code/);
+  assert.doesNotMatch(home, /Trusted and recognized operations worldwide/i);
+  assert.doesNotMatch(home, /Lifetime 10% discount on water and services/i);
+  assert.doesNotMatch(home, /First order free \(up to ₹200\)/i);
   assert.doesNotMatch(home, /100% Sealed & Hygienic/i);
   assert.match(home, /Order Updates/);
   assert.match(howItWorks, /Timing and fulfilment depend on local availability/);
