@@ -105,7 +105,7 @@ export default function LocalIntelligencePage() {
           <section aria-label="Demand overview" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               { label: 'Orders reviewed', value: count(summary.ordersReviewed), note: 'Latest 30-day records' },
-              { label: 'Cancellation rate', value: `${summary.cancellationRate}%`, note: `${count(summary.cancelledOrders)} cancelled or failed` },
+              { label: 'Cancel / failure rate', value: `${summary.cancellationRate}%`, note: `${count(summary.cancelledOrders)} cancelled or failed` },
               { label: 'Unassigned pending', value: count(summary.unassignedOrders), note: 'Pending orders without supplier' },
               { label: 'Peak order hour', value: hourLabel(summary.peakHour), note: `${count(summary.peakHourOrders)} orders in busiest hour` },
             ].map((card) => <article key={card.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
