@@ -6,6 +6,7 @@ import {
   isDispatchEligibleSupplier,
   normalizePincode,
   summarizeLocalDemand,
+  summarizeSupplierOutcomes,
   type ServiceZone,
   type SupplierProfile,
   type SupplierZoneLink,
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const ordersResult = await db
     .from('orders')
-    .select('id, created_at, status, supplier_id, total_amount, service_type, address, address_snapshot')
+    .select('id, created_at, status, supplier_id, customer_id, rating, total_amount, service_type, address, address_snapshot')
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(MAX_ORDERS);
@@ -144,12 +145,23 @@ export async function GET(req: NextRequest) {
     totalBufferCans: !stockDataAvailable ? null : stockBySupplier.reduce((sum, row) => sum + (row.bufferCans ?? 0), 0),
   };
 
+  const supplierInfo = new Map([...profilesById.entries()].map(([id, profile]) => [id, {
+    name: String(profile.business_name || profile.full_name || 'Supplier'),
+    city: String(profile.city ?? ''),
+  }]));
+  const supplierOutcomes = summarizeSupplierOutcomes(
+    (ordersResult.data ?? []).map((order) => ({ supplier_id: order.supplier_id, status: order.status, rating: order.rating })),
+    supplierInfo,
+  );
+
   const summary = summarizeLocalDemand(
     (ordersResult.data ?? []).map((order) => ({
       id: order.id,
       created_at: order.created_at,
       status: order.status,
       supplier_id: order.supplier_id,
+      customer_id: order.customer_id,
+      rating: order.rating,
       total_amount: order.total_amount,
       service_type: order.service_type,
       address: order.address,
@@ -165,6 +177,7 @@ export async function GET(req: NextRequest) {
     source: 'orders + current supplier eligibility + coverage mappings + stock records',
     stockSummary,
     stockBySupplier,
+    supplierOutcomes,
     timezone: 'Asia/Kolkata',
     warnings,
     generatedAt: new Date().toISOString(),
