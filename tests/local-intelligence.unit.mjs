@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
   isDispatchEligibleSupplier,
@@ -57,4 +58,19 @@ test('summary handles empty datasets without fake metrics', () => {
   assert.equal(summary.peakHour, null);
   assert.deepEqual(summary.demandByPincode, []);
   assert.deepEqual(summary.serviceMix, []);
+});
+
+
+test('admin Local Intelligence endpoint remains protected, read-only, and bounded', () => {
+  const route = readFileSync(new URL('../src/app/api/admin/local-intelligence/route.ts', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('../src/app/admin/local-intelligence/page.tsx', import.meta.url), 'utf8');
+  assert.match(route, /requireRole\(auth\.ctx, 'admin'\)/);
+  assert.match(route, /MAX_ORDERS = 1000/);
+  assert.match(route, /\.from\('orders'\)/);
+  assert.match(route, /\.from\('supplier_stock'\)/);
+  assert.match(route, /\.from\('supplier_zones'\)/);
+  assert.match(route, /\.from\('service_zones'\)/);
+  assert.doesNotMatch(route, /\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
+  assert.match(page, /Supplier stock visibility/);
+  assert.match(page, /No automatic supplier ranking or dispatch changes/);
 });
