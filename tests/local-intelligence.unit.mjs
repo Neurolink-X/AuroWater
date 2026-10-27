@@ -8,6 +8,7 @@ import {
 
 test('PIN normalization accepts exactly six digits and rejects malformed values', () => {
   assert.equal(normalizePincode('208001'), '208001');
+  assert.equal(normalizePincode(208001), '208001');
   assert.equal(normalizePincode(' 208-001 '), '208001');
   assert.equal(normalizePincode('20801'), null);
   assert.equal(normalizePincode('1208001'), null);
