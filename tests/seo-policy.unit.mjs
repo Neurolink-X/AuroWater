@@ -33,8 +33,8 @@ test('production robots policy keeps public pages crawlable and blocks private a
     '/admin', '/admin/', '/customer', '/customer/', '/supplier',
     '/technician/', '/dashboard', '/auth/', '/api', '/api/',
     '/internal/', '/private/',
-  ]) assert.ok((rule.disallow as string[]).includes(path), `missing private disallow: ${path}`);
-  assert.ok(!(rule.disallow as string[]).includes('/_next/'), 'do not block Next assets needed for rendering');
+  ]) assert.ok(rule.disallow.includes(path), `missing private disallow: ${path}`);
+  assert.ok(!rule.disallow.includes('/_next/'), 'do not block Next assets needed for rendering');
 });
 
 test('robots and sitemap use the shared production indexing policy', () => {
