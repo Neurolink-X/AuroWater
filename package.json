@@ -12,7 +12,8 @@
     "smoke": "node scripts/smoke-test.mjs",
     "test:regression": "node tests/routes-and-access.regression.mjs",
     "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
-    "verify:env": "node scripts/verify-env.mjs"
+    "verify:env": "node scripts/verify-env.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
