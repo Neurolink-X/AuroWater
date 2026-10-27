@@ -293,3 +293,20 @@ const supplierCoverage = readFileSync(join(root, 'src', 'app', 'supplier', 'cove
 assert.match(supplierCoverage, /Requested PIN codes:/);
 assert.match(supplierCoverage, /valid 6-digit PIN codes/);
 assert.match(supplierCoverage, /Configured PINs:/);
+
+
+// Public SEO copy must match current service coverage and avoid unverified service guarantees.
+const publicHome = readFileSync(join(root, 'src', 'app', '(public)', 'page.tsx'), 'utf8');
+const howItWorksPage = readFileSync(join(root, 'src', 'app', '(public)', 'how-it-works', 'page.tsx'), 'utf8');
+assert.doesNotMatch(publicHome, /Now serving eligible areas[^\n]*NCR/i);
+assert.doesNotMatch(publicHome, /Kanpur\s*·\s*Lucknow\s*·\s*Gorakhpur and NCR/i);
+assert.match(publicHome, /Operational cities: Kanpur, Lucknow &amp; Gorakhpur/);
+assert.match(publicHome, /NCR: approved PIN codes only/);
+assert.match(publicHome, /Same-day Service Where Available/);
+assert.doesNotMatch(publicHome, /title:\s*'Live Tracking'/);
+assert.doesNotMatch(publicHome, /Real-time updates from booking/i);
+assert.doesNotMatch(publicHome, /Book by 2 PM, get service today in most areas/i);
+assert.doesNotMatch(publicHome, /100% Sealed & Hygienic/i);
+assert.match(publicHome, /Order Updates/);
+assert.match(howItWorksPage, /Timing and fulfilment depend on local availability/);
+assert.doesNotMatch(howItWorksPage, /live tracking, zero surprises/i);
