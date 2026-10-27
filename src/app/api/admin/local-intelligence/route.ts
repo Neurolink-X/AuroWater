@@ -132,15 +132,16 @@ export async function GET(req: NextRequest) {
     };
   }).sort((a, b) => (b.dispatchableCans ?? -1) - (a.dispatchableCans ?? -1) || a.supplierName.localeCompare(b.supplierName));
 
+  const stockDataAvailable = !stockResult.error && !profilesResult.error;
   const stockSummary = {
-    dataAvailable: !stockResult.error,
+    dataAvailable: stockDataAvailable,
     eligibleSuppliers: eligibleSupplierIds.size,
     suppliersWithStockRecord: stockBySupplier.filter((row) => row.stockConfigured).length,
     suppliersWithUsableStock: stockBySupplier.filter((row) => (row.dispatchableCans ?? 0) > 0).length,
     lowStockSuppliers: stockBySupplier.filter((row) => row.lowStock === true).length,
-    totalCansAvailable: stockResult.error ? null : stockBySupplier.reduce((sum, row) => sum + (row.cansAvailable ?? 0), 0),
-    totalReservedCans: stockResult.error ? null : stockBySupplier.reduce((sum, row) => sum + (row.reservedCans ?? 0), 0),
-    totalBufferCans: stockResult.error ? null : stockBySupplier.reduce((sum, row) => sum + (row.bufferCans ?? 0), 0),
+    totalCansAvailable: !stockDataAvailable ? null : stockBySupplier.reduce((sum, row) => sum + (row.cansAvailable ?? 0), 0),
+    totalReservedCans: !stockDataAvailable ? null : stockBySupplier.reduce((sum, row) => sum + (row.reservedCans ?? 0), 0),
+    totalBufferCans: !stockDataAvailable ? null : stockBySupplier.reduce((sum, row) => sum + (row.bufferCans ?? 0), 0),
   };
 
   const summary = summarizeLocalDemand(
