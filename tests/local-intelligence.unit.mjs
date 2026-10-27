@@ -5,6 +5,7 @@ import {
   isDispatchEligibleSupplier,
   normalizePincode,
   summarizeLocalDemand,
+  summarizeSupplierOutcomes,
 } from '../src/lib/local-intelligence.ts';
 
 test('PIN normalization accepts exactly six digits and rejects malformed values', () => {
@@ -27,15 +28,18 @@ test('supplier eligibility mirrors dispatch safety gates without penalizing miss
 
 test('local demand summary finds cancellation hotspots, unassigned orders, service mix and India peak hour', () => {
   const orders = [
-    { id: '1', created_at: '2026-10-27T12:30:00.000Z', status: 'COMPLETED', supplier_id: 's1', service_type: 'water_can', address_snapshot: { pincode: '208001', city: 'Kanpur' } },
-    { id: '2', created_at: '2026-10-27T12:40:00.000Z', status: 'CANCELLED', supplier_id: null, service_type: 'water_can', address_snapshot: { pincode: '208001', city: 'Kanpur' } },
-    { id: '3', created_at: '2026-10-27T13:00:00.000Z', status: 'PENDING', supplier_id: null, service_type: 'water_can', address: 'Customer address, 208001' },
-    { id: '4', created_at: '2026-10-27T13:10:00.000Z', status: 'FAILED', supplier_id: null, service_type: 'plumbing', address_snapshot: { pincode: '201301', city: 'Noida' } },
-    { id: '5', created_at: 'not-a-date', status: 'ASSIGNED', supplier_id: 's2', service_type: 'plumbing', address_snapshot: { pincode: '201301', city: 'Noida' } },
+    { id: '1', customer_id: 'c1', created_at: '2026-10-27T12:30:00.000Z', status: 'COMPLETED', supplier_id: 's1', service_type: 'water_can', address_snapshot: { pincode: '208001', city: 'Kanpur' } },
+    { id: '2', customer_id: 'c2', created_at: '2026-10-27T12:40:00.000Z', status: 'CANCELLED', supplier_id: null, service_type: 'water_can', address_snapshot: { pincode: '208001', city: 'Kanpur' } },
+    { id: '3', customer_id: 'c1', created_at: '2026-10-27T13:00:00.000Z', status: 'PENDING', supplier_id: null, service_type: 'water_can', address: 'Customer address, 208001' },
+    { id: '4', customer_id: 'c3', created_at: '2026-10-27T13:10:00.000Z', status: 'FAILED', supplier_id: null, service_type: 'plumbing', address_snapshot: { pincode: '201301', city: 'Noida' } },
+    { id: '5', customer_id: 'c3', created_at: 'not-a-date', status: 'ASSIGNED', supplier_id: 's2', service_type: 'plumbing', address_snapshot: { pincode: '201301', city: 'Noida' } },
     { id: '6', created_at: null, status: 'PENDING', supplier_id: null, service_type: 'water_can', address_snapshot: { city: 'Kanpur' } },
   ];
   const summary = summarizeLocalDemand(orders, new Map([['201301', 2]]), 30);
   assert.equal(summary.ordersReviewed, 6);
+  assert.equal(summary.uniqueCustomers, 3);
+  assert.equal(summary.repeatCustomers, 2);
+  assert.equal(summary.repeatCustomerRate, 66.7);
   assert.equal(summary.ordersWithPincode, 5);
   assert.equal(summary.ordersWithoutPincode, 1);
   assert.equal(summary.cancelledOrders, 2);
@@ -73,4 +77,29 @@ test('admin Local Intelligence endpoint remains protected, read-only, and bounde
   assert.doesNotMatch(route, /\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
   assert.match(page, /Supplier stock visibility/);
   assert.match(page, /No automatic supplier ranking or dispatch changes/);
+});
+
+
+test('supplier outcome metrics use assigned orders and ignore invalid ratings', () => {
+  const outcomes = summarizeSupplierOutcomes([
+    { supplier_id: 's1', status: 'COMPLETED', rating: 5 },
+    { supplier_id: 's1', status: 'COMPLETED', rating: 4 },
+    { supplier_id: 's1', status: 'CANCELLED', rating: null },
+    { supplier_id: 's1', status: 'PENDING', rating: null },
+    { supplier_id: 's2', status: 'COMPLETED', rating: 6 },
+    { supplier_id: 's2', status: 'FAILED', rating: null },
+    { supplier_id: null, status: 'CANCELLED', rating: null },
+  ], new Map([
+    ['s1', { name: 'Supplier One', city: 'Kanpur' }],
+    ['s2', { name: 'Supplier Two', city: 'Noida' }],
+  ]));
+  assert.equal(outcomes.length, 2);
+  assert.equal(outcomes[0].supplierId, 's1');
+  assert.equal(outcomes[0].assignedOrders, 4);
+  assert.equal(outcomes[0].completedOrders, 2);
+  assert.equal(outcomes[0].cancelledOrFailedOrders, 1);
+  assert.equal(outcomes[0].completionRate, 50);
+  assert.equal(outcomes[0].averageRating, 4.5);
+  assert.equal(outcomes[0].ratedOrders, 2);
+  assert.equal(outcomes[1].averageRating, null);
 });
