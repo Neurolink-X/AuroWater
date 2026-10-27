@@ -152,6 +152,7 @@ const TABS: { key: TabKey; label: string }[] = [
 const TAB_KEYS = TABS.map((t) => t.key);
 
 const NAV_LINKS = [
+  { href: '/admin/local-intelligence', label: 'Local Intelligence' },
   { href: '/admin/orders', label: 'Orders' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/services', label: 'Services' },
