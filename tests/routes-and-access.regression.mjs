@@ -300,7 +300,9 @@ const publicHome = readFileSync(join(root, 'src', 'app', '(public)', 'page.tsx')
 const howItWorksPage = readFileSync(join(root, 'src', 'app', '(public)', 'how-it-works', 'page.tsx'), 'utf8');
 assert.doesNotMatch(publicHome, /Now serving eligible areas[^\n]*NCR/i);
 assert.doesNotMatch(publicHome, /Kanpur\s*·\s*Lucknow\s*·\s*Gorakhpur and NCR/i);
-assert.match(publicHome, /Operational cities: Kanpur, Lucknow &amp; Gorakhpur/);\nassert.match(publicHome, /NCR: approved PIN codes only/);\nassert.match(publicHome, /Same-day Service Where Available/);
+assert.match(publicHome, /Operational cities: Kanpur, Lucknow &amp; Gorakhpur/);
+assert.match(publicHome, /NCR: approved PIN codes only/);
+assert.match(publicHome, /Same-day Service Where Available/);
 assert.doesNotMatch(publicHome, /title:\s*'Live Tracking'/);
 assert.doesNotMatch(publicHome, /Real-time updates from booking/i);
 assert.doesNotMatch(publicHome, /Book by 2 PM, get service today in most areas/i);
