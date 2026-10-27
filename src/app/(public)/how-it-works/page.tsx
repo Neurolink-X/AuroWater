@@ -593,7 +593,7 @@ export default function HowItWorksPage() {
               <span>works for you.</span>
             </h1>
             <p className="hiw-hero-sub">
-              From address to booked service in under 60 seconds. Verified technicians, live tracking, zero surprises.
+              Check your address, choose an available service, and follow booking status updates. Timing and fulfilment depend on local availability.
             </p>
             <button className="hiw-hero-cta" type="button" onClick={() => router.push('/book')}>
               <IconDroplet size={16} />
