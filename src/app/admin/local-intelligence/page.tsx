@@ -28,6 +28,28 @@ type Summary = {
   demandByPincode: DemandRow[];
   serviceMix: Array<{ service: string; orders: number }>;
   dataLimited: boolean;
+  stockSummary: {
+    dataAvailable: boolean;
+    eligibleSuppliers: number;
+    suppliersWithStockRecord: number;
+    suppliersWithUsableStock: number;
+    lowStockSuppliers: number;
+    totalCansAvailable: number | null;
+    totalReservedCans: number | null;
+    totalBufferCans: number | null;
+  };
+  stockBySupplier: Array<{
+    supplierId: string;
+    supplierName: string;
+    city: string;
+    pincodes: string[];
+    cansAvailable: number | null;
+    reservedCans: number | null;
+    bufferCans: number | null;
+    dispatchableCans: number | null;
+    lowStock: boolean | null;
+    stockConfigured: boolean;
+  }>;
   timezone: string;
   warnings: string[];
   generatedAt: string;
@@ -113,6 +135,53 @@ export default function LocalIntelligencePage() {
               <p className="mt-2 text-2xl font-bold tracking-tight text-white">{card.value}</p>
               <p className="mt-2 text-xs text-slate-400">{card.note}</p>
             </article>)}
+          </section>
+
+          <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold">Supplier stock visibility</h2>
+                <p className="mt-1 text-sm text-slate-400">Available after reservations and buffer = cans available − reserved cans − reservation buffer. This is a stock snapshot, not a promise that a supplier is online or eligible for every service.</p>
+              </div>
+              {!summary.stockSummary.dataAvailable && <span className="rounded-full bg-rose-300/10 px-3 py-1 text-xs font-semibold text-rose-200">Stock data unavailable</span>}
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: 'Eligible suppliers', value: count(summary.stockSummary.eligibleSuppliers) },
+                { label: 'With usable stock', value: count(summary.stockSummary.suppliersWithUsableStock) },
+                { label: 'Low stock', value: count(summary.stockSummary.lowStockSuppliers) },
+                { label: 'Available cans', value: summary.stockSummary.totalCansAvailable === null ? '—' : count(Math.max(0, summary.stockSummary.totalCansAvailable - (summary.stockSummary.totalReservedCans ?? 0) - (summary.stockSummary.totalBufferCans ?? 0))) },
+              ].map((card) => <article key={card.label} className="rounded-xl border border-white/10 bg-black/10 p-4">
+                <p className="text-xs text-slate-400">{card.label}</p>
+                <p className="mt-1 text-xl font-bold">{card.value}</p>
+              </article>)}
+            </div>
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full min-w-[900px] text-left text-sm">
+                <thead className="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
+                  <tr>{['Supplier','City','Approved coverage PINs','Available cans','Reserved','Buffer','Usable stock','Stock status'].map((label) => <th key={label} className="px-3 py-3 font-semibold">{label}</th>)}</tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {summary.stockBySupplier.slice(0, 30).map((row) => <tr key={row.supplierId} className="hover:bg-white/[0.03]">
+                    <td className="px-3 py-3 font-semibold">{row.supplierName}</td>
+                    <td className="px-3 py-3">{row.city || '—'}</td>
+                    <td className="px-3 py-3 font-mono text-xs">{row.pincodes.join(', ') || 'No active zone mapping'}</td>
+                    <td className="px-3 py-3">{row.stockConfigured ? count(row.cansAvailable ?? 0) : 'Not configured'}</td>
+                    <td className="px-3 py-3">{row.stockConfigured ? count(row.reservedCans ?? 0) : '—'}</td>
+                    <td className="px-3 py-3">{row.stockConfigured ? count(row.bufferCans ?? 0) : '—'}</td>
+                    <td className="px-3 py-3 font-semibold">{row.dispatchableCans === null ? '—' : count(row.dispatchableCans)}</td>
+                    <td className="px-3 py-3">{!row.stockConfigured
+                      ? <span className="text-xs text-slate-400">No stock row</span>
+                      : row.lowStock
+                        ? <span className="rounded-full bg-amber-300/10 px-2.5 py-1 text-xs font-semibold text-amber-200">Low stock</span>
+                        : (row.dispatchableCans ?? 0) > 0
+                          ? <span className="rounded-full bg-emerald-300/10 px-2.5 py-1 text-xs font-semibold text-emerald-200">Stock available</span>
+                          : <span className="rounded-full bg-rose-300/10 px-2.5 py-1 text-xs font-semibold text-rose-200">No usable stock</span>}</td>
+                  </tr>)}
+                </tbody>
+              </table>
+              {!summary.stockBySupplier.length && <p className="p-4 text-sm text-slate-400">No dispatch-eligible supplier profiles were returned.</p>}
+            </div>
           </section>
 
           <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
