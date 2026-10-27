@@ -61,7 +61,8 @@ const normalizeText = (value: unknown): string =>
   typeof value === 'string' ? value.trim() : '';
 
 export function normalizePincode(value: unknown): string | null {
-  const digits = normalizeText(value).replace(/\D/g, '');
+  const raw = typeof value === 'number' && Number.isInteger(value) ? String(value) : normalizeText(value);
+  const digits = raw.replace(/\D/g, '');
   return /^\d{6}$/.test(digits) ? digits : null;
 }
 
