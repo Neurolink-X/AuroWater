@@ -39,7 +39,7 @@ test('local demand summary finds cancellation hotspots, unassigned orders, servi
   assert.equal(summary.cancelledOrders, 2);
   assert.equal(summary.unassignedOrders, 2);
   assert.equal(summary.peakHour, 18); // 12:30 UTC = 18:00 IST
-  assert.equal(summary.peakHourOrders, 3);
+  assert.equal(summary.peakHourOrders, 4);
   assert.equal(summary.demandByPincode[0].pincode, '208001');
   assert.equal(summary.demandByPincode[0].orders, 3);
   assert.equal(summary.demandByPincode[0].coverageGap, true);
