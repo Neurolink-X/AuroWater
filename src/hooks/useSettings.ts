@@ -246,7 +246,7 @@ export function mergeSettings(
     ? Math.max(20, safePositive(raw.default_can_price, 20))
     : 20;
   const chilledCanPrice = hasVersionedPricing
-    ? Math.max(20, safePositive(raw.chilled_can_price, 25))
+    ? Math.max(25, safePositive(raw.chilled_can_price, 25))
     : 25;
   const effectiveSubscriptionCanPrice = hasVersionedPricing
     ? Math.max(20, safePositive(raw.subscription_can_price, defaultCanPrice))
