@@ -319,3 +319,14 @@ const pricingService = readFileSync(join(root, 'src', 'lib', 'services', 'pricin
 assert.doesNotMatch(pricingService, /queryOne<any>/);
 const pricingVisualizer = readFileSync(join(root, 'src', 'app', 'pricing', 'visualizer', 'page.tsx'), 'utf8');
 assert.doesNotMatch(pricingVisualizer, /<p[^>]*>\s*\/\//);
+
+
+// Supplier UX regression: background/manual refresh preserves loaded content and Orders stays prominent.
+const supplierNav = readFileSync(join(root, 'src', 'components', 'supplier', 'SupplierNav.tsx'), 'utf8');
+assert.match(supplierNav, /href: '\/supplier\/orders', label: 'Orders', priority: true/);
+assert.match(supplierNav, /data-priority/);
+const supplierSectionPage = readFileSync(join(root, 'src', 'app', 'supplier', '[section]', 'page.tsx'), 'utf8');
+assert.match(supplierSectionPage, /First load may use a skeleton; refreshes keep the current section visible/);
+assert.match(supplierSectionPage, /if \(!silent && !hasData\.current\) setLoading\(true\)/);
+assert.match(supplierSectionPage, /id === latest\.current && !silent/);
+assert.match(supplierSectionPage, /disabled=\{busy \|\| \(loading && !hasData\.current\)\}/);
