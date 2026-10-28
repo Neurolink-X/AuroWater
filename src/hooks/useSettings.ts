@@ -395,9 +395,9 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     return () => { abortRef.current?.abort(); };
   }, [refresh, staleMs, city]);
 
-  /* ── Cross-tab sync ── */
+  /* ── Cross-tab sync: global settings only ── */
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || city) return;
     const onStorage = (e: StorageEvent): void => {
       if (e.key !== CACHE_KEY || !e.newValue) return;
       const incoming = safeParse<Partial<PlatformSettings>>(e.newValue);
@@ -405,7 +405,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [city]);
 
   /* ── Optimistic local patch ── */
   const patchLocal = React.useCallback(
