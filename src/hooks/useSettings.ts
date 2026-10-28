@@ -128,6 +128,14 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     motor_pump:    299,
     tank_cleaning: 599,
     plumbing_mistri: 700,
+    ro_service_filter_change: 49,
+    ro_service_amc: 149,
+    ro_service_new_installation: 599,
+    plumbing_drainage: 49,
+    plumbing_new_fitting: 99,
+    water_tanker_1000: 50,
+    water_tanker_2000: 120,
+    water_tanker_custom: 80,
   },
   convenience_fee:     10,
   emergency_surcharge: 30,
@@ -238,7 +246,7 @@ export function mergeSettings(
     ? Math.max(20, safePositive(raw.default_can_price, 20))
     : 20;
   const chilledCanPrice = hasVersionedPricing
-    ? Math.max(20, safePositive(raw.chilled_can_price, 25))
+    ? Math.max(25, safePositive(raw.chilled_can_price, 25))
     : 25;
   const effectiveSubscriptionCanPrice = hasVersionedPricing
     ? Math.max(20, safePositive(raw.subscription_can_price, defaultCanPrice))
@@ -286,9 +294,11 @@ export function mergeSettings(
 type ApiEnvelope<T> = { success?: boolean; data?: T; error?: string };
 
 async function apiFetchSettings(
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  city?: string,
 ): Promise<Partial<PlatformSettings>> {
-  const res = await fetch('/api/settings', { signal });
+  const query = city?.trim() ? `?city=${encodeURIComponent(city.trim())}` : '';
+  const res = await fetch(`/api/settings${query}`, { signal, cache: 'no-store' });
   if (!res.ok) throw new Error(`Settings API ${res.status}: ${res.statusText}`);
   const json = (await res.json()) as ApiEnvelope<Partial<PlatformSettings>>;
   if (json?.success === false) throw new Error(json.error ?? 'API returned success:false');
@@ -332,7 +342,7 @@ function writeCache(s: PlatformSettings): void {
    HOOK
 ═══════════════════════════════════════════════════════════════ */
 
-export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsReturn {
+export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): UseSettingsReturn {
   /**
    * Initialise synchronously from cache so the first render already has
    * real data (avoids flash of fallback values on page load).
@@ -356,11 +366,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
     setError(null);
 
     try {
-      const raw  = await apiFetchSettings(ctrl.signal);
+      const raw  = await apiFetchSettings(ctrl.signal, city);
       const next = mergeSettings(raw);
       if (!ctrl.signal.aborted) {
         setSettings(next);
-        writeCache(next);
+        if (!city) writeCache(next);
       }
     } catch {
       /* keep defaults */
@@ -368,11 +378,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
       window.clearTimeout(kill);
       setLoading(false);
     }
-  }, []);
+  }, [city]);
 
   /* ── Mount: serve cache if fresh; otherwise fetch ── */
   React.useEffect(() => {
-    const { settings: cached, ts } = readCache();
+    const { settings: cached, ts } = city ? { settings: null, ts: 0 } : readCache();
     const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
 
     if (fresh) {
@@ -383,11 +393,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
     refresh();
 
     return () => { abortRef.current?.abort(); };
-  }, [refresh, staleMs]);
+  }, [refresh, staleMs, city]);
 
-  /* ── Cross-tab sync ── */
+  /* ── Cross-tab sync: global settings only ── */
   React.useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || city) return;
     const onStorage = (e: StorageEvent): void => {
       if (e.key !== CACHE_KEY || !e.newValue) return;
       const incoming = safeParse<Partial<PlatformSettings>>(e.newValue);
@@ -395,18 +405,18 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS): UseSettingsRetu
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, []);
+  }, [city]);
 
   /* ── Optimistic local patch ── */
   const patchLocal = React.useCallback(
     (patch: Partial<PlatformSettings>): void => {
       setSettings(prev => {
         const next = mergeSettings({ ...prev, ...patch });
-        writeCache(next);
+        if (!city) writeCache(next);
         return next;
       });
     },
-    []
+    [city]
   );
 
   /* ── Admin: save to server ── */

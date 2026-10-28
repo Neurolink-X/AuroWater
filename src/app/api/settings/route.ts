@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rowsToSettingsPayload } from '@/lib/api/settings-map';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
@@ -10,6 +10,13 @@ const CACHE = {
   'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
 };
 
+function normalizePricingCity(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
+  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-') || raw.startsWith(prefix + ','));
+  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function defaultPayload(): Record<string, unknown> {
   return {
     default_can_price: 20,
@@ -20,7 +27,7 @@ function defaultPayload(): Record<string, unknown> {
     market_can_price: 20,
     convenience_fee: 10,
     gst_rate: 0.18,
-    service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, borewell: 499, motor_pump: 299, tank_cleaning: 599 },
+    service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, plumbing_mistri: 700, borewell: 499, motor_pump: 299, tank_cleaning: 599, ro_service_filter_change: 49, ro_service_amc: 149, ro_service_new_installation: 599, plumbing_drainage: 49, plumbing_new_fitting: 99, water_tanker_1000: 50, water_tanker_2000: 120, water_tanker_custom: 80 },
     can_price_small: 1000,
     can_price_large: 1200,
     delivery_fee: 0,
@@ -41,7 +48,7 @@ function ok(data: Record<string, unknown>, status = 200) {
  * Public settings. Never 502, never wait more than 5s.
  * `settings` is a key/value table — do not use `.single()`.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return ok(defaultPayload());
   }
@@ -87,7 +94,14 @@ export async function GET() {
       .maybeSingle();
 
     if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
-      const config = activeVersion.config as Record<string, unknown>;
+      const publishedConfig = activeVersion.config as Record<string, unknown>;
+      const requestedCity = req.nextUrl.searchParams.get('city');
+      const cityKey = normalizePricingCity(requestedCity);
+      const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
+        ? publishedConfig.city_overrides as Record<string, unknown> : {};
+      const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
+        ? cityOverrides[cityKey] as Record<string, unknown> : null;
+      const config = { ...publishedConfig, ...(cityOverride ?? {}) };
       const servicePrices = config.services && typeof config.services === 'object'
         ? config.services as Record<string, number>
         : {};

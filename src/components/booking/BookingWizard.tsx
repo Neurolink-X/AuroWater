@@ -56,7 +56,6 @@ import { ACTIVE_CITY_NAMES } from '@/lib/cities';
 import WaitlistPanel from '@/components/ui/WaitlistPanel';
 import { bookingBody, bookingDisplay } from '@/components/booking/booking-fonts';
 import {
-  CAN_PRICES,
   MARKET_CAN_PRICES,
   MARKET_PRICE_NOTE,
   SHOW_MARKET_COMPARISON,
@@ -109,7 +108,6 @@ const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5:
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
-const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -292,10 +290,10 @@ function WhyChooseUs() {
   );
 }
 
-function FaqList({ emergencySurcharge }: { emergencySurcharge: number }) {
+function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number }) {
   const items: [string, string][] = [
     ['What does a 20L RO can cost?',
-      `Normal RO is ${inr(CAN_PRICES.normal)} per can, chilled RO is ${inr(CAN_PRICES.chilled)} per can, and subscriptions are ${inr(CAN_PRICES.subscription)} per can. Delivery is included.`],
+      `Normal RO is ${inr(normalPrice)} per can, chilled RO is ${inr(chilledPrice)} per can, and subscriptions are ${inr(subscriptionPrice)} per can. Delivery is included.`],
     ['How do I pay?',
       'Pay cash or UPI when your order is delivered. Online card and netbanking payment is coming soon.'],
     ['Can I pause or cancel a subscription?',
@@ -401,8 +399,11 @@ function subOptionMeta(serviceKey: string, subOptionKey: string): ScopeOption | 
   return SCOPE_OPTIONS[serviceKey]?.find((o) => o.key === subOptionKey);
 }
 
-function subOptionDelta(serviceKey: string, subOptionKey: string): number {
-  return subOptionMeta(serviceKey, subOptionKey)?.extra ?? 0;
+function subOptionDelta(serviceKey: string, subOptionKey: string, settings?: PlatformSettings): number {
+  const configured = settings?.service_base_prices[`${serviceKey}_${subOptionKey}`];
+  return Number.isFinite(configured) && Number(configured) >= 0
+    ? Number(configured)
+    : subOptionMeta(serviceKey, subOptionKey)?.extra ?? 0;
 }
 
 function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
@@ -435,8 +436,9 @@ function getPriceLines(draft: BookingDraft, settings: PlatformSettings): PriceLi
   ];
 
   const meta = subOptionMeta(draft.serviceKey, draft.subOptionKey);
-  if (meta && meta.extra > 0) {
-    lines.push({ label: `${meta.label} charge`, amount: meta.extra, isAddon: true });
+  const extra = subOptionDelta(draft.serviceKey, draft.subOptionKey, settings);
+  if (meta && extra > 0) {
+    lines.push({ label: `${meta.label} charge`, amount: extra, isAddon: true });
   }
   return lines;
 }
@@ -469,7 +471,7 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
   }
 
   return Math.round(
-    serviceBaseFee(draft, settings) + subOptionDelta(draft.serviceKey, draft.subOptionKey),
+    serviceBaseFee(draft, settings) + subOptionDelta(draft.serviceKey, draft.subOptionKey, settings),
   );
 }
 
@@ -541,11 +543,14 @@ function ScopeCard({
   option,
   active,
   onSelect,
+  priceOverride,
 }: {
   option: ScopeOption;
   active: boolean;
   onSelect: () => void;
+  priceOverride?: number;
 }) {
+  const extra = Number.isFinite(priceOverride) && Number(priceOverride) >= 0 ? Number(priceOverride) : option.extra;
   return (
     <button
       type="button"
@@ -560,9 +565,9 @@ function ScopeCard({
         )}
       </div>
 
-      {option.extra > 0 && (
+      {extra > 0 && (
         <span className="mt-2 inline-block self-start rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-          + {inr(option.extra)} extra
+          + {inr(extra)} extra
         </span>
       )}
 
@@ -642,7 +647,6 @@ function ServicePriceBox({
 export default function BookingWizard() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings();
   const { session }  = useAuth();
 
   const [step, setStep]           = useState(1);
@@ -650,6 +654,8 @@ export default function BookingWizard() {
   const [hydrated, setHydrated]   = useState(false);
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
+  const pricingCity = addresses.find((address) => address.id === draft.addressId)?.city ?? draft.newAddress?.city ?? undefined;
+  const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -1016,7 +1022,7 @@ export default function BookingWizard() {
     draft.canOrderType === 'subscription';
 
   /* Savings messaging (water cans only; hidden when SHOW_MARKET_COMPARISON is off) */
-  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > CAN_PRICES.normal;
+  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price;
   const isCan = draft.serviceKey === 'water_can';
   const canQty = draft.canQuantity ?? 1;
   const marketPerCan = draft.subOptionKey === 'chilled_ro' ? MARKET_CAN_PRICES.chilled : MARKET_CAN_PRICES.normal;
@@ -1025,7 +1031,7 @@ export default function BookingWizard() {
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
   const subSave =
     isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > settings.subscription_can_price
-      ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
+      ? Math.round((perCan - settings.subscription_can_price) * canQty)
       : 0;
 
   const switchToSubscription = () =>
@@ -1039,7 +1045,7 @@ export default function BookingWizard() {
 
   const shareOnWhatsApp = () => {
     if (typeof window === 'undefined') return;
-    const text = `I just booked pure RO drinking water on ${BRAND}: ${inr(CAN_PRICES.normal)} per 20L can, delivered to my door. Try it: ${window.location.origin}/book?service=water_can`;
+    const text = `I just booked pure RO drinking water on ${BRAND}: ${inr(settings.default_can_price)} per 20L can, delivered to my door. Try it: ${window.location.origin}/book?service=water_can`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -1535,7 +1541,7 @@ export default function BookingWizard() {
           </h2>
           {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-              Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · delivery included · pay when it arrives.
+              Genuine 20L RO cans from {inr(settings.default_can_price)} · delivery included · pay when it arrives.
             </p>
           )}
           {view > 1 && view < 4 && (
@@ -1547,20 +1553,20 @@ export default function BookingWizard() {
 
         {view < 4 && <TrustChips />}
 
-        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > CAN_PRICES.normal && (
+        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price && (
           <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-5 text-white shadow-lg shadow-emerald-900/10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-100">Launch price · 20L RO can</p>
                 <p className="mt-1 flex flex-wrap items-baseline gap-2.5">
-                  <span className="text-4xl font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>{inr(CAN_PRICES.normal)}</span>
+                  <span className="text-4xl font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>{inr(settings.default_can_price)}</span>
                   <s className="text-base text-emerald-200/80" aria-label={`Typical local price ${inr(MARKET_CAN_PRICES.normal)}`}>{inr(MARKET_CAN_PRICES.normal)}</s>
                   <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">
-                    {pctOff(MARKET_CAN_PRICES.normal, CAN_PRICES.normal)}% OFF
+                    {pctOff(MARKET_CAN_PRICES.normal, settings.default_can_price)}% OFF
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-emerald-100">
-                  Subscribe and pay just {inr(CAN_PRICES.subscription)} per can · delivery included
+                  Subscribe and pay just {inr(settings.subscription_can_price)} per can · delivery included
                 </p>
               </div>
               <button
@@ -1597,7 +1603,7 @@ export default function BookingWizard() {
                   ].join(' ')}>
                   {s.key === 'water_can' && showCompareHome && (
                     <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                      {pctOff(MARKET_CAN_PRICES.normal, CAN_PRICES.normal)}% OFF
+                      {pctOff(MARKET_CAN_PRICES.normal, settings.default_can_price)}% OFF
                     </span>
                   )}
                   <div className="text-2xl" aria-hidden>{s.emoji}</div>
@@ -1787,7 +1793,7 @@ export default function BookingWizard() {
                     onClick={switchToSubscription}
                     className="w-full rounded-xl border border-dashed border-emerald-400 bg-emerald-50/60 px-4 py-3 text-left text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50"
                   >
-                    🔁 Subscribe at {inr(SUBSCRIPTION_RO_CAN_PRICE)} per can and save {inr(subSave)} more on every delivery →
+                    🔁 Subscribe at {inr(settings.subscription_can_price)} per can and save {inr(subSave)} more on every delivery →
                   </button>
                 )}
               </div>
@@ -1803,6 +1809,7 @@ export default function BookingWizard() {
                   <ScopeCard
                     key={o.key}
                     option={o}
+                    priceOverride={settings.pricing_version ? settings.service_base_prices[`ro_service_${o.key}`] : undefined}
                     active={draft.subOptionKey === o.key}
                     onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                   />
@@ -1850,6 +1857,7 @@ export default function BookingWizard() {
                     <ScopeCard
                       key={o.key}
                       option={o}
+                      priceOverride={settings.pricing_version ? settings.service_base_prices[`plumbing_${o.key}`] : undefined}
                       active={draft.subOptionKey === o.key}
                       onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                     />
@@ -1868,6 +1876,7 @@ export default function BookingWizard() {
                   <ScopeCard
                     key={o.key}
                     option={o}
+                    priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
                     active={draft.subOptionKey === o.key}
                     onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                   />
@@ -1907,7 +1916,7 @@ export default function BookingWizard() {
         {view === 1 && (
           <>
             <WhyChooseUs />
-            <FaqList emergencySurcharge={settings.emergency_surcharge} />
+            <FaqList emergencySurcharge={settings.emergency_surcharge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
           </>
         )}
 
@@ -2398,7 +2407,7 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
+                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
                       {submitting ? 'Placing your order…' : 'Confirm booking →'}
                     </button>
                   )}
@@ -2461,7 +2470,7 @@ export default function BookingWizard() {
             <div className="mx-auto max-w-md rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 text-left">
               <p className="text-sm font-extrabold text-slate-900">Know a neighbour who needs water?</p>
               <p className="mt-1 text-xs text-slate-600">
-                Share {BRAND} on WhatsApp: pure water at {inr(CAN_PRICES.normal)} per can, delivered.
+                Share {BRAND} on WhatsApp: pure water at {inr(settings.default_can_price)} per can, delivered.
               </p>
               <button
                 type="button"

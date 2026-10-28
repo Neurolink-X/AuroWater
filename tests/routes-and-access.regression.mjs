@@ -134,7 +134,8 @@ assert.match(pricingMigration, /current \u20b920 single-can supplier payout rule
 const pricingAdminApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'pricing', 'route.ts'), 'utf8');
 assert.match(pricingAdminApi, /publish_pricing_version/);
 assert.match(pricingAdminApi, /requireAdmin/);
-assert.match(pricingAdminApi, /price must be between \u20b920 and \u20b9500/);
+assert.match(pricingAdminApi, /price must be between/);
+assert.match(pricingAdminApi, /\['water_chilled','Chilled water',25\]/);
 
 const pricingAdminPage = readFileSync(join(root, 'src', 'app', 'admin', 'pricing', 'page.tsx'), 'utf8');
 assert.match(pricingAdminPage, /Versioned pricing/);

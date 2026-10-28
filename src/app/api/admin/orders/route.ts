@@ -40,6 +40,13 @@ function dbErr(error: NonNullable<PgErr>, table: string, fallback: string) {
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+
+function normalizePricingCity(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
+  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-') || raw.startsWith(prefix + ','));
+  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function hourSetting(v: unknown, fallback: number): number {
@@ -478,8 +485,17 @@ export async function POST(req: NextRequest) {
     .lte('effective_from', new Date().toISOString())
     .order('effective_from', { ascending: false }).order('version', { ascending: false })
     .limit(1).maybeSingle();
-  const activePricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
+  const publishedPricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown> : null;
+  const pricingCityKey = normalizePricingCity(a.city);
+  const cityOverrides = publishedPricingConfig?.city_overrides && typeof publishedPricingConfig.city_overrides === 'object'
+    ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
+  const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
+    ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
+  // City overrides are complete validated price snapshots; otherwise use the global version.
+  const activePricingConfig: Record<string, unknown> | null = publishedPricingConfig
+    ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
+    : null;
   const activeServicePrices = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
     ? activePricingConfig.services as Record<string, unknown> : {};
   if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
@@ -544,7 +560,7 @@ export async function POST(req: NextRequest) {
     // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
     // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
     const regularPrice = Number(activePricingConfig?.water_normal ?? 20);
-    const chilledPrice = Number(activePricingConfig?.water_chilled ?? 25);
+    const chilledPrice = Math.max(25, Number(activePricingConfig?.water_chilled ?? 25));
     const subscriptionPrice = Number(activePricingConfig?.water_subscription ?? regularPrice);
     const bulkPrice = Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice);
     const unitPrice = isSubscription ? subscriptionPrice : isChilled ? chilledPrice : qty >= bulkThreshold ? bulkPrice : regularPrice;
@@ -577,7 +593,11 @@ export async function POST(req: NextRequest) {
     if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
       return jsonErr('Invalid service option. Please choose an available option.', 400);
     }
-    base_amount = round2(serviceBase + (allowedOptions?.[optionKey] ?? 0));
+    const configuredOptionFee = Number(activeServicePrices[`${service_type_key}_${optionKey}`]);
+    const optionFee = Number.isFinite(configuredOptionFee) && configuredOptionFee >= 0
+      ? configuredOptionFee
+      : (allowedOptions?.[optionKey] ?? 0);
+    base_amount = round2(serviceBase + optionFee);
   }
 
   const clientTotal = Number(body.total_amount);
