@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
 import {
-  CHILLED_RO_PRICE, CITIES, FAQS, NORMAL_RO_PRICE, RECURRING_RO_PRICE, SERVICE_CARDS, WHATSAPP, type FaqItem,
+  CITIES, FAQS, SERVICE_CARDS, WHATSAPP, type FaqItem,
 } from './pricing-shared';
 
 type PricingTab = 'individual' | 'business';
@@ -220,7 +220,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 // ─── Compare table ────────────────────────────────────────────────────────────
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
-    { feature: 'Per-can rate', payg: `₹${NORMAL_RO_PRICE}`, starter: `₹${RECURRING_RO_PRICE}`, pro: `₹${RECURRING_RO_PRICE}`, office: `₹${NORMAL_RO_PRICE}`, business: 'Quote' },
+    { feature: 'Per-can rate', payg: `₹${normalPrice}`, starter: `₹${recurringPrice}`, pro: `₹${recurringPrice}`, office: `₹${normalPrice}`, business: 'Quote' },
     { feature: 'Separate water handling fee', payg: 'None for water cans', starter: 'None for water cans', pro: 'None for water cans', office: 'None for water cans', business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
@@ -265,7 +265,7 @@ function WaterCalculator({ onOrder }: { onOrder: (water: 'normal' | 'chilled') =
   const [cans, setCans] = useState(10);
   const [water, setWater] = useState<'normal' | 'chilled'>('normal');
   const [cycle, setCycle] = useState<BillingCycle>('weekly');
-  const rate = water === 'normal' ? NORMAL_RO_PRICE : CHILLED_RO_PRICE;
+  const rate = water === 'normal' ? normalPrice : chilledPrice;
   const perDelivery = cans * rate;
   const monthly = Math.round(perDelivery * (cycle === 'weekly' ? 52 / 12 : 1));
   const pct = ((cans - 1) / 99) * 100;
@@ -279,8 +279,8 @@ function WaterCalculator({ onOrder }: { onOrder: (water: 'normal' | 'chilled') =
         <p style={{ margin: '8px 0 0', fontSize: 13, color: '#475569', lineHeight: 1.6 }}>Pick the water, the cans per delivery and how often you want it. This is an estimate; the final payable total is shown before you confirm.</p>
 
         <div role="group" aria-label="Water type" style={{ display: 'flex', gap: 10, marginTop: 18 }}>
-          <button type="button" aria-pressed={water === 'normal'} onClick={() => setWater('normal')} style={seg(water === 'normal')}>Normal RO · ₹{NORMAL_RO_PRICE}</button>
-          <button type="button" aria-pressed={water === 'chilled'} onClick={() => setWater('chilled')} style={seg(water === 'chilled')}>Chilled RO · ₹{CHILLED_RO_PRICE}</button>
+          <button type="button" aria-pressed={water === 'normal'} onClick={() => setWater('normal')} style={seg(water === 'normal')}>Normal RO · ₹{normalPrice}</button>
+          <button type="button" aria-pressed={water === 'chilled'} onClick={() => setWater('chilled')} style={seg(water === 'chilled')}>Chilled RO · ₹{chilledPrice}</button>
         </div>
         <div role="group" aria-label="Delivery frequency" style={{ display: 'flex', gap: 10, marginTop: 12 }}>
           <button type="button" aria-pressed={cycle === 'weekly'} onClick={() => setCycle('weekly')} style={seg(cycle === 'weekly')}>Weekly</button>
@@ -444,7 +444,11 @@ export default function PricingClient() {
   const [tab, setTab] = useState<PricingTab>('individual');
   const [billing, setBilling] = useState<BillingCycle>('weekly');
   const [showCompare, setShowCompare] = useState(false);
-  const { settings } = useSettings();
+  const [city, setCity] = useState('Kanpur');
+  const { settings } = useSettings(undefined, city);
+  const normalPrice = settings.default_can_price;
+  const chilledPrice = settings.chilled_can_price;
+  const recurringPrice = settings.subscription_can_price;
 
   // Pointer + scroll parallax: writes CSS variables only (no React re-render), rAF-throttled, mouse only, off for reduced motion.
   useEffect(() => {
@@ -478,7 +482,7 @@ export default function PricingClient() {
   // pricing in /api/customer/orders. Legacy/bulk settings must not make public
   // cards advertise prices the order API will reject.
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
-    const unit = orderType === 'subscription' ? RECURRING_RO_PRICE : NORMAL_RO_PRICE;
+    const unit = orderType === 'subscription' ? recurringPrice : normalPrice;
     return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
@@ -491,9 +495,9 @@ export default function PricingClient() {
       name: 'Pay as you go',
       tagline: 'No commitment. Order only when needed.',
       pricePerDelivery: deliveryTotal(1, 'one_time'),
-      unitPrice: NORMAL_RO_PRICE,
+      unitPrice: normalPrice,
       cansPerDelivery: 1,
-      perCan: `₹${NORMAL_RO_PRICE}/can (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${normalPrice}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
@@ -513,9 +517,9 @@ export default function PricingClient() {
       badge: 'Most Popular',
       badgeColor: 'green',
       pricePerDelivery: deliveryTotal(10),
-      unitPrice: RECURRING_RO_PRICE,
+      unitPrice: recurringPrice,
       cansPerDelivery: 10,
-      perCan: `₹${RECURRING_RO_PRICE}/can · same rate as one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${recurringPrice}/can · same rate as one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -536,9 +540,9 @@ export default function PricingClient() {
       badge: 'Best Value',
       badgeColor: 'blue',
       pricePerDelivery: deliveryTotal(20),
-      unitPrice: RECURRING_RO_PRICE,
+      unitPrice: recurringPrice,
       cansPerDelivery: 20,
-      perCan: `₹${RECURRING_RO_PRICE}/can · same rate as one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${recurringPrice}/can · same rate as one-time Normal RO (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -633,6 +637,7 @@ export default function PricingClient() {
 
   return (
     <div className="pricing-page" ref={rootRef}>
+      <div className="relative z-10 mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 pt-4 text-sm"><label htmlFor="pricing-city" className="font-bold text-slate-700">Prices for</label><select id="pricing-city" value={city} onChange={e=>setCity(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-900 shadow-sm">{['Kanpur','Lucknow','Gorakhpur','Noida','Delhi','Ghaziabad','Gurugram'].map(name=><option key={name}>{name}</option>)}</select></div>
       <style>{CSS}</style>
       <SpatialScene />
 
@@ -667,19 +672,19 @@ export default function PricingClient() {
             {/* Main headline — ALL IN ONE H1 */}
             <h1 className="syne" style={{ margin: '0 0 20px', fontWeight: 900, lineHeight: 1.0, letterSpacing: '-1.5px', maxWidth: 640 }}>
               <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#fff' }}>Clear water-can pricing.</span>
-              <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#34D399' }}>20L cans from ₹{NORMAL_RO_PRICE}.</span>
+              <span style={{ display: 'block', fontSize: 'clamp(2rem, 3.8vw, 3.6rem)', color: '#34D399' }}>20L cans from ₹{normalPrice}.</span>
 
               {/* visual divider inside h1 */}
               <span style={{ display: 'block', height: 1, background: 'rgba(255,255,255,0.1)', maxWidth: 360, margin: '18px 0' }} />
 
               <span style={{ display: 'block', fontSize: 'clamp(1.5rem, 2.8vw, 2.6rem)', color: '#fff', letterSpacing: '-1px' }}>
                 Recurring delivery at{' '}
-                <span style={{ color: '#34D399' }}>₹{RECURRING_RO_PRICE} / Can.</span>{' '}
+                <span style={{ color: '#34D399' }}>₹{recurringPrice} / Can.</span>{' '}
                 <span style={{ color: 'rgba(255,255,255,0.7)' }}>Final rate shown before booking.</span>
               </span>
             </h1>
             <p style={{ margin: '18px 0 0', fontSize: 17, color: 'rgba(255,255,255,0.75)', maxWidth: 480, lineHeight: 1.65 }}>
-              Normal RO ₹{NORMAL_RO_PRICE} and Chilled RO ₹{CHILLED_RO_PRICE} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
+              Normal RO ₹{normalPrice} and Chilled RO ₹{chilledPrice} per 20L can, with delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 18 }}>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} style={{ border: 0, borderRadius: 999, padding: '12px 18px', minHeight: 46, background: '#06B6D4', color: '#082F49', fontWeight: 800, cursor: 'pointer' }}>Order Normal RO</button>
@@ -689,7 +694,7 @@ export default function PricingClient() {
 
             {/* hero value props */}
             <ul style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 28, padding: 0, listStyle: 'none' }}>
-              {[`₹${RECURRING_RO_PRICE}/can on recurring deliveries · same per-can rate`, '50+ cans: confirm volume quote before booking', 'Pause future deliveries', 'Cash or UPI per delivery'].map((t) => (
+              {[`₹${recurringPrice}/can on recurring deliveries · same per-can rate`, '50+ cans: confirm volume quote before booking', 'Pause future deliveries', 'Cash or UPI per delivery'].map((t) => (
                 <li key={t} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.09)', borderRadius: 999, padding: '7px 14px', border: '1px solid rgba(255,255,255,0.12)' }}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden><path d="M2 6l3 3 5-5" stroke="#34D399" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.88)', fontWeight: 600 }}>{t}</span>
@@ -718,7 +723,7 @@ export default function PricingClient() {
                     <span className="pc-badge">Price shown before booking</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, margin: '4px 0 6px', flexWrap: 'wrap' }}>
-                    <span className="pc-price-main">₹{NORMAL_RO_PRICE}</span>
+                    <span className="pc-price-main">₹{normalPrice}</span>
                     <span style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>/ can · one-time</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -734,8 +739,8 @@ export default function PricingClient() {
                 <div className="pc-tiers">
                   {(
                     [
-                      { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${NORMAL_RO_PRICE}/can`, bg: '#EEF4FF', tc: '#1E3A8A', lc: '#2563EB', sc: '#3B6FD8', best: false },
-                      { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${RECURRING_RO_PRICE}/can · Same per-can rate`, bg: '#E8F7F1', tc: '#065F46', lc: '#047857', sc: '#0D8A5F', best: false },
+                      { label: 'Pay-as-you-go', sublabel: 'No commitment', price: `₹${normalPrice}/can`, bg: '#EEF4FF', tc: '#1E3A8A', lc: '#2563EB', sc: '#3B6FD8', best: false },
+                      { label: 'Subscription', sublabel: 'Recurring delivery', price: `₹${recurringPrice}/can · Same per-can rate`, bg: '#E8F7F1', tc: '#065F46', lc: '#047857', sc: '#0D8A5F', best: false },
                       { label: `Bulk ${settings.bulk_threshold}+`, sublabel: 'Confirm volume quote before booking', price: 'Quote required', bg: '#FFF7E0', tc: '#78350F', lc: '#B45309', sc: '#B45309', best: false },
                     ] as const
                   ).map((t) => (
@@ -782,14 +787,14 @@ export default function PricingClient() {
             <article className="nu nu-hover" style={{ borderRadius: 22, padding: 24 }}>
               <p style={{ margin: 0, color: '#047857', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>Everyday essential</p>
               <h3 style={{ margin: '8px 0 0', color: '#0F172A', fontSize: 20, fontWeight: 900 }}>Normal RO Water</h3>
-              <p style={{ margin: '8px 0 0', color: '#047857', fontSize: 30, fontWeight: 900 }}>₹{NORMAL_RO_PRICE}<span style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}> / 20L can</span></p>
+              <p style={{ margin: '8px 0 0', color: '#047857', fontSize: 30, fontWeight: 900 }}>₹{normalPrice}<span style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}> / 20L can</span></p>
               <p style={{ margin: '8px 0 16px', color: '#475569', fontSize: 13 }}>For daily home and office drinking-water needs. Delivery included in the displayed water-can price.</p>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} className="cta" style={{ background: '#047857', color: '#fff' }}>Order Normal RO</button>
             </article>
             <article className="nu nu-hover" style={{ borderRadius: 22, padding: 24 }}>
               <p style={{ margin: 0, color: '#0369A1', fontSize: 11, fontWeight: 800, letterSpacing: '.08em', textTransform: 'uppercase' }}>For events &amp; gatherings</p>
               <h3 style={{ margin: '8px 0 0', color: '#0F172A', fontSize: 20, fontWeight: 900 }}>Chilled RO Water</h3>
-              <p style={{ margin: '8px 0 0', color: '#0369A1', fontSize: 30, fontWeight: 900 }}>₹{CHILLED_RO_PRICE}<span style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}> / 20L can</span></p>
+              <p style={{ margin: '8px 0 0', color: '#0369A1', fontSize: 30, fontWeight: 900 }}>₹{chilledPrice}<span style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}> / 20L can</span></p>
               <p style={{ margin: '8px 0 16px', color: '#475569', fontSize: 13 }}>Chilled and delivered for weddings, parties, functions and office gatherings.</p>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=chilled')} className="cta" style={{ background: '#0369A1', color: '#fff' }}>Order Chilled Water</button>
             </article>
@@ -1016,7 +1021,7 @@ export default function PricingClient() {
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
                 <button type="button" onClick={() => router.push('/book?service=water_can')} style={{ background: '#fff', color: '#065F46', fontWeight: 800, fontSize: 15, padding: '14px 28px', minHeight: 48, borderRadius: 14, border: 'none', cursor: 'pointer', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-                  Order a Can — ₹{NORMAL_RO_PRICE}
+                  Order a Can — ₹{normalPrice}
                 </button>
                 <a href={WHATSAPP} target="_blank" rel="noopener noreferrer" style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', fontWeight: 700, fontSize: 15, padding: '14px 28px', minHeight: 48, borderRadius: 14, border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                   <IconWA /> Chat with us
@@ -1031,7 +1036,7 @@ export default function PricingClient() {
 
       {/* Mobile quick-order bar */}
       <div className="m-bar">
-        <button type="button" onClick={() => router.push('/book?service=water_can')} className="cta cta-primary" style={{ flex: 1 }}>Order a Can · ₹{NORMAL_RO_PRICE}</button>
+        <button type="button" onClick={() => router.push('/book?service=water_can')} className="cta cta-primary" style={{ flex: 1 }}>Order a Can · ₹{normalPrice}</button>
         <a href={`${WHATSAPP}?text=${waText}`} target="_blank" rel="noopener noreferrer" aria-label="Order on WhatsApp" className="cta cta-outline" style={{ width: 52, flexShrink: 0 }}><IconWA /></a>
       </div>
     </div>
