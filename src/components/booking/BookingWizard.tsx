@@ -56,7 +56,6 @@ import { ACTIVE_CITY_NAMES } from '@/lib/cities';
 import WaitlistPanel from '@/components/ui/WaitlistPanel';
 import { bookingBody, bookingDisplay } from '@/components/booking/booking-fonts';
 import {
-  CAN_PRICES,
   MARKET_CAN_PRICES,
   MARKET_PRICE_NOTE,
   SHOW_MARKET_COMPARISON,
@@ -109,7 +108,6 @@ const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5:
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
 // Approved launch prices for 20L RO cans.
-const SUBSCRIPTION_RO_CAN_PRICE: number = CAN_PRICES.subscription;
 const QUICK_QTY = [1, 2, 3, 5, 10, 20];
 const SCOPE_SERVICES = ['plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
 
@@ -292,10 +290,10 @@ function WhyChooseUs() {
   );
 }
 
-function FaqList({ emergencySurcharge }: { emergencySurcharge: number }) {
+function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number }) {
   const items: [string, string][] = [
     ['What does a 20L RO can cost?',
-      `Normal RO is ${inr(CAN_PRICES.normal)} per can, chilled RO is ${inr(CAN_PRICES.chilled)} per can, and subscriptions are ${inr(CAN_PRICES.subscription)} per can. Delivery is included.`],
+      `Normal RO is ${inr(normalPrice)} per can, chilled RO is ${inr(chilledPrice)} per can, and subscriptions are ${inr(subscriptionPrice)} per can. Delivery is included.`],
     ['How do I pay?',
       'Pay cash or UPI when your order is delivered. Online card and netbanking payment is coming soon.'],
     ['Can I pause or cancel a subscription?',
@@ -1024,16 +1022,16 @@ export default function BookingWizard() {
     draft.canOrderType === 'subscription';
 
   /* Savings messaging (water cans only; hidden when SHOW_MARKET_COMPARISON is off) */
-  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > CAN_PRICES.normal;
+  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_settings.default_can_price > settings.default_can_price;
   const isCan = draft.serviceKey === 'water_can';
   const canQty = draft.canQuantity ?? 1;
-  const marketPerCan = draft.subOptionKey === 'chilled_ro' ? MARKET_CAN_PRICES.chilled : MARKET_CAN_PRICES.normal;
+  const marketPerCan = draft.subOptionKey === 'chilled_ro' ? MARKET_settings.chilled_can_price : MARKET_settings.default_can_price;
   const showCompare = SHOW_MARKET_COMPARISON && isCan && marketPerCan > perCan;
   const offPct = showCompare ? pctOff(marketPerCan, perCan) : 0;
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
   const subSave =
     isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > settings.subscription_can_price
-      ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
+      ? Math.round((perCan - settings.subscription_can_price) * canQty)
       : 0;
 
   const switchToSubscription = () =>
@@ -1047,7 +1045,7 @@ export default function BookingWizard() {
 
   const shareOnWhatsApp = () => {
     if (typeof window === 'undefined') return;
-    const text = `I just booked pure RO drinking water on ${BRAND}: ${inr(CAN_PRICES.normal)} per 20L can, delivered to my door. Try it: ${window.location.origin}/book?service=water_can`;
+    const text = `I just booked pure RO drinking water on ${BRAND}: ${inr(settings.default_can_price)} per 20L can, delivered to my door. Try it: ${window.location.origin}/book?service=water_can`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
@@ -1543,7 +1541,7 @@ export default function BookingWizard() {
           </h2>
           {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-              Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · delivery included · pay when it arrives.
+              Genuine 20L RO cans from {inr(settings.default_can_price)} · delivery included · pay when it arrives.
             </p>
           )}
           {view > 1 && view < 4 && (
@@ -1555,20 +1553,20 @@ export default function BookingWizard() {
 
         {view < 4 && <TrustChips />}
 
-        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > CAN_PRICES.normal && (
+        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_settings.default_can_price > settings.default_can_price && (
           <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-5 text-white shadow-lg shadow-emerald-900/10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-100">Launch price · 20L RO can</p>
                 <p className="mt-1 flex flex-wrap items-baseline gap-2.5">
-                  <span className="text-4xl font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>{inr(CAN_PRICES.normal)}</span>
-                  <s className="text-base text-emerald-200/80" aria-label={`Typical local price ${inr(MARKET_CAN_PRICES.normal)}`}>{inr(MARKET_CAN_PRICES.normal)}</s>
+                  <span className="text-4xl font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>{inr(settings.default_can_price)}</span>
+                  <s className="text-base text-emerald-200/80" aria-label={`Typical local price ${inr(MARKET_settings.default_can_price)}`}>{inr(MARKET_settings.default_can_price)}</s>
                   <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">
-                    {pctOff(MARKET_CAN_PRICES.normal, CAN_PRICES.normal)}% OFF
+                    {pctOff(MARKET_settings.default_can_price, settings.default_can_price)}% OFF
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-emerald-100">
-                  Subscribe and pay just {inr(CAN_PRICES.subscription)} per can · delivery included
+                  Subscribe and pay just {inr(settings.subscription_can_price)} per can · delivery included
                 </p>
               </div>
               <button
@@ -1605,7 +1603,7 @@ export default function BookingWizard() {
                   ].join(' ')}>
                   {s.key === 'water_can' && showCompareHome && (
                     <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                      {pctOff(MARKET_CAN_PRICES.normal, CAN_PRICES.normal)}% OFF
+                      {pctOff(MARKET_settings.default_can_price, settings.default_can_price)}% OFF
                     </span>
                   )}
                   <div className="text-2xl" aria-hidden>{s.emoji}</div>
@@ -1613,7 +1611,7 @@ export default function BookingWizard() {
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
                     From ₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
                     {s.key === 'water_can' && showCompareHome && (
-                      <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_CAN_PRICES.normal)}</s>
+                      <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_settings.default_can_price)}</s>
                     )}
                   </div>
                 </button>
@@ -1795,7 +1793,7 @@ export default function BookingWizard() {
                     onClick={switchToSubscription}
                     className="w-full rounded-xl border border-dashed border-emerald-400 bg-emerald-50/60 px-4 py-3 text-left text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50"
                   >
-                    🔁 Subscribe at {inr(SUBSCRIPTION_RO_CAN_PRICE)} per can and save {inr(subSave)} more on every delivery →
+                    🔁 Subscribe at {inr(settings.subscription_can_price)} per can and save {inr(subSave)} more on every delivery →
                   </button>
                 )}
               </div>
@@ -1918,7 +1916,7 @@ export default function BookingWizard() {
         {view === 1 && (
           <>
             <WhyChooseUs />
-            <FaqList emergencySurcharge={settings.emergency_surcharge} />
+            <FaqList emergencySurcharge={settings.emergency_surcharge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
           </>
         )}
 
@@ -2472,7 +2470,7 @@ export default function BookingWizard() {
             <div className="mx-auto max-w-md rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white p-4 text-left">
               <p className="text-sm font-extrabold text-slate-900">Know a neighbour who needs water?</p>
               <p className="mt-1 text-xs text-slate-600">
-                Share {BRAND} on WhatsApp: pure water at {inr(CAN_PRICES.normal)} per can, delivered.
+                Share {BRAND} on WhatsApp: pure water at {inr(settings.default_can_price)} per can, delivered.
               </p>
               <button
                 type="button"
