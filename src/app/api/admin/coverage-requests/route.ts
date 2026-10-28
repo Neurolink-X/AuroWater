@@ -64,6 +64,7 @@ export async function PATCH(req: NextRequest) {
   if (request.status !== 'PENDING') return jsonErr('This request has already been reviewed. Refresh the list.', 409);
 
   let previousZonePincodes: string[] | null = null;
+  let nextZonePincodes: string[] | null = null;
   let requestedPincodes: string[] = [];
   if (b.status === 'APPROVED') {
     const { data: zone, error: zoneError } = await db.from('service_zones')
@@ -84,13 +85,7 @@ export async function PATCH(req: NextRequest) {
       : [];
     if (requestedPincodes.length) {
       previousZonePincodes = Array.isArray(zone.pincodes) ? zone.pincodes.map(String) : [];
-      const nextPincodes = [...new Set([...previousZonePincodes, ...requestedPincodes])];
-      const { error: pinUpdateError } = await db.from('service_zones')
-        .update({ pincodes: nextPincodes, updated_at: new Date().toISOString() }).eq('id', request.zone_id);
-      if (pinUpdateError) {
-        console.error('[admin/coverage-requests] requested PIN update failed', pinUpdateError);
-        return jsonErr('Could not add requested PINs to the selected zone. No coverage was approved.', 502);
-      }
+      nextZonePincodes = [...new Set([...previousZonePincodes, ...requestedPincodes])];
     }
   }
 
@@ -107,6 +102,20 @@ export async function PATCH(req: NextRequest) {
   if (updateError || !updated) {
     if (updateError) console.error('[admin/coverage-requests] review update failed', updateError);
     return jsonErr('This request was reviewed by another admin or could not be saved. Refresh and try again.', 409);
+  }
+
+  // Only apply requested PINs after this admin successfully claims the pending request.
+  if (b.status === 'APPROVED' && nextZonePincodes !== null) {
+    const { error: pinUpdateError } = await db.from('service_zones')
+      .update({ pincodes: nextZonePincodes, updated_at: new Date().toISOString() }).eq('id', request.zone_id);
+    if (pinUpdateError) {
+      console.error('[admin/coverage-requests] requested PIN update failed', pinUpdateError);
+      const { error: requestRollbackError } = await db.from('supplier_zone_requests').update({
+        status: 'PENDING', admin_note: null, reviewed_by: null, reviewed_at: null, updated_at: new Date().toISOString(),
+      }).eq('id', request.id).eq('status', 'APPROVED');
+      if (requestRollbackError) console.error('[admin/coverage-requests] request rollback failed', requestRollbackError);
+      return jsonErr('Could not add requested PINs to the selected zone. The request was returned to pending review.', 502);
+    }
   }
 
   if (b.status === 'APPROVED') {
