@@ -657,7 +657,7 @@ export default function BookingWizard() {
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const pricingCity = draft.newAddress?.city ?? addresses.find((address) => address.id === draft.addressId)?.city ?? undefined;
-  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings(undefined, pricingCity);
+  const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -2409,7 +2409,7 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
+                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
                       {submitting ? 'Placing your order…' : 'Confirm booking →'}
                     </button>
                   )}
