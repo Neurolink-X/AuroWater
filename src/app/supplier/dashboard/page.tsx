@@ -2850,7 +2850,7 @@ export default function SupplierDashboardPage() {
   const [paymentCollector, setPaymentCollector] = useState<'supplier' | 'aurotap'>('supplier');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const isHindi = language === 'hi';
   // Tracks which "assigned, not yet accepted" orders we've already seen,
   // so a genuinely new assignment can trigger an instant alert.
