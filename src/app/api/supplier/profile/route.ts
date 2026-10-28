@@ -110,13 +110,13 @@ export async function PATCH(req: NextRequest) {
     .select('full_name, phone, business_name, city').eq('id', supplierId).maybeSingle();
   if (profileError || !profile) {
     console.error('[supplier/profile] profile read failed', profileError);
-    return jsonErr('Could not verify your current profile.', 502);
+    return jsonErr('We could not read your saved supplier profile from the database. No changes were submitted. Please refresh and try again; if this continues, contact support.', 502);
   }
   const { data: settings, error: settingsError } = await db.from('supplier_settings')
     .select('*').eq('user_id', supplierId).maybeSingle();
   if (settingsError) {
     console.error('[supplier/profile] settings read failed', settingsError);
-    return jsonErr('Could not verify your current service address.', 502);
+    return jsonErr('We could not read your saved service-address settings. No changes were submitted. Please refresh and try again; if this continues, contact support.', 502);
   }
 
   const requested = {
@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest) {
   });
   if (error) {
     console.error('[supplier/profile] change request save failed', error);
-    return jsonErr('Could not submit your profile change request. Contact support if the issue continues.', 502);
+    return jsonErr('Your profile change request could not be saved. No changes were submitted. Please retry once; if the problem continues, contact support.', 502);
   }
   return jsonOk({ status: 'PENDING', message: 'Profile change request sent to admin for review.' });
 }
