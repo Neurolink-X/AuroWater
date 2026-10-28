@@ -5,7 +5,7 @@ import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
-import { PRICING, ORDER_FEES, FAQS, CITIES, planForQty } from '@/lib/marketing-pricing';
+import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, planForQty } from '@/lib/marketing-pricing';
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
@@ -298,7 +298,7 @@ export default function HomeClient() {
               <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
 
                 <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
-                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in Kanpur, Lucknow &amp; Gorakhpur · NCR on approved PIN codes</div>
+                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in Kanpur, Lucknow &amp; Gorakhpur · Delhi NCR &amp; Agra on select PIN codes</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
                     <span className="hero-h block mt-2">RO Water from ₹{W.normal},</span>
@@ -363,7 +363,7 @@ export default function HomeClient() {
         {/* ═══ TRUST STRIP ═══ */}
         <section className="bg-slate-50 py-4 border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-5 flex flex-wrap justify-center gap-x-7 gap-y-2 text-xs sm:text-sm text-slate-600 font-semibold">
-            {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery', '📍 Kanpur · Lucknow · Gorakhpur'].map(b => <span key={b}>{b}</span>)}
+            {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery', '📍 Kanpur · Lucknow · Gorakhpur + Delhi NCR · Agra (select PINs)'].map(b => <span key={b}>{b}</span>)}
           </div>
         </section>
 
@@ -425,17 +425,33 @@ export default function HomeClient() {
           <div className="max-w-6xl mx-auto px-5 sm:px-8">
             <div className="text-center mb-10">
               <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900">Water delivery, plumber &amp; tank cleaning near you</h2>
-              <p className="mt-2 text-slate-600 text-sm">Live in 3 cities. NCR is available on approved PIN codes only; we check your address at booking.</p>
+              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Live in {LIVE_CITY_NAMES}. Delhi, Noida, Gurugram and Agra are served on approved PIN codes. We confirm availability for your address before you pay.</p>
             </div>
             <div className="grid md:grid-cols-3 gap-5">
-              {CITIES.map(c => (
+              {LIVE_CITIES.map(c => (
                 <div key={c.slug} className="rounded-3xl border border-slate-100 bg-slate-50 p-6">
-                  <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {c.name}</h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {c.name}</h3>
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">Live</span>
+                  </div>
                   <p className="mt-2 text-sm text-slate-600">RO water cans, plumbers and tank cleaning in {c.areas.join(', ')} and nearby areas.</p>
                   <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Order in {c.name} →</Link>
                 </div>
               ))}
             </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+              {PIN_CITIES.map(c => (
+                <div key={c.slug} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-display font-extrabold text-slate-900">📍 {c.name}</h3>
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Select PINs</span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600">Areas incl. {c.areas.slice(0, 4).join(', ')}.</p>
+                  <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline">Check my PIN code →</Link>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 text-center text-xs text-slate-500">Not listed? Request your area: {CITIES.length} cities and growing.</p>
           </div>
         </section>
 
