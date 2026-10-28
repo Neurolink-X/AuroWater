@@ -408,7 +408,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
         return next;
       });
     },
-    []
+    [city]
   );
 
   /* ── Admin: save to server ── */
