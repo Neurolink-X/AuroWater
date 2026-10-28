@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
 
 /* ───────────────────────── Types & config ───────────────────────── */
@@ -44,6 +45,8 @@ class ApiError extends Error {
 /* ───────────────────────── Page ───────────────────────── */
 
 export default function SupplierSectionPage() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const params = useParams<{ section: string }>();
   const section = params.section as Section;
   const meta = SECTIONS[section];
@@ -146,25 +149,43 @@ export default function SupplierSectionPage() {
   const rows = Array.isArray(data) ? (data as Row[]) : [];
   const obj = data && typeof data === 'object' && !Array.isArray(data) ? (data as Row) : {};
 
+  const sectionCopy: Record<Section, { nav: string; title: string; subtitle: string }> = {
+    orders: { nav: 'ऑर्डर', title: 'ऑर्डर प्रबंधन', subtitle: 'आपको दिए गए ऑर्डर, समय और डिलीवरी की स्थिति। नए ऑर्डर उपलब्धता और पात्रता के अनुसार दिखते हैं।' },
+    inventory: { nav: 'स्टॉक', title: 'स्टॉक प्रबंधन', subtitle: 'उपलब्ध स्टॉक और आरक्षित कैन की जानकारी।' },
+    earnings: { nav: 'कमाई', title: 'कमाई और भुगतान', subtitle: 'इस महीने की कमाई और भुगतान अनुरोध।' },
+    settings: { nav: 'डिस्पैच', title: 'डिस्पैच सेटिंग', subtitle: 'ऑनलाइन स्थिति, सेवा क्षेत्र और डिस्पैच लोकेशन।' },
+    analytics: { nav: 'प्रदर्शन', title: 'प्रदर्शन रिपोर्ट', subtitle: 'आपके मौजूदा ऑर्डर से प्राप्त वास्तविक आंकड़े।' },
+    support: { nav: 'सहायता', title: 'सप्लायर सहायता', subtitle: 'डिस्पैच समस्या हल करें या एडमिन से संपर्क करें।' },
+  };
+  const copy = isHindi ? sectionCopy[section] : meta;
+
   return (
-    <main className="sp">
+    <main className="sp" data-supplier-language>
       <Styles />
       <header className="sp-head">
-        <p className="sp-kicker">AuroTap supplier portal</p>
-        <h1 className="sp-h1">{meta.title}</h1>
-        <p className="sp-sub">{meta.subtitle}</p>
+        <div className="sp-head-row">
+          <div className="sp-head-copy">
+            <p className="sp-kicker">{isHindi ? 'AuroTap सप्लायर पोर्टल' : 'AuroTap supplier portal'}</p>
+            <h1 className="sp-h1">{copy.title}</h1>
+            <p className="sp-sub">{copy.subtitle}</p>
+          </div>
+          <div className="sp-language" role="group" aria-label="Language selection">
+            <button type="button" aria-pressed={!isHindi} onClick={() => { const root = document.querySelector('[data-supplier-language]'); if (root) root.dispatchEvent(new CustomEvent('supplier-language', { detail: 'en' })); }} className={!isHindi ? 'is-active' : ''}>EN</button>
+            <button type="button" aria-pressed={isHindi} onClick={() => { const root = document.querySelector('[data-supplier-language]'); if (root) root.dispatchEvent(new CustomEvent('supplier-language', { detail: 'hi' })); }} className={isHindi ? 'is-active' : ''}>हिंदी</button>
+          </div>
+        </div>
       </header>
 
       <nav className="sp-nav" aria-label="Supplier sections">
-        <Link href="/supplier/dashboard" className="sp-tab">Dashboard</Link>
-        <Link href="/supplier/coverage" className="sp-tab">My service areas</Link>
+        <Link href="/supplier/dashboard" className="sp-tab">{isHindi ? 'डैशबोर्ड' : 'Dashboard'}</Link>
+        <Link href="/supplier/coverage" className="sp-tab">{isHindi ? 'मेरे सेवा क्षेत्र' : 'My service areas'}</Link>
         {ORDER.map((s) => (
           <Link key={s} href={`/supplier/${s}`} className="sp-tab" aria-current={s === section ? 'page' : undefined}>
             {SECTIONS[s].nav}
           </Link>
         ))}
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label="Refresh supplier section">
-          {loading && !hasData.current ? 'Loading…' : 'Refresh'}
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section' }>
+          {loading && !hasData.current ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
         </button>
       </nav>
 
@@ -538,7 +559,13 @@ const CSS = `
   min-height:80vh;background:radial-gradient(ellipse at 10% -10%,rgba(45,212,191,.12),transparent 40%),var(--bg);color:var(--ink);
   padding:clamp(18px,4vw,56px);font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.5}
 .sp *{box-sizing:border-box}
-.sp-head{max-width:760px}
+.sp-head{max-width:100%;min-width:0}
+.sp-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sp-head-copy{min-width:0;flex:1 1 260px}
+.sp-language{display:inline-flex;flex:0 0 auto;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.sp-language button{min-height:36px;padding:7px 12px;border-radius:8px;border:0;background:transparent;color:var(--mute);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.sp-language button.is-active{background:var(--teal);color:#04201c}
+.sp-head{max-width:100%;min-width:0}
 .sp-kicker{margin:0;color:var(--teal);font-size:12.5px;font-weight:700;letter-spacing:.02em}
 .sp-h1{margin:6px 0 8px;font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
 .sp-h2{margin:0 0 8px;font-size:17px;font-weight:700}
@@ -588,7 +615,7 @@ const CSS = `
 @keyframes sp-shimmer{to{background-position:-200% 0}}
 .sp :focus-visible{outline:2px solid #7dd3fc;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.sp *{animation:none!important;transition:none!important}}
-@media (max-width:520px){.sp-dl{grid-template-columns:1fr}.sp-dl dt{margin-top:6px}.sp-refresh{margin-left:0}}
+@media (max-width:520px){.sp{padding:16px 12px calc(28px + env(safe-area-inset-bottom))}.sp-dl{grid-template-columns:1fr}.sp-dl dt{margin-top:6px}.sp-refresh{margin-left:0}.sp-nav{gap:5px;margin:16px 0;padding-bottom:12px}.sp-tab{font-size:12px;padding:8px 10px}.sp-card{padding:16px}.sp-head-row{gap:12px}.sp-language{margin-left:auto}.sp-grid{grid-template-columns:minmax(0,1fr)}}
 `;
 
 
