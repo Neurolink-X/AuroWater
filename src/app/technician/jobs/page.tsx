@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
@@ -197,6 +198,7 @@ export default function TechnicianJobs() {
     setUser(currentUser);
     let mounted = true;
     let inFlight = false;
+    let refreshDebounce: number | undefined;
 
     const run = async (showLoader: boolean) => {
       if (inFlight) return;
@@ -211,19 +213,46 @@ export default function TechnicianJobs() {
     };
 
     void run(true);
-    // Resilient refresh fallback; realtime remains optional and server APIs remain authoritative.
+
+    // Realtime delivers assignments/status changes immediately when the
+    // Supabase publication is enabled. The authenticated API remains the
+    // source of truth; polling below is retained as a safety net.
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`technician-jobs-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `technician_id=eq.${currentUser.id}`,
+        },
+        () => {
+          window.clearTimeout(refreshDebounce);
+          refreshDebounce = window.setTimeout(() => void run(false), 300);
+        },
+      )
+      .subscribe();
+
+    // Safety net for missed websocket events, background-tab resume and reconnect.
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void run(false);
+      if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
     }, 10000);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void run(false);
+      if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
     };
+    const onOnline = () => void run(false);
     document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', onOnline);
 
     return () => {
       mounted = false;
       window.clearInterval(timer);
+      window.clearTimeout(refreshDebounce);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+      void supabase.removeChannel(channel);
     };
   }, [loadJobs]);
 
