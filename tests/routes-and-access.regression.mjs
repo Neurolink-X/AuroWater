@@ -378,7 +378,7 @@ assert.match(technicianJobDetail, /google\.com\/maps\/dir/);
 // Supplier portal UX regressions: one shared language preference and no blanking
 // of already-loaded orders while a refresh is in progress.
 const supplierDashboardI18n = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8');
-const activeSupplierDashboard = supplierDashboardI18n.slice(supplierDashboardI18n.indexOf("\\n'use client';") + 1);
+const activeSupplierDashboard = supplierDashboardI18n.slice(supplierDashboardI18n.indexOf("\n'use client';") + 1);
 assert.match(activeSupplierDashboard, /useLanguage\(\)/);
 assert.doesNotMatch(activeSupplierDashboard, /aurotap_supplier_language/);
 assert.doesNotMatch(activeSupplierDashboard, /Dashboard language \/ डैशबोर्ड की भाषा/);
