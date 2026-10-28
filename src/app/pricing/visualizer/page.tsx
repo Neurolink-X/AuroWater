@@ -113,6 +113,7 @@ export default function PricingVisualizerPage() {
     coupon: appliedCoupon,
     canCount: isCan ? canCount : undefined,
     pricePerCan: isCan ? CAN_PRICES[canType] : undefined, // real can prices from the engine
+    waterType: isCan ? canType : undefined,
     monthlyCanCount: isCan ? monthlyCans : undefined,
     commissionBasis: preTax ? 'preTax' : 'total',
   }), [serviceKey, emergency, canCount, canType, monthlyCans, preTax, settings, appliedCoupon, isCan]);
