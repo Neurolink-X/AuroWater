@@ -57,28 +57,28 @@ const SETTINGS_SCHEMA: Record<
 
   default_can_price: {
     type: 'number',
-    min: 1,
+    min: 20,
     max: 500,
     label: 'Default can price (₹)',
   },
 
   chilled_can_price: {
     type: 'number',
-    min: 1,
+    min: 25,
     max: 500,
     label: 'Chilled 20L can price (₹)',
   },
 
   subscription_can_price: {
     type: 'number',
-    min: 1,
+    min: 20,
     max: 500,
     label: 'Recurring can price (₹)',
   },
 
   bulk_can_price: {
     type: 'number',
-    min: 1,
+    min: 20,
     max: 500,
     label: 'Bulk can price (₹)',
   },
