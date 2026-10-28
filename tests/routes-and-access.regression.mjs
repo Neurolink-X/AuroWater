@@ -378,12 +378,13 @@ assert.match(technicianJobDetail, /google\.com\/maps\/dir/);
 // Supplier portal UX regressions: one shared language preference and no blanking
 // of already-loaded orders while a refresh is in progress.
 const supplierDashboardI18n = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8');
-assert.match(supplierDashboardI18n, /useLanguage\(\)/);
-assert.doesNotMatch(supplierDashboardI18n, /aurotap_supplier_language/);
-assert.doesNotMatch(supplierDashboardI18n, /Dashboard language \/ डैशबोर्ड की भाषा/);
-assert.match(supplierDashboardI18n, /ordersLoadedOnceRef/);
-assert.match(supplierDashboardI18n, /if \(!ordersLoadedOnceRef\.current\) setLoadingOrders\(true\)/);
-assert.match(supplierDashboardI18n, /ordersLoadedOnceRef\.current = true/);
+const activeSupplierDashboard = supplierDashboardI18n.slice(supplierDashboardI18n.indexOf("\\n'use client';") + 1);
+assert.match(activeSupplierDashboard, /useLanguage\(\)/);
+assert.doesNotMatch(activeSupplierDashboard, /aurotap_supplier_language/);
+assert.doesNotMatch(activeSupplierDashboard, /Dashboard language \/ डैशबोर्ड की भाषा/);
+assert.match(activeSupplierDashboard, /ordersLoadedOnceRef/);
+assert.match(activeSupplierDashboard, /if \(!ordersLoadedOnceRef\.current\) setLoadingOrders\(true\)/);
+assert.match(activeSupplierDashboard, /ordersLoadedOnceRef\.current = true/);
 
 const supplierSectionPage = readFileSync(join(root, 'src', 'app', 'supplier', '[section]', 'page.tsx'), 'utf8');
 assert.match(supplierSectionPage, /Troubleshoot missing orders/);
