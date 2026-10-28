@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AuroWater — Pricing Engine Visualizer
+ * AuroTap — Pricing Engine Visualizer
  * src/app/pricing/visualizer/page.tsx   (internal tool: see layout.tsx for the production gate)
  */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
@@ -95,10 +95,7 @@ export default function PricingVisualizerPage() {
   const [period, setPeriod] = useState<Period>('week');
   const [tab, setTab] = useState<Tab>('playground');
   const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const hydration = window.setTimeout(() => setMounted(true), 0);
-    return () => window.clearTimeout(hydration);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   const isCan = serviceKey === 'water_tanker';
   const input: PricingInput = useMemo(() => ({
@@ -113,6 +110,7 @@ export default function PricingVisualizerPage() {
     coupon: appliedCoupon,
     canCount: isCan ? canCount : undefined,
     pricePerCan: isCan ? CAN_PRICES[canType] : undefined, // real can prices from the engine
+    canType: isCan ? canType : undefined, // applies the right price floor
     monthlyCanCount: isCan ? monthlyCans : undefined,
     commissionBasis: preTax ? 'preTax' : 'total',
   }), [serviceKey, emergency, canCount, canType, monthlyCans, preTax, settings, appliedCoupon, isCan]);
@@ -130,13 +128,11 @@ export default function PricingVisualizerPage() {
   const applyCoupon = useCallback(() => {
     const c = DEMO_COUPONS.find(x => x.code === couponCode.trim().toUpperCase());
     if (!c) { setAppliedCoupon(null); setCouponMsg({ text: 'Coupon not found. Try FIRST50 or WATER20.', ok: false }); return; }
-    // Evaluate against the same subtotal the engine uses (after any volume plan)
-    const base = isCan ? CAN_PRICES[canType] * canCount : settings[serviceKey];
-    const subtotal = base - base * (isCan ? plan.off / 100 : 0) + settings.convenienceFee;
+    const subtotal = bd.subtotal; // same subtotal the engine uses
     const res = evaluateCoupon(c, subtotal);
     if (res.valid) { setAppliedCoupon(c); setCouponMsg({ text: res.message, ok: true }); }
     else { setAppliedCoupon(null); setCouponMsg({ text: res.error, ok: false }); }
-  }, [couponCode, isCan, canType, canCount, plan.off, settings, serviceKey]);
+  }, [couponCode, bd.subtotal]);
 
   const legs = [
     { label: 'Technician', val: bd.technicianEarnings, color: '#0EA5E9', icon: '🔧', rate: settings.technicianCommissionRate },
@@ -184,7 +180,7 @@ export default function PricingVisualizerPage() {
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl" style={{ background: 'linear-gradient(135deg,#0EA5E9,#06B6D4)' }}>💧</div>
-                <span className="viz-display text-white font-bold text-xl">AuroWater</span>
+                <span className="viz-display text-white font-bold text-xl">AuroTap</span>
               </div>
               <h1 className="viz-display text-3xl sm:text-4xl font-extrabold text-white">Pricing Engine</h1>
               <p className="text-sky-300 text-sm mt-1 font-medium">Interactive visualizer · Real-time calculations · Revenue integrity checks</p>
@@ -235,7 +231,7 @@ export default function PricingVisualizerPage() {
                     <div>
                       <div className="flex justify-between text-xs text-sky-300 mb-2"><span>Cans per month (sets plan)</span><span className="font-bold text-white">{monthlyCans}</span></div>
                       <input type="range" min={1} max={120} value={monthlyCans} onChange={e => setMonthlyCans(Number(e.target.value))} aria-label="Cans per month" />
-                      <p className="text-xs text-emerald-400 mt-2">{plan.name}{plan.off ? ` · ${plan.off}% off` : ' · standard price'} <span className="text-sky-500">({VOLUME_PLANS.map(p => `${p.minCans}+→${p.off}%`).join(', ')})</span></p>
+                      <p className="text-xs text-emerald-400 mt-2">{plan.name}{plan.lockMonths ? ` · price lock ${plan.lockMonths} mo` : ' · standard price'} <span className="text-sky-500">({VOLUME_PLANS.map(p => `${p.minCans}+→${p.lockMonths}mo`).join(', ')})</span></p>
                     </div>
                   </Card>
                 )}
@@ -445,13 +441,13 @@ export default function PricingVisualizerPage() {
               <div className="glass-strong rounded-2xl p-6">
                 <p className="viz-display text-white font-bold text-sm mb-4">The formula</p>
                 <div className="rounded-xl p-4 text-sm font-mono overflow-x-auto" style={{ background: 'rgba(0,0,0,.3)', border: '1px solid rgba(14,165,233,.2)' }}>
-                  <p className="text-sky-300">Formula: (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
+                  <p className="text-sky-300">// Total = (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
                   <p className="text-white mt-2">total = (base − planDisc + convFee − coupon) × (1 + gstRate) + emg</p>
-                  <p className="text-sky-300 mt-4">Split base: total (default) or total − GST (pre-GST mode)</p>
+                  <p className="text-sky-300 mt-4">// Split base: total (default) or total − GST (pre-GST mode)</p>
                   <p className="text-yellow-300 mt-1">tech = splitBase × techRate</p>
                   <p className="text-amber-300">supp = splitBase × supplierRate</p>
                   <p className="text-emerald-300">platform = splitBase − tech − supp</p>
-                  <p className="text-sky-300 mt-4">Always true</p>
+                  <p className="text-sky-300 mt-4">// Always true</p>
                   <p className="text-white">tech + supp + platform + gstPayable === total</p>
                 </div>
               </div>
