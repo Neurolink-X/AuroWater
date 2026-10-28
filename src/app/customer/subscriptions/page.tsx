@@ -505,7 +505,7 @@ export default function CustomerSubscriptionsPage() {
                         Rate
                       </p>
                       <p className="mt-1 text-sm font-extrabold text-slate-900">
-                        {money(item.price_per_can)} / can
+                        {money(Math.max(20, Number(item.price_per_can) || 0))} / can
                       </p>
                     </div>
 
@@ -516,7 +516,7 @@ export default function CustomerSubscriptionsPage() {
                       <p className="mt-1 text-sm font-extrabold text-slate-900">
                         {money(
                           Number(item.quantity) *
-                            Number(item.price_per_can)
+                            Math.max(20, Number(item.price_per_can) || 0)
                         )}
                       </p>
                     </div>
