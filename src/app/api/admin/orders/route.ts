@@ -493,7 +493,7 @@ export async function POST(req: NextRequest) {
   const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
     ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
   // City overrides are complete validated price snapshots; otherwise use the global version.
-  const activePricingConfig = publishedPricingConfig
+  const activePricingConfig: Record<string, unknown> | null = publishedPricingConfig
     ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
     : null;
   const activeServicePrices = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
