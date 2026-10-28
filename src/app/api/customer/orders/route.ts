@@ -354,10 +354,10 @@ export async function POST(req: NextRequest) {
 
     // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
     // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
-    const regularPrice = Number(activePricingConfig?.water_normal ?? 20);
-    const chilledPrice = Number(activePricingConfig?.water_chilled ?? 25);
-    const subscriptionPrice = Number(activePricingConfig?.water_subscription ?? regularPrice);
-    const bulkPrice = Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice);
+    const regularPrice = Math.max(20, Number(activePricingConfig?.water_normal ?? 20));
+    const chilledPrice = Math.max(25, Number(activePricingConfig?.water_chilled ?? 25));
+    const subscriptionPrice = Math.max(20, Number(activePricingConfig?.water_subscription ?? regularPrice));
+    const bulkPrice = Math.max(20, Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice));
     const unitPrice = isSubscription ? subscriptionPrice : isChilled ? chilledPrice : qty >= bulkThreshold ? bulkPrice : regularPrice;
     if (![regularPrice, chilledPrice, subscriptionPrice].every((price) => Number.isFinite(price) && price > 0)) {
       return jsonErr('Water pricing configuration is invalid. Please contact support.', 503);
