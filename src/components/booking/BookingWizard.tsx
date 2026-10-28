@@ -974,6 +974,7 @@ export default function BookingWizard() {
     if (!selectedReferralReward || draft.serviceKey !== 'water_can' ||
         draft.subOptionKey === 'chilled_ro' || draft.canOrderType === 'subscription' ||
         (draft.canQuantity ?? 1) !== 1) return 0;
+    if (selectedReferralReward.reward_type === 'free_water_can') return 0;
     const minimumPayable = Math.max(1, draft.canQuantity ?? 1) * CAN_PRICES.normal;
     const availableDiscount = Math.max(0, baseAmount - minimumPayable);
     return selectedReferralReward.reward_type === 'free_water_can'
@@ -985,7 +986,8 @@ export default function BookingWizard() {
     draft.subOptionKey !== 'chilled_ro' &&
     draft.canOrderType !== 'subscription' &&
     (draft.canQuantity ?? 1) === 1 &&
-    baseAmount > CAN_PRICES.normal;
+    baseAmount > CAN_PRICES.normal &&
+    selectedReferralReward?.reward_type !== 'free_water_can';
   const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
   const breakdown = useMemo(() => {
     const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
@@ -2253,7 +2255,7 @@ export default function BookingWizard() {
                     className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="">No referral reward</option>
-                    {referralRewards.map((reward) => (
+                    {referralRewards.filter((reward) => reward.reward_type === 'discount_25' && baseAmount > CAN_PRICES.normal).map((reward) => (
                       <option key={reward.id} value={reward.id}>
                         {reward.reward_type === 'free_water_can' ? 'Free standard RO can · अगला कैन मुफ़्त' : '25% off one standard RO can · 25% छूट'}
                       </option>
@@ -2262,8 +2264,8 @@ export default function BookingWizard() {
                   {!canRedeemReferralReward ? (
                     <p className="mt-2 text-xs font-semibold text-amber-800">
                       {draft.serviceKey === 'water_can' && draft.subOptionKey !== 'chilled_ro' && draft.canOrderType !== 'subscription' && (draft.canQuantity ?? 1) === 1 && baseAmount <= CAN_PRICES.normal
-                        ? 'Water-can rewards cannot reduce the ₹20 minimum price. · इनाम से कैन की कीमत ₹20 से कम नहीं होगी।'
-                        : 'Rewards apply only to one standard Normal RO can in a one-time order. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।'}
+                        ? 'At ₹20, a referral discount would break the minimum price, so it cannot be applied. Free-can rewards are paused under this rule. · ₹20 न्यूनतम कीमत के कारण रेफरल छूट लागू नहीं हो सकती।'
+                        : 'Only eligible one-time Normal RO orders priced above ₹20 can use a capped 25% referral discount. · केवल ₹20 से अधिक कीमत वाले एक-कैन ऑर्डर पर सीमित छूट लागू है।'}
                     </p>
                   ) : null}
                   {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
