@@ -59,6 +59,7 @@ export default function SupplierSectionPage() {
   const [online, setOnline] = useState(false);
   const [radius, setRadius] = useState('5');
   const latest = useRef(0);
+  const hasData = useRef(false);
 
   const authedFetch = useCallback(
     async (path: string, init: RequestInit = {}) => {
@@ -82,12 +83,13 @@ export default function SupplierSectionPage() {
       if (!meta) return;
       const id = ++latest.current;
       // Keep already-rendered data visible during manual refresh; only the first load uses a skeleton.
-      if (!silent && data === null) setLoading(true);
+      if (!silent && !hasData.current) setLoading(true);
       try {
         const body = await authedFetch(meta.endpoint);
         if (id !== latest.current) return; // a newer request superseded this one
         const payload = body?.data ?? body;
         setData(payload);
+        hasData.current = true;
         if (!silent) setError('');
         if (section === 'settings' && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
@@ -99,7 +101,7 @@ export default function SupplierSectionPage() {
         if (id === latest.current) setLoading(false);
       }
     },
-    [meta, section, authedFetch, data],
+    [meta, section, authedFetch],
   );
 
   useEffect(() => { void load(); }, [load]);
