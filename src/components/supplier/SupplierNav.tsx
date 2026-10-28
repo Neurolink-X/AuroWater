@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import LanguageToggle from '@/components/LanguageToggle';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // Compact single-row portal navigation.
 //  - never wraps (was stacking into 3 rows on phones)
@@ -22,6 +23,10 @@ const links = [
 
 export default function SupplierNav() {
   const pathname = usePathname() ?? '';
+  const { language } = useLanguage();
+  const labels: Record<string, string> = language === 'hi' ? {
+    Overview: 'डैशबोर्ड', Orders: 'ऑर्डर', Inventory: 'स्टॉक', Earnings: 'कमाई', Dispatch: 'डिस्पैच', 'My Profile': 'मेरी प्रोफ़ाइल', Performance: 'प्रदर्शन', Support: 'सहायता',
+  } : {};
   const activeRef = useRef<HTMLAnchorElement | null>(null);
 
   useEffect(() => {
@@ -63,7 +68,7 @@ export default function SupplierNav() {
                 className="snav-link"
                 data-priority={'priority' in item && item.priority ? 'true' : undefined}
               >
-                {item.label}
+                {labels[item.label] ?? item.label}
               </Link>
             );
           })}
