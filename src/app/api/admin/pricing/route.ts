@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   if (error) {
     console.error('[admin/pricing] load failed', error);
     return jsonErr(error.code === '42P01' || error.code === 'PGRST205'
-      ? 'Apply sql/021_versioned_pricing_rules.sql before using versioned pricing.'
+      ? 'Apply sql/027_versioned_pricing_rules.sql before using versioned pricing.'
       : 'Unable to load pricing versions.', error.code === '42P01' || error.code === 'PGRST205' ? 503 : 502);
   }
   const versions = (data ?? []).map((row) => ({ ...row, currently_effective: Date.parse(row.effective_from) <= Date.now() }));
