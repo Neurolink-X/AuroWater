@@ -378,21 +378,21 @@ assert.match(technicianJobDetail, /google\.com\/maps\/dir/);
 // Supplier portal UX regressions: one shared language preference and no blanking
 // of already-loaded orders while a refresh is in progress.
 const supplierDashboardI18n = readFileSync(join(root, 'src', 'app', 'supplier', 'dashboard', 'page.tsx'), 'utf8');
-const activeSupplierDashboard = supplierDashboardI18n.slice(supplierDashboardI18n.indexOf("\n'use client';") + 1);
-assert.match(activeSupplierDashboard, /useLanguage\(\)/);
-assert.doesNotMatch(activeSupplierDashboard, /aurotap_supplier_language/);
-assert.doesNotMatch(activeSupplierDashboard, /Dashboard language \/ डैशबोर्ड की भाषा/);
-assert.match(activeSupplierDashboard, /ordersLoadedOnceRef/);
-assert.match(activeSupplierDashboard, /dashboardLoadedOnceRef/);
-assert.match(activeSupplierDashboard, /if \(!dashboardLoadedOnceRef\.current\) setLoading\(true\)/);
-assert.match(activeSupplierDashboard, /if \(!ordersLoadedOnceRef\.current\) setLoadingOrders\(true\)/);
-assert.match(activeSupplierDashboard, /ordersLoadedOnceRef\.current = true/);
+const supplierDashboardSharedI18n = supplierDashboardI18n.slice(supplierDashboardI18n.indexOf("\n'use client';") + 1);
+assert.match(supplierDashboardSharedI18n, /useLanguage\(\)/);
+assert.doesNotMatch(supplierDashboardSharedI18n, /aurotap_supplier_language/);
+assert.doesNotMatch(supplierDashboardSharedI18n, /Dashboard language \/ डैशबोर्ड की भाषा/);
+assert.match(supplierDashboardSharedI18n, /ordersLoadedOnceRef/);
+assert.match(supplierDashboardSharedI18n, /dashboardLoadedOnceRef/);
+assert.match(supplierDashboardSharedI18n, /if \(!dashboardLoadedOnceRef\.current\) setLoading\(true\)/);
+assert.match(supplierDashboardSharedI18n, /if \(!ordersLoadedOnceRef\.current\) setLoadingOrders\(true\)/);
+assert.match(supplierDashboardSharedI18n, /ordersLoadedOnceRef\.current = true/);
 
-const supplierSectionPage = readFileSync(join(root, 'src', 'app', 'supplier', '[section]', 'page.tsx'), 'utf8');
-assert.match(supplierSectionPage, /Troubleshoot missing orders/);
-assert.match(supplierSectionPage, /What to include in a support request/);
-assert.match(supplierSectionPage, /This page does not create a support ticket automatically/);
-assert.match(supplierSectionPage, /const hiLabels: Record<string, string>/);
+const supplierSectionSupportPage = readFileSync(join(root, 'src', 'app', 'supplier', '[section]', 'page.tsx'), 'utf8');
+assert.match(supplierSectionSupportPage, /Troubleshoot missing orders/);
+assert.match(supplierSectionSupportPage, /What to include in a support request/);
+assert.match(supplierSectionSupportPage, /This page does not create a support ticket automatically/);
+assert.match(supplierSectionSupportPage, /const hiLabels: Record<string, string>/);
 
 const adminLoginPage = readFileSync(join(root, 'src', 'app', 'admin', 'login', 'page.tsx'), 'utf8');
 assert.match(adminLoginPage, /rawReturnTo\.startsWith\('\/admin\/'\)/);
