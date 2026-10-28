@@ -302,6 +302,11 @@ export default function HomePage() {
   const [foundingMsg, setFoundingMsg] = useState<string | null>(null);
   const [submitting, setSubmitting]   = useState(false);
   const [activeSvc, setActiveSvc]     = useState(0);
+  const [currentCanPrice, setCurrentCanPrice] = useState('');
+  const [monthlyCanCount, setMonthlyCanCount] = useState('30');
+  const comparisonPrice = Number(currentCanPrice);
+  const comparisonQty = Number(monthlyCanCount);
+  const comparisonValid = currentCanPrice.trim() !== '' && Number.isFinite(comparisonPrice) && comparisonPrice >= 0 && Number.isFinite(comparisonQty) && comparisonQty >= 1 && comparisonQty <= 1000;
 
   /* ── Footer handoff: home ends in #08111F gradient so the global Footer bridge has no harsh seam ── */
   useEffect(() => {
@@ -1009,6 +1014,67 @@ export default function HomePage() {
                       </span>
                     </div>
                     <p className="text-sky-100/65 mb-5">{SERVICES[activeSvc].body}</p>
+                    {activeSvc === 0 && (
+                      <div className="mb-6 rounded-2xl border border-sky-300/20 bg-slate-950/35 p-4 sm:p-5">
+                        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-200">Straightforward 20L pricing</p>
+                            <p className="mt-1 text-sm text-slate-300">Know the can price before you order.</p>
+                          </div>
+                          <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-200">No surprise delivery add-on</span>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                            <p className="text-sm font-medium text-slate-300">Normal RO · 20L</p>
+                            <p className="mt-1 text-3xl font-extrabold text-white">₹20<span className="ml-1 text-sm font-medium text-slate-400">/ can</span></p>
+                            <p className="mt-1 text-xs text-slate-400">Everyday drinking water</p>
+                          </div>
+                          <div className="rounded-xl border border-sky-300/30 bg-sky-300/[0.08] p-4">
+                            <p className="text-sm font-medium text-slate-300">Chilled RO · 20L</p>
+                            <p className="mt-1 text-3xl font-extrabold text-white">₹25<span className="ml-1 text-sm font-medium text-slate-400">/ can</span></p>
+                            <p className="mt-1 text-xs text-slate-400">For when you want chilled water</p>
+                          </div>
+                        </div>
+                        <div className="mt-4 border-t border-white/10 pt-4">
+                          <p className="text-sm font-bold text-white">Compare your current price</p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-400">Enter what you currently pay for a 20L can. We calculate the difference using AuroTap’s ₹20 Normal RO price—not an unverified competitor price.</p>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <label className="text-xs font-medium text-slate-300">
+                              Your current price per 20L can (₹)
+                              <input
+                                type="number" min="0" max="10000" step="0.5" inputMode="decimal"
+                                value={currentCanPrice} onChange={(event) => setCurrentCanPrice(event.target.value)}
+                                placeholder="Enter your current price"
+                                className="mt-1.5 w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
+                              />
+                            </label>
+                            <label className="text-xs font-medium text-slate-300">
+                              Cans per month
+                              <input
+                                type="number" min="1" max="1000" step="1" inputMode="numeric"
+                                value={monthlyCanCount} onChange={(event) => setMonthlyCanCount(event.target.value)}
+                                className="mt-1.5 w-full rounded-lg border border-white/15 bg-slate-900 px-3 py-2.5 text-sm text-white focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-300/20"
+                              />
+                            </label>
+                          </div>
+                          {comparisonValid && (
+                            <div aria-live="polite" className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm">
+                              {comparisonPrice > 20 ? (
+                                <p className="text-emerald-200">
+                                  Potential saving: <strong>₹{((comparisonPrice - 20) * comparisonQty).toLocaleString('en-IN', { maximumFractionDigits: 2 })}/month</strong>
+                                  <span className="block mt-1 text-xs text-slate-400">₹{(comparisonPrice - 20).toLocaleString('en-IN', { maximumFractionDigits: 2 })} per can × {comparisonQty} cans. Your actual saving depends on comparable water quality, delivery and final checkout total.</span>
+                                </p>
+                              ) : comparisonPrice < 20 ? (
+                                <p className="text-amber-200">AuroTap would be ₹{((20 - comparisonPrice) * comparisonQty).toLocaleString('en-IN', { maximumFractionDigits: 2 })} more per month at this quantity. Compare like-for-like quality and delivery before deciding.</p>
+                              ) : (
+                                <p className="text-slate-200">Same can price at ₹20. Compare water quality, delivery reliability and the final checkout total.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">Price and delivery availability are confirmed for your address before booking. RO treatment alone does not establish potability; check supplier quality and applicable test/certification records.</p>
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-2 mb-6">
                       {SERVICES[activeSvc].features.map(f => (
                         <span key={f} className="flex items-center gap-1.5 text-xs font-semibold rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-300 px-3 py-1">

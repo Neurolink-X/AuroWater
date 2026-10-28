@@ -34,3 +34,15 @@ test('homepage preserves public pricing and the three currently active cities', 
   assert.match(home, /Lucknow/);
   assert.match(home, /Gorakhpur/);
 });
+
+
+test('homepage water pricing shows the approved 20L prices and an honest user-entered comparison', () => {
+  assert.match(home, /Straightforward 20L pricing/);
+  assert.match(home, /Normal RO · 20L/);
+  assert.match(home, /Chilled RO · 20L/);
+  assert.match(home, /₹20/);
+  assert.match(home, /₹25/);
+  assert.match(home, /Your current price per 20L can/);
+  assert.match(home, /Your actual saving depends on comparable water quality, delivery and final checkout total/);
+  assert.doesNotMatch(home, /save\s+\d+%\s+vs\s+competitors/i);
+});
