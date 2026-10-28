@@ -63,10 +63,35 @@ export async function PATCH(req: NextRequest) {
   }
   if (request.status !== 'PENDING') return jsonErr('This request has already been reviewed. Refresh the list.', 409);
 
+  let previousZonePincodes: string[] | null = null;
+  let requestedPincodes: string[] = [];
   if (b.status === 'APPROVED') {
     const { data: zone, error: zoneError } = await db.from('service_zones')
-      .select('id, name, status').eq('id', request.zone_id).maybeSingle();
+      .select('id, name, status, city, pincodes').eq('id', request.zone_id).maybeSingle();
     if (zoneError || !zone) return jsonErr('The selected service area no longer exists.', 409);
+
+    const { data: supplierProfile, error: supplierProfileError } = await db.from('profiles')
+      .select('city').eq('id', request.supplier_id).maybeSingle();
+    if (supplierProfileError || !supplierProfile) return jsonErr('Could not verify supplier city. Refresh and retry.', 409);
+    const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (normalizeCity(supplierProfile.city) && normalizeCity(supplierProfile.city) !== normalizeCity(zone.city)) {
+      return jsonErr('Supplier city does not match this service area. Correct the supplier profile or select a matching zone.', 409);
+    }
+
+    const pinMatch = String(request.supplier_note ?? '').match(/Requested PIN codes:\s*([^\n]+)/i);
+    requestedPincodes = pinMatch
+      ? [...new Set(pinMatch[1].split(/[\s,]+/).filter((pin: string) => /^\d{6}$/.test(pin)))].slice(0, 3)
+      : [];
+    if (requestedPincodes.length) {
+      previousZonePincodes = Array.isArray(zone.pincodes) ? zone.pincodes.map(String) : [];
+      const nextPincodes = [...new Set([...previousZonePincodes, ...requestedPincodes])];
+      const { error: pinUpdateError } = await db.from('service_zones')
+        .update({ pincodes: nextPincodes, updated_at: new Date().toISOString() }).eq('id', request.zone_id);
+      if (pinUpdateError) {
+        console.error('[admin/coverage-requests] requested PIN update failed', pinUpdateError);
+        return jsonErr('Could not add requested PINs to the selected zone. No coverage was approved.', 502);
+      }
+    }
   }
 
   // Claim the pending request first. This prevents a mapping from being created by a
@@ -89,6 +114,11 @@ export async function PATCH(req: NextRequest) {
       .upsert({ supplier_id: request.supplier_id, zone_id: request.zone_id, service_keys: request.service_keys }, { onConflict: 'supplier_id,zone_id' });
     if (linkError) {
       console.error('[admin/coverage-requests] supplier-zone mapping failed', linkError);
+      if (previousZonePincodes !== null) {
+        const { error: pinRollbackError } = await db.from('service_zones')
+          .update({ pincodes: previousZonePincodes, updated_at: new Date().toISOString() }).eq('id', request.zone_id);
+        if (pinRollbackError) console.error('[admin/coverage-requests] PIN rollback failed', pinRollbackError);
+      }
       const { error: rollbackError } = await db.from('supplier_zone_requests').update({
         status: 'PENDING', admin_note: null, reviewed_by: null, reviewed_at: null, updated_at: new Date().toISOString(),
       }).eq('id', request.id).eq('status', 'APPROVED');
@@ -107,5 +137,5 @@ export async function PATCH(req: NextRequest) {
   } catch (e) {
     console.error('[admin/coverage-requests] audit log failed', e);
   }
-  return jsonOk(updated);
+  return jsonOk({ ...updated, requested_pincodes: requestedPincodes });
 }
