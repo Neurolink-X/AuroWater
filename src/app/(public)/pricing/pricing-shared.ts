@@ -11,12 +11,12 @@ export const NORMAL_RO_PRICE = 20;
 export const CHILLED_RO_PRICE = 25;
 export const RECURRING_RO_PRICE = 20;
 
-export const CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur'] as const;
+export const CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur, NCR'] as const;
 
 // Single source for the layout metadata and the page's structured data.
 export const PAGE_TITLE = 'Water Delivery Pricing & Recurring Plans | AuroWater';
 export const PAGE_DESCRIPTION = `Compare one-time and recurring 20L water-can delivery (from ₹${NORMAL_RO_PRICE}, Chilled RO ₹${CHILLED_RO_PRICE}) and home water-service prices in ${CITIES.join(', ')}. Delivery included, no separate water handling fee, final total shown before you confirm.`;
-export const PAGE_KEYWORDS = ['water can delivery price', '20 litre water can Kanpur', 'RO water delivery Lucknow', 'chilled water for events', 'plumber booking', 'water tank cleaning service', 'water tanker booking Gorakhpur'];
+export const PAGE_KEYWORDS = ['water can delivery price', 'water can delivery near me', '20 litre water can Kanpur', 'RO water delivery Lucknow', 'RO water delivery Noida', 'chilled water for events', 'plumber booking', 'water tank cleaning service', 'water tanker booking Gorakhpur'];
 
 export type FaqItem = { q: string; a: string };
 
