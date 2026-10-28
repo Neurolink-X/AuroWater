@@ -9,6 +9,8 @@ import { Alert } from '@/components/Alert';
 import { Card } from '@/components/Card';
 import { Input } from '@/components/Input';
 import { User } from '@/types';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const jobStatusSteps = ['PENDING', 'ACCEPTED', 'WORKING', 'COMPLETED'];
 
@@ -19,6 +21,8 @@ const stepActions: any = {
 };
 
 export default function JobDetail() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const router = useRouter();
   const params = useParams();
   const jobId = params?.id as string;
@@ -93,7 +97,7 @@ export default function JobDetail() {
         payment_confirmed: paymentConfirmed,
         payment_reference: paymentReference.trim() || undefined,
       } : undefined);
-      setSuccess('Job status updated successfully!');
+      setSuccess(isHindi ? 'जॉब की स्थिति अपडेट हो गई।' : 'Job status updated successfully!');
       setNotes('');
       if (action === 'complete') setServiceOtp('');
       
@@ -103,9 +107,9 @@ export default function JobDetail() {
         status: stepActions[job.status].next,
       });
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         router.push('/technician/jobs');
-      }, 1500);
+      }, 1200);
     } catch (err: any) {
       setError(err.message || 'Failed to update job');
     } finally {
@@ -161,15 +165,14 @@ export default function JobDetail() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <h1 className="text-2xl font-bold text-blue-600">🌊 AuroWater</h1>
+            <h1 className="text-2xl font-bold text-blue-600">🌊 AuroTap</h1>
             <p className="text-sm text-gray-600">Job #{job.id}</p>
           </div>
-          <div className="space-x-4">
-            <Link href="/technician/jobs">
-              <Button variant="secondary">Back to Jobs</Button>
-            </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/technician/jobs"><Button variant="secondary">{isHindi ? 'जॉब्स पर वापस जाएँ' : 'Back to Jobs'}</Button></Link>
+            <LanguageToggle />
           </div>
         </div>
       </header>
@@ -183,14 +186,14 @@ export default function JobDetail() {
           <div className="lg:col-span-2 space-y-6">
             {/* Customer Info */}
             <Card>
-              <h2 className="text-xl font-bold mb-4">Customer Information</h2>
+              <h2 className="text-xl font-bold mb-4">{isHindi ? 'ग्राहक की जानकारी' : 'Customer Information'}</h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600">Name</p>
+                  <p className="text-sm text-gray-600">{isHindi ? 'नाम' : 'Name'}</p>
                   <p className="text-lg font-semibold">{job.customer_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Phone</p>
+                  <p className="text-sm text-gray-600">{isHindi ? 'फोन' : 'Phone'}</p>
                   <p className="text-lg font-semibold">
                     <a href={`tel:${job.customer_phone}`} className="text-blue-600 hover:underline">
                       {job.customer_phone}
@@ -202,10 +205,10 @@ export default function JobDetail() {
 
             {/* Location Info */}
             <Card>
-              <h2 className="text-xl font-bold mb-4">Service Location</h2>
+              <h2 className="text-xl font-bold mb-4">{isHindi ? 'सेवा का स्थान' : 'Service Location'}</h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600">Address</p>
+                  <p className="text-sm text-gray-600">{isHindi ? 'पता' : 'Address'}</p>
                   <p className="font-semibold">
                     {job.house_no}, {job.area}
                   </p>
@@ -213,6 +216,7 @@ export default function JobDetail() {
                   <p className="text-sm text-gray-600">
                     {job.city}
                   </p>
+                  {(job.house_no || job.area || job.city) && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([job.house_no, job.area, job.landmark, job.city].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-blue-600 hover:underline">{isHindi ? 'डिलीवरी/सेवा के लिए रास्ता खोलें' : 'Open directions'}</a>}
                 </div>
                 {job.lat && job.lng && (
                   <div>
@@ -221,7 +225,7 @@ export default function JobDetail() {
                       {job.lat}, {job.lng}
                     </p>
                     <a
-                      href={`https://maps.google.com/?q=${job.lat},${job.lng}`}
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${job.lat},${job.lng}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline text-sm"
