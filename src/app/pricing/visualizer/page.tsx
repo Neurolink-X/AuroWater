@@ -95,7 +95,10 @@ export default function PricingVisualizerPage() {
   const [period, setPeriod] = useState<Period>('week');
   const [tab, setTab] = useState<Tab>('playground');
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    const hydration = window.setTimeout(() => setMounted(true), 0);
+    return () => window.clearTimeout(hydration);
+  }, []);
 
   const isCan = serviceKey === 'water_tanker';
   const input: PricingInput = useMemo(() => ({
@@ -442,13 +445,13 @@ export default function PricingVisualizerPage() {
               <div className="glass-strong rounded-2xl p-6">
                 <p className="viz-display text-white font-bold text-sm mb-4">The formula</p>
                 <div className="rounded-xl p-4 text-sm font-mono overflow-x-auto" style={{ background: 'rgba(0,0,0,.3)', border: '1px solid rgba(14,165,233,.2)' }}>
-                  <p className="text-sky-300">// Total = (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
+                  <p className="text-sky-300">Formula: (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
                   <p className="text-white mt-2">total = (base − planDisc + convFee − coupon) × (1 + gstRate) + emg</p>
-                  <p className="text-sky-300 mt-4">// Split base: total (default) or total − GST (pre-GST mode)</p>
+                  <p className="text-sky-300 mt-4">Split base: total (default) or total − GST (pre-GST mode)</p>
                   <p className="text-yellow-300 mt-1">tech = splitBase × techRate</p>
                   <p className="text-amber-300">supp = splitBase × supplierRate</p>
                   <p className="text-emerald-300">platform = splitBase − tech − supp</p>
-                  <p className="text-sky-300 mt-4">// Always true</p>
+                  <p className="text-sky-300 mt-4">Always true</p>
                   <p className="text-white">tech + supp + platform + gstPayable === total</p>
                 </div>
               </div>

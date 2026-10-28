@@ -64,7 +64,7 @@ export default function OfflineClient() {
   );
 
   useEffect(() => {
-    void check(false);
+    const initialCheck = window.setTimeout(() => void check(false), 0);
 
     const onOnline = () => void check(false);
     const onVisible = () => {
@@ -79,6 +79,7 @@ export default function OfflineClient() {
     }, 10000);
 
     return () => {
+      window.clearTimeout(initialCheck);
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(poll);
