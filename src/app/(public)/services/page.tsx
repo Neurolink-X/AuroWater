@@ -1,5 +1,3 @@
-import { DM_Sans, Syne } from 'next/font/google';
-
 import ServicesClient from './ServicesClient';
 import {
   BRAND,
@@ -15,11 +13,6 @@ import './services.css';
 
 /* Page metadata (title, description, canonical, keywords, viewport) lives in layout.tsx.
    This file only renders the page, the structured data and the FAQ. */
-
-/* Fonts are downloaded at build time and served from your own domain:
-   no render-blocking request to Google, no layout jump. */
-const syne = Syne({ subsets: ['latin'], display: 'swap', weight: ['700', '800'], variable: '--font-syne' });
-const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm' });
 
 // Static page: served from the CDN and refreshed once a day. Live prices load in the browser from settings.
 export const revalidate = 86400;
@@ -84,7 +77,7 @@ export default function ServicesPage() {
   ];
 
   return (
-    <div className={`${syne.variable} ${dmSans.variable}`}>
+    <div className="sv-font-fallback">
       {ld.map((o, i) => (
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(o) }} />
       ))}
