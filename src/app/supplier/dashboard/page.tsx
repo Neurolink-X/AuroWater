@@ -781,6 +781,7 @@
 //   // Tracks which "assigned, not yet accepted" orders we've already seen,
 //   // so a genuinely new assignment can trigger an instant alert.
 //   const knownWaitingRef = useRef<Set<string> | null>(null);
+  const dashboardLoadedOnceRef = useRef(false);
   // Preserve visible orders during refreshes; skeletons are only for the first request.
   const ordersLoadedOnceRef = useRef(false);
 //   // Silent refreshes: skeletons only show on the very first load, never on focus/realtime updates.
@@ -2951,7 +2952,9 @@ export default function SupplierDashboardPage() {
 
   // ── Load all data ───────────────────────────────────────────────────────────
   const loadAll = useCallback(async (userId: string) => {
-    setLoading(true);
+    // Show the full-page loader only on first load. Focus/manual refreshes must
+    // keep the last successful dashboard and orders visible while data reloads.
+    if (!dashboardLoadedOnceRef.current) setLoading(true);
     try {
       await Promise.all([
         fetchProfile(userId),
@@ -2960,6 +2963,7 @@ export default function SupplierDashboardPage() {
         fetchDispatchSettings(),
       ]);
     } finally {
+      dashboardLoadedOnceRef.current = true;
       setLoading(false);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
