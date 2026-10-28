@@ -642,7 +642,6 @@ function ServicePriceBox({
 export default function BookingWizard() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings();
   const { session }  = useAuth();
 
   const [step, setStep]           = useState(1);
@@ -650,6 +649,8 @@ export default function BookingWizard() {
   const [hydrated, setHydrated]   = useState(false);
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
+  const pricingCity = draft.newAddress?.city ?? addresses.find((address) => address.id === draft.addressId)?.city ?? undefined;
+  const { settings, calcOrderTotal, whatsappHref, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
