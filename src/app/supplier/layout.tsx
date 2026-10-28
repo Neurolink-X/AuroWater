@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Lexend } from 'next/font/google';
+
 import type { ReactNode } from 'react';
 import SupplierNav from '@/components/supplier/SupplierNav';
 
@@ -15,13 +15,6 @@ import SupplierNav from '@/components/supplier/SupplierNav';
  *
  * Do not render another <main> inside child pages; this layout provides the content landmark.
  */
-
-// Lexend is a variable font: omitting `weight` loads ONE file covering 100 to 900.
-const lexend = Lexend({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-lexend',
-});
 
 const BRAND_BG = '#F4FAF7';
 
@@ -68,8 +61,8 @@ export const viewport: Viewport = {
 export default function SupplierLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className={`${lexend.variable} relative isolate min-h-dvh bg-[#F4FAF7] text-slate-900 antialiased`}
-      style={{ fontFamily: 'var(--font-lexend), system-ui, sans-serif', colorScheme: 'light' }}
+      className="relative isolate min-h-dvh bg-[#F4FAF7] text-slate-900 antialiased"
+      style={{ fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif', colorScheme: 'light' }}
     >
       {/* Soft brand glow behind the header area. Decorative only. */}
       <div
