@@ -473,18 +473,20 @@ function Analytics({ rows }: { rows: Row[] }) {
 }
 
 function Support() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   return (
     <section className="sp-grid">
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">If an order isn’t reaching you</h2>
+        <h2 className="sp-h2">{isHindi ? 'ऑर्डर नहीं मिल रहा है?' : 'If an order isn’t reaching you'}</h2>
         <ol className="sp-steps">
-          <li>Check that you are online in Dispatch settings.</li>
-          <li>Confirm your dispatch location and service radius.</li>
-          <li>Check that you have enough available cans in Inventory.</li>
-          <li>Refresh the Orders page.</li>
+          <li>{isHindi ? 'डिस्पैच सेटिंग में ऑनलाइन स्थिति जाँचें।' : 'Check that you are online in Dispatch settings.'}</li>
+          <li>{isHindi ? 'डिस्पैच लोकेशन और सेवा क्षेत्र की पुष्टि करें।' : 'Confirm your dispatch location and service radius.'}</li>
+          <li>{isHindi ? 'इन्वेंटरी में उपलब्ध कैन की संख्या जाँचें।' : 'Check that you have enough available cans in Inventory.'}</li>
+          <li>{isHindi ? 'ऑर्डर पेज रीफ्रेश करें।' : 'Refresh the Orders page.'}</li>
         </ol>
-        <p className="sp-sub">If a valid order still doesn’t assign, send the order ID to your platform administrator for a dispatch-log review. Never share banking secrets or customer payment details in messages.</p>
-        <Link href="/supplier/settings" className="sp-link">Check dispatch settings</Link>
+        <p className="sp-sub">{isHindi ? 'यदि पात्र ऑर्डर फिर भी असाइन नहीं होता, तो ऑर्डर ID एडमिन को दें ताकि dispatch logs की जाँच हो सके। संदेश में बैंकिंग पासवर्ड या ग्राहक के भुगतान संबंधी गोपनीय जानकारी साझा न करें।' : 'If a valid order still doesn’t assign, send the order ID to your platform administrator for a dispatch-log review. Never share banking secrets or customer payment details in messages.'}</p>
+        <Link href="/supplier/settings" className="sp-link">{isHindi ? 'डिस्पैच सेटिंग जाँचें' : 'Check dispatch settings'}</Link>
       </article>
     </section>
   );
