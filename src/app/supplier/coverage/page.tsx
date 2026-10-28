@@ -26,6 +26,11 @@ export default function SupplierCoveragePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const serviceLabelsHi: Record<string, string> = {
+    water_can: '20 लीटर पानी कैन डिलीवरी', plumbing: 'प्लंबिंग', ro_service: 'RO प्यूरीफायर सर्विस',
+    tank_cleaning: 'पानी की टंकी की सफाई', borewell: 'बोरवेल सेवाएँ', motor_pump: 'मोटर/पंप सर्विस',
+    installation: 'इंस्टॉलेशन', maintenance: 'सामान्य रखरखाव',
+  };
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
@@ -42,10 +47,10 @@ export default function SupplierCoveragePage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const submit = async () => {
-    if (!selected.length) { setError('Choose at least one city or service area.'); return; }
-    if (!services.length) { setError('Choose at least one service.'); return; }
+    if (!selected.length) { setError(isHindi ? 'कम से कम एक शहर या सेवा क्षेत्र चुनें।' : 'Choose at least one city or service area.'); return; }
+    if (!services.length) { setError(isHindi ? 'कम से कम एक सेवा चुनें।' : 'Choose at least one service.'); return; }
     const pinList = requestedPincodes.split(/[\s,]+/).map(p => p.trim()).filter(Boolean);
-    if (pinList.some(p => !/^[0-9]{6}$/.test(p))) { setError('Enter valid 6-digit PIN codes, separated by commas or spaces.'); return; }
+    if (pinList.some(p => !/^[0-9]{6}$/.test(p))) { setError(isHindi ? '6 अंकों के सही PIN कोड कॉमा या स्पेस से अलग करके लिखें।' : 'Enter valid 6-digit PIN codes, separated by commas or spaces.'); return; }
     const requestNote = [pinList.length ? 'Requested PIN codes: ' + [...new Set(pinList)].join(', ') : '', note.trim()].filter(Boolean).join('\n');
     setSaving(true); setError(''); setMessage('');
     try {
@@ -59,7 +64,7 @@ export default function SupplierCoveragePage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? 'Could not submit request.');
-      setMessage('Coverage request sent to AuroTap admin for review. Your selected areas are not active until approval.');
+      setMessage(isHindi ? 'सेवा क्षेत्र का अनुरोध एडमिन को भेज दिया गया है। मंजूरी मिलने तक चुने गए क्षेत्र सक्रिय नहीं होंगे।' : 'Coverage request sent to AuroTap admin for review. Your selected areas are not active until approval.');
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not submit request.'); }
     finally { setSaving(false); }
@@ -86,7 +91,7 @@ export default function SupplierCoveragePage() {
         </div>
       </label>)}</div>}
       <h2 className="mt-6 text-lg font-bold">{isHindi ? '2. उपलब्ध सेवाएँ' : '2. Services you can fulfil'}</h2>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="text-sm">{label}</span></label>)}</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" className="mt-1 shrink-0" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="min-w-0 break-words text-sm">{isHindi ? serviceLabelsHi[key] ?? label : label}</span></label>)}</div>
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'अतिरिक्त 6 अंकों के PIN कोड माँगें (वैकल्पिक)' : 'Request additional 6-digit PIN codes (optional)'}
         <input value={requestedPincodes} onChange={e => setRequestedPincodes(e.target.value)} maxLength={300} placeholder="e.g. 201301, 201307" className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" />
         <span className="mt-1 block text-xs font-normal text-slate-500">{isHindi ? 'ये कोड एडमिन की समीक्षा के लिए हैं; तुरंत सक्रिय नहीं होंगे।' : 'These are a request for admin review, not an instant service-area activation.'}</span>
