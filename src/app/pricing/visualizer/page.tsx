@@ -4,7 +4,7 @@
  * AuroTap — Pricing Engine Visualizer
  * src/app/pricing/visualizer/page.tsx   (internal tool: see layout.tsx for the production gate)
  */
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useSyncExternalStore } from 'react';
 import {
   calculateOrderTotal, validateRevenueIntegrity, evaluateCoupon, computeRevenueStats,
   buildDailyRevenueSeries, filterByPeriod, computeCustomerSavings,
@@ -15,6 +15,9 @@ import {
 
 /* ─── demo data (module scope: created once) ─── */
 const DAY = 86_400_000;
+const subscribeToNothing = () => () => {};
+const getMountedSnapshot = () => true;
+const getServerMountedSnapshot = () => false;
 const NOW = Date.now();
 type SeedOrder = OrderForStats & { discountAmount?: number };
 const o = (status: OrderForStats['status'], total: number, t: number, s: number, p: number, d: number, serviceKey: ServiceKey, discountAmount = 0): SeedOrder =>
@@ -94,8 +97,7 @@ export default function PricingVisualizerPage() {
   const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SETTINGS });
   const [period, setPeriod] = useState<Period>('week');
   const [tab, setTab] = useState<Tab>('playground');
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(subscribeToNothing, getMountedSnapshot, getServerMountedSnapshot);
 
   const isCan = serviceKey === 'water_tanker';
   const input: PricingInput = useMemo(() => ({
@@ -441,13 +443,13 @@ export default function PricingVisualizerPage() {
               <div className="glass-strong rounded-2xl p-6">
                 <p className="viz-display text-white font-bold text-sm mb-4">The formula</p>
                 <div className="rounded-xl p-4 text-sm font-mono overflow-x-auto" style={{ background: 'rgba(0,0,0,.3)', border: '1px solid rgba(14,165,233,.2)' }}>
-                  <p className="text-sky-300">// Total = (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
+                  <p className="text-sky-300">Total = (Base − Plan − Coupon + Convenience) × (1 + GST) + Emergency</p>
                   <p className="text-white mt-2">total = (base − planDisc + convFee − coupon) × (1 + gstRate) + emg</p>
-                  <p className="text-sky-300 mt-4">// Split base: total (default) or total − GST (pre-GST mode)</p>
+                  <p className="text-sky-300 mt-4">Split base: total (default) or total − GST (pre-GST mode)</p>
                   <p className="text-yellow-300 mt-1">tech = splitBase × techRate</p>
                   <p className="text-amber-300">supp = splitBase × supplierRate</p>
                   <p className="text-emerald-300">platform = splitBase − tech − supp</p>
-                  <p className="text-sky-300 mt-4">// Always true</p>
+                  <p className="text-sky-300 mt-4">Always true</p>
                   <p className="text-white">tech + supp + platform + gstPayable === total</p>
                 </div>
               </div>

@@ -3,7 +3,7 @@
  * Fixes: see comments tagged FIX. Everything else behaves as before.
  */
 import { query, queryOne } from '@/lib/db/connection';
-import { PricingRule, PricingResponse } from '@/types';
+import { PricingRule, PricingResponse, ServiceType } from '@/types';
 import { calculateDistance } from '@/lib/utils/helpers';
 
 interface PricingParams {
@@ -41,7 +41,7 @@ export async function calculatePrice(params: PricingParams): Promise<PricingResp
   );
 
   if (!pricingRule) {
-    const serviceType = await queryOne<any>(
+    const serviceType = await queryOne<Pick<ServiceType, 'base_price'>>(
       'SELECT base_price FROM service_types WHERE id = $1 AND is_active = true',
       [service_type_id]
     );
