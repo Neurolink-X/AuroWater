@@ -16,7 +16,7 @@
 export const CAN_PRICES = {
   normal: 20,
   chilled: 25,
-  subscription: 18,
+  subscription: 20,
   bulk: 20,
 } as const;
 
