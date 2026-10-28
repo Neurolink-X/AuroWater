@@ -325,8 +325,9 @@ export async function PATCH(
       );
 
     const unit =
-      Number(
-        subscription.price_per_can
+      Math.max(
+        20,
+        Number(subscription.price_per_can) || 0
       );
 
     const convenience =
