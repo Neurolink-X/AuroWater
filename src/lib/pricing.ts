@@ -1,5 +1,5 @@
 /**
- * AuroWater — Pricing Engine  (src/lib/pricing.ts)
+ * AuroTap — Pricing Engine  (src/lib/pricing.ts)
  * Single source of truth for ALL monetary calculations.
  *
  * Revenue integrity:  technician + supplier + platform + gstPayable === total
@@ -15,17 +15,74 @@ export type PaymentMethod = 'cash' | 'online' | 'upi' | 'card';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'partial';
 export type DiscountType = 'flat' | 'percent';
 
-/* ─── Public can prices + monthly plans (homepage, checkout and visualizer all read these) ─── */
-export const CAN_PRICES = { normal: 20, chilled: 25, litres: 20 } as const;
+/* ─── Can prices: floor + scheduled increase ───
+ * Rule: no discount or plan may ever take a can below CAN_FLOOR.
+ * Today's list price IS the floor (₹20 normal / ₹25 chilled). When list prices rise
+ * (₹25 / ₹30), set PRICE_SCHEDULE.effectiveFrom: nothing changes until that date, and
+ * plan members keep the locked floor price for their lock period. */
+export type CanType = 'normal' | 'chilled';
+export const CAN_FLOOR: Readonly<Record<CanType, number>> = { normal: 20, chilled: 25 };
 
-/** ⚠️ Proposed discounts: confirm against margins. */
+export const PRICE_SCHEDULE: {
+  current: Record<CanType, number>;
+  next: Record<CanType, number>;
+  /** ISO date (e.g. '2026-12-01') when `next` takes effect. null = no increase scheduled. */
+  effectiveFrom: string | null;
+  /** true = show the upcoming increase publicly ("lock today's price" banner) */
+  announce: boolean;
+} = {
+  current: { normal: 20, chilled: 25 },
+  next: { normal: 25, chilled: 30 },
+  effectiveFrom: null,
+  announce: false,
+};
+
+/** List (non-member) price per 20L can at a point in time. */
+export function getListPrices(now: Date = new Date()): Record<CanType, number> {
+  const from = PRICE_SCHEDULE.effectiveFrom ? Date.parse(PRICE_SCHEDULE.effectiveFrom) : NaN;
+  return Number.isFinite(from) && now.getTime() >= from ? PRICE_SCHEDULE.next : PRICE_SCHEDULE.current;
+}
+
+/** Announced future increase, or null. Drives the "lock your price" banner. */
+export function upcomingIncrease(now: Date = new Date()) {
+  const from = PRICE_SCHEDULE.effectiveFrom ? Date.parse(PRICE_SCHEDULE.effectiveFrom) : NaN;
+  if (!PRICE_SCHEDULE.announce || !Number.isFinite(from) || now.getTime() >= from) return null;
+  return { from: PRICE_SCHEDULE.effectiveFrom as string, next: PRICE_SCHEDULE.next };
+}
+
+/** Live list prices (getters, so ISR/long-lived servers pick up the switch date without a redeploy). */
+export const CAN_PRICES = {
+  get normal() { return getListPrices().normal; },
+  get chilled() { return getListPrices().chilled; },
+  litres: 20 as const,
+};
+
+/**
+ * Monthly plans protect the price instead of cutting it below the floor.
+ * lockMonths = months the member keeps the floor price even if list prices rise.
+ * off = extra % off the list price after that, never below CAN_FLOOR.
+ * ⚠️ Proposed numbers: confirm against margins.
+ */
 export const VOLUME_PLANS = [
-  { id: 'payg',   name: 'Pay as you go', minCans: 1,  off: 0,  note: 'No commitment' },
-  { id: 'saver',  name: 'Home Saver',    minCans: 12, off: 5,  note: '12+ cans / month' },
-  { id: 'family', name: 'Family Plan',   minCans: 30, off: 8,  note: '30+ cans / month' },
-  { id: 'bulk',   name: 'Office & Bulk', minCans: 60, off: 12, note: '60+ cans / month' },
+  { id: 'payg',   name: 'Pay as you go', minCans: 1,  off: 0,  lockMonths: 0,  note: 'No commitment' },
+  { id: 'saver',  name: 'Home Saver',    minCans: 12, off: 5,  lockMonths: 3,  note: '12+ cans / month' },
+  { id: 'family', name: 'Family Plan',   minCans: 30, off: 8,  lockMonths: 6,  note: '30+ cans / month' },
+  { id: 'bulk',   name: 'Office & Bulk', minCans: 60, off: 12, lockMonths: 12, note: '60+ cans / month' },
 ] as const;
 export type VolumePlan = (typeof VOLUME_PLANS)[number];
+
+/** Price per can a plan member pays right now (never below the floor). */
+export function memberCanPrice(type: CanType, plan: VolumePlan, now: Date = new Date()) {
+  const list = getListPrices(now)[type];
+  const floor = CAN_FLOOR[type];
+  const afterLock = Math.max(floor, r2(list * (1 - plan.off / 100)));
+  const locked = plan.lockMonths > 0;
+  const price = locked ? floor : afterLock;
+  return {
+    list, floor, price, afterLock, locked, lockMonths: plan.lockMonths,
+    savingPct: list > 0 ? Math.round(((list - price) / list) * 1000) / 10 : 0,
+  };
+}
 
 export function planForQty(cansPerMonth: number): VolumePlan {
   const q = Number.isFinite(cansPerMonth) ? cansPerMonth : 0;
@@ -60,6 +117,8 @@ export type PricingInput = {
   /** Water cans in this order (serviceKey === 'water_tanker') */
   canCount?: number;
   pricePerCan?: number;
+  /** NEW: which can this is, so the right price floor applies (default 'normal') */
+  canType?: CanType;
   /** NEW: customer's monthly can volume; applies the matching VOLUME_PLANS discount to the can charge */
   monthlyCanCount?: number;
   /**
@@ -150,9 +209,14 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
   if (input.serviceKey === 'water_tanker' && input.monthlyCanCount != null) {
     const plan = planForQty(input.monthlyCanCount);
     if (plan.off > 0) {
-      volumeDiscount = r2(base * (plan.off / 100));
-      appliedPlan = plan.name;
-      lines.push({ label: `${plan.name} plan (${plan.off}% off)`, amount: volumeDiscount, sign: -1, note: plan.note });
+      // Plan discount can never push the can charge below the price floor
+      const minBase = r2(clampMin(input.canCount ?? 0) * CAN_FLOOR[input.canType ?? 'normal']);
+      const discounted = Math.max(r2(base * (1 - plan.off / 100)), minBase);
+      volumeDiscount = r2(Math.max(0, base - discounted));
+      if (volumeDiscount > 0) {
+        appliedPlan = plan.name;
+        lines.push({ label: `${plan.name} plan discount`, amount: volumeDiscount, sign: -1, note: 'Never below the price floor' });
+      }
     }
   }
   const baseAfterPlan = r2(base - volumeDiscount);
