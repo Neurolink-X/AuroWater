@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 import {
   getUser,
@@ -139,6 +141,8 @@ function getNextAction(status: string) {
 }
 
 export default function TechnicianJobs() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const router = useRouter();
 
   const [user, setUser] = useState<User | null>(null);
@@ -320,27 +324,27 @@ export default function TechnicianJobs() {
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
 
               <span className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
-                Technician workspace
+                {isHindi ? 'टेक्नीशियन कार्यक्षेत्र' : 'Technician workspace'}
               </span>
             </div>
 
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-              Good to see you, {user.full_name}
+              {isHindi ? 'स्वागत है' : 'Good to see you'}, {user.full_name}
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-              Manage your assigned jobs and keep every service moving.
+              {isHindi ? 'अपनी जॉब, लोकेशन और सेवा की स्थिति संभालें।' : 'Manage your assigned jobs and keep every service moving.'}
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={refreshJobs}
               disabled={refreshing}
               className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
             >
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              {refreshing ? (isHindi ? 'रीफ्रेश हो रहा है…' : 'Refreshing…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
             </button>
 
             <Link
@@ -360,6 +364,7 @@ export default function TechnicianJobs() {
             >
               Logout
             </button>
+            <LanguageToggle />
           </div>
         </header>
 
@@ -590,7 +595,7 @@ export default function TechnicianJobs() {
                           href={`/technician/job/${job.id}`}
                           className="text-sm font-semibold text-[#003049] hover:underline"
                         >
-                          View complete job →
+                          {isHindi ? 'जॉब का पूरा विवरण देखें →' : 'View complete job →'}
                         </Link>
 
                         <div className="flex w-full gap-2 sm:w-auto">
@@ -669,7 +674,7 @@ export default function TechnicianJobs() {
 
             <div>
               <h2 className="font-bold text-slate-900">
-                Keep every job moving
+                {isHindi ? 'हर जॉब को आगे बढ़ाएँ' : 'Keep every job moving'}
               </h2>
 
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">
