@@ -238,10 +238,10 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
   if (rows.length === 0) {
     return (
       <Empty
-        title="No assigned orders yet"
-        text="Orders arrive when dispatch assigns one to you. Go online, confirm your location, radius and stock, then refresh."
+        title={language === 'hi' ? 'अभी कोई ऑर्डर नहीं मिला' : 'No assigned orders yet'}
+        text={language === 'hi' ? 'ऑर्डर मिलने के लिए ऑनलाइन हों, लोकेशन, सेवा क्षेत्र और स्टॉक की पुष्टि करें, फिर रीफ्रेश करें।' : 'Orders arrive when dispatch assigns one to you. Go online, confirm your location, radius and stock, then refresh.'}
         href="/supplier/settings"
-        cta="Open dispatch settings"
+        cta={language === 'hi' ? 'डिस्पैच सेटिंग खोलें' : 'Open dispatch settings'}
       />
     );
   }
@@ -254,6 +254,11 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
         // Accept/decline only while the order is still awaiting a decision. The API answers 409 once it is accepted.
         const acceptedFlag = Boolean(o.accepted_at ?? o.supplier_accepted_at ?? o.is_accepted);
         const canAccept = !decided.has(id) && (status === 'pending' || (status === 'assigned' && !acceptedFlag));
+        const deliveryAddress = str(o.address_text ?? o.address_line ?? o.address);
+        const canNavigate = Boolean(deliveryAddress && deliveryAddress !== 'Address on order' && ['assigned', 'in_progress'].includes(status));
+        const directionsHref = canNavigate
+          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(deliveryAddress)}`
+          : null;
         return (
           <article key={id || i} className="sp-card">
             <div className="sp-row">
@@ -261,22 +266,23 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
               <StatusBadge status={status} />
             </div>
             <dl className="sp-dl">
-              <dt>Service</dt><dd>{str(o.service_type_label ?? o.service_type, 'Water order')}</dd>
-              <dt>Customer</dt><dd>{str(o.customer_name, 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
-              <dt>Address</dt><dd>{str(o.address_text ?? o.address_line ?? o.address, 'Address on order')}</dd>
-              <dt>Payment</dt><dd>{norm(o.payment_status) === 'paid' ? 'Paid' : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`}</dd>
-              <dt>Slot</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
+              <dt>{language === 'hi' ? 'सेवा' : 'Service'}</dt><dd>{str(o.service_type_label ?? o.service_type, language === 'hi' ? 'पानी का ऑर्डर' : 'Water order')}</dd>
+              <dt>{language === 'hi' ? 'ग्राहक' : 'Customer'}</dt><dd>{str(o.customer_name, language === 'hi' ? 'ग्राहक' : 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
+              <dt>{language === 'hi' ? 'पता' : 'Address'}</dt><dd>{deliveryAddress || (language === 'hi' ? 'पता स्वीकार करने के बाद उपलब्ध होगा' : 'Address on order')}</dd>
+              <dt>{language === 'hi' ? 'भुगतान' : 'Payment'}</dt><dd>{norm(o.payment_status) === 'paid' ? (language === 'hi' ? 'भुगतान हो गया' : 'Paid') : (language === 'hi' ? `डिलीवरी पर भुगतान (${str(o.payment_method, 'cash').toUpperCase()})` : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`)}</dd>
+              <dt>{language === 'hi' ? 'समय' : 'Slot'}</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, language === 'hi' ? 'समय तय होना बाकी' : 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
             </dl>
             <p className="sp-amount">{money(o.final_amount ?? o.total_amount ?? o.amount)}</p>
 
             <div className="sp-actions">
+              {directionsHref && <a className="sp-link" href={directionsHref} target="_blank" rel="noopener noreferrer">{language === 'hi' ? 'डिलीवरी के लिए रास्ता खोलें' : 'Navigate to delivery'}</a>}
               {canAccept && (
                 <button className="sp-btn" disabled={busy} onClick={() => void decide(id, 'accept')}>
                   Accept order
                 </button>
               )}
               {status === 'assigned' && (
-                <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', 'Delivery started.')}>
+                <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
                   Start delivery
                 </button>
               )}
@@ -294,9 +300,9 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                     )}
                     <Confirm
                       className="sp-btn sp-btn--amber"
-                      confirmText={paid ? 'Tap again to confirm delivery' : `Tap again: ${amount} received`}
+                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} प्राप्त हुए` : `Tap again: ${amount} received`)}
                       disabled={busy || (!paid && upi && !ref)}
-                      onConfirm={() => void advance(id, 'completed', 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
+                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
                     >
                       <span className="sp-pulse" aria-hidden /> Complete delivery
                     </Confirm>
@@ -304,7 +310,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 );
               })()}
               {(status === 'completed' || status === 'delivered') && (
-                <button className="sp-btn sp-btn--ghost" disabled>Delivered</button>
+                <button className="sp-btn sp-btn--ghost" disabled>{language === 'hi' ? 'डिलीवर हो गया' : 'Delivered'}</button>
               )}
               {canAccept && (
                 <Confirm className="sp-btn sp-btn--ghost" confirmText="Tap again to decline" disabled={busy}
@@ -313,7 +319,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 </Confirm>
               )}
             </div>
-            {status === 'in_progress' && <p className="sp-hint">Delivery in progress</p>}
+            {status === 'in_progress' && <p className="sp-hint">{language === 'hi' ? 'डिलीवरी जारी है' : 'Delivery in progress'}</p>}
           </article>
         );
       })}
@@ -714,7 +720,7 @@ const CSS = `
 //         <p>{String(o.scheduled_date??o.scheduled_at??'Schedule pending')} {String(o.time_slot??o.scheduled_slot??'')}</p><strong>{money(o.final_amount??o.total_amount??o.amount)}</strong>
 //         <div style={{...row,justifyContent:'flex-start',marginTop:16}}>
 //           {['ASSIGNED','PENDING'].includes(String(o.status??'').toUpperCase()) && <>
-//             <button style={button} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/accept`,'PUT',{})}>Accept order</button>
+//             <button style={button} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/accept`,'PUT',{})}>{language === 'hi' ? 'ऑर्डर स्वीकार करें' : 'Accept order'}</button>
 //             <button style={secondaryButton} disabled={busy} onClick={()=>{if(window.confirm('Decline this order? It may be offered to another supplier.'))void send(`/api/supplier/orders/${String(o.id)}/reject`,'PUT',{reason:'Supplier declined'});}}>Decline</button>
 //           </>}
 //           {String(o.status??'').toUpperCase()==='ASSIGNED' && <button style={secondaryButton} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/status`,'PUT',{status:'IN_PROGRESS'})}>Start delivery</button>}
