@@ -13,7 +13,9 @@ export type { VolumePlan as Plan } from '@/lib/pricing';
 export const SITE = {
   name: 'AuroTap',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://aurotap.in',
-  phone: '', // e.g. '+91XXXXXXXXXX' – add for LocalBusiness schema
+  phone: '+919889305803', // e.g. '+91XXXXXXXXXX' – add for LocalBusiness schema
+  /** Real profile URLs (Google Business Profile, Instagram, Facebook, LinkedIn...) for the schema `sameAs` field */
+  social: [] as string[],
 };
 
 export const PRICING = {
@@ -52,7 +54,7 @@ export const CITIES = [
   { slug: 'delhi',     name: 'Delhi',     state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['Dwarka', 'Rohini', 'Saket', 'Laxmi Nagar', 'Janakpuri', 'Pitampura', 'Mayur Vihar', 'Vasant Kunj'] },
   { slug: 'noida',     name: 'Noida',     state: 'Delhi NCR', status: 'live' as CityStatus,
-    areas: ['Sector 15', 'Sector 18', 'Sector 50', 'Sector 62', 'Sector 75','Sector 73', 'Sector 76', 'Sector 120', 'Sector 137', 'Greater Noida West'] },
+    areas: ['Sector 15', 'Sector 18', 'Sector 50', 'Sector 62', 'Sector 75', 'Sector 73', 'Sector 76', 'Sector 120', 'Sector 137', 'Greater Noida West'] },
   { slug: 'gurugram',  name: 'Gurugram',  state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['DLF Phases', 'Golf Course Road', 'Sohna Road', 'Sector 56', 'Udyog Vihar'] },
   { slug: 'agra',      name: 'Agra',      state: 'Uttar Pradesh', status: 'pin-approved' as CityStatus,
