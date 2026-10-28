@@ -176,14 +176,14 @@ export async function POST(req: NextRequest) {
       ? [...new Set(body.service_keys as string[])].sort() : null;
   if (serviceKeys === null || serviceKeys.length === 0) return withMeta(jsonErr('Choose at least one valid service type.', 422), rid);
   const note = typeof body.supplier_note === 'string' ? body.supplier_note.trim().slice(0, 500) : '';
-  const pinMatch = note.match(/Requested PIN codes:\\s*([^\\n]+)/i);
+  const pinMatch = note.match(/Requested PIN codes:\s*([^\n]+)/i);
   const requestedPins = pinMatch
-    ? [...new Set(pinMatch[1].split(/[\\s,]+/).map(p => p.trim()).filter(Boolean))]
+    ? [...new Set(pinMatch[1].split(/[\s,]+/).map(p => p.trim()).filter(Boolean))]
     : [];
   if (requestedPins.length > 3) {
     return withMeta(jsonErr('You can request a maximum of 3 additional PIN codes at a time.', 422), rid);
   }
-  if (requestedPins.some(pin => !/^\\d{6}$/.test(pin))) {
+  if (requestedPins.some(pin => !/^\d{6}$/.test(pin))) {
     return withMeta(jsonErr('Requested PIN codes must be valid 6-digit numbers.', 422), rid);
   }
 
