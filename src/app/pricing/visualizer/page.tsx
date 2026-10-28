@@ -133,7 +133,14 @@ export default function PricingVisualizerPage() {
     if (!c) { setAppliedCoupon(null); setCouponMsg({ text: 'Coupon not found. Try FIRST50 or WATER20.', ok: false }); return; }
     // Evaluate against the same subtotal the engine uses (after any volume plan)
     const base = isCan ? CAN_PRICES[canType] * canCount : settings[serviceKey];
-    const subtotal = base - base * (isCan ? plan.off / 100 : 0) + settings.convenienceFee;
+    const minimumCanSubtotal = isCan
+      ? (canType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal) * canCount
+      : 0;
+    const requestedPlanDiscount = base * (isCan ? plan.off / 100 : 0);
+    const safePlanDiscount = isCan
+      ? Math.min(requestedPlanDiscount, Math.max(0, base - minimumCanSubtotal))
+      : requestedPlanDiscount;
+    const subtotal = base - safePlanDiscount + settings.convenienceFee;
     const res = evaluateCoupon(c, subtotal);
     if (res.valid) { setAppliedCoupon(c); setCouponMsg({ text: res.message, ok: true }); }
     else { setAppliedCoupon(null); setCouponMsg({ text: res.error, ok: false }); }
