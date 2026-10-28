@@ -22,13 +22,14 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   if (!money(v.gst_rate, 0, 1)) return { error: 'GST must be decimal-based (for example, 0.18).' };
   if (Number(v.bulk_can_price) > Number(v.water_normal)) return { error: 'Bulk price cannot exceed normal water price.' };
   if (!v.services || typeof v.services !== 'object' || Array.isArray(v.services)) return { error: 'Service prices are required.' };
-  const services: Record<string, number> = {};
+  const serviceEntries: Array<[string, number]> = [];
   for (const [key, value] of Object.entries(v.services as Record<string, unknown>)) {
     if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 1, 100000)) return { error: 'Invalid service price: ' + key };
-    services[key] = Math.round(value * 100) / 100;
+    serviceEntries.push([key, Math.round(value * 100) / 100]);
   }
-  if (!Object.keys(services).length) return { error: 'At least one service price is required.' };
-  const cityOverrides: Record<string, PriceBook> = {};
+  const services = Object.fromEntries(serviceEntries) as Record<string, number>;
+  if (!serviceEntries.length) return { error: 'At least one service price is required.' };
+  const cityOverrideEntries: Array<[string, PriceBook]> = [];
   if (v.city_overrides !== undefined) {
     if (!v.city_overrides || typeof v.city_overrides !== 'object' || Array.isArray(v.city_overrides)) return { error: 'City pricing overrides must be an object.' };
     for (const [rawCity, rawOverride] of Object.entries(v.city_overrides as Record<string, unknown>)) {
@@ -38,7 +39,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
       const checked = validate(rawOverride);
       if (!checked.config) return { error: `Invalid pricing for ${rawCity}: ${checked.error ?? 'check all fields'}` };
       const cleanOverride = Object.fromEntries(Object.entries(checked.config).filter(([key]) => key !== 'city_overrides')) as PriceBook;
-      cityOverrides[city] = cleanOverride;
+      cityOverrideEntries.push([city, cleanOverride]);
     }
   }
   return { config: {
@@ -50,7 +51,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     convenience_fee: Math.round(Number(v.convenience_fee) * 100) / 100,
     emergency_surcharge: Math.round(Number(v.emergency_surcharge) * 100) / 100,
     gst_rate: Number(v.gst_rate),
-    ...(Object.keys(cityOverrides).length ? { city_overrides: cityOverrides } : {}),
+    ...(cityOverrideEntries.length ? { city_overrides: Object.fromEntries(cityOverrideEntries) as Record<string, PriceBook> } : {}),
   } };
 }
 
