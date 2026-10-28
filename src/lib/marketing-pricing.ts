@@ -69,9 +69,9 @@ export const PIN_CITY_NAMES = names(PIN_CITIES);
 
 export const FAQS = [
   { q: `How much does 20L RO water delivery cost?`,
-    a: `Normal RO is ₹${PRICING.water.normal} per 20L can and Chilled RO is ₹${PRICING.water.chilled} per 20L can. Monthly plans reduce the per-can price by up to ${PRICING.plans[3].off}%.` },
+    a: `Normal RO is ₹${PRICING.water.normal} per 20L can and Chilled RO is ₹${PRICING.water.chilled} per 20L can. Family and bulk plans offer convenient repeat scheduling; per-can prices never go below these minimums.` },
   { q: 'How much can I save with a monthly water plan?',
-    a: `Plans start at ${PRICING.plans[1].off}% off from ${PRICING.plans[1].minCans} cans a month, ${PRICING.plans[2].off}% from ${PRICING.plans[2].minCans} cans and ${PRICING.plans[3].off}% from ${PRICING.plans[3].minCans} cans. Use the savings calculator to compare against what you pay today.` },
+    a: `Choose a repeat schedule that fits your household or office. Normal RO is at least ₹20 per 20L can and Chilled RO is at least ₹25 per 20L can, including family and bulk plans.` },
   { q: 'How much does water tank cleaning cost?',
     a: `Tank cleaning starts from ₹${PRICING.tank[0].from} for tanks up to 500 litres, ₹${PRICING.tank[1].from} up to 1,000 litres and ₹${PRICING.tank[2].from} up to 2,000 litres. Larger or heavily soiled tanks are quoted before work begins.` },
   { q: 'What is the plumber visit charge?',
