@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
 
   // Show the supplier's registered city first and only; prevents a Noida supplier
   // accidentally requesting a Kanpur zone simply because all zones were globally listed.
-  const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\\s+/g, ' ');
+  const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
   const supplierCity = normalizeCity(profileRes.data?.city);
   const cityZones = supplierCity
     ? zonesRes.rows.filter(z => normalizeCity(z.city) === supplierCity)
