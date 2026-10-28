@@ -10,6 +10,13 @@ const CACHE = {
   'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
 };
 
+function normalizePricingCity(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
+  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-'));
+  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 function defaultPayload(): Record<string, unknown> {
   return {
     default_can_price: 20,
@@ -89,7 +96,7 @@ export async function GET(req: NextRequest) {
     if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
       const publishedConfig = activeVersion.config as Record<string, unknown>;
       const requestedCity = req.nextUrl.searchParams.get('city');
-      const cityKey = String(requestedCity ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const cityKey = normalizePricingCity(requestedCity);
       const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
         ? publishedConfig.city_overrides as Record<string, unknown> : {};
       const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
