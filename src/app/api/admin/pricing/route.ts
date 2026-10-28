@@ -34,9 +34,10 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     for (const [rawCity, rawOverride] of Object.entries(v.city_overrides as Record<string, unknown>)) {
       const city = rawCity.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       if (!city || city.length > 60) return { error: 'Invalid city name in pricing overrides.' };
+      if (!rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride) || 'city_overrides' in (rawOverride as Record<string, unknown>)) return { error: `Nested city overrides are not allowed for ${rawCity}.` };
       const checked = validate(rawOverride);
       if (!checked.config) return { error: `Invalid pricing for ${rawCity}: ${checked.error ?? 'check all fields'}` };
-      const { city_overrides: _nested, ...cleanOverride } = checked.config;
+      const cleanOverride = Object.fromEntries(Object.entries(checked.config).filter(([key]) => key !== 'city_overrides')) as Omit<Config, 'city_overrides'>;
       cityOverrides[city] = cleanOverride;
     }
   }
