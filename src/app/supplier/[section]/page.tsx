@@ -297,7 +297,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                       disabled={busy || (!paid && upi && !ref)}
                       onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
                     >
-                      <span className="sp-pulse" aria-hidden /> Complete delivery
+                      <span className="sp-pulse" aria-hidden /> {language === 'hi' ? 'डिलीवरी पूरी करें' : 'Complete delivery'}
                     </Confirm>
                   </>
                 );
