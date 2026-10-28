@@ -135,15 +135,16 @@ export function evaluateCoupon(coupon: Coupon, preTaxSubtotal: number): CouponRe
  */
 export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
   const lines: PriceLine[] = [];
+  const waterCanCount = input.canCount == null ? null : Math.max(1, Math.floor(clampMin(input.canCount)));
 
   // 1. Base (can override)
   let base: number;
-  if (input.serviceKey === 'water_tanker' && input.canCount != null && input.pricePerCan != null) {
+  if (input.serviceKey === 'water_tanker' && waterCanCount != null && input.pricePerCan != null) {
     const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
     const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
     const safeUnitPrice = Math.max(clampMin(input.pricePerCan), minimumUnitPrice);
-    base = r2(clampMin(input.canCount) * safeUnitPrice);
-    lines.push({ label: `Water Cans (${input.canCount} × ₹${safeUnitPrice})`, amount: base, sign: 1 });
+    base = r2(waterCanCount * safeUnitPrice);
+    lines.push({ label: `Water Cans (${waterCanCount} × ₹${safeUnitPrice})`, amount: base, sign: 1 });
   } else {
     base = r2(clampMin(input.basePrice));
     lines.push({ label: 'Service Charge', amount: base, sign: 1 });
@@ -155,12 +156,12 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
   if (input.serviceKey === 'water_tanker' && input.monthlyCanCount != null) {
     const plan = planForQty(input.monthlyCanCount);
     if (plan.off > 0) {
-      const hasUnitPrice = input.canCount != null && input.pricePerCan != null;
+      const hasUnitPrice = waterCanCount != null && input.pricePerCan != null;
       // Existing callers that do not identify the can type remain compatible.
       const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
       const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
       const minimumCanSubtotal = hasUnitPrice
-        ? r2(clampMin(input.canCount!) * minimumUnitPrice)
+        ? r2(waterCanCount! * minimumUnitPrice)
         : 0;
       const maximumSafeDiscount = hasUnitPrice ? Math.max(0, base - minimumCanSubtotal) : base;
       volumeDiscount = r2(Math.min(base * (plan.off / 100), maximumSafeDiscount));
@@ -187,10 +188,10 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
     if (res.valid) {
       discountAmount = res.discount;
       // Coupons may reduce fees, but never water-can charges below approved floors.
-      if (input.serviceKey === 'water_tanker' && input.canCount != null && input.pricePerCan != null) {
+      if (input.serviceKey === 'water_tanker' && waterCanCount != null && input.pricePerCan != null) {
         const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
         const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
-        const minimumCanSubtotal = r2(clampMin(input.canCount) * minimumUnitPrice);
+        const minimumCanSubtotal = r2(waterCanCount * minimumUnitPrice);
         discountAmount = r2(Math.min(discountAmount, Math.max(0, subtotal - minimumCanSubtotal)));
       }
       if (discountAmount > 0) {
