@@ -5,17 +5,17 @@ import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
-import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, planForQty } from '@/lib/marketing-pricing';
+import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, memberCanPrice, upcomingIncrease, planForQty } from '@/lib/marketing-pricing';
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
-const MAX_OFF = Math.max(...PRICING.plans.map(p => p.off));
+const MAX_LOCK = MAX_LOCK_MONTHS;
 
 const SERVICES = [
   { icon: '💧', title: 'RO Water Delivery', badge: `From ₹${W.normal} / 20L`,
-    body: `Normal RO ₹${W.normal} or Chilled RO ₹${W.chilled} per 20L can, delivered to your door. Subscribe monthly and save up to ${MAX_OFF}%.`,
+    body: `Normal RO ₹${W.normal} or Chilled RO ₹${W.chilled} per 20L can, delivered to your door. Subscribe monthly and lock your price for up to ${MAX_LOCK} months.`,
     cta: 'Order Water', href: '/book?service=water_can',
-    features: ['Normal & chilled', 'Monthly plans save up to ' + MAX_OFF + '%', 'Price shown before confirming'], accent: '#0ea5e9' },
+    features: ['Normal & chilled', 'Plans lock your price up to ' + MAX_LOCK + ' months', 'Price shown before confirming'], accent: '#0ea5e9' },
   { icon: '🔧', title: 'Plumber Service', badge: `Visit ₹${PRICING.plumber.visitFee}`,
     body: `Leaking taps, fittings, pipe repairs and water-system jobs. The ₹${PRICING.plumber.visitFee} visit charge is adjusted against your bill if you go ahead.`,
     cta: 'Book a Plumber', href: '/book?service=plumbing',
@@ -32,7 +32,7 @@ const SERVICES = [
 
 const WHY = [
   { icon: '💰', t: 'Price before you pay', d: 'Review the full order total before confirming. No surprise add-ons.', c: '#10b981' },
-  { icon: '📉', t: `Save up to ${MAX_OFF}%`, d: 'Monthly plans lower your per-can price automatically as volume grows.', c: '#0ea5e9' },
+  { icon: '📉', t: 'Price lock', d: `Monthly plans keep your per-can price fixed for up to ${MAX_LOCK} months, even if list prices change.`, c: '#0ea5e9' },
   { icon: '✅', t: 'Verified partners', d: 'Suppliers and technicians go through verification before they receive jobs.', c: '#8b5cf6' },
   { icon: '📱', t: 'Order updates', d: 'Follow your booking status from request to completion.', c: '#f59e0b' },
 ] as const;
@@ -94,9 +94,10 @@ function PricingSection() {
   const cur = Number(current);
   const qtyOk = Number.isFinite(qty) && qty >= 1 && qty <= 1000;
   const curOk = current.trim() !== '' && Number.isFinite(cur) && cur > 0;
-  const base = W[type];
   const plan = planForQty(qtyOk ? qty : 1);
-  const canPrice = base * (1 - plan.off / 100);
+  const mp = memberCanPrice(type, plan); // never below the price floor
+  const canPrice = mp.price;
+  const increase = upcomingIncrease();
   const feeMonthly = ORDER_FEES.perDelivery * ORDER_FEES.assumedDeliveriesPerMonth;
   const monthly = canPrice * (qtyOk ? qty : 0) + (qtyOk ? feeMonthly : 0);
   const eff = qtyOk ? monthly / qty : canPrice; // per-can price INCLUDING order fees, so savings are never overstated
@@ -108,9 +109,15 @@ function PricingSection() {
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <div className="text-center mb-10">
           <span className="aw-badge aw-badge-dk">Simple, honest pricing</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal}. Save up to {MAX_OFF}% monthly.</h2>
-          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Water, plumbing and tank cleaning with prices shown up front. The more you order, the less each can costs.</p>
+          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal}. Lock your price with a monthly plan.</h2>
+          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Water, plumbing and tank cleaning with prices shown up front. Plans protect you from price changes: your per-can price stays locked while your plan is active.</p>
         </div>
+
+        {increase && (
+          <p className="mb-6 mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
+            ⏳ List prices move to ₹{increase.next.normal} / ₹{increase.next.chilled} per can from {new Date(increase.from).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}. Start a plan before then to lock today&apos;s price.
+          </p>
+        )}
 
         {/* Plans */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -121,9 +128,10 @@ function PricingSection() {
                 {best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-sky-600 text-white text-[11px] font-bold px-3 py-1">Most popular</span>}
                 <h3 className="font-display font-extrabold text-slate-900">{p.name}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{p.note}</p>
-                <p className="mt-4 text-3xl font-extrabold text-slate-900">₹{fmt(W.normal * (1 - p.off / 100))}<span className="text-sm font-medium text-slate-400"> / can</span></p>
-                <p className="text-xs text-slate-500">Chilled ₹{fmt(W.chilled * (1 - p.off / 100))}</p>
-                <p className={`mt-3 text-sm font-bold ${p.off ? 'text-emerald-600' : 'text-slate-400'}`}>{p.off ? `Save ${p.off}%` : 'Standard price'}</p>
+                <p className="mt-4 text-3xl font-extrabold text-slate-900">₹{fmt(memberCanPrice('normal', p).price)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
+                <p className="text-xs text-slate-500">Chilled ₹{fmt(memberCanPrice('chilled', p).price)}</p>
+                <p className={`mt-3 text-sm font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Price locked ${p.lockMonths} months` : 'Standard price'}</p>
+                {p.off > 0 && <p className="mt-1 text-xs text-slate-500">+{p.off}% off future list prices</p>}
               </div>
             );
           })}
@@ -133,7 +141,7 @@ function PricingSection() {
         <div className="rounded-3xl bg-slate-900 text-white p-6 sm:p-8 grid lg:grid-cols-2 gap-8">
           <div>
             <h3 className="font-display text-xl font-extrabold">Savings calculator</h3>
-            <p className="text-sm text-slate-400 mt-1">Enter what you pay today. We compare it with your AuroWater plan price. Nothing is assumed about other suppliers.</p>
+            <p className="text-sm text-slate-400 mt-1">Enter what you pay today. We compare it with your AuroTap plan price. Nothing is assumed about other suppliers.</p>
             <div className="mt-5 flex gap-2" role="group" aria-label="Water type">
               {(['normal', 'chilled'] as const).map(t => (
                 <button key={t} type="button" onClick={() => setType(t)} aria-pressed={type === t}
@@ -154,7 +162,7 @@ function PricingSection() {
           </div>
 
           <div aria-live="polite" className="rounded-2xl bg-white/[0.05] border border-white/10 p-5 flex flex-col justify-center">
-            <p className="text-xs text-slate-400">Your plan: <strong className="text-white">{plan.name}</strong>{plan.off ? ` (${plan.off}% off)` : ''}</p>
+            <p className="text-xs text-slate-400">Your plan: <strong className="text-white">{plan.name}</strong>{mp.locked ? ` · ₹${fmt(mp.price)} locked for ${mp.lockMonths} months` : ''}</p>
             <p className="mt-1 text-3xl font-extrabold">₹{fmt(eff)} <span className="text-sm font-medium text-slate-400">per can</span></p>
             <p className="text-sm text-slate-300">≈ ₹{fmt(monthly)} / month for {qtyOk ? qty : 0} cans</p>
             {feeMonthly > 0 && <p className="text-xs text-slate-400">Includes about ₹{fmt(feeMonthly)} / month in delivery fees ({ORDER_FEES.assumedDeliveriesPerMonth} deliveries).</p>}
@@ -298,14 +306,14 @@ export default function HomeClient() {
               <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
 
                 <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
-                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in Kanpur, Lucknow &amp; Gorakhpur · Delhi NCR &amp; Agra on select PIN codes</div>
+                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in {LIVE_CITY_NAMES.replace(' and ', ' & ')} · {PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
                     <span className="hero-h block mt-2">RO Water from ₹{W.normal},</span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
-                    Order 20L RO cans, book a plumber or schedule water tank cleaning. See the price before you confirm, and save up to {MAX_OFF}% with a monthly plan.
+                    Order 20L RO cans, book a plumber or schedule water tank cleaning. See the price before you confirm, and lock your price with a monthly plan.
                   </p>
                   <div className="flex flex-wrap gap-3 mb-8">
                     <Link href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base">💧 Order Water</Link>
@@ -316,7 +324,7 @@ export default function HomeClient() {
                     {[
                       [`₹${W.normal}`, 'Normal RO · 20L'],
                       [`₹${W.chilled}`, 'Chilled RO · 20L'],
-                      [`${MAX_OFF}%`, 'Max monthly saving'],
+                      [`${MAX_LOCK}mo`, 'Price lock on plans'],
                       [`₹${PRICING.tank[0].from}`, 'Tank cleaning from'],
                     ].map(([v, l]) => (
                       <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -332,7 +340,7 @@ export default function HomeClient() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { src: 'https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1000&q=80', alt: 'Clean 20 litre RO drinking water dispenser for home delivery', tag: '20L RO cans', priority: true },
-                      { src: '/Friendly Kitchen Water Service Team.png', alt: 'AuroWater delivery team handing over a 20 litre water can', tag: 'Doorstep delivery', priority: false },
+                      { src: '/Friendly Kitchen Water Service Team.png', alt: 'AuroTap delivery team handing over a 20 litre water can', tag: 'Doorstep delivery', priority: false },
                       { src: '/mentinence image.png', alt: 'Plumber repairing pipes and cleaning a water tank', tag: 'Plumbing & tanks', priority: false },
                     ].map(im => (
                       <figure key={im.tag} className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
@@ -347,7 +355,7 @@ export default function HomeClient() {
                   <div className="aw-glass p-5">
                     <p className="font-display text-sm font-bold text-emerald-300 mb-3">Why customers switch</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${W.normal} per 20L can, ₹${W.chilled} for chilled`, `Monthly plans save up to ${MAX_OFF}% automatically`, `Plumber visit ₹${PRICING.plumber.visitFee}, adjusted in your bill`, `Tank cleaning priced by size from ₹${PRICING.tank[0].from}`].map(i => (
+                      {[`Pay ₹${W.normal} per 20L can, ₹${W.chilled} for chilled`, `Monthly plans lock your price up to ${MAX_LOCK} months`, `Plumber visit ₹${PRICING.plumber.visitFee}, adjusted in your bill`, `Tank cleaning priced by size from ₹${PRICING.tank[0].from}`].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -363,7 +371,7 @@ export default function HomeClient() {
         {/* ═══ TRUST STRIP ═══ */}
         <section className="bg-slate-50 py-4 border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-5 flex flex-wrap justify-center gap-x-7 gap-y-2 text-xs sm:text-sm text-slate-600 font-semibold">
-            {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery', '📍 Kanpur · Lucknow · Gorakhpur + Delhi NCR · Agra (select PINs)'].map(b => <span key={b}>{b}</span>)}
+            {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery', `📍 ${LIVE_CITIES.map(c => c.name).join(' · ')} + ${PIN_CITIES.map(c => c.name).join(' · ')} (select PINs)`].map(b => <span key={b}>{b}</span>)}
           </div>
         </section>
 
@@ -407,7 +415,7 @@ export default function HomeClient() {
         {/* ═══ WHY ═══ */}
         <section className="bg-slate-50 py-16 sm:py-20">
           <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12">
-            <div className="text-center mb-10"><span className="aw-badge aw-badge-dk">Our promise</span><h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Why AuroWater</h2></div>
+            <div className="text-center mb-10"><span className="aw-badge aw-badge-dk">Our promise</span><h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Why AuroTap</h2></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {WHY.map(f => (
                 <div key={f.t} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
@@ -425,9 +433,9 @@ export default function HomeClient() {
           <div className="max-w-6xl mx-auto px-5 sm:px-8">
             <div className="text-center mb-10">
               <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900">Water delivery, plumber &amp; tank cleaning near you</h2>
-              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Live in {LIVE_CITY_NAMES}. Delhi, Noida, Gurugram and Agra are served on approved PIN codes. We confirm availability for your address before you pay.</p>
+              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Live in {LIVE_CITY_NAMES}. {PIN_CITY_NAMES} are served on approved PIN codes. We confirm availability for your address before you pay.</p>
             </div>
-            <div className="grid md:grid-cols-3 gap-5">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {LIVE_CITIES.map(c => (
                 <div key={c.slug} className="rounded-3xl border border-slate-100 bg-slate-50 p-6">
                   <div className="flex items-center justify-between gap-2">
@@ -439,7 +447,7 @@ export default function HomeClient() {
                 </div>
               ))}
             </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
+            <div className="grid sm:grid-cols-3 gap-4 mt-5">
               {PIN_CITIES.map(c => (
                 <div key={c.slug} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
@@ -487,7 +495,7 @@ export default function HomeClient() {
         <section className="bg-slate-50 py-14 overflow-hidden">
           <div className="text-center mb-8 px-5">
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Customer feedback</h2>
-            <p className="text-slate-500 mt-2 text-sm">Reviews from AuroWater customers.</p>
+            <p className="text-slate-500 mt-2 text-sm">Reviews from AuroTap customers.</p>
           </div>
           <div className="space-y-4">
             <div className="overflow-hidden"><div className="flex gap-4 aw-mql">{left.map((r, i) => <ReviewCard key={`L${i}`} r={r} />)}</div></div>
@@ -575,7 +583,7 @@ export default function HomeClient() {
         <div className="bg-white"><Wave flip color="var(--navy)" /></div>
         <section className="py-16 relative" style={{ background: 'var(--navy)' }}>
           <div className="max-w-6xl mx-auto px-5 sm:px-8">
-            <div className="text-center mb-10"><span className="aw-badge">Partner with us</span><h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white">Earn with AuroWater</h2></div>
+            <div className="text-center mb-10"><span className="aw-badge">Partner with us</span><h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white">Earn with AuroTap</h2></div>
             <div className="grid md:grid-cols-2 gap-5">
               {[
                 { i: '🚚', t: 'Supply water', d: 'Use your vehicle and local routes to deliver cans. We bring the customers; you focus on timely delivery. Earnings depend on your area and order volume.', h: '/register/pro?type=supplier', c: 'from-emerald-500 to-teal-400', b: 'rgba(16,185,129,.3)' },
@@ -597,7 +605,7 @@ export default function HomeClient() {
           <div className="relative max-w-4xl mx-auto px-5 sm:px-8 text-center">
             <span className="aw-badge">Get started today</span>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-5">Water shouldn&apos;t be a daily headache.</h2>
-            <p className="text-base sm:text-lg text-slate-300/80 mb-8 max-w-2xl mx-auto leading-relaxed">Cans filled, taps fixed, tanks cleaned. One platform, clear prices, up to {MAX_OFF}% off monthly.</p>
+            <p className="text-base sm:text-lg text-slate-300/80 mb-8 max-w-2xl mx-auto leading-relaxed">Cans filled, taps fixed, tanks cleaned. One platform, clear prices, price-locked monthly plans.</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link href="/book" className="aw-btn px-8 py-4 text-base">💧 Start in 30 seconds →</Link>
               <Link href="#pricing" className="aw-btn-ol px-8 py-4 text-base">See pricing &amp; savings</Link>
