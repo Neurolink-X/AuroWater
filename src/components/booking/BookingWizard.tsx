@@ -974,15 +974,18 @@ export default function BookingWizard() {
     if (!selectedReferralReward || draft.serviceKey !== 'water_can' ||
         draft.subOptionKey === 'chilled_ro' || draft.canOrderType === 'subscription' ||
         (draft.canQuantity ?? 1) !== 1) return 0;
+    const minimumPayable = Math.max(1, draft.canQuantity ?? 1) * CAN_PRICES.normal;
+    const availableDiscount = Math.max(0, baseAmount - minimumPayable);
     return selectedReferralReward.reward_type === 'free_water_can'
-      ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
-      : Math.round(baseAmount * 0.25 * 100) / 100;
+      ? Math.min(Number(settings.default_can_price) || CAN_PRICES.normal, availableDiscount)
+      : Math.min(Math.round(baseAmount * 0.25 * 100) / 100, availableDiscount);
   }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
   const canRedeemReferralReward =
     draft.serviceKey === 'water_can' &&
     draft.subOptionKey !== 'chilled_ro' &&
     draft.canOrderType !== 'subscription' &&
-    (draft.canQuantity ?? 1) === 1;
+    (draft.canQuantity ?? 1) === 1 &&
+    baseAmount > CAN_PRICES.normal;
   const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
   const breakdown = useMemo(() => {
     const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
@@ -1027,7 +1030,7 @@ export default function BookingWizard() {
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
   const subSave =
     isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > subscriptionUnitPrice
-      ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
+      ? Math.round((perCan - subscriptionUnitPrice) * canQty)
       : 0;
 
   const switchToSubscription = () =>
@@ -2257,7 +2260,11 @@ export default function BookingWizard() {
                     ))}
                   </select>
                   {!canRedeemReferralReward ? (
-                    <p className="mt-2 text-xs font-semibold text-amber-800">Rewards can be used only on one standard Normal RO can in a one-time order. Select that option to redeem. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।</p>
+                    <p className="mt-2 text-xs font-semibold text-amber-800">
+                      {draft.serviceKey === 'water_can' && draft.subOptionKey !== 'chilled_ro' && draft.canOrderType !== 'subscription' && (draft.canQuantity ?? 1) === 1 && baseAmount <= CAN_PRICES.normal
+                        ? 'Water-can rewards cannot reduce the ₹20 minimum price. · इनाम से कैन की कीमत ₹20 से कम नहीं होगी।'
+                        : 'Rewards apply only to one standard Normal RO can in a one-time order. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।'}
+                    </p>
                   ) : null}
                   {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
                 </div>
