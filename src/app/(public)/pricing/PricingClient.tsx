@@ -21,8 +21,10 @@ const CITY_STORAGE_KEY = 'auro_city';
 const SUPPORTED_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida', 'Delhi', 'Ghaziabad', 'Gurugram'];
 
 function useVisitorCity(): string {
-  const [city, setCity] = useState(DEFAULT_CITY);
-  useEffect(() => {
+  const [city] = useState(() => {
+    // Resolve client-only inputs lazily to avoid a synchronous state update in an effect.
+    // The server render uses the safe default; URL/storage preferences are applied on mount.
+    if (typeof window === 'undefined') return DEFAULT_CITY;
     try {
       const fromUrl = new URLSearchParams(window.location.search).get('city');
       const fromStore = window.localStorage.getItem(CITY_STORAGE_KEY);
@@ -30,11 +32,12 @@ function useVisitorCity(): string {
         .map((v) => SUPPORTED_CITIES.find((c) => v && c.toLowerCase() === v.trim().toLowerCase()))
         .find(Boolean);
       if (match) {
-        setCity(match);
         window.localStorage.setItem(CITY_STORAGE_KEY, match);
+        return match;
       }
     } catch { /* storage blocked: keep default */ }
-  }, []);
+    return DEFAULT_CITY;
+  });
   return city;
 }
 
