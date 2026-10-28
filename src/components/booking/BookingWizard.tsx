@@ -401,8 +401,11 @@ function subOptionMeta(serviceKey: string, subOptionKey: string): ScopeOption | 
   return SCOPE_OPTIONS[serviceKey]?.find((o) => o.key === subOptionKey);
 }
 
-function subOptionDelta(serviceKey: string, subOptionKey: string): number {
-  return subOptionMeta(serviceKey, subOptionKey)?.extra ?? 0;
+function subOptionDelta(serviceKey: string, subOptionKey: string, settings?: PlatformSettings): number {
+  const configured = settings?.service_base_prices[`${serviceKey}_${subOptionKey}`];
+  return Number.isFinite(configured) && Number(configured) >= 0
+    ? Number(configured)
+    : subOptionMeta(serviceKey, subOptionKey)?.extra ?? 0;
 }
 
 function serviceBaseFee(draft: BookingDraft, settings: PlatformSettings): number {
@@ -435,8 +438,9 @@ function getPriceLines(draft: BookingDraft, settings: PlatformSettings): PriceLi
   ];
 
   const meta = subOptionMeta(draft.serviceKey, draft.subOptionKey);
-  if (meta && meta.extra > 0) {
-    lines.push({ label: `${meta.label} charge`, amount: meta.extra, isAddon: true });
+  const extra = subOptionDelta(draft.serviceKey, draft.subOptionKey, settings);
+  if (meta && extra > 0) {
+    lines.push({ label: `${meta.label} charge`, amount: extra, isAddon: true });
   }
   return lines;
 }
@@ -469,7 +473,7 @@ function computeBaseAmount(draft: BookingDraft, settings: PlatformSettings): num
   }
 
   return Math.round(
-    serviceBaseFee(draft, settings) + subOptionDelta(draft.serviceKey, draft.subOptionKey),
+    serviceBaseFee(draft, settings) + subOptionDelta(draft.serviceKey, draft.subOptionKey, settings),
   );
 }
 
@@ -541,11 +545,14 @@ function ScopeCard({
   option,
   active,
   onSelect,
+  priceOverride,
 }: {
   option: ScopeOption;
   active: boolean;
   onSelect: () => void;
+  priceOverride?: number;
 }) {
+  const extra = Number.isFinite(priceOverride) && Number(priceOverride) >= 0 ? Number(priceOverride) : option.extra;
   return (
     <button
       type="button"
@@ -560,9 +567,9 @@ function ScopeCard({
         )}
       </div>
 
-      {option.extra > 0 && (
+      {extra > 0 && (
         <span className="mt-2 inline-block self-start rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">
-          + {inr(option.extra)} extra
+          + {inr(extra)} extra
         </span>
       )}
 
@@ -1804,6 +1811,7 @@ export default function BookingWizard() {
                   <ScopeCard
                     key={o.key}
                     option={o}
+                    priceOverride={settings.pricing_version ? settings.service_base_prices[`ro_service_${o.key}`] : undefined}
                     active={draft.subOptionKey === o.key}
                     onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                   />
@@ -1851,6 +1859,7 @@ export default function BookingWizard() {
                     <ScopeCard
                       key={o.key}
                       option={o}
+                      priceOverride={settings.pricing_version ? settings.service_base_prices[`plumbing_${o.key}`] : undefined}
                       active={draft.subOptionKey === o.key}
                       onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                     />
@@ -1869,6 +1878,7 @@ export default function BookingWizard() {
                   <ScopeCard
                     key={o.key}
                     option={o}
+                    priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
                     active={draft.subOptionKey === o.key}
                     onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                   />
