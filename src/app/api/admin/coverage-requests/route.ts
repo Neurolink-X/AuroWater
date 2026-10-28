@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest) {
   const adminNote = typeof b.admin_note === 'string' ? b.admin_note.trim().slice(0, 500) : null;
   const db = createServiceClient();
   const { data: request, error: loadError } = await db.from('supplier_zone_requests')
-    .select('id, supplier_id, zone_id, service_keys, status').eq('id', b.request_id).maybeSingle();
+    .select('id, supplier_id, zone_id, service_keys, status, supplier_note').eq('id', b.request_id).maybeSingle();
   if (loadError || !request) {
     if (loadError) console.error('[admin/coverage-requests] request lookup failed', loadError);
     return jsonErr('Coverage request not found.', 404);
