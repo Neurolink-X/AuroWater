@@ -190,10 +190,19 @@ export async function POST(req: NextRequest) {
   const db = createServiceClient();
 
   // 1. Every selected zone must exist
-  const { data: zones, error: zoneError } = await db.from('service_zones').select('id').in('id', zoneIds);
+  const [{ data: zones, error: zoneError }, { data: supplierProfile, error: supplierProfileError }] = await Promise.all([
+    db.from('service_zones').select('id, city').in('id', zoneIds),
+    db.from('profiles').select('city').eq('id', supplierId).maybeSingle(),
+  ]);
   if (zoneError) return fail(rid, 'validate-zones', zoneError, 'Could not validate selected service areas.');
-  const valid = new Set((zones ?? []).map((z: { id: string }) => String(z.id)));
-  if (zoneIds.some((id) => !valid.has(id))) return withMeta(jsonErr('One or more selected service areas do not exist.', 422), rid);
+  if (supplierProfileError) return fail(rid, 'load-supplier-city', supplierProfileError);
+  const zoneMap = new Map((zones ?? []).map((z: { id: string; city: string }) => [String(z.id), z]));
+  if (zoneIds.some((id) => !zoneMap.has(id))) return withMeta(jsonErr('One or more selected service areas do not exist.', 422), rid);
+  const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const supplierCity = normalizeCity(supplierProfile?.city);
+  if (supplierCity && zoneIds.some(id => normalizeCity(zoneMap.get(id)?.city) !== supplierCity)) {
+    return withMeta(jsonErr('You can only request service areas in your registered city. Submit a profile change request first if your registered city is incorrect.', 422), rid);
+  }
 
   // 2. Never knock an already-APPROVED zone back to PENDING (the old upsert silently removed live coverage)
   const existing = await loadRequests(db, supplierId, zoneIds);
