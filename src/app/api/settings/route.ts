@@ -87,7 +87,16 @@ export async function GET() {
       .maybeSingle();
 
     if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
-      const config = activeVersion.config as Record<string, unknown>;
+      const publishedConfig = activeVersion.config as Record<string, unknown>;
+      const requestedCity = new URLSearchParams(
+        typeof globalThis.location === 'undefined' ? '' : globalThis.location.search,
+      ).get('city');
+      const cityKey = String(requestedCity ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
+        ? publishedConfig.city_overrides as Record<string, unknown> : {};
+      const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
+        ? cityOverrides[cityKey] as Record<string, unknown> : null;
+      const config = { ...publishedConfig, ...(cityOverride ?? {}) };
       const servicePrices = config.services && typeof config.services === 'object'
         ? config.services as Record<string, number>
         : {};
