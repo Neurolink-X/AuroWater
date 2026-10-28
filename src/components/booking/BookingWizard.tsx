@@ -2245,7 +2245,7 @@ export default function BookingWizard() {
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                   <p className="font-extrabold text-emerald-900">Referral rewards · रेफरल इनाम</p>
                   <p className="mt-1 text-xs leading-5 text-emerald-800">
-                    Use one reward on a single standard Normal RO can. Chilled cans, subscriptions and multi-can orders are not eligible.
+                    Eligible 25% referral discounts apply only to one-time Normal RO cans priced above ₹20 and are capped so the can never costs less than ₹20. Free-can rewards are paused under this rule.
                   </p>
                   <select
                     aria-label="Choose referral reward"
@@ -2292,7 +2292,7 @@ export default function BookingWizard() {
               </div>
               {referralDiscountAmount > 0 && (
                 <div className="flex justify-between font-bold text-emerald-800">
-                  <span>{selectedReferralReward?.reward_type === 'free_water_can' ? 'Free can reward' : 'Referral discount (25%)'}</span>
+                  <span>{selectedReferralReward?.reward_type === 'free_water_can' ? 'Free-can reward (not applied)' : 'Referral discount (capped at ₹20 minimum)'}</span>
                   <span>−{inr(referralDiscountAmount)}</span>
                 </div>
               )}
