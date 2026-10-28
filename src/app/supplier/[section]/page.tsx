@@ -45,7 +45,7 @@ class ApiError extends Error {
 /* ───────────────────────── Page ───────────────────────── */
 
 export default function SupplierSectionPage() {
-  const { language, setLanguage } = useLanguage();
+  const { language } = useLanguage();
   const isHindi = language === 'hi';
   const params = useParams<{ section: string }>();
   const section = params.section as Section;
@@ -168,10 +168,6 @@ export default function SupplierSectionPage() {
             <p className="sp-kicker">{isHindi ? 'AuroTap सप्लायर पोर्टल' : 'AuroTap supplier portal'}</p>
             <h1 className="sp-h1">{copy.title}</h1>
             <p className="sp-sub">{copy.subtitle}</p>
-          </div>
-          <div className="sp-language" role="group" aria-label="Language selection">
-            <button type="button" aria-pressed={!isHindi} onClick={() => setLanguage('en')} className={!isHindi ? 'is-active' : ''}>EN</button>
-            <button type="button" aria-pressed={isHindi} onClick={() => setLanguage('hi')} className={isHindi ? 'is-active' : ''}>हिंदी</button>
           </div>
         </div>
       </header>
