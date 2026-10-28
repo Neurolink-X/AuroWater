@@ -244,59 +244,51 @@ export default function AdminShell({
    * current user's role and active status.
    */
   useEffect(() => {
+    let active = true;
+    setChecking(true);
+
+    const loginHref = () =>
+      `/admin/login?returnTo=${encodeURIComponent(pathname || '/admin/dashboard')}`;
+
     const run = async () => {
       if (isAuthRoute) {
-        setChecking(false);
-        return;
-      }
-
-      const token = await getToken();
-      const localUser = getUser();
-
-      if (!token || !localUser) {
-        router.replace(
-          `/auth/login?returnTo=${encodeURIComponent(
-            pathname || '/admin/dashboard',
-          )}`,
-        );
+        if (active) setChecking(false);
         return;
       }
 
       try {
+        const token = await getToken();
+        const localUser = getUser();
+
+        if (!active) return;
+        if (!token || !localUser) {
+          router.replace(loginHref());
+          return;
+        }
+
         const verified = await verifyToken();
+        if (!active) return;
 
-        if (
-          !verified?.user ||
-          verified.user.role !== 'ADMIN'
-        ) {
+        if (!verified?.user || String(verified.user.role).toUpperCase() !== 'ADMIN') {
           logout();
-
-          router.replace(
-            `/auth/login?returnTo=${encodeURIComponent(
-              pathname || '/admin/dashboard',
-            )}`,
-          );
-
+          router.replace(loginHref());
           return;
         }
 
         setUser(verified.user);
       } catch {
+        if (!active) return;
         logout();
-
-        router.replace(
-          `/auth/login?returnTo=${encodeURIComponent(
-            pathname || '/admin/dashboard',
-          )}`,
-        );
-
-        return;
+        router.replace(loginHref());
       } finally {
-        setChecking(false);
+        if (active) setChecking(false);
       }
     };
 
-    run();
+    void run();
+    return () => {
+      active = false;
+    };
   }, [isAuthRoute, pathname, router]);
 
   /*
