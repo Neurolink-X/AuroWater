@@ -482,6 +482,7 @@ export default function PricingClient() {
     return quantity * unit;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
+  const safeBulkCanPrice = Math.max(NORMAL_RO_PRICE, Number(settings.bulk_can_price) || NORMAL_RO_PRICE);
 
   const faq: FaqItem[] = FAQS;
 
@@ -560,10 +561,10 @@ export default function PricingClient() {
       tagline: 'For offices, shops and high-volume households.',
       badge: 'Popular',
       badgeColor: 'amber',
-      pricePerDelivery: deliveryTotal(officeQuantity, 'one_time'),
-      unitPrice: settings.bulk_can_price,
+      pricePerDelivery: officeQuantity * safeBulkCanPrice,
+      unitPrice: safeBulkCanPrice,
       cansPerDelivery: officeQuantity,
-      perCan: `₹${settings.bulk_can_price}/can (no separate water handling fee) before any legally applicable tax`,
+      perCan: `₹${safeBulkCanPrice}/can (no separate water handling fee) before any legally applicable tax`,
       features: [
         { text: `${officeQuantity} cans per delivery at the bulk rate`, included: true },
         { text: 'Scheduled bulk deliveries', included: true },
