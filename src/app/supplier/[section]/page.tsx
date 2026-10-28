@@ -172,18 +172,11 @@ export default function SupplierSectionPage() {
         </div>
       </header>
 
-      <nav className="sp-nav" aria-label="Supplier sections">
-        <Link href="/supplier/dashboard" className="sp-tab">{isHindi ? 'डैशबोर्ड' : 'Dashboard'}</Link>
-        <Link href="/supplier/coverage" className="sp-tab">{isHindi ? 'मेरे सेवा क्षेत्र' : 'My service areas'}</Link>
-        {ORDER.map((s) => (
-          <Link key={s} href={`/supplier/${s}`} className="sp-tab" aria-current={s === section ? 'page' : undefined}>
-            {SECTIONS[s].nav}
-          </Link>
-        ))}
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section' }>
+      <div className="mt-4 flex justify-end">
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
           {loading && !hasData.current ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
         </button>
-      </nav>
+      </div>
 
       <div aria-live="polite">
         {error && <div role="alert" className="sp-msg sp-msg--err">{error}</div>}
