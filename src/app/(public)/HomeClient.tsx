@@ -9,13 +9,14 @@ import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_N
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
-const MAX_OFF = Math.max(...PRICING.plans.map(p => p.off));
+const minimumCanPrice = (type: 'normal' | 'chilled', off: number) =>
+  Math.max(type === 'normal' ? 20 : 25, W[type] * (1 - off / 100));
 
 const SERVICES = [
   { icon: '💧', title: 'RO Water Delivery', badge: `From ₹${W.normal} / 20L`,
-    body: `Normal RO ₹${W.normal} or Chilled RO ₹${W.chilled} per 20L can, delivered to your door. Subscribe monthly and save up to ${MAX_OFF}%.`,
+    body: `Normal RO ₹${W.normal} or Chilled RO ₹${W.chilled} per 20L can, delivered to your door. Choose a convenient repeat schedule with protected minimum prices.`,
     cta: 'Order Water', href: '/book?service=water_can',
-    features: ['Normal & chilled', 'Monthly plans save up to ' + MAX_OFF + '%', 'Price shown before confirming'], accent: '#0ea5e9' },
+    features: ['Normal & chilled', 'Family and bulk scheduling', 'Price shown before confirming'], accent: '#0ea5e9' },
   { icon: '🔧', title: 'Plumber Service', badge: `Visit ₹${PRICING.plumber.visitFee}`,
     body: `Leaking taps, fittings, pipe repairs and water-system jobs. The ₹${PRICING.plumber.visitFee} visit charge is adjusted against your bill if you go ahead.`,
     cta: 'Book a Plumber', href: '/book?service=plumbing',
@@ -32,7 +33,7 @@ const SERVICES = [
 
 const WHY = [
   { icon: '💰', t: 'Price before you pay', d: 'Review the full order total before confirming. No surprise add-ons.', c: '#10b981' },
-  { icon: '📉', t: `Save up to ${MAX_OFF}%`, d: 'Monthly plans lower your per-can price automatically as volume grows.', c: '#0ea5e9' },
+  { icon: '📦', t: 'Family & bulk plans', d: 'Convenient repeat scheduling with normal RO from ₹20 and chilled RO from ₹25 per can.', c: '#0ea5e9' },
   { icon: '✅', t: 'Verified partners', d: 'Suppliers and technicians go through verification before they receive jobs.', c: '#8b5cf6' },
   { icon: '📱', t: 'Order updates', d: 'Follow your booking status from request to completion.', c: '#f59e0b' },
 ] as const;
@@ -96,7 +97,7 @@ function PricingSection() {
   const curOk = current.trim() !== '' && Number.isFinite(cur) && cur > 0;
   const base = W[type];
   const plan = planForQty(qtyOk ? qty : 1);
-  const canPrice = base * (1 - plan.off / 100);
+  const canPrice = minimumCanPrice(type, plan.off);
   const feeMonthly = ORDER_FEES.perDelivery * ORDER_FEES.assumedDeliveriesPerMonth;
   const monthly = canPrice * (qtyOk ? qty : 0) + (qtyOk ? feeMonthly : 0);
   const eff = qtyOk ? monthly / qty : canPrice; // per-can price INCLUDING order fees, so savings are never overstated
@@ -108,8 +109,8 @@ function PricingSection() {
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <div className="text-center mb-10">
           <span className="aw-badge aw-badge-dk">Simple, honest pricing</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal}. Save up to {MAX_OFF}% monthly.</h2>
-          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Water, plumbing and tank cleaning with prices shown up front. The more you order, the less each can costs.</p>
+          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Normal RO ₹{W.normal} · Chilled RO ₹{W.chilled} per 20L can.</h2>
+          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Clear upfront prices for water, plumbing and tank cleaning. Family and bulk plans offer convenient scheduling while protecting minimum per-can rates.</p>
         </div>
 
         {/* Plans */}
@@ -121,9 +122,9 @@ function PricingSection() {
                 {best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-sky-600 text-white text-[11px] font-bold px-3 py-1">Most popular</span>}
                 <h3 className="font-display font-extrabold text-slate-900">{p.name}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{p.note}</p>
-                <p className="mt-4 text-3xl font-extrabold text-slate-900">₹{fmt(W.normal * (1 - p.off / 100))}<span className="text-sm font-medium text-slate-400"> / can</span></p>
-                <p className="text-xs text-slate-500">Chilled ₹{fmt(W.chilled * (1 - p.off / 100))}</p>
-                <p className={`mt-3 text-sm font-bold ${p.off ? 'text-emerald-600' : 'text-slate-400'}`}>{p.off ? `Save ${p.off}%` : 'Standard price'}</p>
+                <p className="mt-4 text-3xl font-extrabold text-slate-900">₹{fmt(minimumCanPrice('normal', p.off))}<span className="text-sm font-medium text-slate-400"> / can</span></p>
+                <p className="text-xs text-slate-500">Chilled ₹{fmt(minimumCanPrice('chilled', p.off))}</p>
+                <p className={`mt-3 text-sm font-bold ${p.off ? 'text-emerald-600' : 'text-slate-400'}`}>{minimumCanPrice('normal', p.off) < W.normal || minimumCanPrice('chilled', p.off) < W.chilled ? 'Volume rate available above minimum' : 'Minimum price protected'}</p>
               </div>
             );
           })}
@@ -154,7 +155,7 @@ function PricingSection() {
           </div>
 
           <div aria-live="polite" className="rounded-2xl bg-white/[0.05] border border-white/10 p-5 flex flex-col justify-center">
-            <p className="text-xs text-slate-400">Your plan: <strong className="text-white">{plan.name}</strong>{plan.off ? ` (${plan.off}% off)` : ''}</p>
+            <p className="text-xs text-slate-400">Your plan: <strong className="text-white">{plan.name}</strong> · minimum price protected</p>
             <p className="mt-1 text-3xl font-extrabold">₹{fmt(eff)} <span className="text-sm font-medium text-slate-400">per can</span></p>
             <p className="text-sm text-slate-300">≈ ₹{fmt(monthly)} / month for {qtyOk ? qty : 0} cans</p>
             {feeMonthly > 0 && <p className="text-xs text-slate-400">Includes about ₹{fmt(feeMonthly)} / month in delivery fees ({ORDER_FEES.assumedDeliveriesPerMonth} deliveries).</p>}
@@ -305,7 +306,7 @@ export default function HomeClient() {
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
-                    Order 20L RO cans, book a plumber or schedule water tank cleaning. See the price before you confirm, and save up to {MAX_OFF}% with a monthly plan.
+                    Order 20L RO cans, book a plumber or schedule water tank cleaning. See the price before you confirm, and choose a convenient repeat schedule with protected minimum prices.
                   </p>
                   <div className="flex flex-wrap gap-3 mb-8">
                     <Link href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base">💧 Order Water</Link>
@@ -316,7 +317,7 @@ export default function HomeClient() {
                     {[
                       [`₹${W.normal}`, 'Normal RO · 20L'],
                       [`₹${W.chilled}`, 'Chilled RO · 20L'],
-                      [`${MAX_OFF}%`, 'Max monthly saving'],
+                      ['₹20 / ₹25', 'Minimum normal / chilled price'],
                       [`₹${PRICING.tank[0].from}`, 'Tank cleaning from'],
                     ].map(([v, l]) => (
                       <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
@@ -347,7 +348,7 @@ export default function HomeClient() {
                   <div className="aw-glass p-5">
                     <p className="font-display text-sm font-bold text-emerald-300 mb-3">Why customers switch</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${W.normal} per 20L can, ₹${W.chilled} for chilled`, `Monthly plans save up to ${MAX_OFF}% automatically`, `Plumber visit ₹${PRICING.plumber.visitFee}, adjusted in your bill`, `Tank cleaning priced by size from ₹${PRICING.tank[0].from}`].map(i => (
+                      {[`Pay ₹${W.normal} per 20L can, ₹${W.chilled} for chilled`, 'Family and bulk scheduling with price floors', `Plumber visit ₹${PRICING.plumber.visitFee}, adjusted in your bill`, `Tank cleaning priced by size from ₹${PRICING.tank[0].from}`].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -597,7 +598,7 @@ export default function HomeClient() {
           <div className="relative max-w-4xl mx-auto px-5 sm:px-8 text-center">
             <span className="aw-badge">Get started today</span>
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-5">Water shouldn&apos;t be a daily headache.</h2>
-            <p className="text-base sm:text-lg text-slate-300/80 mb-8 max-w-2xl mx-auto leading-relaxed">Cans filled, taps fixed, tanks cleaned. One platform, clear prices, up to {MAX_OFF}% off monthly.</p>
+            <p className="text-base sm:text-lg text-slate-300/80 mb-8 max-w-2xl mx-auto leading-relaxed">Cans filled, taps fixed, tanks cleaned. One platform, clear prices, fixed minimum prices: normal ₹20, chilled ₹25 per can.</p>
             <div className="flex flex-wrap justify-center gap-3">
               <Link href="/book" className="aw-btn px-8 py-4 text-base">💧 Start in 30 seconds →</Link>
               <Link href="#pricing" className="aw-btn-ol px-8 py-4 text-base">See pricing &amp; savings</Link>
