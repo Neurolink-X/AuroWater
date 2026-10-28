@@ -218,7 +218,7 @@ export default function JobDetail() {
                   </p>
                   {(job.house_no || job.area || job.city) && <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([job.house_no, job.area, job.landmark, job.city].filter(Boolean).join(', '))}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex text-sm font-semibold text-blue-600 hover:underline">{isHindi ? 'डिलीवरी/सेवा के लिए रास्ता खोलें' : 'Open directions'}</a>}
                 </div>
-                {job.lat && job.lng && (
+                {job.lat != null && job.lng != null && (
                   <div>
                     <p className="text-sm text-gray-600">Coordinates</p>
                     <p className="font-mono text-sm">
@@ -239,16 +239,16 @@ export default function JobDetail() {
 
             {/* Service Info */}
             <Card>
-              <h2 className="text-xl font-bold mb-4">Service Details</h2>
+              <h2 className="text-xl font-bold mb-4">{isHindi ? 'सेवा का विवरण' : 'Service Details'}</h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600">Service Type</p>
+                  <p className="text-sm text-gray-600">{isHindi ? 'सेवा का प्रकार' : 'Service Type'}</p>
                   <p className="text-lg font-semibold">
                     {job.service_name?.replace(/_/g, ' ')}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Amount</p>
+                  <p className="text-sm text-gray-600">{isHindi ? 'राशि' : 'Amount'}</p>
                   <p className="text-2xl font-bold text-blue-600">₹{job.total_amount}</p>
                 </div>
                 {job.time_slot && (
