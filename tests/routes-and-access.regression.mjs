@@ -383,6 +383,8 @@ assert.match(activeSupplierDashboard, /useLanguage\(\)/);
 assert.doesNotMatch(activeSupplierDashboard, /aurotap_supplier_language/);
 assert.doesNotMatch(activeSupplierDashboard, /Dashboard language \/ डैशबोर्ड की भाषा/);
 assert.match(activeSupplierDashboard, /ordersLoadedOnceRef/);
+assert.match(activeSupplierDashboard, /dashboardLoadedOnceRef/);
+assert.match(activeSupplierDashboard, /if \(!dashboardLoadedOnceRef\.current\) setLoading\(true\)/);
 assert.match(activeSupplierDashboard, /if \(!ordersLoadedOnceRef\.current\) setLoadingOrders\(true\)/);
 assert.match(activeSupplierDashboard, /ordersLoadedOnceRef\.current = true/);
 
