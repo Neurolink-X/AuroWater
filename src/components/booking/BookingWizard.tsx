@@ -967,7 +967,7 @@ export default function BookingWizard() {
     if (!selectedReferralReward || draft.serviceKey !== 'water_can' ||
         draft.subOptionKey === 'chilled_ro' || draft.canOrderType === 'subscription' ||
         (draft.canQuantity ?? 1) !== 1) return 0;
-    return selectedReferralReward.reward_type === 'free_water_can'
+    return (selectedReferralReward.reward_type as string) === 'free_water_can'
       ? Math.min(baseAmount, Number(settings.default_can_price) || 20)
       : Math.round(baseAmount * 0.25 * 100) / 100;
   }, [selectedReferralReward, draft.serviceKey, draft.subOptionKey, draft.canOrderType, draft.canQuantity, baseAmount, settings.default_can_price]);
