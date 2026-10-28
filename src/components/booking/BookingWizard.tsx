@@ -1011,6 +1011,7 @@ export default function BookingWizard() {
   }, [settings]);
 
   const perCan = getWaterUnitPrice(draft, settings);
+  const subscriptionUnitPrice = Math.max(CAN_PRICES.subscription, Number(settings.subscription_can_price) || CAN_PRICES.subscription);
 
   const isSubscription =
     draft.serviceKey === 'water_can' &&
@@ -1025,7 +1026,7 @@ export default function BookingWizard() {
   const offPct = showCompare ? pctOff(marketPerCan, perCan) : 0;
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
   const subSave =
-    isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > settings.subscription_can_price
+    isCan && !isSubscription && draft.subOptionKey !== 'chilled_ro' && perCan > subscriptionUnitPrice
       ? Math.round((perCan - SUBSCRIPTION_RO_CAN_PRICE) * canQty)
       : 0;
 
@@ -1707,13 +1708,11 @@ export default function BookingWizard() {
                     <span className="flex items-center justify-between gap-2">
                       <span className="text-sm font-extrabold">Subscription</span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold text-emerald-800">
-                        {(draft.canQuantity ?? 1) >= settings.bulk_threshold
-                          ? `Bulk rate applies at ${settings.bulk_threshold}+ cans`
-                          : `Save 10% · ₹${settings.subscription_can_price}/can`}
+                        Flexible repeat schedule
                       </span>
                     </span>
                     <span className="mt-1 block text-xs font-semibold text-slate-500">
-                      {inr(settings.subscription_can_price)} per can · Save 10% vs one-time Normal RO
+                      {inr(subscriptionUnitPrice)} per can · minimum price protected
                     </span>
                     {draft.subOptionKey === 'chilled_ro' && <span className="mt-1 block text-[11px] text-amber-700">Subscription is available for Normal RO only.</span>}
                     <span className="mt-1 block text-[11px] text-slate-400">
