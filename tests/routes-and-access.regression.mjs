@@ -310,3 +310,12 @@ assert.doesNotMatch(publicHome, /100% Sealed & Hygienic/i);
 assert.match(publicHome, /Order Updates/);
 assert.match(howItWorksPage, /Timing and fulfilment depend on local availability/);
 assert.doesNotMatch(howItWorksPage, /live tracking, zero surprises/i);
+
+
+// Supplier navigation and refresh must keep Orders discoverable and existing data visible.
+const supplierNav = readFileSync(join(root, 'src', 'components', 'supplier', 'SupplierNav.tsx'), 'utf8');
+assert.match(supplierNav, /href: '\/supplier\/orders', label: 'Orders', priority: true/);
+assert.match(supplierNav, /data-priority/);
+const supplierSectionPage = readFileSync(join(root, 'src', 'app', 'supplier', '[section]', 'page.tsx'), 'utf8');
+assert.match(supplierSectionPage, /Keep already-rendered data visible during manual refresh/);
+assert.match(supplierSectionPage, /disabled=\{busy \|\| \(loading && !data\)\}/);

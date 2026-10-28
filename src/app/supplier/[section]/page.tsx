@@ -81,7 +81,8 @@ export default function SupplierSectionPage() {
     async (silent = false) => {
       if (!meta) return;
       const id = ++latest.current;
-      if (!silent) setLoading(true);
+      // Keep already-rendered data visible during manual refresh; only the first load uses a skeleton.
+      if (!silent && data === null) setLoading(true);
       try {
         const body = await authedFetch(meta.endpoint);
         if (id !== latest.current) return; // a newer request superseded this one
@@ -98,7 +99,7 @@ export default function SupplierSectionPage() {
         if (id === latest.current) setLoading(false);
       }
     },
-    [meta, section, authedFetch],
+    [meta, section, authedFetch, data],
   );
 
   useEffect(() => { void load(); }, [load]);
@@ -159,7 +160,7 @@ export default function SupplierSectionPage() {
             {SECTIONS[s].nav}
           </Link>
         ))}
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || loading}>
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !data)}>
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </nav>
