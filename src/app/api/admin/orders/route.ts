@@ -40,6 +40,13 @@ function dbErr(error: NonNullable<PgErr>, table: string, fallback: string) {
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+
+function normalizePricingCity(value: unknown): string {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
+  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-'));
+  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function hourSetting(v: unknown, fallback: number): number {
@@ -480,7 +487,7 @@ export async function POST(req: NextRequest) {
     .limit(1).maybeSingle();
   const publishedPricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown> : null;
-  const pricingCityKey = String(a.city ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const pricingCityKey = normalizePricingCity(a.city);
   const cityOverrides = publishedPricingConfig?.city_overrides && typeof publishedPricingConfig.city_overrides === 'object'
     ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
   const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
