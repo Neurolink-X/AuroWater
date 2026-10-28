@@ -59,6 +59,7 @@ export default function SupplierSectionPage() {
   const [online, setOnline] = useState(false);
   const [radius, setRadius] = useState('5');
   const latest = useRef(0);
+  const hasData = useRef(false);
 
   const authedFetch = useCallback(
     async (path: string, init: RequestInit = {}) => {
@@ -81,19 +82,22 @@ export default function SupplierSectionPage() {
     async (silent = false) => {
       if (!meta) return;
       const id = ++latest.current;
-      if (!silent) setLoading(true);
+      // First load may use a skeleton; refreshes keep the current section visible.
+      if (!silent && !hasData.current) setLoading(true);
       try {
         const body = await authedFetch(meta.endpoint);
         if (id !== latest.current) return; // a newer request superseded this one
         const payload = body?.data ?? body;
         setData(payload);
+        hasData.current = true;
         if (!silent) setError('');
         if (section === 'settings' && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
           setRadius(String((payload as Row).zone_radius_km ?? 5));
         }
       } catch (e) {
-        if (id === latest.current) setError(errMsg(e, 'Unable to load this page.'));
+        // Background polling is intentionally silent; retain data and avoid flashing errors.
+        if (id === latest.current && !silent) setError(errMsg(e, 'Unable to load this page.'));
       } finally {
         if (id === latest.current) setLoading(false);
       }
@@ -159,8 +163,8 @@ export default function SupplierSectionPage() {
             {SECTIONS[s].nav}
           </Link>
         ))}
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || loading}>
-          {loading ? 'Refreshing…' : 'Refresh'}
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label="Refresh supplier section">
+          {loading && !hasData.current ? 'Loading…' : 'Refresh'}
         </button>
       </nav>
 
