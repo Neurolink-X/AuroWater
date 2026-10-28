@@ -72,10 +72,13 @@ test('admin Local Intelligence endpoint remains protected, read-only, and bounde
   assert.match(route, /MAX_ORDERS = 1000/);
   assert.match(route, /\.from\('orders'\)/);
   assert.match(route, /\.from\('supplier_stock'\)/);
+  assert.match(route, /\.select\('\*'\).*Optional profile columns vary/s);
   assert.match(route, /\.from\('supplier_zones'\)/);
   assert.match(route, /\.from\('service_zones'\)/);
   assert.doesNotMatch(route, /\.insert\(|\.update\(|\.delete\(|\.rpc\(/);
   assert.match(page, /Supplier stock visibility/);
+  assert.match(page, /30_000/);
+  assert.match(page, /visibilitychange/);
   assert.match(page, /No automatic supplier ranking or dispatch changes/);
 });
 
