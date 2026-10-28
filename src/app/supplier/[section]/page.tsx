@@ -325,12 +325,12 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
 function Inventory({ obj, busy, send, setError }: { obj: Row; busy: boolean; send: Send; setError: (s: string) => void }) {
   const { language } = useLanguage();
   const isHindi = language === 'hi';
+  const [delta, setDelta] = useState('');
   const submit = async () => {
     const n = Number(delta);
     if (!Number.isInteger(n) || n === 0) return setError(isHindi ? 'शून्य के अलावा पूरा नंबर डालें, जैसे 10 या -1।' : 'Enter a non-zero whole number, such as 10 or -1.');
     if (await send('/api/supplier/stock', 'PUT', { stock_delta: n }, isHindi ? 'स्टॉक अपडेट हो गया।' : 'Stock updated.')) setDelta('');
   };
-  const [delta, setDelta] = useState('');
   return (
     <section className="sp-grid">
       {obj.low_stock === true && (
