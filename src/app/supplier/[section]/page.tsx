@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
 
 /* ───────────────────────── Types & config ───────────────────────── */
@@ -44,6 +45,8 @@ class ApiError extends Error {
 /* ───────────────────────── Page ───────────────────────── */
 
 export default function SupplierSectionPage() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const params = useParams<{ section: string }>();
   const section = params.section as Section;
   const meta = SECTIONS[section];
@@ -146,27 +149,34 @@ export default function SupplierSectionPage() {
   const rows = Array.isArray(data) ? (data as Row[]) : [];
   const obj = data && typeof data === 'object' && !Array.isArray(data) ? (data as Row) : {};
 
+  const sectionCopy: Record<Section, { nav: string; title: string; subtitle: string }> = {
+    orders: { nav: 'ऑर्डर', title: 'ऑर्डर प्रबंधन', subtitle: 'आपको दिए गए ऑर्डर, समय और डिलीवरी की स्थिति। नए ऑर्डर उपलब्धता और पात्रता के अनुसार दिखते हैं।' },
+    inventory: { nav: 'स्टॉक', title: 'स्टॉक प्रबंधन', subtitle: 'उपलब्ध स्टॉक और आरक्षित कैन की जानकारी।' },
+    earnings: { nav: 'कमाई', title: 'कमाई और भुगतान', subtitle: 'इस महीने की कमाई और भुगतान अनुरोध।' },
+    settings: { nav: 'डिस्पैच', title: 'डिस्पैच सेटिंग', subtitle: 'ऑनलाइन स्थिति, सेवा क्षेत्र और डिस्पैच लोकेशन।' },
+    analytics: { nav: 'प्रदर्शन', title: 'प्रदर्शन रिपोर्ट', subtitle: 'आपके मौजूदा ऑर्डर से प्राप्त वास्तविक आंकड़े।' },
+    support: { nav: 'सहायता', title: 'सप्लायर सहायता', subtitle: 'डिस्पैच समस्या हल करें या एडमिन से संपर्क करें।' },
+  };
+  const copy = isHindi ? sectionCopy[section] : meta;
+
   return (
-    <main className="sp">
+    <main className="sp" data-supplier-language>
       <Styles />
       <header className="sp-head">
-        <p className="sp-kicker">AuroTap supplier portal</p>
-        <h1 className="sp-h1">{meta.title}</h1>
-        <p className="sp-sub">{meta.subtitle}</p>
+        <div className="sp-head-row">
+          <div className="sp-head-copy">
+            <p className="sp-kicker">{isHindi ? 'AuroTap सप्लायर पोर्टल' : 'AuroTap supplier portal'}</p>
+            <h1 className="sp-h1">{copy.title}</h1>
+            <p className="sp-sub">{copy.subtitle}</p>
+          </div>
+        </div>
       </header>
 
-      <nav className="sp-nav" aria-label="Supplier sections">
-        <Link href="/supplier/dashboard" className="sp-tab">Dashboard</Link>
-        <Link href="/supplier/coverage" className="sp-tab">My service areas</Link>
-        {ORDER.map((s) => (
-          <Link key={s} href={`/supplier/${s}`} className="sp-tab" aria-current={s === section ? 'page' : undefined}>
-            {SECTIONS[s].nav}
-          </Link>
-        ))}
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label="Refresh supplier section">
-          {loading && !hasData.current ? 'Loading…' : 'Refresh'}
+      <div className="mt-4 flex justify-end">
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
+          {loading && !hasData.current ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
         </button>
-      </nav>
+      </div>
 
       <div aria-live="polite">
         {error && <div role="alert" className="sp-msg sp-msg--err">{error}</div>}
@@ -175,7 +185,7 @@ export default function SupplierSectionPage() {
 
       {loading && !data ? <Skeleton /> : (
         <>
-          {section === 'orders' && <Orders rows={rows} busy={busy} send={send} />}
+          {section === 'orders' && <Orders rows={rows} busy={busy} send={send} language={language} />}
           {section === 'inventory' && <Inventory obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'earnings' && <Earnings obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'settings' && <Settings obj={obj} online={online} radius={radius} setRadius={setRadius} busy={busy} send={send} setError={setError} />}
@@ -191,7 +201,7 @@ export default function SupplierSectionPage() {
 
 type Send = (path: string, method: string, payload: Row, okMessage?: string, onFail?: (e: unknown) => void) => Promise<boolean>;
 
-function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }) {
+function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; send: Send; language: 'en' | 'hi' }) {
   // Optimistic status overrides: the button advances instantly, and rolls back if the server refuses.
   const [override, setOverride] = useState<Record<string, Status>>({});
   // Orders whose accept/decline choice is settled (done, or the server said 409). Hides those buttons.
@@ -221,10 +231,10 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
   if (rows.length === 0) {
     return (
       <Empty
-        title="No assigned orders yet"
-        text="Orders arrive when dispatch assigns one to you. Go online, confirm your location, radius and stock, then refresh."
+        title={language === 'hi' ? 'अभी कोई ऑर्डर नहीं मिला' : 'No assigned orders yet'}
+        text={language === 'hi' ? 'ऑर्डर मिलने के लिए ऑनलाइन हों, लोकेशन, सेवा क्षेत्र और स्टॉक की पुष्टि करें, फिर रीफ्रेश करें।' : 'Orders arrive when dispatch assigns one to you. Go online, confirm your location, radius and stock, then refresh.'}
         href="/supplier/settings"
-        cta="Open dispatch settings"
+        cta={language === 'hi' ? 'डिस्पैच सेटिंग खोलें' : 'Open dispatch settings'}
       />
     );
   }
@@ -237,6 +247,11 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
         // Accept/decline only while the order is still awaiting a decision. The API answers 409 once it is accepted.
         const acceptedFlag = Boolean(o.accepted_at ?? o.supplier_accepted_at ?? o.is_accepted);
         const canAccept = !decided.has(id) && (status === 'pending' || (status === 'assigned' && !acceptedFlag));
+        const deliveryAddress = str(o.address_text ?? o.address_line ?? o.address);
+        const canNavigate = Boolean(deliveryAddress && deliveryAddress !== 'Address on order' && (acceptedFlag || status === 'in_progress'));
+        const directionsHref = canNavigate
+          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(deliveryAddress)}`
+          : null;
         return (
           <article key={id || i} className="sp-card">
             <div className="sp-row">
@@ -244,23 +259,24 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
               <StatusBadge status={status} />
             </div>
             <dl className="sp-dl">
-              <dt>Service</dt><dd>{str(o.service_type_label ?? o.service_type, 'Water order')}</dd>
-              <dt>Customer</dt><dd>{str(o.customer_name, 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
-              <dt>Address</dt><dd>{str(o.address_text ?? o.address_line ?? o.address, 'Address on order')}</dd>
-              <dt>Payment</dt><dd>{norm(o.payment_status) === 'paid' ? 'Paid' : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`}</dd>
-              <dt>Slot</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
+              <dt>{language === 'hi' ? 'सेवा' : 'Service'}</dt><dd>{str(o.service_type_label ?? o.service_type, language === 'hi' ? 'पानी का ऑर्डर' : 'Water order')}</dd>
+              <dt>{language === 'hi' ? 'ग्राहक' : 'Customer'}</dt><dd>{str(o.customer_name, language === 'hi' ? 'ग्राहक' : 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
+              <dt>{language === 'hi' ? 'पता' : 'Address'}</dt><dd>{deliveryAddress || (language === 'hi' ? 'पता स्वीकार करने के बाद उपलब्ध होगा' : 'Address on order')}</dd>
+              <dt>{language === 'hi' ? 'भुगतान' : 'Payment'}</dt><dd>{norm(o.payment_status) === 'paid' ? (language === 'hi' ? 'भुगतान हो गया' : 'Paid') : (language === 'hi' ? `डिलीवरी पर भुगतान (${str(o.payment_method, 'cash').toUpperCase()})` : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`)}</dd>
+              <dt>{language === 'hi' ? 'समय' : 'Slot'}</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, language === 'hi' ? 'समय तय होना बाकी' : 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
             </dl>
             <p className="sp-amount">{money(o.final_amount ?? o.total_amount ?? o.amount)}</p>
 
             <div className="sp-actions">
+              {directionsHref && <a className="sp-link" href={directionsHref} target="_blank" rel="noopener noreferrer">{language === 'hi' ? 'डिलीवरी के लिए रास्ता खोलें' : 'Navigate to delivery'}</a>}
               {canAccept && (
                 <button className="sp-btn" disabled={busy} onClick={() => void decide(id, 'accept')}>
-                  Accept order
+                  {language === 'hi' ? 'ऑर्डर स्वीकार करें' : 'Accept order'}
                 </button>
               )}
               {status === 'assigned' && (
-                <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', 'Delivery started.')}>
-                  Start delivery
+                <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
+                  {language === 'hi' ? 'डिलीवरी शुरू करें' : 'Start delivery'}
                 </button>
               )}
               {status === 'in_progress' && (() => {
@@ -271,15 +287,15 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 return (
                   <>
                     {!paid && upi && (
-                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>UPI transaction reference
+                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>{language === 'hi' ? 'UPI लेन-देन संदर्भ' : 'UPI transaction reference'}
                         <input id={`ref-${id}`} className="sp-input" autoComplete="off" value={refs[id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [id]: e.target.value }))} />
                       </label>
                     )}
                     <Confirm
                       className="sp-btn sp-btn--amber"
-                      confirmText={paid ? 'Tap again to confirm delivery' : `Tap again: ${amount} received`}
+                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} प्राप्त हुए` : `Tap again: ${amount} received`)}
                       disabled={busy || (!paid && upi && !ref)}
-                      onConfirm={() => void advance(id, 'completed', 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
+                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
                     >
                       <span className="sp-pulse" aria-hidden /> Complete delivery
                     </Confirm>
@@ -287,7 +303,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 );
               })()}
               {(status === 'completed' || status === 'delivered') && (
-                <button className="sp-btn sp-btn--ghost" disabled>Delivered</button>
+                <button className="sp-btn sp-btn--ghost" disabled>{language === 'hi' ? 'डिलीवर हो गया' : 'Delivered'}</button>
               )}
               {canAccept && (
                 <Confirm className="sp-btn sp-btn--ghost" confirmText="Tap again to decline" disabled={busy}
@@ -296,7 +312,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 </Confirm>
               )}
             </div>
-            {status === 'in_progress' && <p className="sp-hint">Delivery in progress</p>}
+            {status === 'in_progress' && <p className="sp-hint">{language === 'hi' ? 'डिलीवरी जारी है' : 'Delivery in progress'}</p>}
           </article>
         );
       })}
@@ -457,18 +473,20 @@ function Analytics({ rows }: { rows: Row[] }) {
 }
 
 function Support() {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   return (
     <section className="sp-grid">
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">If an order isn’t reaching you</h2>
+        <h2 className="sp-h2">{isHindi ? 'ऑर्डर नहीं मिल रहा है?' : 'If an order isn’t reaching you'}</h2>
         <ol className="sp-steps">
-          <li>Check that you are online in Dispatch settings.</li>
-          <li>Confirm your dispatch location and service radius.</li>
-          <li>Check that you have enough available cans in Inventory.</li>
-          <li>Refresh the Orders page.</li>
+          <li>{isHindi ? 'डिस्पैच सेटिंग में ऑनलाइन स्थिति जाँचें।' : 'Check that you are online in Dispatch settings.'}</li>
+          <li>{isHindi ? 'डिस्पैच लोकेशन और सेवा क्षेत्र की पुष्टि करें।' : 'Confirm your dispatch location and service radius.'}</li>
+          <li>{isHindi ? 'इन्वेंटरी में उपलब्ध कैन की संख्या जाँचें।' : 'Check that you have enough available cans in Inventory.'}</li>
+          <li>{isHindi ? 'ऑर्डर पेज रीफ्रेश करें।' : 'Refresh the Orders page.'}</li>
         </ol>
-        <p className="sp-sub">If a valid order still doesn’t assign, send the order ID to your platform administrator for a dispatch-log review. Never share banking secrets or customer payment details in messages.</p>
-        <Link href="/supplier/settings" className="sp-link">Check dispatch settings</Link>
+        <p className="sp-sub">{isHindi ? 'यदि पात्र ऑर्डर फिर भी असाइन नहीं होता, तो ऑर्डर ID एडमिन को दें ताकि dispatch logs की जाँच हो सके। संदेश में बैंकिंग पासवर्ड या ग्राहक के भुगतान संबंधी गोपनीय जानकारी साझा न करें।' : 'If a valid order still doesn’t assign, send the order ID to your platform administrator for a dispatch-log review. Never share banking secrets or customer payment details in messages.'}</p>
+        <Link href="/supplier/settings" className="sp-link">{isHindi ? 'डिस्पैच सेटिंग जाँचें' : 'Check dispatch settings'}</Link>
       </article>
     </section>
   );
@@ -538,7 +556,13 @@ const CSS = `
   min-height:80vh;background:radial-gradient(ellipse at 10% -10%,rgba(45,212,191,.12),transparent 40%),var(--bg);color:var(--ink);
   padding:clamp(18px,4vw,56px);font-family:Inter,ui-sans-serif,system-ui,sans-serif;line-height:1.5}
 .sp *{box-sizing:border-box}
-.sp-head{max-width:760px}
+.sp-head{max-width:100%;min-width:0}
+.sp-head-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sp-head-copy{min-width:0;flex:1 1 260px}
+.sp-language{display:inline-flex;flex:0 0 auto;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.sp-language button{min-height:36px;padding:7px 12px;border-radius:8px;border:0;background:transparent;color:var(--mute);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.sp-language button.is-active{background:var(--teal);color:#04201c}
+.sp-head{max-width:100%;min-width:0}
 .sp-kicker{margin:0;color:var(--teal);font-size:12.5px;font-weight:700;letter-spacing:.02em}
 .sp-h1{margin:6px 0 8px;font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.02em;line-height:1.1}
 .sp-h2{margin:0 0 8px;font-size:17px;font-weight:700}
@@ -588,7 +612,7 @@ const CSS = `
 @keyframes sp-shimmer{to{background-position:-200% 0}}
 .sp :focus-visible{outline:2px solid #7dd3fc;outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.sp *{animation:none!important;transition:none!important}}
-@media (max-width:520px){.sp-dl{grid-template-columns:1fr}.sp-dl dt{margin-top:6px}.sp-refresh{margin-left:0}}
+@media (max-width:520px){.sp{padding:16px 12px calc(28px + env(safe-area-inset-bottom))}.sp-dl{grid-template-columns:1fr}.sp-dl dt{margin-top:6px}.sp-refresh{margin-left:0}.sp-nav{gap:5px;margin:16px 0;padding-bottom:12px}.sp-tab{font-size:12px;padding:8px 10px}.sp-card{padding:16px}.sp-head-row{gap:12px}.sp-language{margin-left:auto}.sp-grid{grid-template-columns:minmax(0,1fr)}}
 `;
 
 
@@ -691,7 +715,7 @@ const CSS = `
 //         <p>{String(o.scheduled_date??o.scheduled_at??'Schedule pending')} {String(o.time_slot??o.scheduled_slot??'')}</p><strong>{money(o.final_amount??o.total_amount??o.amount)}</strong>
 //         <div style={{...row,justifyContent:'flex-start',marginTop:16}}>
 //           {['ASSIGNED','PENDING'].includes(String(o.status??'').toUpperCase()) && <>
-//             <button style={button} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/accept`,'PUT',{})}>Accept order</button>
+//             <button style={button} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/accept`,'PUT',{})}>{language === 'hi' ? 'ऑर्डर स्वीकार करें' : 'Accept order'}</button>
 //             <button style={secondaryButton} disabled={busy} onClick={()=>{if(window.confirm('Decline this order? It may be offered to another supplier.'))void send(`/api/supplier/orders/${String(o.id)}/reject`,'PUT',{reason:'Supplier declined'});}}>Decline</button>
 //           </>}
 //           {String(o.status??'').toUpperCase()==='ASSIGNED' && <button style={secondaryButton} disabled={busy} onClick={()=>void send(`/api/supplier/orders/${String(o.id)}/status`,'PUT',{status:'IN_PROGRESS'})}>Start delivery</button>}

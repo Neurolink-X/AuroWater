@@ -106,10 +106,12 @@ export async function PATCH(req: NextRequest) {
 
   const db = createServiceClient();
   const supplierId = auth.ctx.profile.id;
+  // Read the row once and normalize optional columns below. Explicitly selecting
+  // optional profile columns makes the entire request fail on older production schemas.
   const { data: profile, error: profileError } = await db.from('profiles')
-    .select('full_name, phone, business_name, city').eq('id', supplierId).maybeSingle();
+    .select('*').eq('id', supplierId).maybeSingle();
   if (profileError || !profile) {
-    console.error('[supplier/profile] profile read failed', profileError);
+    console.error('[supplier/profile] profile read failed', profileError ? { code: profileError.code, message: profileError.message, details: profileError.details } : { message: 'Supplier profile row not found', supplierId });
     return jsonErr('We could not read your saved supplier profile from the database. No changes were submitted. Please refresh and try again; if this continues, contact support.', 502);
   }
   const { data: settings, error: settingsError } = await db.from('supplier_settings')

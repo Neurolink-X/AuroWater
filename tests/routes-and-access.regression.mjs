@@ -338,3 +338,38 @@ assert.match(supplierProfileApi, /No changes were submitted/);
 const supplierProfilePage = readFileSync(join(root, 'src', 'app', 'supplier', 'profile', 'page.tsx'), 'utf8');
 assert.match(supplierProfilePage, /verification_status/);
 assert.match(supplierProfilePage, /postal-code/);
+
+
+// Supplier/technician workflow regressions: avoid duplicate mobile navigation,
+// keep language selection shared across role pages, and only reveal precise
+// supplier navigation after the order is accepted.
+const supplierProfileRoute = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'profile', 'route.ts'), 'utf8');
+assert.match(supplierProfileRoute, /\.select\('\*'\)\.eq\('id', supplierId\)\.maybeSingle\(\)/);
+assert.match(supplierProfileRoute, /profile read failed/);
+assert.match(supplierProfileRoute, /No changes were submitted/);
+
+assert.match(supplierNav, /LanguageToggle/);
+assert.match(supplierNav, /useLanguage/);
+assert.match(supplierNav, /href: '\/supplier\/coverage', label: 'Service Areas'/);
+assert.match(supplierSectionPage, /useLanguage\(\)/);
+const activeSupplierSection = supplierSectionPage.split("\n// 'use client'")[0];
+assert.doesNotMatch(activeSupplierSection, /<nav className="sp-nav"/);
+assert.match(supplierSectionPage, /sp-head-row/);
+assert.match(supplierSectionPage, /const canNavigate = Boolean\(deliveryAddress.*acceptedFlag/s);
+assert.match(supplierSectionPage, /google\.com\/maps\/dir/);
+assert.match(supplierSectionPage, /language === 'hi' \? 'डिलीवरी शुरू करें'/);
+
+const supplierNavSource = readFileSync(join(root, 'src', 'components', 'supplier', 'SupplierNav.tsx'), 'utf8');
+assert.match(supplierNavSource, /LanguageToggle/);
+assert.match(supplierNavSource, /Service Areas/);
+assert.match(supplierNavSource, /overflow-x: auto/);
+
+const technicianDashboard = readFileSync(join(root, 'src', 'app', 'technician', 'dashboard', 'page.tsx'), 'utf8');
+assert.match(technicianDashboard, /useLanguage/);
+assert.doesNotMatch(technicianDashboard, /usePersisted<'en' \| 'hi'>\(KEYS\.LANGUAGE/);
+const technicianJobs = readFileSync(join(root, 'src', 'app', 'technician', 'jobs', 'page.tsx'), 'utf8');
+assert.match(technicianJobs, /LanguageToggle/);
+assert.match(technicianJobs, /View complete job/);
+const technicianJobDetail = readFileSync(join(root, 'src', 'app', 'technician', 'job', '\[id\]', 'page.tsx'), 'utf8');
+assert.match(technicianJobDetail, /LanguageToggle/);
+assert.match(technicianJobDetail, /google\.com\/maps\/dir/);
