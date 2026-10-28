@@ -248,7 +248,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
         const acceptedFlag = Boolean(o.accepted_at ?? o.supplier_accepted_at ?? o.is_accepted);
         const canAccept = !decided.has(id) && (status === 'pending' || (status === 'assigned' && !acceptedFlag));
         const deliveryAddress = str(o.address_text ?? o.address_line ?? o.address);
-        const canNavigate = Boolean(deliveryAddress && deliveryAddress !== 'Address on order' && ['assigned', 'in_progress'].includes(status));
+        const canNavigate = Boolean(deliveryAddress && deliveryAddress !== 'Address on order' && (acceptedFlag || status === 'in_progress'));
         const directionsHref = canNavigate
           ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(deliveryAddress)}`
           : null;
