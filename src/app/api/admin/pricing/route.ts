@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
-type Config = {
+type PriceBook = {
   water_normal: number; water_chilled: number; water_subscription: number;
   bulk_can_price: number; bulk_threshold: number; services: Record<string, number>;
   convenience_fee: number; emergency_surcharge: number; gst_rate: number;
-  city_overrides?: Record<string, Omit<Config, 'city_overrides'>>;
 };
+type Config = PriceBook & { city_overrides?: Record<string, PriceBook> };
 const money = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 
@@ -28,7 +28,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     services[key] = Math.round(value * 100) / 100;
   }
   if (!Object.keys(services).length) return { error: 'At least one service price is required.' };
-  const cityOverrides: Record<string, Omit<Config, 'city_overrides'>> = {};
+  const cityOverrides: Record<string, PriceBook> = {};
   if (v.city_overrides !== undefined) {
     if (!v.city_overrides || typeof v.city_overrides !== 'object' || Array.isArray(v.city_overrides)) return { error: 'City pricing overrides must be an object.' };
     for (const [rawCity, rawOverride] of Object.entries(v.city_overrides as Record<string, unknown>)) {
@@ -37,7 +37,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
       if (!rawOverride || typeof rawOverride !== 'object' || Array.isArray(rawOverride) || 'city_overrides' in (rawOverride as Record<string, unknown>)) return { error: `Nested city overrides are not allowed for ${rawCity}.` };
       const checked = validate(rawOverride);
       if (!checked.config) return { error: `Invalid pricing for ${rawCity}: ${checked.error ?? 'check all fields'}` };
-      const cleanOverride = Object.fromEntries(Object.entries(checked.config).filter(([key]) => key !== 'city_overrides')) as Omit<Config, 'city_overrides'>;
+      const cleanOverride = Object.fromEntries(Object.entries(checked.config).filter(([key]) => key !== 'city_overrides')) as PriceBook;
       cityOverrides[city] = cleanOverride;
     }
   }
