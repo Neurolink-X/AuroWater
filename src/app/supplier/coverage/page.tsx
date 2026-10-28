@@ -7,7 +7,7 @@ import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type Zone = { id: string; city: string; name: string; status: string; pincodes: string[] | null; services: string[] | null };
 type RequestRow = { id: string; zone_id: string; service_keys: string[]; status: string; supplier_note: string | null; admin_note: string | null; created_at: string };
-type Payload = { zones: Zone[]; requests: RequestRow[] };
+type Payload = { zones: Zone[]; requests: RequestRow[]; supplier_city?: string | null; warnings?: string[] };
 const SERVICE_OPTIONS = [
   ['water_can', '20L water-can delivery'], ['plumbing', 'Plumbing'], ['ro_service', 'RO purifier service'],
   ['tank_cleaning', 'Water-tank cleaning'], ['borewell', 'Borewell services'], ['motor_pump', 'Motor/pump service'],
@@ -51,6 +51,8 @@ export default function SupplierCoveragePage() {
     if (!services.length) { setError(isHindi ? 'कम से कम एक सेवा चुनें।' : 'Choose at least one service.'); return; }
     const pinList = requestedPincodes.split(/[\s,]+/).map(p => p.trim()).filter(Boolean);
     if (pinList.some(p => !/^[0-9]{6}$/.test(p))) { setError(isHindi ? '6 अंकों के सही PIN कोड कॉमा या स्पेस से अलग करके लिखें।' : 'Enter valid 6-digit PIN codes, separated by commas or spaces.'); return; }
+    if (new Set(pinList).size > 3) { setError(isHindi ? 'एक बार में अधिकतम 3 नए PIN कोड माँग सकते हैं।' : 'You can request a maximum of 3 additional PIN codes at a time.'); return; }
+    if (pinList.length && selected.length !== 1) { setError(isHindi ? 'नए PIN कोड के लिए केवल एक संबंधित क्षेत्र चुनें।' : 'When requesting new PINs, select exactly one related service area so admin can review the correct area.'); return; }
     const requestNote = [pinList.length ? 'Requested PIN codes: ' + [...new Set(pinList)].join(', ') : '', note.trim()].filter(Boolean).join('\n');
     setSaving(true); setError(''); setMessage('');
     try {
@@ -93,8 +95,8 @@ export default function SupplierCoveragePage() {
       <h2 className="mt-6 text-lg font-bold">{isHindi ? '2. उपलब्ध सेवाएँ' : '2. Services you can fulfil'}</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" className="mt-1 shrink-0" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="min-w-0 break-words text-sm">{isHindi ? serviceLabelsHi[key] ?? label : label}</span></label>)}</div>
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'अतिरिक्त 6 अंकों के PIN कोड माँगें (वैकल्पिक)' : 'Request additional 6-digit PIN codes (optional)'}
-        <input value={requestedPincodes} onChange={e => setRequestedPincodes(e.target.value)} maxLength={300} placeholder="e.g. 201301, 201307" className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" />
-        <span className="mt-1 block text-xs font-normal text-slate-500">{isHindi ? 'ये कोड एडमिन की समीक्षा के लिए हैं; तुरंत सक्रिय नहीं होंगे।' : 'These are a request for admin review, not an instant service-area activation.'}</span>
+        <input value={requestedPincodes} onChange={e => setRequestedPincodes(e.target.value)} maxLength={20} placeholder="e.g. 201301, 201307" className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" />
+        <span className="mt-1 block text-xs font-normal text-slate-500">{isHindi ? 'एक बार में अधिकतम 3 PIN कोड। एडमिन की मंजूरी और क्षेत्र अपडेट होने तक सक्रिय नहीं होंगे।' : 'Maximum 3 PIN codes per request. They are not active until admin approves and updates coverage.'}</span>
       </label>
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'सेवा क्षेत्र का विवरण (वैकल्पिक)' : 'Coverage details (optional)'}
         <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={500} rows={3} placeholder="Sectors/pincodes you cover, delivery hours, capacity, vehicle/stock details…" className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal"/>
@@ -103,7 +105,7 @@ export default function SupplierCoveragePage() {
     </section>
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-bold">{isHindi ? 'अनुरोध का इतिहास' : 'Request history'}</h2>
-      {payload.requests.length === 0 ? <p className="mt-2 text-sm text-slate-500">No coverage requests submitted yet.</p> : <div className="mt-3 space-y-3">{payload.requests.map(r => {
+      {payload.warnings?.includes('requests_unavailable') && <p role="alert" className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Coverage request storage is unavailable. Requests cannot be confirmed until admin fixes the database setup.</p>}{payload.requests.length === 0 ? <p className="mt-2 text-sm text-slate-500">No coverage requests submitted yet.</p> : <div className="mt-3 space-y-3">{payload.requests.map(r => {
         const zone = payload.zones.find(z => z.id === r.zone_id);
         return <article key={r.id} className="rounded-xl border border-slate-100 p-3"><div className="flex flex-wrap justify-between gap-2"><strong>{zone?.name ?? 'Service area'}</strong><span className="text-xs font-bold">{r.status}</span></div><p className="mt-1 text-sm text-slate-600">Services: {r.service_keys.join(', ')}</p>{r.admin_note && <p className="mt-1 text-sm">Admin note: {r.admin_note}</p>}</article>;
       })}</div>}
