@@ -656,7 +656,7 @@ export default function BookingWizard() {
   const [hydrated, setHydrated]   = useState(false);
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
-  const pricingCity = draft.newAddress?.city ?? addresses.find((address) => address.id === draft.addressId)?.city ?? undefined;
+  const pricingCity = addresses.find((address) => address.id === draft.addressId)?.city ?? draft.newAddress?.city ?? undefined;
   const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
