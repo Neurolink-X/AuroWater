@@ -1,13 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { DM_Sans, Syne } from 'next/font/google';
 
 import PricingClient from './PricingClient';
 import { BRAND, CHILLED_RO_PRICE, CITIES, FAQS, NORMAL_RO_PRICE, PAGE_PATH, SERVICE_CARDS, SITE_URL } from './pricing-shared';
 
-// Self-hosted at build time: no render-blocking font request, no layout shift.
-const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm', weight: ['400', '500', '600', '700', '800'] });
-const syne = Syne({ subsets: ['latin'], display: 'swap', variable: '--font-syne', weight: ['700', '800'] });
+// Build-safe system font stacks avoid a network dependency on Google Fonts in CI/deploy.
+const fontVariables = '[--font-dm:Arial,Helvetica,sans-serif] [--font-syne:Arial,Helvetica,sans-serif]';
 
 const TITLE = `Water Can Delivery Prices from ₹${NORMAL_RO_PRICE} | ${BRAND}`;
 const DESCRIPTION = `20L water cans from ₹${NORMAL_RO_PRICE} (Chilled RO ₹${CHILLED_RO_PRICE}) with delivery included in ${CITIES.join(', ')}. Also book plumbers, tank cleaning, RO service and borewell work. See clear prices before you confirm.`;
@@ -63,7 +61,7 @@ export default function PricingPage() {
   ];
 
   return (
-    <div className={`${dmSans.variable} ${syne.variable}`}>
+    <div className={fontVariables}>
       {ld.map((o, i) => (
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(o) }} />
       ))}
