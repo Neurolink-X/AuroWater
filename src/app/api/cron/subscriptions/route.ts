@@ -239,9 +239,10 @@ export async function GET(
           )
         );
 
+      // Legacy subscriptions may still store old prices; recurring orders must respect today's minimum.
       const unit =
         Math.max(
-          0,
+          20,
           number(
             subscription.price_per_can
           )
