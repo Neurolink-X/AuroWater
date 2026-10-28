@@ -586,7 +586,11 @@ export async function POST(req: NextRequest) {
     if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
       return jsonErr('Invalid service option. Please choose an available option.', 400);
     }
-    base_amount = round2(serviceBase + (allowedOptions?.[optionKey] ?? 0));
+    const configuredOptionFee = Number(activeServicePrices[`${service_type_key}_${optionKey}`]);
+    const optionFee = Number.isFinite(configuredOptionFee) && configuredOptionFee >= 0
+      ? configuredOptionFee
+      : (allowedOptions?.[optionKey] ?? 0);
+    base_amount = round2(serviceBase + optionFee);
   }
 
   const clientTotal = Number(body.total_amount);
