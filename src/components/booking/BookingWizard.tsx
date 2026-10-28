@@ -1022,10 +1022,10 @@ export default function BookingWizard() {
     draft.canOrderType === 'subscription';
 
   /* Savings messaging (water cans only; hidden when SHOW_MARKET_COMPARISON is off) */
-  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_settings.default_can_price > settings.default_can_price;
+  const showCompareHome = SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price;
   const isCan = draft.serviceKey === 'water_can';
   const canQty = draft.canQuantity ?? 1;
-  const marketPerCan = draft.subOptionKey === 'chilled_ro' ? MARKET_settings.chilled_can_price : MARKET_settings.default_can_price;
+  const marketPerCan = draft.subOptionKey === 'chilled_ro' ? MARKET_CAN_PRICES.chilled : MARKET_CAN_PRICES.normal;
   const showCompare = SHOW_MARKET_COMPARISON && isCan && marketPerCan > perCan;
   const offPct = showCompare ? pctOff(marketPerCan, perCan) : 0;
   const youSave = showCompare ? Math.round((marketPerCan - perCan) * canQty) : 0;
@@ -1553,16 +1553,16 @@ export default function BookingWizard() {
 
         {view < 4 && <TrustChips />}
 
-        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_settings.default_can_price > settings.default_can_price && (
+        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price && (
           <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-5 text-white shadow-lg shadow-emerald-900/10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-100">Launch price · 20L RO can</p>
                 <p className="mt-1 flex flex-wrap items-baseline gap-2.5">
                   <span className="text-4xl font-extrabold" style={{ fontFamily: DISPLAY_FONT }}>{inr(settings.default_can_price)}</span>
-                  <s className="text-base text-emerald-200/80" aria-label={`Typical local price ${inr(MARKET_settings.default_can_price)}`}>{inr(MARKET_settings.default_can_price)}</s>
+                  <s className="text-base text-emerald-200/80" aria-label={`Typical local price ${inr(MARKET_CAN_PRICES.normal)}`}>{inr(MARKET_CAN_PRICES.normal)}</s>
                   <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-extrabold text-emerald-700">
-                    {pctOff(MARKET_settings.default_can_price, settings.default_can_price)}% OFF
+                    {pctOff(MARKET_CAN_PRICES.normal, settings.default_can_price)}% OFF
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-emerald-100">
@@ -1603,7 +1603,7 @@ export default function BookingWizard() {
                   ].join(' ')}>
                   {s.key === 'water_can' && showCompareHome && (
                     <span className="absolute right-3 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-extrabold text-white">
-                      {pctOff(MARKET_settings.default_can_price, settings.default_can_price)}% OFF
+                      {pctOff(MARKET_CAN_PRICES.normal, settings.default_can_price)}% OFF
                     </span>
                   )}
                   <div className="text-2xl" aria-hidden>{s.emoji}</div>
@@ -1611,7 +1611,7 @@ export default function BookingWizard() {
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
                     From ₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
                     {s.key === 'water_can' && showCompareHome && (
-                      <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_settings.default_can_price)}</s>
+                      <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_CAN_PRICES.normal)}</s>
                     )}
                   </div>
                 </button>
