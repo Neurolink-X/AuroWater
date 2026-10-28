@@ -10,7 +10,7 @@ import { usePathname } from 'next/navigation';
 //  - sticky at the top; the dashboard header sits right under it
 const links = [
   { href: '/supplier/dashboard', label: 'Overview' },
-  { href: '/supplier/orders', label: 'Orders' },
+  { href: '/supplier/orders', label: 'Orders', priority: true },
   { href: '/supplier/inventory', label: 'Inventory' },
   { href: '/supplier/earnings', label: 'Earnings' },
   { href: '/supplier/settings', label: 'Dispatch' },
@@ -40,6 +40,7 @@ export default function SupplierNav() {
         .snav-link { flex: 0 0 auto; scroll-snap-align: center; color: #9fb4c7; text-decoration: none; font-size: 13px;
           font-weight: 700; padding: 7px 13px; border-radius: 999px; border: 1px solid transparent;
           transition: background .18s, color .18s; }
+        .snav-link[data-priority='true'] { color: #ecfdf5; background: rgba(5,150,105,.22); border-color: rgba(52,211,153,.38); }
         .snav-link:hover { color: #ecfdf5; background: rgba(255,255,255,.05); }
         .snav-link:focus-visible { outline: 2px solid #34d399; outline-offset: 2px; }
         .snav-link[aria-current='page'] { color: #ecfdf5; border-color: rgba(52,211,153,.5);
@@ -56,6 +57,7 @@ export default function SupplierNav() {
                 ref={active ? activeRef : undefined}
                 aria-current={active ? 'page' : undefined}
                 className="snav-link"
+                data-priority={'priority' in item && item.priority ? 'true' : undefined}
               >
                 {item.label}
               </Link>
