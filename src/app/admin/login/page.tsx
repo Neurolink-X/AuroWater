@@ -1,14 +1,13 @@
 'use client';
 
 import React, { FormEvent, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { ApiError, authLogin, profileToSession } from '@/lib/api-client';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { writeSession } from '@/hooks/useAuth';
 
 function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
