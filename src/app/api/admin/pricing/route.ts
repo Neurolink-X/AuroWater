@@ -6,6 +6,7 @@ type Config = {
   water_normal: number; water_chilled: number; water_subscription: number;
   bulk_can_price: number; bulk_threshold: number; services: Record<string, number>;
   convenience_fee: number; emergency_surcharge: number; gst_rate: number;
+  city_overrides?: Record<string, Omit<Config, 'city_overrides'>>;
 };
 const money = (v: unknown, min: number, max: number): v is number =>
   typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
@@ -27,6 +28,18 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     services[key] = Math.round(value * 100) / 100;
   }
   if (!Object.keys(services).length) return { error: 'At least one service price is required.' };
+  const cityOverrides: Record<string, Omit<Config, 'city_overrides'>> = {};
+  if (v.city_overrides !== undefined) {
+    if (!v.city_overrides || typeof v.city_overrides !== 'object' || Array.isArray(v.city_overrides)) return { error: 'City pricing overrides must be an object.' };
+    for (const [rawCity, rawOverride] of Object.entries(v.city_overrides as Record<string, unknown>)) {
+      const city = rawCity.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      if (!city || city.length > 60) return { error: 'Invalid city name in pricing overrides.' };
+      const checked = validate(rawOverride);
+      if (!checked.config) return { error: `Invalid pricing for ${rawCity}: ${checked.error ?? 'check all fields'}` };
+      const { city_overrides: _nested, ...cleanOverride } = checked.config;
+      cityOverrides[city] = cleanOverride;
+    }
+  }
   return { config: {
     water_normal: Math.round(Number(v.water_normal) * 100) / 100,
     water_chilled: Math.round(Number(v.water_chilled) * 100) / 100,
@@ -36,6 +49,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     convenience_fee: Math.round(Number(v.convenience_fee) * 100) / 100,
     emergency_surcharge: Math.round(Number(v.emergency_surcharge) * 100) / 100,
     gst_rate: Number(v.gst_rate),
+    ...(Object.keys(cityOverrides).length ? { city_overrides: cityOverrides } : {}),
   } };
 }
 
