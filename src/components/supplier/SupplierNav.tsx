@@ -13,6 +13,7 @@ import { useLanguage } from '@/lib/i18n/LanguageContext';
 const links = [
   { href: '/supplier/dashboard', label: 'Overview' },
   { href: '/supplier/orders', label: 'Orders', priority: true },
+  { href: '/supplier/coverage', label: 'Service Areas' },
   { href: '/supplier/inventory', label: 'Inventory' },
   { href: '/supplier/earnings', label: 'Earnings' },
   { href: '/supplier/settings', label: 'Dispatch' },
@@ -25,7 +26,7 @@ export default function SupplierNav() {
   const pathname = usePathname() ?? '';
   const { language } = useLanguage();
   const labels: Record<string, string> = language === 'hi' ? {
-    Overview: 'डैशबोर्ड', Orders: 'ऑर्डर', Inventory: 'स्टॉक', Earnings: 'कमाई', Dispatch: 'डिस्पैच', 'My Profile': 'मेरी प्रोफ़ाइल', Performance: 'प्रदर्शन', Support: 'सहायता',
+    Overview: 'डैशबोर्ड', Orders: 'ऑर्डर', Inventory: 'स्टॉक', Earnings: 'कमाई', Dispatch: 'डिस्पैच', 'Service Areas': 'सेवा क्षेत्र', 'My Profile': 'मेरी प्रोफ़ाइल', Performance: 'प्रदर्शन', Support: 'सहायता',
   } : {};
   const activeRef = useRef<HTMLAnchorElement | null>(null);
 
