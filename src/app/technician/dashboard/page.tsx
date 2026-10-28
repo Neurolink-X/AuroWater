@@ -81,6 +81,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import type { ApiOrder } from '@/lib/api-client';
 import {
   technicianJobsList,
@@ -1481,7 +1482,7 @@ export default function TechnicianDashboardPage() {
   const userId = session?.userId;
 
   const [tab, setTab] = useState<TabKey>('overview');
-  const [language, setLanguage] = usePersisted<'en' | 'hi'>(KEYS.LANGUAGE, 'en', (raw) => raw === 'hi' ? 'hi' : 'en');
+  const { language, setLanguage } = useLanguage();
   const isHindi = language === 'hi';
   const [moreOpen, setMoreOpen] = useState(false);
   const [online, setOnline] = useState<TechnicianOnline>('offline');
