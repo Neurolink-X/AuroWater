@@ -80,6 +80,7 @@ export default function LocalIntelligencePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     setError('');
@@ -96,6 +97,7 @@ export default function LocalIntelligencePage() {
         throw new Error(json.error ?? json.message ?? 'Could not load local intelligence.');
       }
       setSummary(json.data);
+      setLastUpdated(json.data.generatedAt);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load local intelligence.');
     } finally {
@@ -104,17 +106,34 @@ export default function LocalIntelligencePage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    // Keep operational signals fresh without a full-page reload or loading-screen flicker.
+    const refreshTimer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load(true);
+    }, 30_000);
+    const refreshOnReturn = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    return () => {
+      window.clearInterval(refreshTimer);
+      document.removeEventListener('visibilitychange', refreshOnReturn);
+    };
+  }, [load]);
 
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-6">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link href="/admin/dashboard" className="text-sm text-cyan-300 hover:text-cyan-200">← Admin dashboard</Link>
-          <button type="button" onClick={() => void load(true)} disabled={loading || refreshing}
+          <div className="flex items-center gap-3">
+            {lastUpdated && <span className="hidden text-xs text-slate-400 sm:inline">Updated {new Date(lastUpdated).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</span>}
+            <button type="button" onClick={() => void load(true)} disabled={loading || refreshing}
             className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/5 disabled:opacity-50">
             {refreshing ? 'Refreshing…' : 'Refresh insights'}
-          </button>
+            </button>
+          </div>
         </div>
 
         <header className="mt-6">

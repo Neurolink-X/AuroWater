@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   const [profilesResult, linksResult, zonesResult, stockResult] = await Promise.all([
     db.from('profiles')
-      .select('id, role, full_name, business_name, city, is_active, status, verification_status')
+      .select('*') // Optional profile columns vary across deployed schemas.
       .eq('role', 'supplier')
       .limit(5000),
     db.from('supplier_zones').select('supplier_id, zone_id, service_keys').limit(10000),
