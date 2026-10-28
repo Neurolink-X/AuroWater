@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rowsToSettingsPayload } from '@/lib/api/settings-map';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
@@ -41,7 +41,7 @@ function ok(data: Record<string, unknown>, status = 200) {
  * Public settings. Never 502, never wait more than 5s.
  * `settings` is a key/value table — do not use `.single()`.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
     return ok(defaultPayload());
   }
@@ -88,9 +88,7 @@ export async function GET() {
 
     if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
       const publishedConfig = activeVersion.config as Record<string, unknown>;
-      const requestedCity = new URLSearchParams(
-        typeof globalThis.location === 'undefined' ? '' : globalThis.location.search,
-      ).get('city');
+      const requestedCity = req.nextUrl.searchParams.get('city');
       const cityKey = String(requestedCity ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
         ? publishedConfig.city_overrides as Record<string, unknown> : {};
