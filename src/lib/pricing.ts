@@ -139,8 +139,11 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
   // 1. Base (can override)
   let base: number;
   if (input.serviceKey === 'water_tanker' && input.canCount != null && input.pricePerCan != null) {
-    base = r2(clampMin(input.canCount) * clampMin(input.pricePerCan));
-    lines.push({ label: `Water Cans (${input.canCount} × ₹${input.pricePerCan})`, amount: base, sign: 1 });
+    const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
+    const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
+    const safeUnitPrice = Math.max(clampMin(input.pricePerCan), minimumUnitPrice);
+    base = r2(clampMin(input.canCount) * safeUnitPrice);
+    lines.push({ label: `Water Cans (${input.canCount} × ₹${safeUnitPrice})`, amount: base, sign: 1 });
   } else {
     base = r2(clampMin(input.basePrice));
     lines.push({ label: 'Service Charge', amount: base, sign: 1 });
