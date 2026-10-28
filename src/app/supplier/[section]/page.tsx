@@ -192,7 +192,7 @@ export default function SupplierSectionPage() {
 
       {loading && !data ? <Skeleton /> : (
         <>
-          {section === 'orders' && <Orders rows={rows} busy={busy} send={send} />}
+          {section === 'orders' && <Orders rows={rows} busy={busy} send={send} language={language} />}
           {section === 'inventory' && <Inventory obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'earnings' && <Earnings obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'settings' && <Settings obj={obj} online={online} radius={radius} setRadius={setRadius} busy={busy} send={send} setError={setError} />}
@@ -208,7 +208,7 @@ export default function SupplierSectionPage() {
 
 type Send = (path: string, method: string, payload: Row, okMessage?: string, onFail?: (e: unknown) => void) => Promise<boolean>;
 
-function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }) {
+function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; send: Send; language: 'en' | 'hi' }) {
   // Optimistic status overrides: the button advances instantly, and rolls back if the server refuses.
   const [override, setOverride] = useState<Record<string, Status>>({});
   // Orders whose accept/decline choice is settled (done, or the server said 409). Hides those buttons.
@@ -278,12 +278,12 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
               {directionsHref && <a className="sp-link" href={directionsHref} target="_blank" rel="noopener noreferrer">{language === 'hi' ? 'डिलीवरी के लिए रास्ता खोलें' : 'Navigate to delivery'}</a>}
               {canAccept && (
                 <button className="sp-btn" disabled={busy} onClick={() => void decide(id, 'accept')}>
-                  Accept order
+                  {language === 'hi' ? 'ऑर्डर स्वीकार करें' : 'Accept order'}
                 </button>
               )}
               {status === 'assigned' && (
                 <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
-                  Start delivery
+                  {language === 'hi' ? 'डिलीवरी शुरू करें' : 'Start delivery'}
                 </button>
               )}
               {status === 'in_progress' && (() => {
@@ -294,7 +294,7 @@ function Orders({ rows, busy, send }: { rows: Row[]; busy: boolean; send: Send }
                 return (
                   <>
                     {!paid && upi && (
-                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>UPI transaction reference
+                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>{language === 'hi' ? 'UPI लेन-देन संदर्भ' : 'UPI transaction reference'}
                         <input id={`ref-${id}`} className="sp-input" autoComplete="off" value={refs[id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [id]: e.target.value }))} />
                       </label>
                     )}
