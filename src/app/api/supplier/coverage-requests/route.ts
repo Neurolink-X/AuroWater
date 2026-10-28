@@ -104,9 +104,23 @@ export async function GET(req: NextRequest) {
   if (!requireRole(auth.ctx, 'supplier')) return jsonErr('Forbidden', 403);
 
   const db = createServiceClient();
-  const [zonesRes, requestsRes] = await Promise.all([loadZones(db), loadRequests(db, auth.ctx.profile.id)]);
+  const [zonesRes, requestsRes, profileRes] = await Promise.all([
+    loadZones(db),
+    loadRequests(db, auth.ctx.profile.id),
+    db.from('profiles').select('city').eq('id', auth.ctx.profile.id).maybeSingle(),
+  ]);
 
   if (zonesRes.error || !zonesRes.rows) return fail(rid, 'load-zones', zonesRes.error);
+  if (profileRes.error) return fail(rid, 'load-supplier-city', profileRes.error);
+
+  // Show the supplier's registered city first and only; prevents a Noida supplier
+  // accidentally requesting a Kanpur zone simply because all zones were globally listed.
+  const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const supplierCity = normalizeCity(profileRes.data?.city);
+  const cityZones = supplierCity
+    ? zonesRes.rows.filter(z => normalizeCity(z.city) === supplierCity)
+    : zonesRes.rows;
+  const zones = cityZones;
 
   let requests = requestsRes.rows ?? [];
   const warnings: string[] = [];
@@ -119,7 +133,7 @@ export async function GET(req: NextRequest) {
     } else return fail(rid, 'load-requests', requestsRes.error);
   }
 
-  const body = { zones: zonesRes.rows, requests, ...(warnings.length ? { warnings } : {}) };
+  const body = { zones, requests, supplier_city: profileRes.data?.city ?? null, ...(warnings.length ? { warnings } : {}) };
 
   // ETag: an unchanged reload costs a 304 with no body. no-cache = always revalidate, so a
   // supplier never sees stale state right after submitting a request.
@@ -162,14 +176,33 @@ export async function POST(req: NextRequest) {
       ? [...new Set(body.service_keys as string[])].sort() : null;
   if (serviceKeys === null || serviceKeys.length === 0) return withMeta(jsonErr('Choose at least one valid service type.', 422), rid);
   const note = typeof body.supplier_note === 'string' ? body.supplier_note.trim().slice(0, 500) : '';
+  const pinMatch = note.match(/Requested PIN codes:\s*([^\n]+)/i);
+  const requestedPins = pinMatch
+    ? [...new Set(pinMatch[1].split(/[\s,]+/).map(p => p.trim()).filter(Boolean))]
+    : [];
+  if (requestedPins.length > 3) {
+    return withMeta(jsonErr('You can request a maximum of 3 additional PIN codes at a time.', 422), rid);
+  }
+  if (requestedPins.some(pin => !/^\d{6}$/.test(pin))) {
+    return withMeta(jsonErr('Requested PIN codes must be valid 6-digit numbers.', 422), rid);
+  }
 
   const db = createServiceClient();
 
   // 1. Every selected zone must exist
-  const { data: zones, error: zoneError } = await db.from('service_zones').select('id').in('id', zoneIds);
+  const [{ data: zones, error: zoneError }, { data: supplierProfile, error: supplierProfileError }] = await Promise.all([
+    db.from('service_zones').select('id, city').in('id', zoneIds),
+    db.from('profiles').select('city').eq('id', supplierId).maybeSingle(),
+  ]);
   if (zoneError) return fail(rid, 'validate-zones', zoneError, 'Could not validate selected service areas.');
-  const valid = new Set((zones ?? []).map((z: { id: string }) => String(z.id)));
-  if (zoneIds.some((id) => !valid.has(id))) return withMeta(jsonErr('One or more selected service areas do not exist.', 422), rid);
+  if (supplierProfileError) return fail(rid, 'load-supplier-city', supplierProfileError);
+  const zoneMap = new Map((zones ?? []).map((z: { id: string; city: string }) => [String(z.id), z]));
+  if (zoneIds.some((id) => !zoneMap.has(id))) return withMeta(jsonErr('One or more selected service areas do not exist.', 422), rid);
+  const normalizeCity = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const supplierCity = normalizeCity(supplierProfile?.city);
+  if (supplierCity && zoneIds.some(id => normalizeCity(zoneMap.get(id)?.city) !== supplierCity)) {
+    return withMeta(jsonErr('You can only request service areas in your registered city. Submit a profile change request first if your registered city is incorrect.', 422), rid);
+  }
 
   // 2. Never knock an already-APPROVED zone back to PENDING (the old upsert silently removed live coverage)
   const existing = await loadRequests(db, supplierId, zoneIds);

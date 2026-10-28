@@ -117,6 +117,16 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/coverage-requests',
+    label: 'Coverage',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M12 22s8-4.5 8-12V5l-8-3-8 3v5c0 7.5 8 12 8 12Z" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="m8.5 12 2.2 2.2 4.8-5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/settings',
     label: 'Settings',
     icon: (
