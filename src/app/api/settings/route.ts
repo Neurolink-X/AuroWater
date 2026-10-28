@@ -103,6 +103,13 @@ export async function GET() {
       if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
       if (Object.keys(servicePrices).length) payload.service_base_prices = servicePrices;
     }
+
+    // Clamp legacy/stale settings for every client role; checkout APIs apply the same floors server-side.
+    payload.default_can_price = Math.max(20, Number(payload.default_can_price) || 20);
+    payload.chilled_can_price = Math.max(25, Number(payload.chilled_can_price) || 25);
+    payload.subscription_can_price = Math.max(20, Number(payload.subscription_can_price) || 20);
+    payload.bulk_can_price = Math.max(20, Number(payload.bulk_can_price) || 20);
+
     return ok(payload);
   } catch (err: unknown) {
     const name = err instanceof Error ? err.name : '';
