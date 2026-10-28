@@ -95,7 +95,6 @@ function PricingSection() {
   const cur = Number(current);
   const qtyOk = Number.isFinite(qty) && qty >= 1 && qty <= 1000;
   const curOk = current.trim() !== '' && Number.isFinite(cur) && cur > 0;
-  const base = W[type];
   const plan = planForQty(qtyOk ? qty : 1);
   const canPrice = minimumCanPrice(type, plan.off);
   const feeMonthly = ORDER_FEES.perDelivery * ORDER_FEES.assumedDeliveriesPerMonth;
