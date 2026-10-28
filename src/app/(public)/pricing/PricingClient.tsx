@@ -220,7 +220,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 // ─── Compare table ────────────────────────────────────────────────────────────
 function CompareTable({ settings }: { settings: PlatformSettings }) {
   const rows = [
-    { feature: 'Per-can rate', payg: `₹${normalPrice}`, starter: `₹${recurringPrice}`, pro: `₹${recurringPrice}`, office: `₹${normalPrice}`, business: 'Quote' },
+    { feature: 'Per-can rate', payg: `₹${settings.default_can_price}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${settings.default_can_price}`, business: 'Quote' },
     { feature: 'Separate water handling fee', payg: 'None for water cans', starter: 'None for water cans', pro: 'None for water cans', office: 'None for water cans', business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${Math.max(50, settings.bulk_threshold)}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
@@ -261,7 +261,7 @@ function CompareTable({ settings }: { settings: PlatformSettings }) {
 }
 
 // ─── Monthly water cost estimator (new) ───────────────────────────────────────
-function WaterCalculator({ onOrder }: { onOrder: (water: 'normal' | 'chilled') => void }) {
+function WaterCalculator({ onOrder, normalPrice, chilledPrice }: { onOrder: (water: 'normal' | 'chilled') => void; normalPrice: number; chilledPrice: number }) {
   const [cans, setCans] = useState(10);
   const [water, setWater] = useState<'normal' | 'chilled'>('normal');
   const [cycle, setCycle] = useState<BillingCycle>('weekly');
@@ -803,7 +803,7 @@ export default function PricingClient() {
 
         {/* ── Monthly cost estimator (new) ── */}
         <section aria-labelledby="calc-title" className="defer" style={{ maxWidth: 1160, margin: '0 auto', padding: '56px 24px 0' }}>
-          <WaterCalculator onOrder={(w) => router.push(`/book?service=water_can&water=${w}`)} />
+          <WaterCalculator normalPrice={normalPrice} chilledPrice={chilledPrice} onOrder={(w) => router.push(`/book?service=water_can&water=${w}`)} />
         </section>
 
         {/* ── MAIN CONTENT ── */}
