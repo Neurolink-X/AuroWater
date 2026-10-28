@@ -402,3 +402,14 @@ const adminShellPage = readFileSync(join(root, 'src', 'components', 'admin', 'Ad
 assert.match(adminShellPage, /let active = true/);
 assert.match(adminShellPage, /String\(verified\.user\.role\)\.toUpperCase\(\) !== 'ADMIN'/);
 assert.match(adminShellPage, /\/admin\/login\?returnTo=/);
+
+
+// Technician job updates should be event-driven with a bounded polling fallback.
+// Realtime is an accelerator, never the sole source of truth.
+const technicianJobsPage = readFileSync(join(root, 'src', 'app', 'technician', 'jobs', 'page.tsx'), 'utf8');
+assert.match(technicianJobsPage, /\.channel\(\`technician-jobs-\$\{currentUser\.id\}\`\)/);
+assert.match(technicianJobsPage, /table: 'orders'/);
+assert.match(technicianJobsPage, /filter: \`technician_id=eq\.\$\{currentUser\.id\}\`/);
+assert.match(technicianJobsPage, /setInterval\(\(\) => \{/);
+assert.match(technicianJobsPage, /window\.removeEventListener\('online', onOnline\)/);
+assert.match(technicianJobsPage, /supabase\.removeChannel\(channel\)/);
