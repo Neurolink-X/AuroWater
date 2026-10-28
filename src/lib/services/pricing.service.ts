@@ -41,7 +41,7 @@ export async function calculatePrice(params: PricingParams): Promise<PricingResp
   );
 
   if (!pricingRule) {
-    const serviceType = await queryOne<{ base_price: number }>(
+    const serviceType = await queryOne<any>(
       'SELECT base_price FROM service_types WHERE id = $1 AND is_active = true',
       [service_type_id]
     );
@@ -102,6 +102,7 @@ export async function setupDefaultPricing(): Promise<void> {
       { name: 'Kanpur', city: 'Kanpur', distance_factor: 1.0 },
       { name: 'Lucknow', city: 'Lucknow', distance_factor: 1.0 },
       { name: 'Gorakhpur', city: 'Gorakhpur', distance_factor: 1.0 },
+      { name: 'Agra', city: 'Agra', distance_factor: 1.0 },
     ];
     for (const z of zones) {
       await query(
