@@ -478,8 +478,17 @@ export async function POST(req: NextRequest) {
     .lte('effective_from', new Date().toISOString())
     .order('effective_from', { ascending: false }).order('version', { ascending: false })
     .limit(1).maybeSingle();
-  const activePricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
+  const publishedPricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown> : null;
+  const pricingCityKey = String(a.city ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const cityOverrides = publishedPricingConfig?.city_overrides && typeof publishedPricingConfig.city_overrides === 'object'
+    ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
+  const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
+    ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
+  // City overrides are complete validated price snapshots; otherwise use the global version.
+  const activePricingConfig = publishedPricingConfig
+    ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
+    : null;
   const activeServicePrices = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
     ? activePricingConfig.services as Record<string, unknown> : {};
   if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
