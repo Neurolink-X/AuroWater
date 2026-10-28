@@ -781,6 +781,8 @@
 //   // Tracks which "assigned, not yet accepted" orders we've already seen,
 //   // so a genuinely new assignment can trigger an instant alert.
 //   const knownWaitingRef = useRef<Set<string> | null>(null);
+  // Preserve visible orders during refreshes; skeletons are only for the first request.
+  const ordersLoadedOnceRef = useRef(false);
 //   // Silent refreshes: skeletons only show on the very first load, never on focus/realtime updates.
 //   const profileLoadedRef = useRef(false);
 //   const ordersLoadedRef = useRef(false);
@@ -2092,6 +2094,7 @@ import {
   type SupplierDispatchSettings,
 } from '@/lib/api-client';
 import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -2846,20 +2849,8 @@ export default function SupplierDashboardPage() {
   const [paymentCollector, setPaymentCollector] = useState<'supplier' | 'aurotap'>('supplier');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<OrderFilter>('all');
-  const [language, setLanguage] = useState<'en' | 'hi'>('en');
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem('aurotap_supplier_language');
-      if (saved === 'en' || saved === 'hi') setLanguage(saved);
-    } catch { /* English remains the fallback if storage is unavailable. */ }
-  }, []);
-
+  const { language, setLanguage } = useLanguage();
   const isHindi = language === 'hi';
-  const changeLanguage = (next: 'en' | 'hi') => {
-    setLanguage(next);
-    try { window.localStorage.setItem('aurotap_supplier_language', next); } catch { /* Apply for this session even without storage. */ }
-  };
   // Tracks which "assigned, not yet accepted" orders we've already seen,
   // so a genuinely new assignment can trigger an instant alert.
   const knownWaitingRef = useRef<Set<string> | null>(null);
@@ -3031,7 +3022,7 @@ export default function SupplierDashboardPage() {
   };
 
   const fetchOrders = async () => {
-    setLoadingOrders(true);
+    if (!ordersLoadedOnceRef.current) setLoadingOrders(true);
 
     try {
       // Use the role-protected API instead of querying legacy "customers"
@@ -3101,6 +3092,7 @@ export default function SupplierDashboardPage() {
         : raw;
       toast.error(friendly, { id: 'orders-load-error' });
     } finally {
+      ordersLoadedOnceRef.current = true;
       setLoadingOrders(false);
     }
   };
@@ -3581,10 +3573,6 @@ export default function SupplierDashboardPage() {
             </div>
 
             <div className="sd-row" style={{ gap: 8, flexShrink: 0 }}>
-              <div role="group" aria-label="Dashboard language / डैशबोर्ड की भाषा" className="sd-row" style={{ gap: 2, padding: 3, borderRadius: 12, background: 'var(--bg)', boxShadow: 'var(--inset)' }}>
-                <button type="button" title="English" aria-label="Switch dashboard to English" onClick={() => changeLanguage('en')} aria-pressed={language === 'en'} style={{ minHeight: 34, padding: '0 8px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'en' ? 'var(--brand)' : 'transparent', color: language === 'en' ? '#fff' : 'var(--ink2)' }}>EN</button>
-                <button type="button" title="हिंदी" aria-label="डैशबोर्ड हिंदी में दिखाएँ" onClick={() => changeLanguage('hi')} aria-pressed={language === 'hi'} style={{ minHeight: 34, padding: '0 8px', border: 0, borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: language === 'hi' ? 'var(--brand)' : 'transparent', color: language === 'hi' ? '#fff' : 'var(--ink2)' }}>हिंदी</button>
-              </div>
               <button
                 type="button"
                 title={isHindi ? 'डेटा रीफ़्रेश करें' : 'Refresh data'}
