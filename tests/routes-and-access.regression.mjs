@@ -330,3 +330,11 @@ assert.match(supplierSectionPage, /First load may use a skeleton; refreshes keep
 assert.match(supplierSectionPage, /if \(!silent && !hasData\.current\) setLoading\(true\)/);
 assert.match(supplierSectionPage, /id === latest\.current && !silent/);
 assert.match(supplierSectionPage, /disabled=\{busy \|\| \(loading && !hasData\.current\)\}/);
+
+
+// Profile support errors must explain that failed submissions do not update records.
+const supplierProfileApi = readFileSync(join(root, 'src', 'app', 'api', 'supplier', 'profile', 'route.ts'), 'utf8');
+assert.match(supplierProfileApi, /No changes were submitted/);
+const supplierProfilePage = readFileSync(join(root, 'src', 'app', 'supplier', 'profile', 'page.tsx'), 'utf8');
+assert.match(supplierProfilePage, /verification_status/);
+assert.match(supplierProfilePage, /postal-code/);

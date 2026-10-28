@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 type Data = {
-  profile: { id: string; full_name: string | null; email: string | null; phone: string | null; city: string | null; business_name: string | null; status: string; is_active: boolean | null; created_at: string } | null;
+  profile: { id: string; full_name: string | null; email: string | null; phone: string | null; city: string | null; business_name: string | null; status: string; is_active: boolean | null; verification_status?: string | null; created_at: string } | null;
   settings: Record<string, unknown> | null;
   coverage: Array<{ zone_id: string; service_keys: string[]; service_zones: { city: string; name: string; status: string; pincodes: string[] | null } | null }>;
   settings_warning?: boolean;
@@ -76,7 +76,7 @@ export default function SupplierProfilePage() {
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">Current account & approval</h2>
         <dl className="mt-3 grid gap-4 sm:grid-cols-2">
-          <div><dt className="text-xs text-slate-500">Account status</dt><dd className="mt-1 font-semibold">{data?.profile?.status ?? 'Unknown'}{data?.profile?.is_active === false ? ' · Inactive' : ''}</dd></div>
+          <div><dt className="text-xs text-slate-500">Account status</dt><dd className="mt-1 font-semibold">{data?.profile?.status ?? 'Unknown'}{data?.profile?.is_active === false ? ' · Inactive' : ''}</dd><dt className="mt-2 text-xs text-slate-500">Verification</dt><dd className="mt-1 font-semibold">{data?.profile?.verification_status ?? 'Not available — contact admin to confirm'}</dd></div>
           <div><dt className="text-xs text-slate-500">Email (managed by sign-in)</dt><dd className="mt-1 break-all font-semibold">{data?.profile?.email ?? 'Not available'}</dd></div>
           <div><dt className="text-xs text-slate-500">Registered address</dt><dd className="mt-1 font-semibold">{value(settings.business_address) || value(settings.address) || 'No business address on file'}</dd></div>
           <div><dt className="text-xs text-slate-500">Registered PIN code</dt><dd className="mt-1 font-semibold">{value(settings.pincode) || (data?.coverage.flatMap(c => c.service_zones?.pincodes ?? []).filter(Boolean).length ? `Not registered · approved coverage: ${[...new Set(data.coverage.flatMap(c => c.service_zones?.pincodes ?? []))].join(', ')}` : 'No PIN code on file')}</dd></div>
@@ -89,7 +89,7 @@ export default function SupplierProfilePage() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {([
             ['full_name','Full name'],['phone','Phone number'],['business_name','Business name'],['city','City'],['address','Business/service address'],['pincode','PIN code'],
-          ] as Array<[keyof typeof form,string]>).map(([key,label]) => <label key={key} className="text-sm font-semibold">{label}<input value={form[key]} onChange={e => update(key,e.target.value)} maxLength={key === 'address' ? 300 : 100} className="mt-1 w-full rounded-xl border border-slate-200 p-3 font-normal" /></label>)}
+          ] as Array<[keyof typeof form,string]>).map(([key,label]) => <label key={key} className="text-sm font-semibold">{label}<input value={form[key]} onChange={e => update(key,e.target.value)} maxLength={key === 'address' ? 300 : key === 'pincode' ? 6 : 100} inputMode={key === 'pincode' ? 'numeric' : key === 'phone' ? 'tel' : 'text'} autoComplete={key === 'pincode' ? 'postal-code' : key === 'phone' ? 'tel' : 'off'} className="mt-1 w-full rounded-xl border border-slate-200 p-3 font-normal" /></label>)}
         </div>
         <label className="mt-4 block text-sm font-semibold">Reason for change (optional)<textarea value={form.reason} onChange={e => update('reason',e.target.value)} maxLength={300} rows={2} className="mt-1 w-full rounded-xl border border-slate-200 p-3 font-normal" placeholder="e.g. moved to a new shop or corrected PIN code" /></label>
         <button onClick={() => void submit()} disabled={saving} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? 'Submitting…' : 'Request admin approval'}</button>
