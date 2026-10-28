@@ -106,14 +106,14 @@ const SETTINGS_SCHEMA: Record<
 
   min_can_price: {
     type: 'number',
-    min: 1,
+    min: 20,
     max: 500,
     label: 'Minimum can price (₹)',
   },
 
   max_can_price: {
     type: 'number',
-    min: 1,
+    min: 20,
     max: 1000,
     label: 'Maximum can price (₹)',
   },
