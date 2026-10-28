@@ -24,6 +24,13 @@ const CITIES: Record<string, CityInfo> = {
     description:
       'Explore 20-litre RO water delivery and home plumbing services in Kanpur through AuroTap.',
   },
+   Noida: {
+    name: 'Noida',
+    slug: 'Noida',
+    region: 'Uttar Pradesh',
+    description:
+      'Explore 20-litre RO water delivery and home plumbing services in Noida through AuroTap.',
+  },
   gorakhpur: {
     name: 'Gorakhpur',
     slug: 'gorakhpur',
