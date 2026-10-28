@@ -306,9 +306,9 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                 <button className="sp-btn sp-btn--ghost" disabled>{language === 'hi' ? 'डिलीवर हो गया' : 'Delivered'}</button>
               )}
               {canAccept && (
-                <Confirm className="sp-btn sp-btn--ghost" confirmText="Tap again to decline" disabled={busy}
+                <Confirm className="sp-btn sp-btn--ghost" confirmText={language === 'hi' ? 'रद्द करने के लिए फिर दबाएँ' : 'Tap again to decline'} disabled={busy}
                   onConfirm={() => void decide(id, 'reject')}>
-                  Decline
+                  {language === 'hi' ? 'ऑर्डर अस्वीकार करें' : 'Decline'}
                 </Confirm>
               )}
             </div>
@@ -543,8 +543,15 @@ function FragmentRow({ k, v }: { k: string; v: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { language } = useLanguage();
   const tone = ['completed', 'delivered', 'online'].includes(status) ? 'ok' : ['in_progress'].includes(status) ? 'amber' : ['cancelled', 'offline'].includes(status) ? 'off' : 'info';
-  return <span className={`sp-badge sp-badge--${tone}`}>{label(status) || 'unknown'}</span>;
+  const hiLabels: Record<string, string> = {
+    pending: 'लंबित', assigned: 'असाइन हुआ', in_progress: 'काम जारी',
+    completed: 'पूरा हुआ', delivered: 'डिलीवर हुआ', cancelled: 'रद्द',
+    online: 'ऑनलाइन', offline: 'ऑफलाइन', unknown: 'अज्ञात',
+  };
+  const value = label(status) || 'unknown';
+  return <span className={`sp-badge sp-badge--${tone}`}>{language === 'hi' ? (hiLabels[status] ?? value) : value}</span>;
 }
 
 function Empty({ title, text, href, cta }: { title: string; text: string; href: string; cta: string }) {
