@@ -64,7 +64,6 @@ export default function OfflineClient() {
   );
 
   useEffect(() => {
-    // Defer the initial async check until after the effect setup to avoid cascading renders.
     const initialCheck = window.setTimeout(() => void check(false), 0);
 
     const onOnline = () => void check(false);
