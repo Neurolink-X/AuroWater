@@ -45,7 +45,7 @@ class ApiError extends Error {
 /* ───────────────────────── Page ───────────────────────── */
 
 export default function SupplierSectionPage() {
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const isHindi = language === 'hi';
   const params = useParams<{ section: string }>();
   const section = params.section as Section;
@@ -170,8 +170,8 @@ export default function SupplierSectionPage() {
             <p className="sp-sub">{copy.subtitle}</p>
           </div>
           <div className="sp-language" role="group" aria-label="Language selection">
-            <button type="button" aria-pressed={!isHindi} onClick={() => { const root = document.querySelector('[data-supplier-language]'); if (root) root.dispatchEvent(new CustomEvent('supplier-language', { detail: 'en' })); }} className={!isHindi ? 'is-active' : ''}>EN</button>
-            <button type="button" aria-pressed={isHindi} onClick={() => { const root = document.querySelector('[data-supplier-language]'); if (root) root.dispatchEvent(new CustomEvent('supplier-language', { detail: 'hi' })); }} className={isHindi ? 'is-active' : ''}>हिंदी</button>
+            <button type="button" aria-pressed={!isHindi} onClick={() => setLanguage('en')} className={!isHindi ? 'is-active' : ''}>EN</button>
+            <button type="button" aria-pressed={isHindi} onClick={() => setLanguage('hi')} className={isHindi ? 'is-active' : ''}>हिंदी</button>
           </div>
         </div>
       </header>
