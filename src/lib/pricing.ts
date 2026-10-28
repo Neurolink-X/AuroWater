@@ -62,6 +62,8 @@ export type PricingInput = {
   pricePerCan?: number;
   /** NEW: customer's monthly can volume; applies the matching VOLUME_PLANS discount to the can charge */
   monthlyCanCount?: number;
+  /** Explicit water type keeps normal/chilled minimums unambiguous for pricing floors. */
+  waterType?: 'normal' | 'chilled';
   /**
    * NEW: what the commission split is calculated on.
    * 'total'  (default, old behaviour): split the full amount including GST.
@@ -150,9 +152,19 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
   if (input.serviceKey === 'water_tanker' && input.monthlyCanCount != null) {
     const plan = planForQty(input.monthlyCanCount);
     if (plan.off > 0) {
-      volumeDiscount = r2(base * (plan.off / 100));
-      appliedPlan = plan.name;
-      lines.push({ label: `${plan.name} plan (${plan.off}% off)`, amount: volumeDiscount, sign: -1, note: plan.note });
+      const hasUnitPrice = input.canCount != null && input.pricePerCan != null;
+      // Existing callers that do not identify the can type remain compatible.
+      const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
+      const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
+      const minimumCanSubtotal = hasUnitPrice
+        ? r2(clampMin(input.canCount!) * minimumUnitPrice)
+        : 0;
+      const maximumSafeDiscount = hasUnitPrice ? Math.max(0, base - minimumCanSubtotal) : base;
+      volumeDiscount = r2(Math.min(base * (plan.off / 100), maximumSafeDiscount));
+      if (volumeDiscount > 0) {
+        appliedPlan = plan.name;
+        lines.push({ label: `${plan.name} plan (${plan.off}% off)`, amount: volumeDiscount, sign: -1, note: plan.note });
+      }
     }
   }
   const baseAfterPlan = r2(base - volumeDiscount);
@@ -171,8 +183,17 @@ export function calculateOrderTotal(input: PricingInput): PriceBreakdown {
     const res = evaluateCoupon(input.coupon, subtotal);
     if (res.valid) {
       discountAmount = res.discount;
-      appliedCoupon = input.coupon.code;
-      lines.push({ label: `Coupon: ${input.coupon.code}`, amount: discountAmount, sign: -1, note: res.message });
+      // Coupons may reduce fees, but never water-can charges below approved floors.
+      if (input.serviceKey === 'water_tanker' && input.canCount != null && input.pricePerCan != null) {
+        const waterType = input.waterType ?? (input.pricePerCan === CAN_PRICES.chilled ? 'chilled' : 'normal');
+        const minimumUnitPrice = waterType === 'chilled' ? CAN_PRICES.chilled : CAN_PRICES.normal;
+        const minimumCanSubtotal = r2(clampMin(input.canCount) * minimumUnitPrice);
+        discountAmount = r2(Math.min(discountAmount, Math.max(0, subtotal - minimumCanSubtotal)));
+      }
+      if (discountAmount > 0) {
+        appliedCoupon = input.coupon.code;
+        lines.push({ label: `Coupon: ${input.coupon.code}`, amount: discountAmount, sign: -1, note: res.message });
+      }
     }
   }
   const taxableBase = r2(Math.max(0, subtotal - discountAmount));
