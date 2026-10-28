@@ -99,7 +99,7 @@ export default function SupplierCoveragePage() {
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'सेवा क्षेत्र का विवरण (वैकल्पिक)' : 'Coverage details (optional)'}
         <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={500} rows={3} placeholder="Sectors/pincodes you cover, delivery hours, capacity, vehicle/stock details…" className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal"/>
       </label>
-      <button disabled={saving || loading || !payload.zones.length} onClick={() => void submit()} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? '{isHindi ? 'भेजा जा रहा है…' : 'Submitting…'}' : '{isHindi ? 'एडमिन समीक्षा के लिए भेजें' : 'Submit for admin review'}'}</button>
+      <button disabled={saving || loading || !payload.zones.length} onClick={() => void submit()} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'एडमिन समीक्षा के लिए भेजें' : 'Submit for admin review')}</button>
     </section>
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="text-lg font-bold">{isHindi ? 'अनुरोध का इतिहास' : 'Request history'}</h2>
