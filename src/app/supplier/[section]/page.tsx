@@ -297,7 +297,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                       disabled={busy || (!paid && upi && !ref)}
                       onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
                     >
-                      <span className="sp-pulse" aria-hidden /> Complete delivery
+                      <span className="sp-pulse" aria-hidden /> {language === 'hi' ? 'डिलीवरी पूरी करें' : 'Complete delivery'}
                     </Confirm>
                   </>
                 );
@@ -306,9 +306,9 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                 <button className="sp-btn sp-btn--ghost" disabled>{language === 'hi' ? 'डिलीवर हो गया' : 'Delivered'}</button>
               )}
               {canAccept && (
-                <Confirm className="sp-btn sp-btn--ghost" confirmText="Tap again to decline" disabled={busy}
+                <Confirm className="sp-btn sp-btn--ghost" confirmText={language === 'hi' ? 'रद्द करने के लिए फिर दबाएँ' : 'Tap again to decline'} disabled={busy}
                   onConfirm={() => void decide(id, 'reject')}>
-                  Decline
+                  {language === 'hi' ? 'ऑर्डर अस्वीकार करें' : 'Decline'}
                 </Confirm>
               )}
             </div>
@@ -323,36 +323,38 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
 /* ───────────────────────── Inventory ───────────────────────── */
 
 function Inventory({ obj, busy, send, setError }: { obj: Row; busy: boolean; send: Send; setError: (s: string) => void }) {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const [delta, setDelta] = useState('');
   const submit = async () => {
     const n = Number(delta);
-    if (!Number.isInteger(n) || n === 0) return setError('Enter a non-zero whole number, such as 10 or -1.');
-    if (await send('/api/supplier/stock', 'PUT', { stock_delta: n }, 'Stock updated.')) setDelta('');
+    if (!Number.isInteger(n) || n === 0) return setError(isHindi ? 'शून्य के अलावा पूरा नंबर डालें, जैसे 10 या -1।' : 'Enter a non-zero whole number, such as 10 or -1.');
+    if (await send('/api/supplier/stock', 'PUT', { stock_delta: n }, isHindi ? 'स्टॉक अपडेट हो गया।' : 'Stock updated.')) setDelta('');
   };
   return (
     <section className="sp-grid">
       {obj.low_stock === true && (
         <div role="status" className="sp-msg sp-msg--err sp-wide">
-          Stock is low: {num(obj.cans_available)} cans left (alert at {num(obj.low_stock_alert)}). Restock to keep receiving orders.
+          {isHindi ? 'स्टॉक कम है:' : 'Stock is low:'} {num(obj.cans_available)} {isHindi ? 'कैन बचे हैं (अलर्ट स्तर' : 'cans left (alert at'} {num(obj.low_stock_alert)}). {isHindi ? 'ऑर्डर मिलते रहने के लिए स्टॉक भरें।' : 'Restock to keep receiving orders.'}
         </div>
       )}
-      <Metric name="Available cans" value={num(obj.cans_available)} />
-      <Metric name="Reserved cans" value={num(obj.reserved_cans)} />
-      <Metric name="Low-stock alert at" value={num(obj.low_stock_alert)} />
-      <Metric name="Reservation buffer" value={num(obj.reservation_buffer_cans)} />
+      <Metric name={isHindi ? 'उपलब्ध कैन' : 'Available cans'} value={num(obj.cans_available)} />
+      <Metric name={isHindi ? 'आरक्षित कैन' : 'Reserved cans'} value={num(obj.reserved_cans)} />
+      <Metric name={isHindi ? 'कम-स्टॉक अलर्ट' : 'Low-stock alert at'} value={num(obj.low_stock_alert)} />
+      <Metric name={isHindi ? 'रिज़र्व बफर' : 'Reservation buffer'} value={num(obj.reservation_buffer_cans)} />
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">Adjust stock</h2>
-        <p className="sp-sub">Enter a positive number to add cans, or a negative number to record an offline sale. Reservation checks still apply on the server.</p>
-        <div className="sp-chips" role="group" aria-label="Quick amounts">
+        <h2 className="sp-h2">{isHindi ? 'स्टॉक बदलें' : 'Adjust stock'}</h2>
+        <p className="sp-sub">{isHindi ? 'कैन जोड़ने के लिए पॉज़िटिव नंबर और ऑफलाइन बिक्री दर्ज करने के लिए नेगेटिव नंबर डालें। आरक्षण की जाँच सर्वर पर होगी।' : 'Enter a positive number to add cans, or a negative number to record an offline sale. Reservation checks still apply on the server.'}</p>
+        <div className="sp-chips" role="group" aria-label={isHindi ? 'जल्दी मात्रा चुनें' : 'Quick amounts'}>
           {[10, 25, 50, -1].map((n) => (
             <button key={n} type="button" className="sp-btn sp-btn--ghost" onClick={() => setDelta(String(n))}>{n > 0 ? `+${n}` : n}</button>
           ))}
         </div>
         <div className="sp-inline">
-          <label className="sp-field" htmlFor="stock-delta">Change in cans
+          <label className="sp-field" htmlFor="stock-delta">{isHindi ? 'कैन में बदलाव' : 'Change in cans'}
             <input id="stock-delta" className="sp-input" type="number" step={1} inputMode="numeric" placeholder="10 or -1" value={delta} onChange={(e) => setDelta(e.target.value)} />
           </label>
-          <button className="sp-btn" disabled={busy} onClick={() => void submit()}>Update stock</button>
+          <button className="sp-btn" disabled={busy} onClick={() => void submit()}>{busy ? (isHindi ? 'अपडेट हो रहा है…' : 'Updating…') : (isHindi ? 'स्टॉक अपडेट करें' : 'Update stock')}</button>
         </div>
       </article>
     </section>
@@ -362,6 +364,8 @@ function Inventory({ obj, busy, send, setError }: { obj: Row; busy: boolean; sen
 /* ───────────────────────── Earnings ───────────────────────── */
 
 function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send: Send; setError: (s: string) => void }) {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<'upi' | 'bank'>('upi');
   const [upi, setUpi] = useState('');
@@ -370,31 +374,31 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
 
   const submit = async () => {
     const n = Number(amount);
-    if (!Number.isFinite(n) || n <= 0) return setError('Enter a payout amount greater than ₹0.');
-    if (method === 'upi' && !UPI_RE.test(upi.trim())) return setError('Enter a valid UPI ID, for example name@bank.');
-    if (method === 'bank' && !ACCOUNT_RE.test(account.trim())) return setError('Bank account numbers have 9 to 18 digits.');
-    if (method === 'bank' && !IFSC_RE.test(ifsc.trim())) return setError('Enter a valid 11-character IFSC, for example HDFC0001234.');
+    if (!Number.isFinite(n) || n <= 0) return setError(isHindi ? '₹0 से अधिक भुगतान राशि डालें।' : 'Enter a payout amount greater than ₹0.');
+    if (method === 'upi' && !UPI_RE.test(upi.trim())) return setError(isHindi ? 'सही UPI ID डालें, जैसे name@bank।' : 'Enter a valid UPI ID, for example name@bank.');
+    if (method === 'bank' && !ACCOUNT_RE.test(account.trim())) return setError(isHindi ? 'बैंक खाता संख्या 9 से 18 अंकों की होनी चाहिए।' : 'Bank account numbers have 9 to 18 digits.');
+    if (method === 'bank' && !IFSC_RE.test(ifsc.trim())) return setError(isHindi ? '11 अक्षरों का सही IFSC डालें, जैसे HDFC0001234।' : 'Enter a valid 11-character IFSC, for example HDFC0001234.');
     const payload = method === 'upi' ? { amount: n, method, upi_id: upi.trim() } : { amount: n, method, bank_account: account.trim(), ifsc: ifsc.trim() };
-    if (await send('/api/supplier/payouts', 'POST', payload, 'Payout request submitted.')) {
-      setAmount(''); setUpi(''); setAccount(''); setIfsc(''); // never keep banking details in memory longer than needed
+    if (await send('/api/supplier/payouts', 'POST', payload, isHindi ? 'भुगतान अनुरोध भेज दिया गया।' : 'Payout request submitted.')) {
+      setAmount(''); setUpi(''); setAccount(''); setIfsc('');
     }
   };
 
   return (
     <section className="sp-grid">
-      <Metric name="Completed orders" value={num(obj.order_count)} />
-      <Metric name="Gross earnings" value={money(obj.gross_amount)} />
-      <Metric name="Pending payout" value={money(obj.pending_payout)} />
+      <Metric name={isHindi ? 'पूरे हुए ऑर्डर' : 'Completed orders'} value={num(obj.order_count)} />
+      <Metric name={isHindi ? 'कुल कमाई' : 'Gross earnings'} value={money(obj.gross_amount)} />
+      <Metric name={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={money(obj.pending_payout)} />
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">Request a payout</h2>
-        <p className="sp-sub">Submitting a request does not move money. The administrator processes it afterwards.</p>
-        <label className="sp-field" htmlFor="po-amount">Amount (₹)
+        <h2 className="sp-h2">{isHindi ? 'भुगतान अनुरोध करें' : 'Request a payout'}</h2>
+        <p className="sp-sub">{isHindi ? 'अनुरोध भेजने से पैसे ट्रांसफर नहीं होते। एडमिन बाद में इसे प्रोसेस करता है।' : 'Submitting a request does not move money. The administrator processes it afterwards.'}</p>
+        <label className="sp-field" htmlFor="po-amount">{isHindi ? 'राशि (₹)' : 'Amount (₹)'}
           <input id="po-amount" className="sp-input" type="number" min={1} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </label>
-        <label className="sp-field" htmlFor="po-method">Payout method
+        <label className="sp-field" htmlFor="po-method">{isHindi ? 'भुगतान का तरीका' : 'Payout method'}
           <select id="po-method" className="sp-input" value={method} onChange={(e) => setMethod(e.target.value as 'upi' | 'bank')}>
             <option value="upi">UPI</option>
-            <option value="bank">Bank account</option>
+            <option value="bank">{isHindi ? 'बैंक खाता' : 'Bank account'}</option>
           </select>
         </label>
         {method === 'upi' ? (
@@ -403,7 +407,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
           </label>
         ) : (
           <>
-            <label className="sp-field" htmlFor="po-acc">Bank account number
+            <label className="sp-field" htmlFor="po-acc">{isHindi ? 'बैंक खाता संख्या' : 'Bank account number'}
               <input id="po-acc" className="sp-input" autoComplete="off" inputMode="numeric" value={account} onChange={(e) => setAccount(e.target.value.replace(/\D/g, ''))} />
             </label>
             <label className="sp-field" htmlFor="po-ifsc">IFSC
@@ -411,7 +415,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
             </label>
           </>
         )}
-        <button className="sp-btn" disabled={busy} onClick={() => void submit()}>Submit payout request</button>
+        <button className="sp-btn" disabled={busy} onClick={() => void submit()}>{busy ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'भुगतान अनुरोध भेजें' : 'Submit payout request')}</button>
       </article>
     </section>
   );
@@ -420,30 +424,32 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
 /* ───────────────────────── Settings ───────────────────────── */
 
 function Settings(p: { obj: Row; online: boolean; radius: string; setRadius: (s: string) => void; busy: boolean; send: Send; setError: (s: string) => void }) {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const saveRadius = () => {
     const n = Number(p.radius);
-    if (!Number.isInteger(n) || n < 1 || n > 100) return p.setError('Service radius must be a whole number from 1 to 100 km.');
-    void p.send('/api/supplier/settings', 'PUT', { zone_radius_km: n }, 'Service radius saved.');
+    if (!Number.isInteger(n) || n < 1 || n > 100) return p.setError(isHindi ? 'सेवा त्रिज्या 1 से 100 किमी के बीच पूरा नंबर होनी चाहिए।' : 'Service radius must be a whole number from 1 to 100 km.');
+    void p.send('/api/supplier/settings', 'PUT', { zone_radius_km: n }, isHindi ? 'सेवा त्रिज्या सेव हो गई।' : 'Service radius saved.');
   };
   return (
     <section className="sp-grid">
       <article className="sp-card">
-        <h2 className="sp-h2">Availability</h2>
-        <p className="sp-sub">Online suppliers can receive new orders. Pending orders are retried when you go online.</p>
+        <h2 className="sp-h2">{isHindi ? 'उपलब्धता' : 'Availability'}</h2>
+        <p className="sp-sub">{isHindi ? 'ऑनलाइन सप्लायर को नए ऑर्डर मिल सकते हैं। लंबित ऑर्डर आपके ऑनलाइन होने पर फिर जाँचे जा सकते हैं।' : 'Online suppliers can receive new orders. Pending orders are retried when you go online.'}</p>
         <div className="sp-row">
           <StatusBadge status={p.online ? 'online' : 'offline'} />
-          <button className="sp-btn" disabled={p.busy} onClick={() => void p.send('/api/supplier/settings', 'PUT', { is_online: !p.online }, p.online ? 'You are offline.' : 'You are online.')}>
-            {p.online ? 'Go offline' : 'Go online'}
+          <button className="sp-btn" disabled={p.busy} onClick={() => void p.send('/api/supplier/settings', 'PUT', { is_online: !p.online }, p.online ? (isHindi ? 'आप ऑफलाइन हैं।' : 'You are offline.') : (isHindi ? 'आप ऑनलाइन हैं।' : 'You are online.'))}>
+            {p.online ? (isHindi ? 'ऑफलाइन हों' : 'Go offline') : (isHindi ? 'ऑनलाइन हों' : 'Go online')}
           </button>
         </div>
-        <label className="sp-field" htmlFor="radius">Service radius (km)
+        <label className="sp-field" htmlFor="radius">{isHindi ? 'सेवा त्रिज्या (किमी)' : 'Service radius (km)'}
           <input id="radius" className="sp-input" type="number" min={1} max={100} value={p.radius} onChange={(e) => p.setRadius(e.target.value)} />
         </label>
-        <button className="sp-btn" disabled={p.busy} onClick={saveRadius}>Save radius</button>
-        <p className="sp-hint">To change your dispatch location, use the location button on the dashboard.</p>
+        <button className="sp-btn" disabled={p.busy} onClick={saveRadius}>{isHindi ? 'त्रिज्या सेव करें' : 'Save radius'}</button>
+        <p className="sp-hint">{isHindi ? 'डिस्पैच लोकेशन बदलने के लिए डैशबोर्ड पर लोकेशन बटन का उपयोग करें।' : 'To change your dispatch location, use the location button on the dashboard.'}</p>
       </article>
       <article className="sp-card">
-        <h2 className="sp-h2">Current configuration</h2>
+        <h2 className="sp-h2">{isHindi ? 'वर्तमान सेटिंग' : 'Current configuration'}</h2>
         <dl className="sp-dl">
           {Object.entries(p.obj).filter(([, v]) => typeof v !== 'object').map(([k, v]) => (
             <FragmentRow key={k} k={label(k)} v={str(v, '—')} />
@@ -457,16 +463,18 @@ function Settings(p: { obj: Row; online: boolean; radius: string; setRadius: (s:
 /* ───────────────────────── Analytics & support ───────────────────────── */
 
 function Analytics({ rows }: { rows: Row[] }) {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
   const count = (set: string[]) => rows.filter((o) => set.includes(norm(o.status))).length;
   return (
     <section className="sp-grid">
-      <Metric name="Orders in list" value={String(rows.length)} />
-      <Metric name="Completed" value={String(count(['completed', 'delivered']))} />
-      <Metric name="Active" value={String(count(['assigned', 'in_progress']))} />
+      <Metric name={isHindi ? 'सूची में ऑर्डर' : 'Orders in list'} value={String(rows.length)} />
+      <Metric name={isHindi ? 'पूरे हुए' : 'Completed'} value={String(count(['completed', 'delivered']))} />
+      <Metric name={isHindi ? 'सक्रिय' : 'Active'} value={String(count(['assigned', 'in_progress']))} />
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">About these numbers</h2>
-        <p className="sp-sub">They count the orders currently returned by your orders list. For revenue and payouts, use the Earnings page, which reads from the accounting source.</p>
-        <Link href="/supplier/earnings" className="sp-link">Open earnings</Link>
+        <h2 className="sp-h2">{isHindi ? 'इन आँकड़ों के बारे में' : 'About these numbers'}</h2>
+        <p className="sp-sub">{isHindi ? 'ये आँकड़े अभी ऑर्डर सूची में लौटाए गए ऑर्डर गिनते हैं। कमाई और भुगतान के लिए Earnings पेज खोलें, जो लेखा-स्रोत से डेटा पढ़ता है।' : 'These numbers count the orders currently returned by your orders list. For revenue and payouts, use the Earnings page, which reads from the accounting source.'}</p>
+        <Link href="/supplier/earnings" className="sp-link">{isHindi ? 'कमाई खोलें' : 'Open earnings'}</Link>
       </article>
     </section>
   );
@@ -478,15 +486,42 @@ function Support() {
   return (
     <section className="sp-grid">
       <article className="sp-card sp-wide">
-        <h2 className="sp-h2">{isHindi ? 'ऑर्डर नहीं मिल रहा है?' : 'If an order isn’t reaching you'}</h2>
+        <h2 className="sp-h2">{isHindi ? 'ऑर्डर क्यों नहीं आ रहा?' : 'Troubleshoot missing orders'}</h2>
+        <p className="sp-sub">{isHindi ? 'नीचे की जाँच क्रम से करें। केवल ऑनलाइन होना पर्याप्त नहीं है—स्वीकृत खाता, सेवा क्षेत्र, स्टॉक और ऑर्डर की पात्रता भी ज़रूरी है।' : 'Work through this checklist in order. Being online alone is not enough: account approval, service coverage, stock and order eligibility also matter.'}</p>
         <ol className="sp-steps">
-          <li>{isHindi ? 'डिस्पैच सेटिंग में ऑनलाइन स्थिति जाँचें।' : 'Check that you are online in Dispatch settings.'}</li>
-          <li>{isHindi ? 'डिस्पैच लोकेशन और सेवा क्षेत्र की पुष्टि करें।' : 'Confirm your dispatch location and service radius.'}</li>
-          <li>{isHindi ? 'इन्वेंटरी में उपलब्ध कैन की संख्या जाँचें।' : 'Check that you have enough available cans in Inventory.'}</li>
-          <li>{isHindi ? 'ऑर्डर पेज रीफ्रेश करें।' : 'Refresh the Orders page.'}</li>
+          <li>{isHindi ? 'डिस्पैच सेटिंग में ऑनलाइन स्थिति और सही बेस लोकेशन जाँचें।' : 'In Dispatch, confirm you are online and your base location is correct.'}</li>
+          <li>{isHindi ? 'सेवा क्षेत्र में वही पिन कोड रखें जिन्हें आप वास्तव में सेवा दे सकते हैं; पेंडिंग बदलाव के लिए एडमिन की मंज़ूरी ज़रूरी हो सकती है।' : 'In Service Areas, keep only PIN codes you can actually serve; pending coverage changes may require admin approval.'}</li>
+          <li>{isHindi ? 'इन्वेंटरी में उपलब्ध कैन देखें। आरक्षित कैन और बफर स्टॉक नए ऑर्डर के लिए उपलब्ध नहीं हो सकते।' : 'Check available cans in Inventory. Reserved cans and buffer stock may not be available for new orders.'}</li>
+          <li>{isHindi ? 'मेरी प्रोफ़ाइल में आवेदन/वेरिफिकेशन स्थिति देखें और आवश्यक जानकारी पूरी करें।' : 'Check your application/verification status in My Profile and complete any missing details.'}</li>
+          <li>{isHindi ? 'ऑर्डर पेज को रीफ़्रेश करें। यदि फिर भी ऑर्डर नहीं दिखता, तो संभव है कोई ऑर्डर अभी आपके खाते को असाइन न हुआ हो।' : 'Refresh Orders. If nothing appears, there may simply be no order assigned to your account yet.'}</li>
         </ol>
-        <p className="sp-sub">{isHindi ? 'यदि पात्र ऑर्डर फिर भी असाइन नहीं होता, तो ऑर्डर ID एडमिन को दें ताकि dispatch logs की जाँच हो सके। संदेश में बैंकिंग पासवर्ड या ग्राहक के भुगतान संबंधी गोपनीय जानकारी साझा न करें।' : 'If a valid order still doesn’t assign, send the order ID to your platform administrator for a dispatch-log review. Never share banking secrets or customer payment details in messages.'}</p>
-        <Link href="/supplier/settings" className="sp-link">{isHindi ? 'डिस्पैच सेटिंग जाँचें' : 'Check dispatch settings'}</Link>
+        <div className="sp-actions">
+          <Link href="/supplier/settings" className="sp-link">{isHindi ? 'डिस्पैच सेटिंग' : 'Dispatch settings'}</Link>
+          <Link href="/supplier/coverage" className="sp-link">{isHindi ? 'सेवा क्षेत्र' : 'Service areas'}</Link>
+          <Link href="/supplier/inventory" className="sp-link">{isHindi ? 'स्टॉक देखें' : 'Check inventory'}</Link>
+          <Link href="/supplier/orders" className="sp-link">{isHindi ? 'ऑर्डर खोलें' : 'Open orders'}</Link>
+        </div>
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'एडमिन को समस्या कैसे भेजें' : 'What to include in a support request'}</h2>
+        <ul className="sp-steps">
+          <li>{isHindi ? 'समस्या का प्रकार: ऑर्डर, स्टॉक, भुगतान, प्रोफ़ाइल या सेवा क्षेत्र।' : 'Issue type: order, stock, payout, profile or service coverage.'}</li>
+          <li>{isHindi ? 'ऑर्डर की समस्या हो तो Order ID और घटना का अनुमानित समय दें।' : 'For order issues, include the Order ID and approximate time.'}</li>
+          <li>{isHindi ? 'स्क्रीन पर दिखने वाला पूरा error message और आपने जो कदम किए, वे लिखें।' : 'Include the exact on-screen error and steps you already tried.'}</li>
+          <li>{isHindi ? 'बताएँ कि समस्या मोबाइल या डेस्कटॉप पर है और कौन-सा पेज खुला था।' : 'Mention whether it happened on mobile or desktop and which page was open.'}</li>
+        </ul>
+        <p className="sp-hint">{isHindi ? 'यह पेज सपोर्ट टिकट अपने-आप नहीं बनाता; उपलब्ध आधिकारिक AuroTap/एडमिन संपर्क माध्यम से जानकारी भेजें।' : 'This page does not create a support ticket automatically. Send these details through your official AuroTap/admin contact channel.'}</p>
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'सुरक्षा और भुगतान' : 'Account and payment safety'}</h2>
+        <ul className="sp-steps">
+          <li>{isHindi ? 'OTP, पासवर्ड, refresh token या पूरा बैंक खाता विवरण किसी को न भेजें।' : 'Never share OTPs, passwords, refresh tokens or full bank account details.'}</li>
+          <li>{isHindi ? 'कमाई और भुगतान स्थिति के लिए Earnings पेज देखें; payout request भेजना भुगतान पूरा होना नहीं है।' : 'Use Earnings to check payout status; submitting a payout request does not mean payment has been sent.'}</li>
+          <li>{isHindi ? 'डिलीवरी की स्थिति तभी अपडेट करें जब संबंधित कदम वास्तव में पूरा हो गया हो।' : 'Update delivery status only after the corresponding step has actually happened.'}</li>
+        </ul>
+        <Link href="/supplier/earnings" className="sp-link">{isHindi ? 'कमाई और भुगतान खोलें' : 'Open earnings and payouts'}</Link>
       </article>
     </section>
   );
@@ -508,8 +543,15 @@ function FragmentRow({ k, v }: { k: string; v: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { language } = useLanguage();
   const tone = ['completed', 'delivered', 'online'].includes(status) ? 'ok' : ['in_progress'].includes(status) ? 'amber' : ['cancelled', 'offline'].includes(status) ? 'off' : 'info';
-  return <span className={`sp-badge sp-badge--${tone}`}>{label(status) || 'unknown'}</span>;
+  const hiLabels: Record<string, string> = {
+    pending: 'लंबित', assigned: 'असाइन हुआ', in_progress: 'काम जारी',
+    completed: 'पूरा हुआ', delivered: 'डिलीवर हुआ', cancelled: 'रद्द',
+    online: 'ऑनलाइन', offline: 'ऑफलाइन', unknown: 'अज्ञात',
+  };
+  const value = label(status) || 'unknown';
+  return <span className={`sp-badge sp-badge--${tone}`}>{language === 'hi' ? (hiLabels[status] ?? value) : value}</span>;
 }
 
 function Empty({ title, text, href, cta }: { title: string; text: string; href: string; cta: string }) {

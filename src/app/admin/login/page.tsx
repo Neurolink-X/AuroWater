@@ -1,14 +1,13 @@
 'use client';
 
 import React, { FormEvent, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { ApiError, authLogin, profileToSession } from '@/lib/api-client';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { writeSession } from '@/hooks/useAuth';
 
 function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [email, setEmail] = useState('');
@@ -65,16 +64,21 @@ function AdminLoginForm() {
 
       const rawReturnTo = searchParams.get('returnTo');
 
+      // The dedicated admin login must never send an administrator to another
+      // role's dashboard because of a stale or malformed returnTo query.
       const returnTo =
         rawReturnTo &&
-        rawReturnTo.startsWith('/') &&
-        !rawReturnTo.startsWith('//') &&
-        !rawReturnTo.startsWith('/auth') &&
-        !rawReturnTo.startsWith('/admin/login')
+        rawReturnTo.startsWith('/admin/') &&
+        !rawReturnTo.startsWith('/admin/login') &&
+        !rawReturnTo.startsWith('/admin/register') &&
+        !rawReturnTo.startsWith('/admin/forgot-password') &&
+        !rawReturnTo.startsWith('//')
           ? rawReturnTo
           : '/admin/dashboard';
 
-      router.replace(returnTo);
+      // Force a fresh document navigation so the newly-written auth cookies
+      // are read by the proxy before any protected admin page renders.
+      window.location.replace(returnTo);
     } catch (err: unknown) {
       const message =
         err instanceof ApiError
