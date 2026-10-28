@@ -310,3 +310,12 @@ assert.doesNotMatch(publicHome, /100% Sealed & Hygienic/i);
 assert.match(publicHome, /Order Updates/);
 assert.match(howItWorksPage, /Timing and fulfilment depend on local availability/);
 assert.doesNotMatch(howItWorksPage, /live tracking, zero surprises/i);
+
+
+// CI regression coverage: offline retry remains self-contained and blocking lint patterns stay fixed.
+const retryButton = readFileSync(join(root, 'src', 'app', 'offline', 'RetryButton.tsx'), 'utf8');
+assert.doesNotMatch(retryButton, /from ['"]\.\/connection['"]/);
+const pricingService = readFileSync(join(root, 'src', 'lib', 'services', 'pricing.service.ts'), 'utf8');
+assert.doesNotMatch(pricingService, /queryOne<any>/);
+const pricingVisualizer = readFileSync(join(root, 'src', 'app', 'pricing', 'visualizer', 'page.tsx'), 'utf8');
+assert.doesNotMatch(pricingVisualizer, /<p[^>]*>\s*\/\//);

@@ -41,7 +41,7 @@ export async function calculatePrice(params: PricingParams): Promise<PricingResp
   );
 
   if (!pricingRule) {
-    const serviceType = await queryOne<any>(
+    const serviceType = await queryOne<{ base_price: number }>(
       'SELECT base_price FROM service_types WHERE id = $1 AND is_active = true',
       [service_type_id]
     );
