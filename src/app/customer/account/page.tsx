@@ -602,6 +602,7 @@ export default function CustomerAccountPage() {
                 <Heading title={t('shortcuts')} />
                 <Card>
                   <Row href="/customer/subscriptions" icon="🔄" title={t('subscriptions')} hint={t('subscriptionsHint')} />
+                  <Row href="/customer/loyalty" icon="⭐" title="Subscription rewards" hint="Points, streaks and available offers" />
                   <Row href="/customer/history" icon="📋" title={t('history')} />
                   <Row href="/customer/addresses" icon="📍" title={t('addresses')} />
                   <Row href="/customer/home" icon="📊" title={t('dashboard')} />
