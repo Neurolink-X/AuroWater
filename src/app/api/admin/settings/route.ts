@@ -182,6 +182,15 @@ const SETTINGS_SCHEMA: Record<
     label: 'WhatsApp number',
   },
 
+  subscription_loyalty_enabled: { type: 'boolean', label: 'Subscription loyalty rewards enabled' },
+  subscription_loyalty_points_per_renewal: { type: 'number', min: 1, max: 10000, label: 'Points per paid renewal' },
+  subscription_loyalty_points_per_reward: { type: 'number', min: 100, max: 10000, label: 'Points required per reward' },
+  subscription_loyalty_streak_months: { type: 'number', min: 2, max: 24, label: 'Consecutive renewal months for streak bonus' },
+  subscription_loyalty_streak_bonus_points: { type: 'number', min: 0, max: 10000, label: 'Streak bonus points' },
+  subscription_loyalty_points_per_rupee: { type: 'number', min: 1, max: 100, label: 'Points charged per ₹1 discount' },
+  subscription_loyalty_max_discount_percent: { type: 'number', min: 1, max: 50, label: 'Maximum loyalty discount (%)' },
+  subscription_loyalty_plumbing_enabled: { type: 'boolean', label: 'Allow points on plumbing discounts' },
+  subscription_loyalty_tank_cleaning_enabled: { type: 'boolean', label: 'Allow points on tank cleaning discounts' },
   maintenance_mode: {
     type: 'boolean',
     label: 'Maintenance mode',
