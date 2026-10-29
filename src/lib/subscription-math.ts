@@ -86,8 +86,11 @@ export function upcomingDates(
   today: string,
   count = 3
 ): string[] {
+  if (!isSubscriptionFrequency(frequency)) return [next];
+  const validFrequency: SubscriptionFrequency = frequency;
+
   try {
-    let { date } = rollForward(next, frequency, today);
+    let { date } = rollForward(next, validFrequency, today);
     const out = [date];
 
     while (out.length < count) {
