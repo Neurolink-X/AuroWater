@@ -41,6 +41,7 @@ const STALE_MS = 30_000;
 /* ───────────────────── Resilient networking layer ─────────────────── */
 
 class AuthError extends Error {}
+class FatalError extends Error {} // non-retryable server/validation error
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -60,21 +61,22 @@ async function api<T>(path: string, init: RequestInit = {}, token: string, retri
         signal: ctrl.signal,
         credentials: 'include',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json', ...init.headers, Authorization: `Bearer ${token}` },
+        headers: (() => {
+          const h = new Headers(init.headers);
+          if (!h.has('Content-Type')) h.set('Content-Type', 'application/json');
+          h.set('Authorization', `Bearer ${token}`);
+          return h;
+        })(),
       });
       if (res.status === 401) throw new AuthError('Session expired');
       const json = (await res.json().catch(() => ({}))) as Envelope<T>;
       if (res.ok && json.success !== false) return (json.data ?? ({} as T)) as T;
       const retryable = [408, 429].includes(res.status) || res.status >= 500;
       lastError = new Error(json.error ?? `Request failed (${res.status})`);
-      if (!retryable) throw lastError;
+      if (!retryable) throw new FatalError((lastError as Error).message);
     } catch (e) {
-      if (e instanceof AuthError) throw e;
+      if (e instanceof AuthError || e instanceof FatalError) throw e;
       lastError = e;
-      if (e instanceof Error && !(e.name === 'AbortError' || e instanceof TypeError) && attempt === 0 && !String(e.message).includes('failed')) {
-        // non-transient application error: stop retrying
-        if (!(e.message.startsWith('Request failed'))) throw e;
-      }
     } finally {
       clearTimeout(timer);
     }
@@ -230,7 +232,7 @@ export default function CustomerAccountPage() {
   const [showPhone, setShowPhone] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
 
-  const toastTimer = useRef<number>();
+  const toastTimer = useRef<number | undefined>(undefined);
   const lastLoad = useRef(0);
   const inflight = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -385,14 +387,12 @@ export default function CustomerAccountPage() {
         ...base, language: lang,
         notifications: { ...(base.notifications ?? {}), whatsapp: notif, sms: notif, email: notif, push: notif },
       };
-      const body = {
-        ...(fullName.trim() && { full_name: fullName.trim() }),
-        ...(city.trim() && { city: city.trim() }),
-        ...(digits(phoneInput) && { phone: digits(phoneInput) }),
-        settings,
-      };
+      const body: { full_name?: string; city?: string; phone?: string; settings: Settings } = { settings };
+      if (fullName.trim()) body.full_name = fullName.trim();
+      if (city.trim()) body.city = city.trim();
+      if (digits(phoneInput)) body.phone = digits(phoneInput);
       const saved = await api<Profile>('/api/customer/profile', { method: 'PUT', body: JSON.stringify(body) }, token, 1);
-      const next: Profile = saved?.id ? saved : ({ ...prev, ...body, phone: body.phone ?? prev?.phone ?? null } as Profile);
+      const next: Profile = saved?.id ? saved : ({ ...prev, ...body, phone: body.phone ?? prev?.phone ?? null } as unknown as Profile);
       dirtyRef.current = false;
       applyProfile(next, true);
       if (next.phone) setNeedsPhone(false);
