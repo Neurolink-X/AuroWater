@@ -322,6 +322,7 @@ export async function POST(req: NextRequest) {
 
   const isWater = service_type_key === 'water_can';
   const isSubscription = str(body.can_order_type) === 'subscription';
+  const isChilledOrder = isWater && str(body.sub_option_key) === 'chilled_ro';
   let qty: number | null = null;
   let base_amount: number;
 
@@ -445,6 +446,60 @@ export async function POST(req: NextRequest) {
     netBaseAmount = round2(Math.max(0, base_amount - referralDiscountAmount));
   }
 
+  const loyaltyRedemptionType = str(body.loyalty_redemption_type);
+  let loyaltyDiscountAmount = 0;
+  let loyaltyPointsCost = 0;
+  let loyaltyRedemptionId: string | null = null;
+  let loyaltyReservationKey: string | null = null;
+  const loyaltyAdmin = loyaltyRedemptionType ? createServiceClient() : null;
+
+  if (loyaltyRedemptionType) {
+    if (referralRewardId) {
+      return jsonErr('Use one reward at a time. Referral and loyalty rewards cannot be combined.', 400, 'REWARD_COMBINATION_NOT_ALLOWED');
+    }
+    if (isSubscription || isChilledOrder || (isWater && qty !== 1)) {
+      if (loyaltyRedemptionType === 'free_can') {
+        return jsonErr('A free-can reward applies only to one standard one-time Normal RO can.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
+      }
+    }
+    if (loyaltyRedemptionType === 'free_can') {
+      if (!isWater || isSubscription || isChilledOrder || qty !== 1) {
+        return jsonErr('A free-can reward applies only to one standard one-time Normal RO can.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
+      }
+      loyaltyDiscountAmount = Math.min(base_amount, waterUnitPrice ?? 20);
+      const { data: offerRows, error: offerError } = await loyaltyAdmin!
+        .from('settings').select('key, value')
+        .in('key', ['subscription_loyalty_points_per_reward', 'subscription_loyalty_free_can_enabled', 'subscription_loyalty_enabled']);
+      if (offerError) return jsonErr('Loyalty rewards are temporarily unavailable.', 503);
+      const offer = Object.fromEntries((offerRows ?? []).map((row) => [row.key, row.value])) as Record<string, string>;
+      if (offer.subscription_loyalty_enabled === 'false' || offer.subscription_loyalty_free_can_enabled === 'false') {
+        return jsonErr('Free-can rewards are currently paused.', 409, 'LOYALTY_OFFER_PAUSED');
+      }
+      loyaltyPointsCost = Math.max(100, Number(offer.subscription_loyalty_points_per_reward ?? 300));
+    } else if (loyaltyRedemptionType === 'service_discount') {
+      if (isWater || !['plumbing', 'tank_cleaning'].includes(service_type_key)) {
+        return jsonErr('Points discounts are available only for plumbing and tank cleaning.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
+      }
+      const { data: offerRows, error: offerError } = await loyaltyAdmin!
+        .from('settings').select('key, value')
+        .in('key', ['subscription_loyalty_points_per_rupee', 'subscription_loyalty_max_discount_percent', 'subscription_loyalty_service_discount_enabled', 'subscription_loyalty_enabled', 'subscription_loyalty_plumbing_enabled', 'subscription_loyalty_tank_cleaning_enabled']);
+      if (offerError) return jsonErr('Loyalty rewards are temporarily unavailable.', 503);
+      const offer = Object.fromEntries((offerRows ?? []).map((row) => [row.key, row.value])) as Record<string, string>;
+      const serviceFlag = service_type_key === 'plumbing' ? 'subscription_loyalty_plumbing_enabled' : 'subscription_loyalty_tank_cleaning_enabled';
+      if (offer.subscription_loyalty_enabled === 'false' || offer.subscription_loyalty_service_discount_enabled === 'false' || offer[serviceFlag] === 'false') {
+        return jsonErr('Points discounts for this service are currently paused.', 409, 'LOYALTY_OFFER_PAUSED');
+      }
+      const maxPercent = Math.max(1, Math.min(50, Number(offer.subscription_loyalty_max_discount_percent ?? 20)));
+      const pointsPerRupee = Math.max(1, Math.min(100, Number(offer.subscription_loyalty_points_per_rupee ?? 1)));
+      loyaltyDiscountAmount = round2(Math.min(base_amount, base_amount * maxPercent / 100));
+      loyaltyPointsCost = Math.ceil(loyaltyDiscountAmount * pointsPerRupee);
+      if (loyaltyDiscountAmount <= 0 || loyaltyPointsCost <= 0) return jsonErr('This service is not eligible for a points discount.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
+    } else {
+      return jsonErr('Choose a valid loyalty reward.', 400, 'INVALID_LOYALTY_REWARD');
+    }
+    netBaseAmount = round2(Math.max(0, netBaseAmount - loyaltyDiscountAmount));
+  }
+
   const clientTotal = Number(body.total_amount);
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
@@ -519,6 +574,26 @@ export async function POST(req: NextRequest) {
     ? new Date().toISOString()
     : null;
 
+  if (loyaltyRedemptionType && loyaltyAdmin) {
+    loyaltyReservationKey = globalThis.crypto.randomUUID();
+    const { data: reservation, error: reservationError } = await loyaltyAdmin.rpc('reserve_subscription_loyalty_redemption', {
+      p_customer_id: customerId,
+      p_points: loyaltyPointsCost,
+      p_discount: loyaltyDiscountAmount,
+      p_redemption_type: loyaltyRedemptionType,
+      p_service_key: service_type_key,
+      p_base_amount: base_amount,
+      p_reservation_key: loyaltyReservationKey,
+    });
+    if (reservationError || !Array.isArray(reservation) || !reservation[0]?.event_id) {
+      if (reservationError) console.error('[orders] loyalty redemption reservation failed', reservationError.message);
+      const message = reservationError?.message ?? 'Loyalty redemption could not be reserved.';
+      const conflict = /not enough loyalty points/i.test(message);
+      return jsonErr(conflict ? 'You do not have enough points for this reward.' : message.includes('paused') ? 'This loyalty offer is currently paused.' : 'This loyalty reward is no longer available. Refresh your points and try again.', conflict ? 409 : 400, conflict ? 'LOYALTY_POINTS_INSUFFICIENT' : 'LOYALTY_REWARD_UNAVAILABLE');
+    }
+    loyaltyRedemptionId = String(reservation[0].event_id);
+  }
+
   // Reserve with a conditional update so simultaneous checkout attempts cannot
   // spend the same reward twice. Release it if order creation fails.
   if (referralReward) {
@@ -553,12 +628,21 @@ export async function POST(req: NextRequest) {
       dq = dq.eq('can_count', qty).eq('can_price_per_unit', waterUnitPrice);
     }
     const { data: dup } = await dq.order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (dup && !referralReward) return jsonOk(withCompat(dup), 200);
+    if (dup && !referralReward) {
+      if (loyaltyRedemptionId && loyaltyAdmin) {
+        await loyaltyAdmin.rpc('reverse_subscription_loyalty_redemption', {
+          p_customer_id: customerId,
+          p_event_id: loyaltyRedemptionId,
+          p_reason: 'Duplicate checkout returned the existing order',
+        });
+      }
+      return jsonOk(withCompat(dup), 200);
+    }
   }
 
   // Reward-bearing orders use the service client only after the customer role,
   // reward ownership, eligibility, price and reservation have been verified above.
-  const orderWriter = referralReward ? createServiceClient() : auth.ctx.supabase;
+  const orderWriter = referralReward || loyaltyRedemptionId ? createServiceClient() : auth.ctx.supabase;
   const { data: order, error: oErr } = await orderWriter
     .from('orders')
     .insert({
@@ -578,6 +662,10 @@ export async function POST(req: NextRequest) {
       ...(referralReward ? {
         referral_discount_amount: referralDiscountAmount,
         referral_reward_id: referralReward.id,
+      } : {}),
+      ...(loyaltyRedemptionId ? {
+        loyalty_discount_amount: loyaltyDiscountAmount,
+        loyalty_redemption_id: loyaltyRedemptionId,
       } : {}),
       convenience_fee: convenience,
       emergency_charge,
@@ -610,12 +698,14 @@ export async function POST(req: NextRequest) {
           gross_base_amount: base_amount,
           referral_discount_amount: referralDiscountAmount,
           referral_reward_id: referralReward?.id ?? null,
+          loyalty_discount_amount: loyaltyDiscountAmount,
+          loyalty_redemption_id: loyaltyRedemptionId,
           convenience_fee: convenience,
           emergency_charge,
           gst_rate: gstRate,
           gst_amount,
           total_amount: total,
-          supplier_entitlement: isWater && qty === 1 && round2(netBaseAmount + referralDiscountAmount) === 20 ? 20 : null,
+          supplier_entitlement: isWater && qty === 1 && round2(netBaseAmount + referralDiscountAmount + loyaltyDiscountAmount) === 20 ? 20 : null,
           supplier_entitlement_policy: isWater ? 'existing_completion_policy_auto_posts_only_single_can_total_20; other_water_orders_require_approved_payout_schedule' : 'existing_completion_policy',
           config: activePricingConfig,
         },
@@ -625,6 +715,9 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (oErr || !order) {
+    if (loyaltyRedemptionId && loyaltyAdmin) {
+      await loyaltyAdmin.rpc('reverse_subscription_loyalty_redemption', { p_customer_id: customerId, p_event_id: loyaltyRedemptionId, p_reason: 'Order creation failed' });
+    }
     if (referralReward) {
       const referralAdmin = createServiceClient();
       await referralAdmin.from('referral_reward_events')
@@ -636,6 +729,23 @@ export async function POST(req: NextRequest) {
   }
 
   const orderId = String(order.id);
+  if (loyaltyRedemptionId && loyaltyAdmin) {
+    const { data: finalized, error: finalizeError } = await loyaltyAdmin.rpc('finalize_subscription_loyalty_redemption', {
+      p_customer_id: customerId,
+      p_event_id: loyaltyRedemptionId,
+      p_order_id: orderId,
+    });
+    if (finalizeError || finalized !== true) {
+      console.error('[orders] loyalty redemption finalization failed', finalizeError?.message ?? 'No reservation was finalized');
+      await loyaltyAdmin.from('orders').delete().eq('id', orderId).eq('customer_id', customerId);
+      await loyaltyAdmin.rpc('reverse_subscription_loyalty_redemption', { p_customer_id: customerId, p_event_id: loyaltyRedemptionId, p_reason: 'Redemption finalization failed' });
+      if (referralReward) {
+        await loyaltyAdmin.from('referral_reward_events').update({ reward_status: 'available', reserved_order_id: null })
+          .eq('id', referralReward.id).eq('referrer_id', customerId).eq('reward_status', 'reserved');
+      }
+      return jsonErr('We could not securely finalize your points redemption. Your points have been returned; please try again.', 503, 'LOYALTY_FINALIZATION_FAILED');
+    }
+  }
   if (referralReward) {
     const referralAdmin = createServiceClient();
     const { error: bindRewardError } = await referralAdmin.from('referral_reward_events')

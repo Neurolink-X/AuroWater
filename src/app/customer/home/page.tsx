@@ -1619,6 +1619,13 @@ export default function CustomerHomePage() {
                 />
 
                 <QuickAction
+                  href="/customer/loyalty"
+                  icon="⭐"
+                  label="Subscription rewards"
+                  description="Track points, renewal streaks and available offers"
+                />
+
+                <QuickAction
                   href="/pricing"
                   icon="🏷️"
                   label="Pricing"

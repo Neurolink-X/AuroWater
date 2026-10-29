@@ -666,6 +666,12 @@ export default function BookingWizard() {
   const [referralRewards, setReferralRewards] = useState<Array<{ id: string; reward_type: 'discount_25' | 'free_water_can'; reward_status: string }>>([]);
   const [selectedReferralRewardId, setSelectedReferralRewardId] = useState('');
   const [referralRewardsLoading, setReferralRewardsLoading] = useState(false);
+  const [selectedLoyaltyReward, setSelectedLoyaltyReward] = useState<'' | 'free_can' | 'service_discount'>('');
+  const [loyaltyData, setLoyaltyData] = useState<{
+    points_balance: number;
+    enabled: boolean;
+    offers: { free_can: boolean; service_discount: boolean; plumbing: boolean; tank_cleaning: boolean; points_per_rupee: number; max_discount_percent: number; points_per_reward: number };
+  } | null>(null);
 
   const [serviceability, setServiceability] = useState<{
     serviceable: boolean; status: string;
@@ -967,6 +973,32 @@ export default function BookingWizard() {
     return () => { cancelled = true; };
   }, [session?.loggedIn, session?.role, session?.userId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!session?.loggedIn || session.role !== 'customer') {
+      setLoyaltyData(null);
+      setSelectedLoyaltyReward('');
+      return;
+    }
+    (async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const response = await fetch('/api/customer/loyalty', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const data = payload.data ?? payload;
+        if (!cancelled && typeof data.points_balance === 'number') setLoyaltyData(data);
+      } catch {
+        // Loyalty is optional: booking remains usable if its endpoint is unavailable.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.loggedIn, session?.role, session?.userId]);
+
   const baseAmount = useMemo(() => computeBaseAmount(draft, settings), [draft, settings]);
   const selectedReferralReward = referralRewards.find((reward) => reward.id === selectedReferralRewardId) ?? null;
   const referralDiscountAmount = useMemo(() => {
@@ -982,7 +1014,34 @@ export default function BookingWizard() {
     draft.subOptionKey !== 'chilled_ro' &&
     draft.canOrderType !== 'subscription' &&
     (draft.canQuantity ?? 1) === 1;
-  const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount) * 100) / 100);
+  const canRedeemLoyaltyFreeCan = Boolean(
+    loyaltyData?.enabled && loyaltyData.offers.free_can &&
+    draft.serviceKey === 'water_can' && draft.subOptionKey !== 'chilled_ro' &&
+    draft.canOrderType !== 'subscription' && (draft.canQuantity ?? 1) === 1 &&
+    loyaltyData.points_balance >= loyaltyData.offers.points_per_reward
+  );
+  const canRedeemLoyaltyService = Boolean(
+    loyaltyData?.enabled && loyaltyData.offers.service_discount &&
+    ((draft.serviceKey === 'plumbing' && loyaltyData.offers.plumbing) ||
+      (draft.serviceKey === 'tank_cleaning' && loyaltyData.offers.tank_cleaning)) &&
+    loyaltyData.points_balance >= Math.ceil(Math.min(baseAmount, baseAmount * loyaltyData.offers.max_discount_percent / 100) * loyaltyData.offers.points_per_rupee)
+  );
+  const loyaltyDiscountAmount = useMemo(() => {
+    if (!loyaltyData || !selectedLoyaltyReward) return 0;
+    if (selectedLoyaltyReward === 'free_can' && canRedeemLoyaltyFreeCan) {
+      return Math.min(baseAmount, Number(settings.default_can_price) || 20);
+    }
+    if (selectedLoyaltyReward === 'service_discount' && canRedeemLoyaltyService) {
+      return Math.round(Math.min(baseAmount, baseAmount * loyaltyData.offers.max_discount_percent / 100) * 100) / 100;
+    }
+    return 0;
+  }, [loyaltyData, selectedLoyaltyReward, canRedeemLoyaltyFreeCan, canRedeemLoyaltyService, baseAmount, settings.default_can_price]);
+  const loyaltyPointsCost = selectedLoyaltyReward === 'free_can'
+    ? Number(loyaltyData?.offers.points_per_reward ?? 300)
+    : selectedLoyaltyReward === 'service_discount'
+      ? Math.ceil(loyaltyDiscountAmount * Number(loyaltyData?.offers.points_per_rupee ?? 1))
+      : 0;
+  const netBaseAmount = Math.max(0, Math.round((baseAmount - referralDiscountAmount - loyaltyDiscountAmount) * 100) / 100);
   const breakdown = useMemo(() => {
     const raw = calcOrderTotal(netBaseAmount, draft.isEmergency, draft.serviceKey);
     return settings.pricing_version
@@ -1459,6 +1518,7 @@ export default function BookingWizard() {
         base_amount: netBaseAmount, convenience_fee: breakdown.convenience,
         gst_amount: breakdown.gst, total_amount: breakdown.total,
         referral_reward_id: referralDiscountAmount > 0 ? selectedReferralRewardId : undefined,
+        loyalty_redemption_type: loyaltyDiscountAmount > 0 ? selectedLoyaltyReward : undefined,
         payment_method: draft.paymentMethod, notes: draft.notes?.trim() || undefined,
         can_quantity:   draft.serviceKey === 'water_can' ? draft.canQuantity  : undefined,
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
@@ -2254,8 +2314,8 @@ export default function BookingWizard() {
                   <select
                     aria-label="Choose referral reward"
                     value={selectedReferralRewardId}
-                    onChange={(event) => setSelectedReferralRewardId(event.target.value)}
-                    disabled={!canRedeemReferralReward}
+                    onChange={(event) => { setSelectedReferralRewardId(event.target.value); if (event.target.value) setSelectedLoyaltyReward(''); }}
+                    disabled={!canRedeemReferralReward || Boolean(selectedLoyaltyReward)}
                     className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="">No referral reward</option>
@@ -2269,6 +2329,35 @@ export default function BookingWizard() {
                     <p className="mt-2 text-xs font-semibold text-amber-800">Rewards can be used only on one standard Normal RO can in a one-time order. Select that option to redeem. · इनाम केवल एक सामान्य RO कैन पर लागू होगा।</p>
                   ) : null}
                   {referralRewardsLoading ? <p className="mt-1 text-xs text-slate-500">Checking available rewards…</p> : null}
+                </div>
+              )}
+
+              {loyaltyData?.enabled && (canRedeemLoyaltyFreeCan || canRedeemLoyaltyService) && (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-extrabold text-sky-950">AuroTap loyalty rewards</p>
+                      <p className="mt-1 text-xs leading-5 text-sky-800">Balance: {loyaltyData.points_balance.toLocaleString('en-IN')} points. Redeem securely at checkout.</p>
+                    </div>
+                    <Link href="/customer/loyalty" className="text-xs font-bold text-sky-800 underline">View points</Link>
+                  </div>
+                  <select
+                    aria-label="Choose loyalty reward"
+                    value={selectedLoyaltyReward}
+                    onChange={(event) => {
+                      const next = event.target.value as '' | 'free_can' | 'service_discount';
+                      setSelectedLoyaltyReward(next);
+                      if (next) setSelectedReferralRewardId('');
+                    }}
+                    className="mt-3 min-h-11 w-full rounded-xl border border-sky-200 bg-white px-3 text-sm font-semibold text-slate-800"
+                  >
+                    <option value="">Do not use points</option>
+                    {canRedeemLoyaltyFreeCan && <option value="free_can">Free standard RO can · {loyaltyData.offers.points_per_reward} points</option>}
+                    {canRedeemLoyaltyService && <option value="service_discount">Service discount · up to {loyaltyData.offers.max_discount_percent}% off · {loyaltyPointsCost || 'points calculated at checkout'}</option>}
+                  </select>
+                  {selectedLoyaltyReward === 'service_discount' && loyaltyDiscountAmount > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-sky-900">Using {loyaltyPointsCost.toLocaleString('en-IN')} points for ₹{loyaltyDiscountAmount.toFixed(2)} off. Your final eligibility and balance are verified securely by the server.</p>
+                  )}
                 </div>
               )}
 
@@ -2290,6 +2379,12 @@ export default function BookingWizard() {
                 <span className="text-slate-600">Convenience</span>
                 <span>{inr(breakdown.convenience)}</span>
               </div>
+              {loyaltyDiscountAmount > 0 && (
+                <div className="flex justify-between font-bold text-sky-800">
+                  <span>{selectedLoyaltyReward === 'free_can' ? 'Loyalty free-can reward' : 'Loyalty service discount'}</span>
+                  <span>−{inr(loyaltyDiscountAmount)}</span>
+                </div>
+              )}
               {referralDiscountAmount > 0 && (
                 <div className="flex justify-between font-bold text-emerald-800">
                   <span>{selectedReferralReward?.reward_type === 'free_water_can' ? 'Free can reward' : 'Referral discount (25%)'}</span>

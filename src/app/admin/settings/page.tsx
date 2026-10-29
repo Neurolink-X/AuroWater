@@ -972,6 +972,7 @@ export default function AdminSettingsPage() {
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
                 Manage pricing, commissions, operations and customer support details for AuroWater.
               </p>
+              <a href="/admin/loyalty" className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-800 hover:bg-sky-100">Manage subscription loyalty offers →</a>
             </div>
             <div className="flex flex-col items-start gap-1.5 sm:items-end">
               <span
