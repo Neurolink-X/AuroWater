@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -162,11 +162,15 @@ export default function TrackOrderPage() {
   const [cancelling, setCancelling] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Prevent realtime events, focus events and the polling timer from issuing
+  // overlapping reads for the same order.
+  const loadInFlight = useRef(false);
 
   /** silent=true refreshes in the background without blanking the page. */
   const load = useCallback(
     async (silent = false) => {
-      if (!id) return;
+      if (!id || loadInFlight.current) return;
+      loadInFlight.current = true;
       if (!silent) {
         setLoading(true);
         setError(null);
@@ -185,6 +189,7 @@ export default function TrackOrderPage() {
           setOrder(null);
         }
       } finally {
+        loadInFlight.current = false;
         if (!silent) setLoading(false);
       }
     },
