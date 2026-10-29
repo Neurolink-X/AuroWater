@@ -33,7 +33,9 @@ const defaults: LoyaltySettings = {
   subscription_loyalty_service_discount_enabled: true,
 };
 
-const numericFields: Array<{ key: keyof LoyaltySettings; label: string; help: string; min: number; max: number }> = [
+type NumericLoyaltyKey = Exclude<keyof LoyaltySettings, 'subscription_loyalty_enabled' | 'subscription_loyalty_plumbing_enabled' | 'subscription_loyalty_tank_cleaning_enabled' | 'subscription_loyalty_free_can_enabled' | 'subscription_loyalty_service_discount_enabled'>;
+
+const numericFields: Array<{ key: NumericLoyaltyKey; label: string; help: string; min: number; max: number }> = [
   { key: 'subscription_loyalty_points_per_renewal', label: 'Points per paid renewal', help: 'Granted once after a subscription delivery is completed and paid.', min: 1, max: 10000 },
   { key: 'subscription_loyalty_points_per_reward', label: 'Points per reward milestone', help: 'Default target: 300 points. This target is configurable.', min: 100, max: 10000 },
   { key: 'subscription_loyalty_streak_months', label: 'Monthly streak length', help: 'Consecutive calendar months with a paid renewal.', min: 2, max: 24 },
