@@ -627,7 +627,16 @@ export async function POST(req: NextRequest) {
       dq = dq.eq('can_count', qty).eq('can_price_per_unit', waterUnitPrice);
     }
     const { data: dup } = await dq.order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (dup && !referralReward) return jsonOk(withCompat(dup), 200);
+    if (dup && !referralReward) {
+      if (loyaltyRedemptionId && loyaltyAdmin) {
+        await loyaltyAdmin.rpc('reverse_subscription_loyalty_redemption', {
+          p_customer_id: customerId,
+          p_event_id: loyaltyRedemptionId,
+          p_reason: 'Duplicate checkout returned the existing order',
+        });
+      }
+      return jsonOk(withCompat(dup), 200);
+    }
   }
 
   // Reward-bearing orders use the service client only after the customer role,
