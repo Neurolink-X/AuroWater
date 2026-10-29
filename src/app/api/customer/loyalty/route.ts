@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
 
   return jsonOk({
     points_balance: pointsBalance,
-    points_to_next_reward: pointsBalance >= 0 && remainder === 0 ? rewardTarget : Math.max(0, rewardTarget - remainder),
+    points_to_next_reward: pointsBalance >= rewardTarget && remainder === 0 ? 0 : Math.max(0, rewardTarget - remainder),
     points_per_renewal: Number(settings.subscription_loyalty_points_per_renewal ?? 100),
     streak_months: Number(settings.subscription_loyalty_streak_months ?? 3),
     streak_bonus_points: Number(settings.subscription_loyalty_streak_bonus_points ?? 100),
