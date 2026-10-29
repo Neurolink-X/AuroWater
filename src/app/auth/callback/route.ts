@@ -19,7 +19,7 @@ function getSafeNextPath(
   const defaultPath =
     type === 'recovery'
       ? '/auth/update-password'
-      : '/customer/home';
+      : '/';
 
   if (!value) return defaultPath;
 
@@ -212,7 +212,9 @@ setAll(cookies: CookieToSet[]) {
   const destination =
     role === 'customer' && !profilePhone
       ? '/customer/account?complete=phone'
-      : nextPath;
+      : role === 'customer' && nextPath === '/customer/home'
+        ? '/'
+        : nextPath;
   const response = redirect(destination);
 
   // Compatibility cookies only; never use these to authorize requests.
