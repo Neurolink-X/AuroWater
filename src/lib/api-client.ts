@@ -189,22 +189,47 @@ async function fetchWithRetryRaw(
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnauthorized = true): Promise<T> {
-  const { res, json } = await fetchWithRetryParse(path, init);
+  let { res, json } = await fetchWithRetryParse(path, init);
+
+  const authEndpoint = /^\/(auth\/(login|register|refresh|resend-confirmation)|auth\/callback)(\/|$)/.test(path);
+  const onAuthEntry =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/auth/login') ||
+      window.location.pathname.startsWith('/auth/register'));
+
+  // Recover once from an expired access token before treating the user as signed out.
+  // Do not run this for login/register: their 401/4xx responses are form errors, not expired sessions.
+  if (res.status === 401 && redirectOnUnauthorized && !authEndpoint && !onAuthEntry && typeof window !== 'undefined') {
+    try {
+      const supabase = createClient();
+      const { data: current } = await supabase.auth.getSession();
+      if (current.session?.refresh_token) {
+        const { data: refreshed, error } = await supabase.auth.refreshSession();
+        const token = refreshed.session?.access_token;
+        if (!error && token) {
+          const headers = new Headers(init.headers);
+          headers.set('Authorization', `Bearer ${token}`);
+          ({ res, json } = await fetchWithRetryParse(path, { ...init, headers, credentials: 'include' }));
+        }
+      }
+    } catch {
+      // Preserve the original API response; only clear auth after confirmed retry failure below.
+    }
+  }
 
   if (!res.ok || json.success === false) {
-    if (res.status === 401) {
-      const onAuthEntry =
-        typeof window !== 'undefined' &&
-        (window.location.pathname.startsWith('/auth/login') ||
-          window.location.pathname.startsWith('/auth/register'));
-      /** Failed login/register must not hard-redirect (breaks error UI + resend flows). */
-      if (!onAuthEntry && redirectOnUnauthorized) {
+    if (res.status === 401 && redirectOnUnauthorized && !authEndpoint && !onAuthEntry && typeof window !== 'undefined') {
+      // Only protected requests with an app session should redirect. Public endpoint 401s
+      // and failed login attempts must not destroy an otherwise valid local session.
+      const cachedSession = safeGet('aurowater_session');
+      const hasSession = Boolean(cachedSession);
+      if (hasSession) {
         clearToken();
         clearUser();
-        if (typeof window !== 'undefined') {
-          const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
-          window.location.assign(`/auth/login?returnTo=${returnTo}`);
-        }
+        clearAuthGateCookies();
+        safeRemove('aurowater_session');
+        const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
+        window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
       }
     }
     const msg = typeof json.error === 'string' ? json.error : `HTTP ${res.status}`;
