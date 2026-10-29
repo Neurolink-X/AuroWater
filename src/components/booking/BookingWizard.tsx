@@ -2460,9 +2460,40 @@ export default function BookingWizard() {
                 <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
                   Subscription billing is per delivery. Automatic debit is not enabled.
                 </p>
-              ) : draft.paymentMethod !== 'cash' ? (
+              ) : draft.paymentMethod === 'upi' ? (
+                <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5" aria-label="Pay securely with UPI">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900">Pay with UPI</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">Scan the QR or open your UPI app. Check the recipient before approving payment.</p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-100 px-3 py-2 text-right">
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-emerald-800">Exact order total</span>
+                      <span className="text-xl font-extrabold text-emerald-900">{inr(breakdown.total)}</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 items-center gap-4 sm:grid-cols-[160px_1fr]">
+                    <div className="mx-auto w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+                      <img src="/qr.jpeg" alt="AuroTap UPI payment QR code" width="144" height="144" className="h-36 w-36 object-contain" />
+                    </div>
+                    <div className="min-w-0 space-y-3">
+                      <p className="break-all text-xs text-slate-600">UPI ID: <span className="font-bold text-slate-900">arjunchaurasiya1254-2@oksbi</span></p>
+                      <a
+                        href={`upi://pay?pa=${encodeURIComponent('arjunchaurasiya1254-2@oksbi')}&pn=${encodeURIComponent('AuroTap')}&am=${Math.max(0, Number(breakdown.total) || 0).toFixed(2)}&cu=INR&tn=${encodeURIComponent(`AuroTap ${selectedServiceLabel(draft)}`)}`}
+                        className="flex min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                      >
+                        Open UPI app · {inr(breakdown.total)} ↗
+                      </a>
+                      <p className="text-[11px] leading-5 text-slate-500">The Open UPI app button includes this total in the payment request. The QR at <code>/qr.jpeg</code> is your existing static QR and may not include a dynamic amount, so verify or enter {inr(breakdown.total)} before paying.</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    Payment is not verified automatically. Keep the booking unpaid until the payment is confirmed against your bank/UPI statement; never trust a screenshot alone.
+                  </p>
+                </section>
+              ) : draft.paymentMethod === 'online' ? (
                 <p className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-                  Online payment is coming soon. For now, payment is completed during fulfilment.
+                  Card and netbanking payments are coming soon. Choose cash or UPI for this booking.
                 </p>
               ) : null}
             </div>
