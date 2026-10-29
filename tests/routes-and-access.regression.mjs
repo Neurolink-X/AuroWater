@@ -475,4 +475,12 @@ const loyaltyBooking = readFileSync(join(root, 'src', 'components', 'booking', '
 assert.match(loyaltyBooking, /loyalty_redemption_type:/);
 assert.match(loyaltyBooking, /AuroTap loyalty rewards/);
 assert.match(loyaltyBooking, /selectedLoyaltyReward/);
+const loyaltyCustomerHome = readFileSync(join(root, 'src', 'app', 'customer', 'home', 'page.tsx'), 'utf8');
+assert.match(loyaltyCustomerHome, /href="\/customer\/loyalty"/);
+assert.match(loyaltyCustomerHome, /Subscription rewards/);
+const loyaltyCustomerAccount = readFileSync(join(root, 'src', 'app', 'customer', 'account', 'page.tsx'), 'utf8');
+assert.match(loyaltyCustomerAccount, /href="\/customer\/loyalty"/);
+const loyaltyAdminSettings = readFileSync(join(root, 'src', 'app', 'admin', 'settings', 'page.tsx'), 'utf8');
+assert.match(loyaltyAdminSettings, /href="\/admin\/loyalty"/);
+
 assert.match(migrationBuilder, /033_subscription_loyalty_redemption\.sql/);
