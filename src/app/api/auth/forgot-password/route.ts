@@ -7,8 +7,8 @@ import { createServiceClient } from '@/utils/supabase/server';
 import { getSiteUrl } from '@/lib/env';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-const EMAIL_PATTERN = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/;
-const PHONE_PATTERN = /^[6-9]\\d{9}$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const PHONE_PATTERN = /^[6-9]\d{9}$/;
 const SYNTHETIC_EMAIL_DOMAIN = '@users.aurotap.in';
 
 function getClientIp(req: NextRequest): string {
@@ -28,7 +28,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!isSupabaseConfigured()) {
-    return jsonErr('Password recovery is temporarily unavailable. Please try again later.', 503, 'MISCONFIG_ENV');
+    return jsonErr(
+      'Password recovery is temporarily unavailable. Please try again later.',
+      503,
+      'MISCONFIG_ENV',
+    );
   }
 
   let body: Record<string, unknown>;
@@ -43,18 +47,17 @@ export async function POST(req: NextRequest) {
   }
 
   const rawEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const rawPhone = typeof body.phone === 'string' ? body.phone.replace(/\\D/g, '') : '';
+  const rawPhone = typeof body.phone === 'string' ? body.phone.replace(/\D/g, '') : '';
   let email = rawEmail;
 
   if (rawPhone || (rawEmail && !rawEmail.includes('@'))) {
-    const phone = rawPhone || rawEmail.replace(/\\D/g, '');
+    const phone = rawPhone || rawEmail.replace(/\D/g, '');
     if (!PHONE_PATTERN.test(phone)) {
       return jsonErr('Enter a valid email address or 10-digit Indian mobile number.', 400);
     }
 
-    // Phone logins use synthetic Supabase emails, which cannot receive mail.
-    // Resolve the account's real contact email from the profile before sending
-    // recovery. Never send reset links to the synthetic login address.
+    // Phone sign-in identifiers are synthetic and cannot receive email.
+    // Resolve a real recovery email from the user's profile server-side only.
     try {
       const admin = createServiceClient();
       const { data: profile, error } = await admin
@@ -65,14 +68,14 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[auth/forgot-password] Phone lookup failed:', error.message);
+        email = '';
       } else if (typeof profile?.email === 'string') {
         const profileEmail = profile.email.trim().toLowerCase();
-        if (EMAIL_PATTERN.test(profileEmail) && !profileEmail.endsWith(SYNTHETIC_EMAIL_DOMAIN)) {
-          email = profileEmail;
-        } else {
-          // No deliverable email is registered for this phone account.
-          email = '';
-        }
+        email =
+          EMAIL_PATTERN.test(profileEmail) &&
+          !profileEmail.endsWith(SYNTHETIC_EMAIL_DOMAIN)
+            ? profileEmail
+            : '';
       } else {
         email = '';
       }
@@ -90,11 +93,11 @@ export async function POST(req: NextRequest) {
   }
 
   const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim() || getSiteUrl();
-  const origin = configuredOrigin.replace(/\\/$/, '');
+  const origin = configuredOrigin.replace(/\/$/, '');
   const redirectTo = `${origin}/auth/update-password`;
 
-  // Generic response for unknown accounts and phone accounts without a
-  // deliverable contact email prevents account enumeration.
+  // Always return the same success message for unknown users and phone
+  // accounts without a recovery email to reduce account enumeration.
   if (email) {
     try {
       const sb = createSupabaseAnonClient();
@@ -112,6 +115,7 @@ export async function POST(req: NextRequest) {
 
   return jsonOk({
     sent: true as const,
-    message: 'If an account exists and has a registered recovery email, recovery instructions have been sent.',
+    message:
+      'If an account exists and has a registered recovery email, recovery instructions have been sent.',
   });
 }
