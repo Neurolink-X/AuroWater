@@ -455,8 +455,8 @@ const loyaltyCustomerApi = readFileSync(join(root, 'src', 'app', 'api', 'custome
 assert.match(loyaltyCustomerApi, /subscription_loyalty_balance/);
 assert.match(loyaltyCustomerApi, /history_limit: 100/);
 const loyaltyAdminPageRegression = readFileSync(join(root, 'src', 'app', 'admin', 'loyalty', 'page.tsx'), 'utf8');
-assert.match(loyaltyAdminPage, /subscription_loyalty_free_can_enabled/);
-assert.match(loyaltyAdminPage, /subscription_loyalty_service_discount_enabled/);
+assert.match(loyaltyAdminPageRegression, /subscription_loyalty_free_can_enabled/);
+assert.match(loyaltyAdminPageRegression, /subscription_loyalty_service_discount_enabled/);
 const loyaltyBooking = readFileSync(join(root, 'src', 'components', 'booking', 'BookingWizard.tsx'), 'utf8');
 assert.match(loyaltyBooking, /loyalty_redemption_type:/);
 assert.match(loyaltyBooking, /AuroTap loyalty rewards/);
