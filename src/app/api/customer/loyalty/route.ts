@@ -36,9 +36,12 @@ export async function GET(req: NextRequest) {
 
   const events = eventsResult.error ? [] : eventsResult.data ?? [];
   const streaks = streaksResult.error ? [] : streaksResult.data ?? [];
+  const pointsBalance = events.reduce((sum, event) => sum + Number(event.points_delta || 0), 0);
+  const rewardTarget = Math.max(1, Number((await admin.from('settings').select('value').eq('key', 'subscription_loyalty_points_per_reward').maybeSingle()).data?.value ?? 300));
+  const remainder = ((pointsBalance % rewardTarget) + rewardTarget) % rewardTarget;
   return jsonOk({
-    points_balance: events.reduce((sum, event) => sum + Number(event.points_delta || 0), 0),
-    points_to_next_reward: Math.max(0, Number((await admin.from('settings').select('value').eq('key', 'subscription_loyalty_points_per_reward').maybeSingle()).data?.value ?? 300) - events.reduce((sum, event) => sum + Number(event.points_delta || 0), 0)),
+    points_balance: pointsBalance,
+    points_to_next_reward: pointsBalance >= 0 && remainder === 0 ? rewardTarget : Math.max(0, rewardTarget - remainder),
     points_per_renewal: Number((await admin.from('settings').select('value').eq('key', 'subscription_loyalty_points_per_renewal').maybeSingle()).data?.value ?? 100),
     streaks,
     events,
