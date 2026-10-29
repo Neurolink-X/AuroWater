@@ -69,7 +69,7 @@ export default function CustomerLoyaltyPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {data?.offers.free_can && <article className="rounded-2xl border border-sky-100 bg-sky-50 p-4"><p className="font-bold text-sky-950">Free standard RO can</p><p className="mt-1 text-sm text-sky-900">Redeem {data.offers.points_per_reward} points on one standard one-time can.</p></article>}
             {data?.offers.service_discount && (data.offers.plumbing || data.offers.tank_cleaning) && <article className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4"><p className="font-bold text-emerald-950">Home service savings</p><p className="mt-1 text-sm text-emerald-900">Use points for up to {data.offers.max_discount_percent}% off eligible {data.offers.plumbing && data.offers.tank_cleaning ? 'plumbing or tank-cleaning' : data.offers.plumbing ? 'plumbing' : 'tank-cleaning'} bookings.</p></article>}
-            {!data?.offers.free_can && !data?.offers.service_discount && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Redemption offers are temporarily paused. Your points remain safe.</p>}
+            {!data?.offers.free_can && !(data?.offers.service_discount && (data.offers.plumbing || data.offers.tank_cleaning)) && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Redemption offers are temporarily paused. Your points remain safe.</p>}
           </div>
         )}
       </section>
