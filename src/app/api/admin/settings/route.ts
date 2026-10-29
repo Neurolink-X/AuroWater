@@ -191,6 +191,8 @@ const SETTINGS_SCHEMA: Record<
   subscription_loyalty_max_discount_percent: { type: 'number', min: 1, max: 50, label: 'Maximum loyalty discount (%)' },
   subscription_loyalty_plumbing_enabled: { type: 'boolean', label: 'Allow points on plumbing discounts' },
   subscription_loyalty_tank_cleaning_enabled: { type: 'boolean', label: 'Allow points on tank cleaning discounts' },
+  subscription_loyalty_free_can_enabled: { type: 'boolean', label: 'Allow free-can redemption' },
+  subscription_loyalty_service_discount_enabled: { type: 'boolean', label: 'Allow service-discount redemption' },
   maintenance_mode: {
     type: 'boolean',
     label: 'Maintenance mode',
