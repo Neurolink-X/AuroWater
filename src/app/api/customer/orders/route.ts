@@ -322,6 +322,7 @@ export async function POST(req: NextRequest) {
 
   const isWater = service_type_key === 'water_can';
   const isSubscription = str(body.can_order_type) === 'subscription';
+  const isChilledOrder = isWater && str(body.sub_option_key) === 'chilled_ro';
   let qty: number | null = null;
   let base_amount: number;
 
@@ -456,13 +457,13 @@ export async function POST(req: NextRequest) {
     if (referralRewardId) {
       return jsonErr('Use one reward at a time. Referral and loyalty rewards cannot be combined.', 400, 'REWARD_COMBINATION_NOT_ALLOWED');
     }
-    if (isSubscription || isChilled || (isWater && qty !== 1)) {
+    if (isSubscription || isChilledOrder || (isWater && qty !== 1)) {
       if (loyaltyRedemptionType === 'free_can') {
         return jsonErr('A free-can reward applies only to one standard one-time Normal RO can.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
       }
     }
     if (loyaltyRedemptionType === 'free_can') {
-      if (!isWater || isSubscription || isChilled || qty !== 1) {
+      if (!isWater || isSubscription || isChilledOrder || qty !== 1) {
         return jsonErr('A free-can reward applies only to one standard one-time Normal RO can.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
       }
       loyaltyDiscountAmount = Math.min(base_amount, waterUnitPrice ?? 20);
