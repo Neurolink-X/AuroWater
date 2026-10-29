@@ -109,8 +109,8 @@ function PricingSection() {
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <div className="text-center mb-10">
           <span className="aw-badge aw-badge-dk">Simple, honest pricing</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal}. Lock your price with a monthly plan.</h2>
-          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">Water, plumbing and tank cleaning with prices shown up front. Plans protect you from price changes: your per-can price stays locked while your plan is active.</p>
+          <h2 className="mx-auto max-w-3xl font-display text-3xl leading-tight sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal} per 20L can. Lock your price with a monthly plan.</h2>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">Order RO water at a clear per-can price, book a plumber or schedule water tank cleaning. Monthly plans can lock your water price while the plan is active.</p>
         </div>
 
         {increase && (
@@ -120,18 +120,18 @@ function PricingSection() {
         )}
 
         {/* Plans */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
           {PRICING.plans.map(p => {
             const best = p.id === 'family';
             return (
-              <div key={p.id} className={`relative rounded-3xl bg-white p-6 border ${best ? 'border-sky-400 shadow-lg ring-2 ring-sky-100' : 'border-slate-100 shadow-sm'}`}>
-                {best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-sky-600 text-white text-[11px] font-bold px-3 py-1">Most popular</span>}
-                <h3 className="font-display font-extrabold text-slate-900">{p.name}</h3>
-                <p className="text-xs text-slate-500 mt-0.5">{p.note}</p>
-                <p className="mt-4 text-3xl font-extrabold text-slate-900">₹{fmt(memberCanPrice('normal', p).price)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
-                <p className="text-xs text-slate-500">Chilled ₹{fmt(memberCanPrice('chilled', p).price)}</p>
-                <p className={`mt-3 text-sm font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Price locked ${p.lockMonths} months` : 'Standard price'}</p>
-                {p.off > 0 && <p className="mt-1 text-xs text-slate-500">+{p.off}% off future list prices</p>}
+              <div key={p.id} className={`min-w-0 rounded-3xl bg-white p-4 sm:p-6 border ${best ? 'border-sky-400 shadow-lg ring-2 ring-sky-100' : 'border-slate-100 shadow-sm'}`}>
+                {best && <span className="mb-3 inline-flex max-w-full items-center rounded-full bg-sky-600 px-3 py-1 text-[11px] font-bold leading-tight text-white">Most popular · Best for families</span>}
+                <h3 className="font-display text-base sm:text-lg leading-snug font-extrabold text-slate-900">{p.name}</h3>
+                <p className="mt-1 text-xs sm:text-sm leading-snug text-slate-500">{p.note}</p>
+                <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(memberCanPrice('normal', p).price)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
+                <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(memberCanPrice('chilled', p).price)} / can</p>
+                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Price locked ${p.lockMonths} months` : 'Standard price'}</p>
+                {p.off > 0 && <p className="mt-1 text-sm leading-snug text-slate-500">+{p.off}% off future list prices</p>}
               </div>
             );
           })}
@@ -370,8 +370,13 @@ export default function HomeClient() {
 
         {/* ═══ TRUST STRIP ═══ */}
         <section className="bg-slate-50 py-4 border-b border-slate-200">
-          <div className="max-w-6xl mx-auto px-5 flex flex-wrap justify-center gap-x-7 gap-y-2 text-xs sm:text-sm text-slate-600 font-semibold">
-            {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery', `📍 ${LIVE_CITIES.map(c => c.name).join(' · ')} + ${PIN_CITIES.map(c => c.name).join(' · ')} (select PINs)`].map(b => <span key={b}>{b}</span>)}
+          <div className="max-w-6xl mx-auto px-5">
+            <div className="flex flex-wrap justify-center gap-x-7 gap-y-2 text-xs font-semibold text-slate-600 sm:text-sm">
+              {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery'].map(b => <span key={b}>{b}</span>)}
+            </div>
+            <p className="mx-auto mt-3 max-w-4xl text-center text-xs leading-relaxed text-slate-500 sm:text-sm">
+              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — live service areas. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN codes only. Confirm your PIN code before booking.
+            </p>
           </div>
         </section>
 
