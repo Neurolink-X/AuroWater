@@ -635,7 +635,7 @@ export default function CustomerAccountPage() {
         </div>
       </main>
 
-      {hasChanges && !loading && (
+      {hasChanges && !loading && !saving && (
         <div className="fixed inset-x-0 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] z-[45] flex justify-center px-3" role="region" aria-label={t('unsaved')}>
           <div className="flex w-full max-w-xl items-center gap-2 rounded-2xl border border-slate-200 bg-white p-2.5 pl-4 shadow-2xl">
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" aria-hidden />
