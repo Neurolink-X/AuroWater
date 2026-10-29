@@ -344,11 +344,13 @@ export default function CustomerAccountPage() {
   dirtyRef.current = hasChanges;
 
   useEffect(() => {
-    if (!hasChanges) return;
+    // Saving is an intentional action; never interrupt it with the browser's
+    // native unsaved-changes dialog. Only guard genuine, unsaved form edits.
+    if (!hasChanges || saving || loading) return;
     const h = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
-  }, [hasChanges]);
+  }, [hasChanges, saving, loading]);
 
   const email = session?.email?.trim() ?? '';
   const phone = origPhone;
