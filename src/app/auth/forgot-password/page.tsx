@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 
 const schema = z.object({
-  email: z.string().trim().min(1, 'Enter your email address or mobile number.').max(254, 'Input is too long.'),
+  email: z.string().trim().min(1, 'Enter your account email address.').max(254, 'Email address is too long.').email('Enter a valid email address.'),
 });
 
 export default function ForgotPasswordPage() {
@@ -27,19 +27,13 @@ export default function ForgotPasswordPage() {
     }
 
     const value = parsed.data.email;
-    const digits = value.replace(/\\D/g, '');
-    const isPhone = !value.includes('@') && /^[6-9]\\d{9}$/.test(digits);
-    if (!isPhone && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(value)) {
-      setErr('Enter a valid email address or 10-digit Indian mobile number.');
-      return;
-    }
 
     setLoading(true);
     try {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isPhone ? { phone: digits } : { email: value.toLowerCase() }),
+        body: JSON.stringify({ email: value.toLowerCase() }),
       });
       const json = (await res.json()) as { success?: boolean; error?: string; message?: string };
       if (!res.ok || json.success === false) {
@@ -69,7 +63,7 @@ export default function ForgotPasswordPage() {
             <p className="mt-10 text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">Account recovery</p>
             <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">Let’s get you back in.</h1>
             <p className="mt-4 max-w-sm text-sm leading-6 text-slate-300">
-              Request a secure password-reset link using the email address on your account.
+              Request a secure password-reset link using the email address registered to your account.
             </p>
           </div>
           <ul className="relative mt-10 space-y-3 text-sm text-slate-200">
@@ -84,18 +78,18 @@ export default function ForgotPasswordPage() {
             <>
               <h2 className="text-2xl font-extrabold text-slate-900">Forgot your password?</h2>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Enter your account email. If you sign in with a mobile number, you can enter that too if a recovery email is registered to your account.
+                Enter the email address registered to your AuroTap account.
               </p>
               <form onSubmit={(e) => void onSubmit(e)} className="mt-7 space-y-5" noValidate>
                 <div>
                   <label htmlFor="recovery-identifier" className="block text-sm font-semibold text-slate-700">
-                    Email address or mobile number
+                    Email address
                   </label>
                   <input
                     id="recovery-identifier"
                     name="username"
-                    type="text"
-                    inputMode="text"
+                    type="email"
+                    inputMode="email"
                     autoComplete="username"
                     autoCapitalize="none"
                     spellCheck={false}
@@ -107,10 +101,10 @@ export default function ForgotPasswordPage() {
                     aria-invalid={Boolean(err)}
                     aria-describedby={err ? 'recovery-error' : 'recovery-help'}
                     className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 disabled:bg-slate-100"
-                    placeholder="you@example.com or 98XXXXXXXX"
+                    placeholder="you@example.com"
                   />
                   <p id="recovery-help" className="mt-2 text-xs leading-5 text-slate-500">
-                    For mobile-number accounts, recovery is sent to the real email registered with that account.
+                    We’ll send a time-limited reset link if an account exists for this email.
                   </p>
                 </div>
                 {err ? (
@@ -137,7 +131,7 @@ export default function ForgotPasswordPage() {
                 If an account exists with a registered recovery email, we’ve requested a password-reset email. Check your inbox and spam folder. The message may take a few minutes.
               </p>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                If you signed in with a mobile number and never added a recovery email, contact AuroTap support for help restoring access.
+                If you can’t access your registered email, contact AuroTap support for help restoring account access.
               </p>
               <button type="button" onClick={() => { setDone(false); setErr(null); }} className="mt-6 self-start text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline">
                 Try another email or number
