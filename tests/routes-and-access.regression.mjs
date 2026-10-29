@@ -433,3 +433,32 @@ const customerLoyaltyApi = readFileSync(join(root, 'src', 'app', 'api', 'custome
 assert.ok(customerLoyaltyApi.includes("requireRole(auth.ctx, 'customer')"));
 assert.ok(customerLoyaltyApi.includes('points_balance'));
 assert.ok(migrationBuilder.includes('032_subscription_loyalty_rewards.sql'));
+
+
+// Subscription loyalty regression guards: ledger balance must be lifetime-based,
+// offers must be admin-controlled, and redemption endpoints must be server-validated.
+const loyaltyMigrationBase = readFileSync(join(root, 'sql', '032_subscription_loyalty_rewards.sql'), 'utf8');
+const loyaltyRedemptionMigration = readFileSync(join(root, 'sql', '033_subscription_loyalty_redemption.sql'), 'utf8');
+assert.match(loyaltyMigrationBase, /streak_bonus > 0/);
+assert.match(loyaltyMigrationBase, /subscription_loyalty_events/);
+assert.match(loyaltyRedemptionMigration, /subscription_loyalty_balance/);
+assert.match(loyaltyRedemptionMigration, /pg_advisory_xact_lock/);
+assert.match(loyaltyRedemptionMigration, /reserve_subscription_loyalty_redemption/);
+assert.match(loyaltyRedemptionMigration, /reverse_subscription_loyalty_redemption/);
+assert.match(loyaltyRedemptionMigration, /finalize_subscription_loyalty_redemption/);
+const loyaltyOrdersApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
+assert.match(loyaltyOrdersApi, /loyalty_redemption_type/);
+assert.match(loyaltyOrdersApi, /reserve_subscription_loyalty_redemption/);
+assert.match(loyaltyOrdersApi, /finalize_subscription_loyalty_redemption/);
+assert.match(loyaltyOrdersApi, /reverse_subscription_loyalty_redemption/);
+const loyaltyCustomerApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'loyalty', 'route.ts'), 'utf8');
+assert.match(loyaltyCustomerApi, /subscription_loyalty_balance/);
+assert.match(loyaltyCustomerApi, /history_limit: 100/);
+const loyaltyAdminPage = readFileSync(join(root, 'src', 'app', 'admin', 'loyalty', 'page.tsx'), 'utf8');
+assert.match(loyaltyAdminPage, /subscription_loyalty_free_can_enabled/);
+assert.match(loyaltyAdminPage, /subscription_loyalty_service_discount_enabled/);
+const loyaltyBooking = readFileSync(join(root, 'src', 'components', 'booking', 'BookingWizard.tsx'), 'utf8');
+assert.match(loyaltyBooking, /loyalty_redemption_type:/);
+assert.match(loyaltyBooking, /AuroTap loyalty rewards/);
+assert.match(loyaltyBooking, /selectedLoyaltyReward/);
+assert.match(migrationBuilder, /033_subscription_loyalty_redemption\.sql/);
