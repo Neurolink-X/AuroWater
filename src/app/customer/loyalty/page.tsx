@@ -27,7 +27,7 @@ export default function CustomerLoyaltyPage() {
 
   const load = useCallback(async (isRetry = false) => {
     if (isRetry) setRetrying(true);
-    else if (!data) setLoading(true);
+    else setLoading(true);
     try {
       const token = await getToken();
       if (!token) throw new Error('Your session has expired. Please sign in again.');
@@ -50,7 +50,7 @@ export default function CustomerLoyaltyPage() {
       setLoading(false);
       setRetrying(false);
     }
-  }, [data]);
+  }, []);
 
   useEffect(() => { if (hydrated && isLoggedIn && isCustomer) void load(); }, [hydrated, isLoggedIn, isCustomer, load]);
   useEffect(() => {
