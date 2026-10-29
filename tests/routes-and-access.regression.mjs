@@ -414,3 +414,22 @@ assert.match(technicianJobsPage, /filter: \`technician_id=eq\.\$\{currentUser\.i
 assert.match(technicianJobsPage, /setInterval\(\(\) => \{/);
 assert.match(technicianJobsPage, /window\.removeEventListener\('online', onOnline\)/);
 assert.match(technicianJobsPage, /supabase\.removeChannel\(channel\)/);
+
+
+// Subscription loyalty: additive schema, server-side paid-renewal awards, and admin-only controls.
+const loyaltyMigration = readFileSync(join(root, 'sql', '032_subscription_loyalty_rewards.sql'), 'utf8');
+assert.ok(loyaltyMigration.includes('subscription_loyalty_events'));
+assert.ok(loyaltyMigration.includes('orders_award_subscription_loyalty'));
+assert.ok(loyaltyMigration.includes("coalesce(NEW.payment_status, '')) <> 'paid'"));
+assert.ok(loyaltyMigration.includes("'streak_bonus'"));
+assert.ok(loyaltyMigration.includes('subscription_loyalty_points_per_renewal'));
+const loyaltyAdminApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'settings', 'route.ts'), 'utf8');
+assert.ok(loyaltyAdminApi.includes('subscription_loyalty_points_per_renewal'));
+assert.ok(loyaltyAdminApi.includes('subscription_loyalty_enabled'));
+const loyaltyAdminPage = readFileSync(join(root, 'src', 'app', 'admin', 'loyalty', 'page.tsx'), 'utf8');
+assert.ok(loyaltyAdminPage.includes('/api/admin/settings'));
+assert.ok(loyaltyAdminPage.includes('Save loyalty settings'));
+const customerLoyaltyApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'loyalty', 'route.ts'), 'utf8');
+assert.ok(customerLoyaltyApi.includes("requireRole(auth.ctx, 'customer')"));
+assert.ok(customerLoyaltyApi.includes('points_balance'));
+assert.ok(migrationBuilder.includes('032_subscription_loyalty_rewards.sql'));
