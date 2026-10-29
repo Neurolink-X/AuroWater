@@ -13,16 +13,17 @@ import { useEffect } from 'react';
  *       (b) MIN_SPLASH_MS since the page started loading
  *   but never later than MAX_SPLASH_MS.
  *
- * Why a minimum? A splash that appears for 80ms looks like a glitch.
- * Why a maximum? A slow phone must never be blocked by an animation.
+ * Keep the minimum brief and cap the wait aggressively: the splash is branding,
+ * not a loading screen, and must not delay the user's first interaction.
+ * A slow phone must never be blocked by an animation.
  * (CSS also hides the splash by itself at ~2.6s if JavaScript never runs.)
  *
  * Service worker registration is NOT done here. It stays in
  * components/pwa/ServiceWorkerRegistration.tsx, so it is registered only once.
  */
 
-const MIN_SPLASH_MS = 350;
-const MAX_SPLASH_MS = 1400;
+const MIN_SPLASH_MS = 180;
+const MAX_SPLASH_MS = 800;
 
 export default function SplashController() {
   useEffect(() => {

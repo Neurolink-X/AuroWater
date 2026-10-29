@@ -338,9 +338,14 @@ export default function CustomerAccountPage() {
   const origCity = profile?.city?.trim() ?? '';
   const origPhone = profile?.phone?.trim() || session?.phone?.trim() || '';
   const origNotif = notificationsOn(profile?.settings);
-  const hasChanges =
+  // Only compare edits after the server profile has been hydrated.
+  // Before that point, phoneInput starts empty while origPhone can come from
+  // the auth session; comparing them early falsely shows the sticky save bar
+  // and marks the form dirty, causing applyProfile() to skip the real profile.
+  const hasChanges = Boolean(profile) && !loading && (
     fullName.trim() !== origName || city.trim() !== origCity ||
-    digits(phoneInput) !== digits(origPhone) || notif !== origNotif;
+    digits(phoneInput) !== digits(origPhone) || notif !== origNotif
+  );
   dirtyRef.current = hasChanges;
 
   useEffect(() => {
