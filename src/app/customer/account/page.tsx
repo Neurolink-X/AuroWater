@@ -258,8 +258,11 @@ export default function CustomerAccountPage() {
 
   /** Fill form fields from server data, but never overwrite what the user is typing. */
   const applyProfile = useCallback((p: Profile | null, force = false) => {
-    setProfile(p);
+    // Do not change the comparison baseline while the customer is editing.
+    // A background refresh may return normalized/new server data; replacing the
+    // baseline without replacing the form values falsely marks the form dirty.
     if (!force && dirtyRef.current) return;
+    setProfile(p);
     setFullName(p?.full_name?.trim() ?? '');
     setCity(p?.city?.trim() ?? '');
     setPhoneInput(p?.phone?.trim() || session?.phone?.trim() || '');
@@ -375,7 +378,8 @@ export default function CustomerAccountPage() {
   };
 
   const save = async () => {
-    if (saving || !validate()) return;
+    // Guard against duplicate/no-op submissions from stale UI events.
+    if (saving || !hasChanges || !validate()) return;
     if (!navigator.onLine) { say('error', t('offline')); return; }
     setSaving(true);
     const prev = profile;
