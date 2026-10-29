@@ -34,23 +34,47 @@ export default function UpdatePasswordPage() {
     void (async () => {
       try {
         const params = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         const code = params.get('code');
+        const callbackError = params.get('error_description') ?? params.get('error') ??
+          hashParams.get('error_description') ?? hashParams.get('error');
+
+        if (callbackError) {
+          if (!cancelled) {
+            setErrorMessage('This reset link is invalid, expired, or already used. Request a fresh link to continue.');
+            window.history.replaceState({}, document.title, '/auth/update-password');
+          }
+          setReady(true);
+          return;
+        }
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) {
-            if (!cancelled) setErrorMessage('This reset link is invalid or has expired. Request a fresh link to continue.');
-          } else if (!cancelled) {
+            if (!cancelled) {
+              setErrorMessage('This reset link could not be verified. It may have expired or already been used. Request a fresh link to continue.');
+              window.history.replaceState({}, document.title, '/auth/update-password');
+            }
+            setReady(true);
+            return;
+          }
+          if (!cancelled) {
             // Remove one-time authorization material from the address bar.
             window.history.replaceState({}, document.title, '/auth/update-password');
           }
         }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (cancelled) return;
-        if (!error && data.session) {
-          markSession(data.session);
-          return;
+        // PKCE links use ?code=; legacy recovery links can return access_token
+        // and type=recovery in the URL fragment. Let the singleton Supabase
+        // client process either callback before showing an invalid-link state.
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const { data, error } = await supabase.auth.getSession();
+          if (cancelled) return;
+          if (!error && data.session) {
+            markSession(data.session);
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 250));
         }
       } catch {
         if (!cancelled) {
