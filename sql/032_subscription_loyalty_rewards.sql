@@ -137,11 +137,11 @@ BEGIN
       updated_at = now()
   WHERE subscription_id = subscription_key;
 
-  IF next_streak >= streak_months AND (previous_streak < streak_months OR previous_month IS NULL) THEN
+  IF streak_bonus > 0 AND next_streak >= streak_months AND (previous_streak < streak_months OR previous_month IS NULL) THEN
     INSERT INTO public.subscription_loyalty_events
       (customer_id, subscription_id, order_id, event_type, points_delta, description, metadata)
     VALUES
-      (customer_key, subscription_key, NEW.id, 'streak_bonus', greatest(streak_bonus, 1),
+      (customer_key, subscription_key, NEW.id, 'streak_bonus', streak_bonus,
        'Consecutive subscription renewal bonus',
        jsonb_build_object('consecutive_months', next_streak, 'threshold_months', streak_months))
     ON CONFLICT DO NOTHING;
