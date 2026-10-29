@@ -1,7 +1,11 @@
 // src/lib/subscription-math.ts
 // Pure helpers (no database, no network). Safe to import from API routes and tests.
 
-import { addSubscriptionFrequency } from '@/lib/subscription-schedule';
+import {
+  addSubscriptionFrequency,
+  isSubscriptionFrequency,
+  type SubscriptionFrequency,
+} from '@/lib/subscription-schedule';
 
 /** An error that retrying will never fix (bad frequency, missing address...). */
 export class PermanentError extends Error {
@@ -53,11 +57,16 @@ export function rollForward(
   frequency: string,
   today: string
 ): { date: string; steps: number } {
+  if (!isSubscriptionFrequency(frequency)) {
+    throw new PermanentError('Delivery frequency is not valid');
+  }
+
+  const validFrequency: SubscriptionFrequency = frequency;
   let current = date;
   let steps = 0;
 
   while (current < today) {
-    const next = addSubscriptionFrequency(current, frequency);
+    const next = addSubscriptionFrequency(current, validFrequency);
     assertAdvances(current, next);
     current = next;
     steps += 1;
@@ -82,7 +91,7 @@ export function upcomingDates(
     const out = [date];
 
     while (out.length < count) {
-      const following = addSubscriptionFrequency(date, frequency);
+      const following = addSubscriptionFrequency(date, validFrequency);
       assertAdvances(date, following);
       out.push(following);
       date = following;
