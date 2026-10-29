@@ -15,6 +15,8 @@ type LoyaltySettings = {
   subscription_loyalty_max_discount_percent: number;
   subscription_loyalty_plumbing_enabled: boolean;
   subscription_loyalty_tank_cleaning_enabled: boolean;
+  subscription_loyalty_free_can_enabled: boolean;
+  subscription_loyalty_service_discount_enabled: boolean;
 };
 
 const defaults: LoyaltySettings = {
@@ -27,6 +29,8 @@ const defaults: LoyaltySettings = {
   subscription_loyalty_max_discount_percent: 20,
   subscription_loyalty_plumbing_enabled: true,
   subscription_loyalty_tank_cleaning_enabled: true,
+  subscription_loyalty_free_can_enabled: true,
+  subscription_loyalty_service_discount_enabled: true,
 };
 
 const numericFields: Array<{ key: keyof LoyaltySettings; label: string; help: string; min: number; max: number }> = [
@@ -34,7 +38,7 @@ const numericFields: Array<{ key: keyof LoyaltySettings; label: string; help: st
   { key: 'subscription_loyalty_points_per_reward', label: 'Points per reward milestone', help: 'Default target: 300 points. This target is configurable.', min: 100, max: 10000 },
   { key: 'subscription_loyalty_streak_months', label: 'Monthly streak length', help: 'Consecutive calendar months with a paid renewal.', min: 2, max: 24 },
   { key: 'subscription_loyalty_streak_bonus_points', label: 'Streak bonus points', help: 'Awarded once when the customer reaches the configured streak.', min: 0, max: 10000 },
-  { key: 'subscription_loyalty_points_per_rupee', label: 'Points per ₹1 discount', help: 'Conversion rate used by the future checkout redemption workflow.', min: 1, max: 100 },
+  { key: 'subscription_loyalty_points_per_rupee', label: 'Points per ₹1 discount', help: 'Points required per ₹1 of discount at checkout.', min: 1, max: 100 },
   { key: 'subscription_loyalty_max_discount_percent', label: 'Maximum eligible service discount', help: 'Cap for eligible plumbing and tank-cleaning orders.', min: 1, max: 50 },
 ];
 
@@ -103,7 +107,7 @@ export default function AdminLoyaltyPage() {
         <header className="rounded-3xl bg-gradient-to-br from-slate-950 to-sky-900 p-6 text-white sm:p-8">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-sky-200">AuroTap · Admin control</p>
           <h1 className="mt-2 text-3xl font-black">Subscription loyalty</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">Control renewal points, streak rewards and service-discount policy. Points are awarded server-side only after a subscription order is completed and paid.</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-sky-100">Manage the complete loyalty policy: renewal awards, streaks, free-can offers and service discounts. All redemption requests are revalidated server-side.</p>
         </header>
         {error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div> : null}
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
@@ -111,6 +115,17 @@ export default function AdminLoyaltyPage() {
             <div><h2 className="text-lg font-black">Program status</h2><p className="mt-1 text-sm text-slate-600">Pause new loyalty awards without changing existing balances.</p></div>
             <button type="button" disabled={loading} onClick={() => setSettings((old) => ({ ...old, subscription_loyalty_enabled: !old.subscription_loyalty_enabled }))} className={`rounded-full px-4 py-2 text-sm font-bold ${settings.subscription_loyalty_enabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>{settings.subscription_loyalty_enabled ? 'Enabled' : 'Paused'}</button>
           </div>
+        </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+          <h2 className="text-lg font-black">Redemption offers</h2>
+          <p className="mt-1 text-sm text-slate-600">Pause either offer at any time. Pausing prevents new redemptions; it does not erase points or past orders.</p>
+          {([
+            ['subscription_loyalty_free_can_enabled', 'Free standard RO can', 'Redeem the configured reward milestone on one standard one-time can.'],
+            ['subscription_loyalty_service_discount_enabled', 'Service discounts', 'Redeem points for plumbing or tank-cleaning discounts within the configured cap.'],
+          ] as const).map(([key, label, help]) => <label key={key} className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-slate-50 p-4">
+            <span><span className="block font-semibold">{label}</span><span className="mt-1 block text-xs text-slate-500">{help}</span></span>
+            <input type="checkbox" checked={settings[key]} onChange={(event) => setSettings((old) => ({ ...old, [key]: event.target.checked }))} className="h-5 w-5 accent-sky-700" />
+          </label>)}
         </section>
         <section className="grid gap-4 sm:grid-cols-2">
           {numericFields.map((field) => <label key={field.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -121,7 +136,7 @@ export default function AdminLoyaltyPage() {
         </section>
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
           <h2 className="text-lg font-black">Eligible services</h2>
-          <p className="mt-1 text-sm text-slate-600">Choose where loyalty points may be redeemed once checkout redemption is enabled.</p>
+          <p className="mt-1 text-sm text-slate-600">Choose which service categories can accept points. Redemption is validated again on the server.</p>
           {([
             ['subscription_loyalty_plumbing_enabled', 'Plumbing'],
             ['subscription_loyalty_tank_cleaning_enabled', 'Tank cleaning'],
