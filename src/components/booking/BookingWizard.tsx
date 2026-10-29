@@ -1023,7 +1023,8 @@ export default function BookingWizard() {
   const canRedeemLoyaltyService = Boolean(
     loyaltyData?.enabled && loyaltyData.offers.service_discount &&
     ((draft.serviceKey === 'plumbing' && loyaltyData.offers.plumbing) ||
-      (draft.serviceKey === 'tank_cleaning' && loyaltyData.offers.tank_cleaning))
+      (draft.serviceKey === 'tank_cleaning' && loyaltyData.offers.tank_cleaning)) &&
+    loyaltyData.points_balance >= Math.ceil(Math.min(baseAmount, baseAmount * loyaltyData.offers.max_discount_percent / 100) * loyaltyData.offers.points_per_rupee)
   );
   const loyaltyDiscountAmount = useMemo(() => {
     if (!loyaltyData || !selectedLoyaltyReward) return 0;
@@ -2313,7 +2314,7 @@ export default function BookingWizard() {
                   <select
                     aria-label="Choose referral reward"
                     value={selectedReferralRewardId}
-                    onChange={(event) => setSelectedReferralRewardId(event.target.value)}
+                    onChange={(event) => { setSelectedReferralRewardId(event.target.value); if (event.target.value) setSelectedLoyaltyReward(''); }}
                     disabled={!canRedeemReferralReward || Boolean(selectedLoyaltyReward)}
                     className="mt-3 min-h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-semibold text-slate-800 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
