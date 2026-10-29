@@ -292,6 +292,20 @@ function validateSetting(
         };
       }
 
+      if ([
+        'subscription_loyalty_points_per_renewal',
+        'subscription_loyalty_points_per_reward',
+        'subscription_loyalty_streak_months',
+        'subscription_loyalty_streak_bonus_points',
+        'subscription_loyalty_points_per_rupee',
+        'subscription_loyalty_max_discount_percent',
+      ].includes(key) && !Number.isInteger(raw)) {
+        return {
+          ok: false,
+          error: `${meta.label} must be a whole number`,
+        };
+      }
+
       return {
         ok: true,
         value: String(raw),
