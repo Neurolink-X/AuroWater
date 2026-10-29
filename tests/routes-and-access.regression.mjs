@@ -446,11 +446,25 @@ assert.match(loyaltyRedemptionMigration, /pg_advisory_xact_lock/);
 assert.match(loyaltyRedemptionMigration, /reserve_subscription_loyalty_redemption/);
 assert.match(loyaltyRedemptionMigration, /reverse_subscription_loyalty_redemption/);
 assert.match(loyaltyRedemptionMigration, /finalize_subscription_loyalty_redemption/);
+assert.match(loyaltyRedemptionMigration, /p_points <> v_target/);
+assert.match(loyaltyRedemptionMigration, /p_discount > round\(p_base_amount \* v_max_discount \/ 100\.0, 2\)/);
+assert.match(loyaltyRedemptionMigration, /subscription_loyalty_reversal_source_unique/);
+assert.match(loyaltyRedemptionMigration, /metadata->>'status' = 'reserved' AND order_id IS NULL/);
+assert.match(loyaltyRedemptionMigration, /IF NOT v_enabled THEN/);
+assert.match(loyaltyRedemptionMigration, /IF NOT v_free_enabled/);
+assert.match(loyaltyRedemptionMigration, /IF NOT v_service_enabled/);
+
 const loyaltyOrdersApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'orders', 'route.ts'), 'utf8');
 assert.match(loyaltyOrdersApi, /loyalty_redemption_type/);
 assert.match(loyaltyOrdersApi, /reserve_subscription_loyalty_redemption/);
 assert.match(loyaltyOrdersApi, /finalize_subscription_loyalty_redemption/);
 assert.match(loyaltyOrdersApi, /reverse_subscription_loyalty_redemption/);
+assert.match(loyaltyOrdersApi, /REWARD_COMBINATION_NOT_ALLOWED/);
+assert.match(loyaltyOrdersApi, /LOYALTY_POINTS_INSUFFICIENT/);
+assert.match(loyaltyOrdersApi, /LOYALTY_FINALIZATION_FAILED/);
+assert.match(loyaltyOrdersApi, /PRICE_CHANGED/);
+assert.match(loyaltyOrdersApi, /isChilledOrder \|\| qty !== 1/);
+
 const loyaltyCustomerApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'loyalty', 'route.ts'), 'utf8');
 assert.match(loyaltyCustomerApi, /subscription_loyalty_balance/);
 assert.match(loyaltyCustomerApi, /history_limit: 100/);
