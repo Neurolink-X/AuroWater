@@ -11,6 +11,7 @@ The repository includes `npm run db:inspect-live`. It runs a PostgreSQL read-onl
 - Policies and indexes.
 - Candidate migration-tracking tables (without assuming a `supabase_migrations` schema).
 - Execute privileges for the supplier/technician atomic dispatch RPCs.
+- Top query samples from `pg_stat_statements`, when the extension is enabled and the database role can read it.
 
 Run it from a trusted workstation with a read-only database role:
 
@@ -53,7 +54,7 @@ Required environment:
 ```bash
 AUROWATER_ALLOW_DISPATCH_TESTS=1
 AUROWATER_TEST_DATABASE_URL='postgresql://...'
-AUROWATER_DISPATCH_TEST_FIXTURES='{"supplierRaceOrderId":"...","supplierIds":["...","..."],"stockRaceOrderIds":["...","..."],"stockRaceSupplierId":"...","technicianRaceOrderId":"...","technicianIds":["...","..."]}'
+AUROWATER_DISPATCH_TEST_FIXTURES='{"supplierRaceOrderId":"...","supplierIds":["...","..."],"stockRaceOrderIds":["...","..."],"stockRaceSupplierId":"...","technicianRaceOrderId":"...","technicianIds":["...","..."],"exhaustedTechnicianOrderId":"..."}'
 npm run test:dispatch:db
 ```
 
