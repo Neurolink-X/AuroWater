@@ -266,7 +266,7 @@ assert.doesNotMatch(supplierRealtime, /if \(!supplierId \|\| status === 'live'\)
 // validates serviceability, while dispatch must not offer work to pending/unverified suppliers.
 const customerAddressApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'addresses', 'route.ts'), 'utf8');
 assert.match(customerAddressApi, /Saving an address and booking a service are separate operations/);
-assert.match(customerAddressApi, /status === 'NO_MATCH'/);
+assert.match(customerAddressApi, /return serviceability\.status === 'LOOKUP_ERROR'/);\nassert.doesNotMatch(activeAddressApi, /status === 'NO_MATCH'/);
 assert.match(customerAddressApi, /serviceability:\s*\{/);
 assert.match(customerAddressApi, /serviceable: serviceability\.serviceable/);
 const activeAddressApi = customerAddressApi.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
