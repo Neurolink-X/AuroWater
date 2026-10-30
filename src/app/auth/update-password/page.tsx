@@ -36,7 +36,6 @@ export default function UpdatePasswordPage() {
         const params = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         const tokenHash = params.get('token_hash');
-        const tokenType = params.get('type');
         const code = params.get('code');
         const callbackError = params.get('error_description') ?? params.get('error') ??
           hashParams.get('error_description') ?? hashParams.get('error');
@@ -53,7 +52,7 @@ export default function UpdatePasswordPage() {
         // Token-hash recovery is independent of the browser that requested the
         // email. This supports opening the email on another device/browser and
         // avoids the PKCE verifier being unavailable on that second device.
-        if (tokenHash && tokenType === 'recovery') {
+        if (tokenHash) {
           const { data, error } = await supabase.auth.verifyOtp({
             token_hash: tokenHash,
             type: 'recovery',
