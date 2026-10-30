@@ -87,6 +87,27 @@ try {
     ORDER BY table_schema, table_name
   `);
 
+  const pgStatExtension = await client.query(\`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') AS enabled\`);
+  let slowQueries = [];
+  if (pgStatExtension.rows[0]?.enabled) {
+    try {
+      const slow = await client.query(\`
+        SELECT queryid, calls, round(mean_exec_time::numeric, 2) AS mean_ms,
+               round(max_exec_time::numeric, 2) AS max_ms,
+               round(total_exec_time::numeric, 2) AS total_ms,
+               rows, shared_blks_hit, shared_blks_read,
+               left(query, 500) AS normalized_query
+        FROM pg_stat_statements
+        WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+        ORDER BY mean_exec_time DESC
+        LIMIT 20
+      \`);
+      slowQueries = slow.rows;
+    } catch (error) {
+      slowQueries = [{ unavailable: error instanceof Error ? error.message : 'insufficient privileges' }];
+    }
+  }
+
   const rpcFunctions = await client.query(`
     SELECT p.proname AS function_name,
            pg_get_function_identity_arguments(p.oid) AS arguments,
@@ -117,6 +138,8 @@ try {
     indexes: indexes.rows,
     migration_tracking_candidates: migrationTables.rows,
     dispatch_rpc_privileges: rpcFunctions.rows,
+    pg_stat_statements_enabled: pgStatExtension.rows[0]?.enabled ?? false,
+    slow_query_samples: slowQueries,
     notes: [
       'No application migration ledger is assumed; inspect the returned candidates.',
       'RLS enabled does not by itself prove policies are correct; review each policy and grants.',
