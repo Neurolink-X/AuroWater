@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       .from('city_waitlist')
       .select(
         `
-        id, name, phone, email, role, status, source, created_at,
+        id, name, phone, email, role, status, source, message, created_at,
         custom_city, custom_state, area, pincode, business_name, city_id,
         cities ( name, status )
       `
@@ -159,6 +159,7 @@ export async function GET(req: NextRequest) {
         role: row.role,
         status: row.status,
         source: row.source,
+        message: row.message,
         created_at: row.created_at,
         custom_city: row.custom_city,
         area: row.area,
