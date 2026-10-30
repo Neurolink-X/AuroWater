@@ -177,7 +177,9 @@ console.log(`Route/access, versioned pricing, and supplier finance regression ch
 
 // Authenticated API calls must retry once with a refreshed Supabase access token before logout.
 const apiClient = readFileSync(join(root, 'src', 'lib', 'api-client.ts'), 'utf8');
-assert.ok(apiClient.includes('await supabase.auth.refreshSession()'));
+assert.match(apiClient, /refreshSessionSingleFlight/);
+assert.match(apiClient, /if \(refreshInFlight\) return refreshInFlight/);
+assert.ok((apiClient.match(/refreshSessionSingleFlight\(\)/g) ?? []).length >= 3);
 assert.ok(apiClient.includes('Do not redirect until a one-time session refresh has been attempted.'));
 assert.ok(apiClient.includes('Your session could not be renewed. Please sign in again.'));
 
