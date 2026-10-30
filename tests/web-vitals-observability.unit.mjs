@@ -21,7 +21,7 @@ assert.match(budgets, /INP: \{ target: 200/);
 assert.match(budgets, /CLS: \{ target: 0\.1/);
 assert.match(layout, /<WebVitalsReporter \/>/);
 const proxy = readFileSync(new URL('../src/proxy.ts', import.meta.url), 'utf8');
-assert.match(proxy, /'\\/api\\/internal\\/telemetry\\/web-vitals'/);
+assert.ok(proxy.includes("'/api/internal/telemetry/web-vitals'"));
 assert.match(apiClient, /reportApiTiming\(path, startedAt, result\.res\.status, true\)/);
 assert.match(apiClient, /customer_order_detail/);
 assert.match(apiClient, /supplier_orders/);
