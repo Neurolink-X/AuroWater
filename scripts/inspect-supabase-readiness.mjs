@@ -87,7 +87,7 @@ try {
     ORDER BY table_schema, table_name
   `);
 
-  const pgStatExtension = await client.query(\`SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') AS enabled\`);
+  const pgStatExtension = await client.query("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') AS enabled");
   let slowQueries = [];
   if (pgStatExtension.rows[0]?.enabled) {
     try {
