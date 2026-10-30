@@ -131,7 +131,7 @@ export default function ForgotPasswordPage() {
                 If your details match an account with a registered recovery email, we’ve requested a reset email. Check that registered inbox and its spam folder. A reset email is not sent to an unregistered address.
               </p>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                If you no longer have access to your registered email, contact AuroTap support. Our team must verify account ownership before changing recovery details.
+                If you no longer have access to your registered email, contact AuroTap support. Our team must verify account ownership before changing recovery details. <Link href="/account-help" className="font-bold text-emerald-700 underline">Submit an account help request</Link>.
               </p>
               <button type="button" onClick={() => { setDone(false); setErr(null); }} className="mt-6 self-start text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline">
                 Try another detail
