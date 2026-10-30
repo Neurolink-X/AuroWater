@@ -253,7 +253,10 @@ assert.match(stagedNoidaZone, /ARRAY\['water_can'\]::text\[\]/);
 assert.match(stagedNoidaZone, /ON CONFLICT \(slug\) DO NOTHING/);
 assert.match(migrationBuilder, /031_noida_sector_73_pilot_staged\.sql/);
 assert.match(apiClient, /No stored Supabase session means there is no refresh token to refresh/);
-assert.match(apiClient, /Network changes are common on mobile\/Wi-Fi handoffs/);
+// Runtime retry/cancellation behavior is covered by api-transport.unit.mjs.
+assert.match(apiClient, /requestJson\(`/);
+const canonicalApiClient = readFileSync(join(root, 'src', 'lib', 'api', 'client.ts'), 'utf8');
+assert.match(canonicalApiClient, /requestJson\(buildApiUrl\(path\)/);
 
 const supplierRealtime = readFileSync(join(root, 'src', 'hooks', 'useSupplierRealtime.ts'), 'utf8');
 assert.match(supplierRealtime, /Safety-net polling while the tab is visible/);

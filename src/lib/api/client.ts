@@ -1,3 +1,4 @@
+import { requestJson } from '@/lib/api/transport';
 /**
  * Canonical HTTP client for same-origin Route Handlers (/api/*).
  *
@@ -65,7 +66,6 @@ export type Envelope<T> = {
   code?: string;
 };
 
-const RETRY_503_MS = 800;
 
 export async function parseJson(res: Response): Promise<Envelope<unknown>> {
   try {
@@ -82,66 +82,29 @@ export async function fetchWithRetryParse(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; json: Envelope<unknown> }> {
-  const url = buildApiUrl(path);
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; json: Envelope<unknown> } | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const json = await parseJson(res);
-      last = { res, json };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      return last;
-    } catch {
-      throw new ApiError('Network error', 503, 'NETWORK');
+  try {
+    const { res, body: json } = await requestJson(buildApiUrl(path), init, parseJson);
+    return { res, json };
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ApiError('Request timed out', 504, 'TIMEOUT');
     }
+    throw new ApiError('Network error', 503, 'NETWORK');
   }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
 }
 
 export async function fetchWithRetryRaw(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; body: unknown }> {
-  const url = buildApiUrl(path);
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; body: unknown } | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const body: unknown = await res.json().catch(() => ({}));
-      last = { res, body };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      return last;
-    } catch {
-      throw new ApiError('Network error', 503, 'NETWORK');
+  try {
+    return await requestJson(buildApiUrl(path), init, (res) => res.json().catch(() => ({})));
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ApiError('Request timed out', 504, 'TIMEOUT');
     }
+    throw new ApiError('Network error', 503, 'NETWORK');
   }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
 }
