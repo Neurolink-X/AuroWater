@@ -11,6 +11,7 @@ import { gzipSync } from 'node:zlib';
 const root = process.cwd();
 const nextDir = resolve(root, '.next');
 const manifestPath = [
+  resolve(nextDir, 'server', 'app-build-manifest.json'),
   resolve(nextDir, 'app-build-manifest.json'),
   resolve(nextDir, 'build-manifest.json'),
 ].find(existsSync);
