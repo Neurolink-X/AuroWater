@@ -13,6 +13,7 @@ import OrganizationJsonLd from '@/components/seo/OrganizationJsonLd';
 import WebSiteJsonLd from '@/components/seo/WebSiteJsonLd';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
 import WebVitalsReporter from '@/components/observability/WebVitalsReporter';
+import ScrollStallReporter from '@/components/observability/ScrollStallReporter';
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Fonts (self-hosted by Next.js)
@@ -445,6 +446,7 @@ export default function RootLayout({
         <LanguageProvider>
           {/* Sampled Core Web Vitals: no PII, no blocking network request */}
           <WebVitalsReporter />
+        <ScrollStallReporter />
 
           {/* Service Worker: silent, production-only offline support */}
           <ServiceWorkerRegistration />
