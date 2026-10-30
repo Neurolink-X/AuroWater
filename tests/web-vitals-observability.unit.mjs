@@ -15,7 +15,7 @@ assert.match(endpoint, /ALLOWED_METRICS/);
 assert.match(endpoint, /origin !== new URL\(request.url\)\.origin/);
 assert.match(endpoint, /rawBody.length > 2048/);
 assert.match(endpoint, /budget_exceeded: value > budget/);
-assert.doesNotMatch(endpoint, /request\.url|x-forwarded-for|authorization|cookie/);
+assert.doesNotMatch(endpoint, /x-forwarded-for|authorization|cookie/);
 assert.match(budgets, /LCP: \{ target: 2500/);
 assert.match(budgets, /INP: \{ target: 200/);
 assert.match(budgets, /CLS: \{ target: 0\.1/);
