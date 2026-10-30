@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const reporter = readFileSync(new URL('../src/components/observability/WebVitalsReporter.tsx', import.meta.url), 'utf8');
+const endpoint = readFileSync(new URL('../src/app/api/internal/telemetry/web-vitals/route.ts', import.meta.url), 'utf8');
+const budgets = readFileSync(new URL('../src/lib/observability/performance-budgets.ts', import.meta.url), 'utf8');
+const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
+
+assert.match(reporter, /useReportWebVitals/);
+assert.match(reporter, /SAMPLE_RATE = 0\.2/);
+assert.match(reporter, /route_group: routeGroup/);
+assert.doesNotMatch(reporter, /customer_id|order_id|accessToken|email|phone/);
+assert.match(endpoint, /ALLOWED_METRICS/);
+assert.match(endpoint, /origin !== new URL\(request.url\)\.origin/);
+assert.match(endpoint, /contentLength > 2048/);
+assert.match(endpoint, /budget_exceeded: value > budget/);
+assert.doesNotMatch(endpoint, /request\.url|x-forwarded-for|authorization|cookie/);
+assert.match(budgets, /LCP: \{ target: 2500/);
+assert.match(budgets, /INP: \{ target: 200/);
+assert.match(budgets, /CLS: \{ target: 0\.1/);
+assert.match(layout, /<WebVitalsReporter \/>/);
+
+console.log('Web Vitals telemetry privacy and budget regression checks passed.');
