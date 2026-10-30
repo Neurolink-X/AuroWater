@@ -49,14 +49,17 @@ export async function checkAndUpgradeMilestone(
 
   const meta = MILESTONE_TIERS[newTier];
 
-  const { error: upErr } = await supabase
+  // Milestone tier is a protected profile field. This function runs only
+  // from authenticated server routes after order ownership/status checks.
+  const trustedDb = createServiceClient();
+  const { error: upErr } = await trustedDb
     .from('profiles')
     .update({ milestone_tier: newTier })
     .eq('id', supplierId);
   if (upErr) throw new Error(upErr.message);
 
   // Ensure supplier_settings exists; then update benefits.
-  const { error: ensureErr } = await supabase
+  const { error: ensureErr } = await trustedDb
     .from('supplier_settings')
     .upsert(
       {
@@ -70,14 +73,14 @@ export async function checkAndUpgradeMilestone(
 
   // (Update is redundant after upsert, but kept for older PostgREST caches where upsert
   // might not apply defaults immediately. Safe and cheap.)
-  const { error: ssErr } = await supabase
+  const { error: ssErr } = await trustedDb
     .from('supplier_settings')
     .update({ zone_radius_km: meta.radius, commission_rate: meta.commission })
     .eq('user_id', supplierId);
   if (ssErr) throw new Error(ssErr.message);
 
   const bonus_amount = Number(meta.bonus ?? 0);
-  const { error: mErr } = await supabase.from('supplier_milestones').insert({
+  const { error: mErr } = await trustedDb.from('supplier_milestones').insert({
     supplier_id: supplierId,
     tier: newTier,
     bonus_amount,
