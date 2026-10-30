@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { WEB_VITALS_BUDGETS } from '@/lib/observability/performance-budgets';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -6,17 +7,17 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_METRICS = new Set(['CLS', 'FCP', 'INP', 'LCP', 'TTFB']);
 const ALLOWED_GROUPS = new Set(['customer', 'supplier', 'technician', 'admin', 'public']);
 const API_BUDGETS: Record<string, number> = {
-  customer_order_detail: 600,
-  supplier_orders: 800,
-  technician_jobs: 800,
-  admin_dashboard: 1000,
+  customer_order_detail: WEB_VITALS_BUDGETS.API_CUSTOMER_ORDER.target,
+  supplier_orders: WEB_VITALS_BUDGETS.API_SUPPLIER_ORDERS.target,
+  technician_jobs: WEB_VITALS_BUDGETS.API_TECHNICIAN_JOBS.target,
+  admin_dashboard: WEB_VITALS_BUDGETS.API_ADMIN_DASHBOARD.target,
 };
 const BUDGETS: Record<string, number> = {
-  LCP: 2500,
-  INP: 200,
-  CLS: 0.1,
-  FCP: 1800,
-  TTFB: 800,
+  LCP: WEB_VITALS_BUDGETS.LCP.target,
+  INP: WEB_VITALS_BUDGETS.INP.target,
+  CLS: WEB_VITALS_BUDGETS.CLS.target,
+  FCP: WEB_VITALS_BUDGETS.FCP.target,
+  TTFB: WEB_VITALS_BUDGETS.TTFB.target,
 };
 
 export async function POST(request: NextRequest) {
