@@ -272,94 +272,68 @@ export default function TrackOrderPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showCancel]);
 
-  /* Technician profile */
+  /* Provider profiles are resolved by the authenticated order API.
+   * Do not query another user's private profiles row from the browser. */
   useEffect(() => {
-    if (!technicianId || !session?.accessToken) {
+    const provider = (order as Record<string, unknown> | null)?.technician_profile;
+    if (!technicianId || !provider || typeof provider !== 'object') {
       setTech(null);
       return;
     }
-    const sb = createSupabaseBrowserAuthed(session.accessToken);
-    if (!sb) return;
-    let cancelled = false;
-    void sb
-      .from('profiles')
-      .select('id, full_name, avatar_url')
-      .eq('id', technicianId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data) setTech(data as ProfileLite);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [technicianId, session?.accessToken]);
+    const row = provider as Record<string, unknown>;
+    setTech({
+      id: String(row.id ?? technicianId),
+      full_name: typeof row.full_name === 'string' ? row.full_name : null,
+      avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+    });
+  }, [technicianId, order]);
 
   /* Supplier profile + rating (re-runs only when the supplier changes) */
   useEffect(() => {
-    if (!supplierId || !session?.accessToken) {
+    const provider = (order as Record<string, unknown> | null)?.supplier_profile;
+    if (!supplierId || !provider || typeof provider !== 'object') {
       setSupplier(null);
       setSupplierRating(null);
       return;
     }
-    const sb = createSupabaseBrowserAuthed(session.accessToken);
-    if (!sb) return;
-    let cancelled = false;
-
-    // Keep the critical order render fast: supplier profile loads independently.
-    void sb
-      .from('profiles')
-      .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
-      .eq('id', supplierId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data) setSupplier(data as ProfileLite);
-      });
+    const row = provider as Record<string, unknown>;
+    setSupplier({
+      id: String(row.id ?? supplierId),
+      full_name: typeof row.full_name === 'string' ? row.full_name : null,
+      avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+      milestone_tier: typeof row.milestone_tier === 'string' ? row.milestone_tier : null,
+      last_seen_at: typeof row.last_seen_at === 'string' ? row.last_seen_at : null,
+    });
 
     // Rating is non-critical. Load only a small recent sample instead of
     // fetching hundreds of order IDs and then a second reviews query.
-   void sb
-  .from('reviews')
-  .select('stars')
-  .eq('supplier_id', supplierId)
-  .order('created_at', { ascending: false })
-  .limit(50)
-  .then(({ data: revs, error: reviewsError }) => {
-    if (reviewsError) {
-      console.error(
-        '[customer/track] supplier reviews failed:',
-        reviewsError.message,
-      );
-
-      if (!cancelled) {
-        setSupplierRating(null);
-      }
-      return;
-    }
-
-    const ratings = (revs ?? [])
-      .map((review) => Number(review.stars))
-      .filter(
-        (stars) =>
-          Number.isFinite(stars) &&
-          stars >= 1 &&
-          stars <= 5,
-      );
-
-    const averageRating =
-      ratings.length > 0
-        ? ratings.reduce((sum, stars) => sum + stars, 0) /
-          ratings.length
-        : null;
-
-    if (!cancelled) {
-      setSupplierRating(averageRating);
-    }
-  });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [supplierId, session?.accessToken]);
+    const sb = session?.accessToken
+      ? createSupabaseBrowserAuthed(session.accessToken)
+      : null;
+    if (!sb) return;
+    let cancelled = false;
+    void sb
+      .from('reviews')
+      .select('stars')
+      .eq('supplier_id', supplierId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data: revs, error: reviewsError }) => {
+        if (reviewsError) {
+          console.error('[customer/track] supplier reviews failed:', reviewsError.message);
+          if (!cancelled) setSupplierRating(null);
+          return;
+        }
+        const ratings = (revs ?? [])
+          .map((review) => Number(review.stars))
+          .filter((stars) => Number.isFinite(stars) && stars >= 1 && stars <= 5);
+        const averageRating = ratings.length > 0
+          ? ratings.reduce((sum, stars) => sum + stars, 0) / ratings.length
+          : null;
+        if (!cancelled) setSupplierRating(averageRating);
+      });
+    return () => { cancelled = true; };
+  }, [supplierId, session?.accessToken, order]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
   const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);

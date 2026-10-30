@@ -41,6 +41,7 @@ const files = [
   '031_noida_sector_73_pilot_staged.sql',
   '032_subscription_loyalty_rewards.sql',
   '033_subscription_loyalty_redemption.sql',
+  '034_profiles_security_hardening.sql',
   '../supabase/migrations/202610300004_city_waitlist_contact_and_ncr.sql',
 ];
 

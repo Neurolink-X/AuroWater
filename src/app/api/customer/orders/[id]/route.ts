@@ -42,7 +42,7 @@ export async function GET(
   // client-side profile RLS policies to show the provider's name.
   const row = data as Record<string, unknown>;
   let technicianProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
-  let supplierProfile: { id: string; full_name: string | null; avatar_url: string | null } | null = null;
+  let supplierProfile: { id: string; full_name: string | null; avatar_url: string | null; milestone_tier: string | null; last_seen_at: string | null } | null = null;
   let technicianAcceptanceStatus: string | null = null;
   const admin = createServiceClient();
 
@@ -78,7 +78,7 @@ export async function GET(
   if (typeof row.supplier_id === 'string' && row.supplier_id.trim()) {
     const { data: profile, error: profileError } = await admin
       .from('profiles')
-      .select('id, full_name, avatar_url')
+      .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
       .eq('id', row.supplier_id)
       .maybeSingle();
     if (profileError) {

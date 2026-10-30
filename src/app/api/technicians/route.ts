@@ -1,8 +1,6 @@
 import { jsonOk, jsonErr } from '@/lib/api/json-response';
-import {
-  createSupabaseAnonClient,
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+import { isSupabaseConfigured } from '@/lib/db/supabase';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export const runtime = 'nodejs';
 
@@ -398,8 +396,9 @@ export async function GET() {
   }
 
   try {
-    const supabase =
-      createSupabaseAnonClient();
+    // Public directory reads are performed server-side with an allowlisted response.
+    // The service-role key is never returned to the browser.
+    const supabase = createServiceClient();
 
     // ----------------------------------------------------------
     // 2. Public technician discovery
