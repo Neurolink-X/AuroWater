@@ -31,6 +31,7 @@ assert.match(budgets, /API_CUSTOMER_ORDER: \{ target: 600/);
 const bundleReport = readFileSync(new URL('../scripts/report-client-bundle-budget.mjs', import.meta.url), 'utf8');
 assert.match(bundleReport, /gzipSync/);
 assert.match(bundleReport, /rootMainFiles/);
+assert.match(bundleReport, /server', 'app-build-manifest\.json/);
 assert.match(bundleReport, /AUROWATER_ENFORCE_BUNDLE_BUDGET/);
 
 console.log('Web Vitals telemetry privacy and budget regression checks passed.');
