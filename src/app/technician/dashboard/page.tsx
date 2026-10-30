@@ -195,7 +195,7 @@ const ACCEPTED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'applica
 const UPI_PATTERN = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
 const SEED_UPI = 'rahul.verma@upi';
 
-const DOCUMENT_REVIEW_LIVE = true;
+const DOCUMENT_REVIEW_LIVE = false;
 
 const KEYS = {
   ONLINE: 'aurowater_tech_online',
