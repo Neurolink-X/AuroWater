@@ -23,6 +23,24 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 -- No anonymous access to the raw profile table. Authenticated reads are limited
 -- to the caller's own row or admins. Trusted server code uses service_role.
 REVOKE ALL PRIVILEGES ON TABLE public.profiles FROM PUBLIC, anon;
+-- Column-level grants are independent of table-level grants; remove those too.
+DO $block$
+DECLARE
+  v_columns text;
+BEGIN
+  SELECT string_agg(format('%I', column_name), ', ' ORDER BY ordinal_position)
+    INTO v_columns
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'profiles';
+
+  IF v_columns IS NOT NULL THEN
+    EXECUTE format(
+      'REVOKE ALL (%s) ON TABLE public.profiles FROM PUBLIC, anon',
+      v_columns
+    );
+  END IF;
+END;
+$block$;
 GRANT SELECT, UPDATE ON TABLE public.profiles TO authenticated;
 GRANT ALL PRIVILEGES ON TABLE public.profiles TO service_role;
 
