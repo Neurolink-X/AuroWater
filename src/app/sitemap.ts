@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/env';
 import { canIndexDeployment } from '@/lib/seo-policy';
+import { publishedGuides } from '@/lib/blog/posts';
 
 const BASE_URL = getSiteUrl().replace(/\/+$/, '');
 
@@ -32,6 +33,8 @@ const publicPages = [
   '/security',
   '/careers',
 ] as const;
+
+export const revalidate = 3600;
 
 const SITE_UPDATED = new Date('2026-10-09T00:00:00+05:30');
 const CONTENT_UPDATED = new Date('2026-10-06T00:00:00+05:30');
@@ -88,5 +91,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page(path, { lastModified: SITE_UPDATED, changeFrequency: 'monthly', priority: 0.8 }),
   );
 
-  return [...publicEntries, ...detailEntries];
+  const guideEntries = [
+    page('/blog', { changeFrequency: 'weekly', priority: 0.65 }),
+    ...publishedGuides().map((post) => page(`/blog/${post.slug}`, {
+      lastModified: new Date(post.updatedAt), changeFrequency: 'monthly', priority: 0.65,
+    })),
+  ];
+  return [...publicEntries, ...detailEntries, ...guideEntries];
 }
