@@ -232,6 +232,7 @@ export default function AdminUsersPage() {
           </p>
         </div>
 
+        <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20">Account Help &amp; Recovery</Link>
         <button
           type="button"
           onClick={() => void load(true)}
