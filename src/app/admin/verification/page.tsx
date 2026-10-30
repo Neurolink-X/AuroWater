@@ -92,6 +92,21 @@ export default function AdminVerificationPage() {
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Could not open the document.'); }
   };
 
+  const downloadFile = async (f: QueueFile) => {
+    try {
+      const d = await getSignedFileUrl(f.id, 'attachment');
+      const link = document.createElement('a');
+      link.href = d.url;
+      link.download = f.original_name;
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not download the document.');
+    }
+  };
+
   // Group documents by applicant so an admin reviews a whole person at once.
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -151,7 +166,7 @@ export default function AdminVerificationPage() {
                       <p className="text-sm font-bold">{DOCUMENT_SLOTS[f.document_slot]?.label ?? f.document_slot}</p>
                       <p className="text-xs text-slate-400">{f.original_name} · {formatBytes(f.size_bytes)} · <span className={w.late && f.review_status === 'pending' ? 'font-bold text-amber-300' : ''}>waiting {w.label}</span></p>
                     </div>
-                    <button onClick={() => void togglePreview(f)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-white/5">{p ? 'Hide preview' : 'Preview'}</button>
+                    <div className="flex gap-2"><button onClick={() => void togglePreview(f)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-white/5">{p ? 'Hide preview' : 'Preview'}</button><button onClick={() => void downloadFile(f)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/5">Download</button></div>
                   </div>
 
                   {p && (p.type === 'application/pdf'
