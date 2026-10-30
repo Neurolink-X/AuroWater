@@ -24,6 +24,10 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const routes = manifest.pages && typeof manifest.pages === 'object' ? manifest.pages : {};
 const budgetsKb = { public: 250, customer: 350, supplier: 400, technician: 400, admin: 450 };
 const results = [];
+const sharedFiles = [
+  ...(Array.isArray(manifest.rootMainFiles) ? manifest.rootMainFiles : []),
+  ...(Array.isArray(manifest.polyfillFiles) ? manifest.polyfillFiles : []),
+].filter((file) => typeof file === 'string' && file.endsWith('.js'));
 
 function groupFor(route) {
   const value = String(route).replace(/^\/+/, '');
@@ -36,7 +40,7 @@ function groupFor(route) {
 
 for (const [route, files] of Object.entries(routes)) {
   if (!Array.isArray(files)) continue;
-  const chunks = [...new Set(files.filter((file) => typeof file === 'string' && file.endsWith('.js')))];
+  const chunks = [...new Set([...sharedFiles, ...files.filter((file) => typeof file === 'string' && file.endsWith('.js'))])];
   let bytes = 0;
   for (const file of chunks) {
     const absolute = resolve(nextDir, file.replace(/^\/+/, ''));
