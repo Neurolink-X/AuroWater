@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
@@ -25,6 +26,13 @@ const WaitlistSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const requestId = randomUUID();
+  const fail = (message: string, status: number) => {
+    const response = jsonErr(message, status);
+    response.headers.set('X-Request-Id', requestId);
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
+  };
   let body: unknown;
   try {
     body = await req.json();
@@ -66,7 +74,11 @@ export async function POST(req: NextRequest) {
       if (city_id) q = q.eq('city_id', city_id);
       else if (custom_city) q = q.ilike('custom_city', custom_city);
       if (d.area) q = q.ilike('area', d.area.trim());
-      const { data: existing } = await q.limit(1).maybeSingle();
+      const { data: existing, error: lookupError } = await q.limit(1).maybeSingle();
+      if (lookupError) {
+        console.error('[waitlist] duplicate lookup failed', { requestId, code: lookupError.code, message: lookupError.message });
+        return fail('Waitlist is temporarily unavailable. Please try again.', 503);
+      }
       if (existing) {
         return jsonOk({ message: 'Already on waitlist. We will notify you!' });
       }
@@ -102,11 +114,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      return jsonErr('Could not join waitlist', 500);
+      console.error('[waitlist] insert failed', { requestId, code: error.code, message: error.message, details: error.details, hint: error.hint });
+      return fail('Could not join waitlist. Please try again.', 503);
     }
-    return jsonOk({ success: true, message: 'Added to waitlist!' });
-  } catch {
-    return jsonErr('Something went wrong. Please try again.', 500);
+    const response = jsonOk({ success: true, message: 'Added to waitlist!' });
+    response.headers.set('X-Request-Id', requestId);
+    response.headers.set('Cache-Control', 'no-store');
+    return response;
+  } catch (error) {
+    console.error('[waitlist] unexpected failure', { requestId, message: error instanceof Error ? error.message : 'unknown' });
+    return fail('Something went wrong. Please try again.', 503);
   }
 }
 
