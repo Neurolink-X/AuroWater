@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     owner_user_id: auth.ctx.user.id,
     object_path: path,
     category,
-    original_name: file.name.replace(/[\\/\\0-\\x1f]/g, '_').slice(0, 180) || `upload.${extension}`,
+    original_name: sanitizePrivateFileName(file.name, `upload.${extension}`),
     content_type: file.type,
     size_bytes: file.size,
   }).select('id, category, original_name, content_type, size_bytes, review_status, created_at').single();
