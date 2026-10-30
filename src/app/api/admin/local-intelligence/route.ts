@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
      * Before: orders first, then the other 4 (two waits).
      * Now: one wait. The page opens faster.
      */
-    const [ordersResult, profilesResult, linksResult, zonesResult, stockResult] =
+    const [ordersResult, profilesResult, linksResult, zonesResult, stockResult, addressesResult] =
       await Promise.all([
         db
           .from('orders')
@@ -93,6 +93,11 @@ export async function GET(req: NextRequest) {
             'supplier_id, cans_available, reserved_cans, reservation_buffer_cans, low_stock_alert',
           )
           .limit(LIMITS.stock),
+        db
+          .from('addresses')
+          .select('customer_id, pincode, city')
+          .gte('created_at', since)
+          .limit(MAX_ORDERS),
       ]);
 
     // Orders are the heart of this report. Without them we stop.
@@ -151,6 +156,15 @@ export async function GET(req: NextRequest) {
         'Supplier stock data unavailable; stock counts are not reliable for this report.',
       );
     }
+    if (addressesResult.error) {
+      console.error(
+        '[admin/local-intelligence] saved address demand unavailable',
+        addressesResult.error.code,
+      );
+      warnings.push(
+        'Saved-address demand signals are unavailable; PIN-code interest may be understated.',
+      );
+    }
 
     // Future-proof: if a table grows past its limit, say so instead of
     // silently showing smaller numbers.
@@ -160,6 +174,7 @@ export async function GET(req: NextRequest) {
       supplierZones: linkRows.length >= LIMITS.supplierZones,
       serviceZones: zoneRows.length >= LIMITS.serviceZones,
       stock: stockRows.length >= LIMITS.stock,
+      addresses: (addressesResult.data ?? []).length >= MAX_ORDERS,
     };
 
     if (truncated.profiles || truncated.supplierZones || truncated.serviceZones) {
@@ -170,6 +185,11 @@ export async function GET(req: NextRequest) {
     if (truncated.stock) {
       warnings.push(
         'Stock data reached its safe row limit; stock totals may be understated.',
+      );
+    }
+    if (truncated.addresses) {
+      warnings.push(
+        'Saved-address demand reached its safe row limit; PIN-code interest may be understated.',
       );
     }
 
@@ -328,6 +348,45 @@ export async function GET(req: NextRequest) {
       })),
       mappedSupplierCountByPincode,
       windowDays,
+    );
+
+    // Saved addresses are demand signals even before a customer places an order.
+    // Aggregate only counts by PIN; never return customer IDs or street addresses.
+    const savedDemandByPin = new Map<string, { city: string; addresses: number; customers: Set<string> }>();
+    for (const address of addressesResult.data ?? []) {
+      const pincode = normalizePincode(address.pincode);
+      if (!pincode) continue;
+      const row = savedDemandByPin.get(pincode) ?? {
+        city: String(address.city ?? 'Unknown'),
+        addresses: 0,
+        customers: new Set<string>(),
+      };
+      row.addresses += 1;
+      if (address.customer_id) row.customers.add(String(address.customer_id));
+      savedDemandByPin.set(pincode, row);
+    }
+
+    const demandRows = new Map(summary.demandByPincode.map((row) => [row.pincode, row]));
+    for (const [pincode, saved] of savedDemandByPin) {
+      const existing = demandRows.get(pincode);
+      const mappedSuppliers = existing?.mappedSuppliers ?? mappedSupplierCountByPincode.get(pincode) ?? 0;
+      demandRows.set(pincode, {
+        pincode,
+        city: existing?.city && existing.city !== 'Unknown' ? existing.city : saved.city,
+        orders: existing?.orders ?? 0,
+        cancelled: existing?.cancelled ?? 0,
+        cancellationRate: existing?.cancellationRate ?? 0,
+        assignedOrders: existing?.assignedOrders ?? 0,
+        unassignedOrders: existing?.unassignedOrders ?? 0,
+        mappedSuppliers,
+        coverageGap: Boolean(existing?.coverageGap) || (saved.addresses >= 3 && mappedSuppliers < 2),
+        savedAddresses: saved.addresses,
+        interestedCustomers: saved.customers.size,
+      });
+    }
+    summary.demandByPincode = [...demandRows.values()].sort(
+      (a, b) => (b.orders + (b.savedAddresses ?? 0)) - (a.orders + (a.savedAddresses ?? 0))
+        || a.pincode.localeCompare(b.pincode),
     );
 
     const response = jsonOk({
