@@ -18,7 +18,12 @@ import { PINCODE, sanitiseText } from '@/lib/sanitise';
  *   - AVAILABLE / LIMITED addresses are immediately bookable.
  *   - COMING_SOON / TEMPORARILY_UNAVAILABLE and NO_MATCH addresses are saved
  *     as demand signals; only a serviceability lookup failure blocks saving.
- *   - Booking APIs independently re-check serviceability before order creation.
+ *
+ * Saving an address and booking a service are separate operations.
+ * This endpoint preserves a customer's chosen address even when its PIN code
+ * is not covered yet. The booking endpoint independently re-checks current
+ * serviceability, supplier approval, coverage and stock before accepting an
+ * order; saving an address never makes an unsupported area bookable.
  */
 
 const DEFAULT_STATE = 'Uttar Pradesh';
