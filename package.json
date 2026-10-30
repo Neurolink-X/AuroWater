@@ -14,7 +14,8 @@
     "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
     "verify:env": "node scripts/verify-env.mjs",
     "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs tests/unit/*.test.mjs",
-    "db:audit-migrations": "node scripts/audit-supabase-migrations.mjs"
+    "db:audit-migrations": "node scripts/audit-supabase-migrations.mjs",
+    "db:inspect-live": "node scripts/inspect-supabase-readiness.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
