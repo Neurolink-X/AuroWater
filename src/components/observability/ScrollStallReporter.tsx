@@ -29,7 +29,7 @@ export default function ScrollStallReporter() {
     let lastReported = 0;
     const onScroll = () => { lastScroll = performance.now(); };
     const report = () => {
-      if (!count || document.visibilityState === 'hidden' && !peakStall) return;
+      if (!count) return;
       if (Date.now() - lastReported < 30_000) return;
       const value = Math.min(60_000, Math.round(peakStall));
       peakStall = 0;
@@ -51,7 +51,7 @@ export default function ScrollStallReporter() {
         count++;
         peakStall = Math.max(peakStall, entry.duration);
       }
-      if (count >= 3) report();
+      // Sending is timer-driven; never emit a beacon inside scroll/observer work.
     });
     try { observer.observe({ type: 'longtask', buffered: false }); }
     catch { return; }
