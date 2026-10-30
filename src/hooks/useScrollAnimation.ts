@@ -68,16 +68,41 @@ export function useScrollAnimation({
     register();
     html.setAttribute('data-reveal-ready', '');
 
-    // Pick up content added later (route changes, lazy sections, CMS data).
+    // Register only newly mounted branches. Scanning the entire document on
+    // every React DOM update caused jank on long dashboard/order lists.
     let frame = 0;
-    const mo = new MutationObserver(() => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(register);
+    const pending = new Set<HTMLElement>();
+    const observeAdded = (node: Node) => {
+      if (!(node instanceof HTMLElement)) return;
+      pending.add(node);
+    };
+    const mo = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach(observeAdded);
+      }
+      if (pending.size === 0 || frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        for (const root of pending) {
+          if (!root.isConnected) continue;
+          if (root.matches(selector) && !registered.has(root)) {
+            registered.add(root);
+            io.observe(root);
+          }
+          root.querySelectorAll(selector).forEach((el) => {
+            if (registered.has(el)) return;
+            registered.add(el);
+            io.observe(el);
+          });
+        }
+        pending.clear();
+      });
     });
     mo.observe(document.body, { childList: true, subtree: true });
 
     return () => {
       cancelAnimationFrame(frame);
+      pending.clear();
       mo.disconnect();
       io.disconnect();
       html.removeAttribute('data-reveal-ready');
