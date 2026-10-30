@@ -97,7 +97,7 @@ import { safeGet as lsGet, safeSet as lsSet, safeRemove as lsRemove } from '@/li
 /* ───────────────────────────── Types ───────────────────────────── */
 
 type TechnicianOnline = 'online' | 'offline';
-type VerificationStatus = 'unverified' | 'pending' | 'verified';
+type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 type TechSkill = 'Plumbing' | 'RO Service' | 'Borewell' | 'Motor Repair' | 'Water Tanker' | 'Tank Cleaning Service';
 type TechAvailabilitySlot = 'morning' | 'afternoon' | 'evening';
 type TechDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -131,6 +131,7 @@ interface Job {
 }
 
 interface UploadMeta {
+  id?: string;
   name: string;
   size: number;
   status: 'uploaded' | 'submitted' | 'verified' | 'rejected';
@@ -195,7 +196,7 @@ const ACCEPTED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'applica
 const UPI_PATTERN = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
 const SEED_UPI = 'rahul.verma@upi';
 
-const DOCUMENT_REVIEW_LIVE = false;
+const DOCUMENT_REVIEW_LIVE = true;
 
 const KEYS = {
   ONLINE: 'aurowater_tech_online',
@@ -362,21 +363,26 @@ function requiredDocsUploaded(d: TechDocs) {
   return Boolean(d.aadhaarFront && d.aadhaarBack && d.profilePhoto);
 }
 
-async function submitDocumentsToServer(docs: TechDocs): Promise<void> {
-  const formData = new FormData();
-  if (docs.aadhaarFront) formData.append('aadhaar_front', JSON.stringify(docs.aadhaarFront));
-  if (docs.aadhaarBack) formData.append('aadhaar_back', JSON.stringify(docs.aadhaarBack));
-  if (docs.profilePhoto) formData.append('profile_photo', JSON.stringify(docs.profilePhoto));
-  if (docs.skillCert) formData.append('skill_cert', JSON.stringify(docs.skillCert));
+async function uploadTechnicianDocument(file: File, slot: string): Promise<UploadMeta> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('document_slot', slot);
+  form.append('category', slot === 'profile_photo' ? 'profile_photo' : slot === 'skill_certificate' ? 'skill_certificate' : 'identity_document');
+  const response = await fetch('/api/files/upload', { method: 'POST', body: form });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.data?.file?.id) throw new Error(payload?.error || 'Secure upload failed. Please retry.');
+  const uploaded = payload.data.file;
+  return { id: uploaded.id, name: uploaded.original_name || file.name, size: uploaded.size_bytes ?? file.size, status: 'uploaded' };
+}
 
+async function submitDocumentsToServer(docs: TechDocs): Promise<void> {
+  const fileIds = [docs.aadhaarFront?.id, docs.aadhaarBack?.id, docs.profilePhoto?.id, docs.skillCert?.id].filter((id): id is string => Boolean(id));
+  if (fileIds.length < 3) throw new Error('Upload Aadhaar front, Aadhaar back and profile photo first.');
   const response = await fetch('/api/technicians/documents', {
-    method: 'POST',
-    body: formData,
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: fileIds }),
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || 'Failed to upload documents to server.');
-  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error || 'Failed to submit documents for review.');
 }
 
 const tickListeners = new Set<() => void>();
@@ -456,7 +462,7 @@ const normalizeDocs = (raw: unknown): TechDocs => {
   const d = (raw ?? {}) as Record<string, unknown>;
   const pick = (v: unknown): UploadMeta | undefined => {
     const m = v as Partial<UploadMeta> | undefined;
-    return m && typeof m.name === 'string' ? { name: m.name, size: num(m.size), status: m.status ?? 'uploaded' } : undefined;
+    return m && typeof m.name === 'string' ? { id: typeof m.id === 'string' ? m.id : undefined, name: m.name, size: num(m.size), status: m.status ?? 'uploaded' } : undefined;
   };
   return { aadhaarFront: pick(d.aadhaarFront), aadhaarBack: pick(d.aadhaarBack), profilePhoto: pick(d.profilePhoto), skillCert: pick(d.skillCert) };
 };
@@ -893,7 +899,7 @@ const MyJobCard = memo(function MyJobCard({ job, expanded, busy, onToggle, handl
   );
 });
 
-function UploadArea({ label, required, current, onPick, onRemove }: { label: string; required: boolean; current?: UploadMeta; onPick: (f: File) => void; onRemove: () => void }) {
+function UploadArea({ label, required, current, onPick, onRemove, disabled }: { label: string; required: boolean; current?: UploadMeta; onPick: (f: File) => void; onRemove: () => void; disabled?: boolean }) {
   const isHindi = useDashboardLanguage() === 'hi';
   const ref = useRef<HTMLInputElement | null>(null);
   const id = useId();
@@ -904,7 +910,7 @@ function UploadArea({ label, required, current, onPick, onRemove }: { label: str
           <p className="text-sm font-semibold text-slate-900">{label}</p>
           <p className="mt-0.5 text-xs text-slate-500">{required ? (isHindi ? 'ज़रूरी' : 'Required') : (isHindi ? 'वैकल्पिक' : 'Optional')}</p>
         </div>
-        <Badge tone={current ? 'success' : 'default'}>{current ? (isHindi ? 'इस डिवाइस पर जोड़ा गया' : 'Added on this device') : (isHindi ? 'नहीं जोड़ा गया' : 'Not added')}</Badge>
+        <Badge tone={current?.id ? 'success' : 'default'}>{current?.id ? (isHindi ? 'सुरक्षित अपलोड' : 'Securely uploaded') : (current ? (isHindi ? 'अपलोड लंबित' : 'Upload pending') : (isHindi ? 'नहीं जोड़ा गया' : 'Not added'))}</Badge>
       </div>
       <input
         id={id}
@@ -922,7 +928,7 @@ function UploadArea({ label, required, current, onPick, onRemove }: { label: str
           if (ref.current) ref.current.value = '';
         }}
       />
-      <button type="button" onClick={() => ref.current?.click()} className={`w-full rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 p-4 transition-colors hover:bg-emerald-50 ${ringFocus}`}>
+      <button type="button" disabled={disabled} onClick={() => ref.current?.click()} className={`w-full rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/50 p-4 transition-colors hover:bg-emerald-50 ${ringFocus}`}>
         <span className="flex items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white"><CloudUpload size={16} aria-hidden className="text-emerald-700" /></span>
           <span className="min-w-0 text-left">
@@ -1310,18 +1316,26 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
 }
 
 function DocumentsTab({
-  docs, setDocs, verification, onSubmit, submitting,
+  docs, setDocs, verification, onSubmit, submitting, uploadingSlot,
 }: {
   docs: TechDocs; setDocs: React.Dispatch<React.SetStateAction<TechDocs>>;
-  verification: VerificationStatus; onSubmit: () => void; submitting: boolean;
+  verification: VerificationStatus; onSubmit: () => void; submitting: boolean; uploadingSlot: string | null;
 }) {
   const isHindi = useDashboardLanguage() === 'hi';
   const set = (field: keyof TechDocs) => ({
     current: docs[field],
-    onPick: (f: File) => setDocs((c) => ({ ...c, [field]: { name: f.name, size: f.size, status: 'uploaded' as const } })),
+    onPick: async (f: File) => {
+      const slotByField: Record<keyof TechDocs, string> = { aadhaarFront: 'aadhaar_front', aadhaarBack: 'aadhaar_back', profilePhoto: 'profile_photo', skillCert: 'skill_certificate' };
+      try {
+        const uploaded = await uploadTechnicianDocument(f, slotByField[field]);
+        setDocs((c) => ({ ...c, [field]: uploaded }));
+        toast.success(`${f.name} uploaded securely.`);
+      } catch (error) { toast.error(error instanceof Error ? error.message : 'Upload failed.'); }
+    },
     onRemove: () => setDocs((c) => ({ ...c, [field]: undefined })),
   });
-  const canSubmit = DOCUMENT_REVIEW_LIVE && requiredDocsUploaded(docs) && verification === 'unverified' && !submitting;
+  const allUploaded = requiredDocsUploaded(docs) && Boolean(docs.aadhaarFront?.id && docs.aadhaarBack?.id && docs.profilePhoto?.id);
+  const canSubmit = DOCUMENT_REVIEW_LIVE && allUploaded && verification !== 'verified' && verification !== 'pending' && !submitting && !uploadingSlot;
 
   return (
     <div className="space-y-5">
@@ -1333,23 +1347,24 @@ function DocumentsTab({
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        <UploadArea label="Aadhaar card (front)" required {...set('aadhaarFront')} />
-        <UploadArea label="Aadhaar card (back)" required {...set('aadhaarBack')} />
-        <UploadArea label="Profile photo" required {...set('profilePhoto')} />
-        <UploadArea label="Skill certificate" required={false} {...set('skillCert')} />
+        <UploadArea label="Aadhaar card (front)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarFront')} />
+        <UploadArea label="Aadhaar card (back)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarBack')} />
+        <UploadArea label="Profile photo" required disabled={Boolean(uploadingSlot)} {...set('profilePhoto')} />
+        <UploadArea label="Skill certificate" required={false} disabled={Boolean(uploadingSlot)} {...set('skillCert')} />
       </div>
       <div className={`${card} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
         <div className="flex items-center gap-3">
           <p className="text-sm font-semibold text-slate-700">{isHindi ? 'सत्यापन स्थिति' : 'Verification status'}</p>
-          <Badge tone={verification === 'verified' ? 'success' : verification === 'pending' ? 'info' : 'warning'}>
-            {verification === 'verified' ? (isHindi ? 'सत्यापित' : 'Verified') : verification === 'pending' ? (isHindi ? 'जाँच जारी' : 'Under review') : (isHindi ? 'सत्यापित नहीं' : 'Not verified')}
+          <Badge tone={verification === 'verified' ? 'success' : verification === 'pending' ? 'info' : verification === 'rejected' ? 'danger' : 'warning'}>
+            {verification === 'verified' ? (isHindi ? 'सत्यापित' : 'Verified') : verification === 'pending' ? (isHindi ? 'जाँच जारी' : 'Under review') : verification === 'rejected' ? (isHindi ? 'अस्वीकृत' : 'Rejected — update documents') : (isHindi ? 'सत्यापित नहीं' : 'Not verified')}
           </Badge>
         </div>
         <button type="button" className={btnPrimary} disabled={!canSubmit} onClick={onSubmit}>
           {submitting && <Loader2 size={14} aria-hidden className="animate-spin" />}
-          {DOCUMENT_REVIEW_LIVE ? (isHindi ? 'सत्यापन के लिए भेजें' : 'Submit for verification') : (isHindi ? 'भेजना अभी उपलब्ध नहीं' : 'Submission not available yet')}
+          {submitting ? 'Submitting…' : (isHindi ? 'सत्यापन के लिए भेजें' : 'Submit for verification')}
         </button>
       </div>
+      {verification === 'rejected' && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">Your documents were rejected. Replace the required files and submit them again.</p>}
       {verification === 'pending' && (
         <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
           <Clock3 size={16} aria-hidden className="mt-0.5 shrink-0 text-sky-700" />
@@ -1500,10 +1515,34 @@ export default function TechnicianDashboardPage() {
   const [cancelling, setCancelling] = useState<Job | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [docsSubmitting, setDocsSubmitting] = useState(false);
+  const [docsUploadingSlot, setDocsUploadingSlot] = useState<string | null>(null);
 
   const [profile, setProfile] = usePersisted<TechProfile>(KEYS.PROFILE, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
   const [availability, setAvailability] = usePersisted<Availability>(KEYS.AVAILABILITY, {}, normalizeAvailability);
   const [docs, setDocs] = usePersisted<TechDocs>(KEYS.DOCS, {}, normalizeDocs);
+
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    void fetch('/api/technicians/documents', { cache: 'no-store' }).then(async (response) => {
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Could not load document review status.');
+      if (cancelled) return;
+      const serverFiles = payload?.data?.files ?? {};
+      const map: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
+      setDocs((current) => {
+        const next = { ...current };
+        for (const [slot, field] of Object.entries(map)) {
+          const file = serverFiles[slot];
+          if (file?.id) next[field] = { id: file.id, name: file.original_name, size: file.size_bytes, status: file.review_status === 'approved' ? 'verified' : file.review_status === 'rejected' ? 'rejected' : 'submitted' };
+        }
+        return next;
+      });
+      const status = payload?.data?.verification_status;
+      if (status === 'verified' || status === 'pending' || status === 'rejected') setVerification(status);
+    }).catch((error) => console.error('[TechnicianDashboard] document status load failed:', error));
+    return () => { cancelled = true; };
+  }, [allowed]);
 
   const saveProfileToServer = useCallback(async (updated: TechProfile) => {
     try {
@@ -1967,7 +2006,7 @@ export default function TechnicianDashboardPage() {
             {tab === 'earnings' && <EarningsTab stats={stats} week={week} completed={completedJobs} profile={profile} setProfile={setProfile} />}
             {tab === 'availability' && <AvailabilityTab availability={availability} setAvailability={setAvailability} />}
             {tab === 'profile' && <ProfileTab profile={profile} setProfile={setProfile} />}
-            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} />}
+            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} uploadingSlot={docsUploadingSlot} />}
           </main>
         </div>
       </div>
