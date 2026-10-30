@@ -97,6 +97,7 @@ export async function GET(req: NextRequest) {
           .from('addresses')
           .select('customer_id, pincode, city')
           .gte('created_at', since)
+          .order('created_at', { ascending: false })
           .limit(MAX_ORDERS),
       ]);
 
