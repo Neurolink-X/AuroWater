@@ -2464,11 +2464,11 @@ export default function BookingWizard() {
                 <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5" aria-label="Pay securely with UPI">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-extrabold text-slate-900">Pay with UPI</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-600">Scan the QR or open your UPI app. Check the recipient before approving payment.</p>
+                      <p className="text-sm font-extrabold text-slate-900">Pay securely with UPI</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">Choose either option below. Before you pay, confirm the recipient is AuroTap and the amount matches your order.</p>
                     </div>
                     <div className="rounded-xl bg-emerald-100 px-3 py-2 text-right">
-                      <span className="block text-[10px] font-bold uppercase tracking-wide text-emerald-800">Exact order total</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wide text-emerald-800">Amount to pay</span>
                       <span className="text-xl font-extrabold text-emerald-900">{inr(breakdown.total)}</span>
                     </div>
                   </div>
@@ -2484,11 +2484,11 @@ export default function BookingWizard() {
                       >
                         Open UPI app · {inr(breakdown.total)} ↗
                       </a>
-                      <p className="text-[11px] leading-5 text-slate-500">The Open UPI app button includes this total in the payment request. The QR at <code>/qr.jpeg</code> is your existing static QR and may not include a dynamic amount, so verify or enter {inr(breakdown.total)} before paying.</p>
+                      <p className="text-[11px] leading-5 text-slate-500">The UPI app link pre-fills {inr(breakdown.total)}. This QR is a static code and may not pre-fill the amount. If scanning it, enter {inr(breakdown.total)} yourself and check the recipient before confirming.</p>
                     </div>
                   </div>
                   <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                    Payment is not verified automatically. Keep the booking unpaid until the payment is confirmed against your bank/UPI statement; never trust a screenshot alone.
+                    Payment confirmation is manual. Your booking stays unpaid until the transaction is verified in the bank/UPI account. A payment screenshot alone is not proof of payment.
                   </p>
                 </section>
               ) : draft.paymentMethod === 'online' ? (
