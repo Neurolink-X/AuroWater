@@ -48,5 +48,9 @@ jobs:
       - name: Regression tests
         run: npm run test:regression
 
+      - name: Migration inventory audit (informational until production history is reconciled)
+        run: npm run db:audit-migrations
+        continue-on-error: true
+
       - name: Production build
         run: npm run build
