@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
 
+type RecoveryAudit = { id: number; actor_user_id: string | null; action: string; details: Record<string, unknown>; created_at: string };
 type RecoveryRequest = {
   id: string; request_number: number; user_id: string | null; contact_name: string;
   contact_email: string; contact_phone: string | null; category: string; message: string;
@@ -23,6 +24,8 @@ export default function AdminAccountRecoveryPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [verify, setVerify] = useState<Record<string, boolean>>({});
+  const [auditRows, setAuditRows] = useState<Record<string, RecoveryAudit[]>>({});
+  const [auditLoading, setAuditLoading] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -38,6 +41,22 @@ export default function AdminAccountRecoveryPage() {
   }, [status]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadAudit = async (requestId: string) => {
+    setAuditLoading(requestId);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Please sign in again.');
+      const res = await fetch(`/api/admin/account-recovery?request_id=${encodeURIComponent(requestId)}`, {
+        headers: { Authorization: `Bearer ${token}` }, cache: 'no-store',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not load audit history.');
+      setAuditRows((old) => ({ ...old, [requestId]: Array.isArray(json.data) ? json.data : [] }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load audit history.');
+    } finally { setAuditLoading(null); }
+  };
 
   const update = async (row: RecoveryRequest) => {
     setBusy(row.id);
@@ -67,6 +86,19 @@ export default function AdminAccountRecoveryPage() {
       <section className="grid gap-4">{rows.map((row) => <article key={row.id} className="rounded-2xl border border-white/10 bg-white/[.04] p-5">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs text-cyan-300">Request #{row.request_number} · {new Date(row.created_at).toLocaleString('en-IN')}</p><h2 className="mt-1 text-lg font-extrabold">{row.contact_name}</h2><p className="text-sm text-slate-300">{row.contact_email}{row.contact_phone ? ` · ${row.contact_phone}` : ''}</p><p className="mt-2 text-sm font-semibold text-amber-200">{labels[row.category] || row.category}</p></div><span className="rounded-lg border border-white/10 px-3 py-1 text-xs capitalize">{row.status.replace('_', ' ')}</span></div>
         <p className="mt-4 whitespace-pre-wrap rounded-xl bg-black/20 p-3 text-sm leading-6 text-slate-200">{row.message}</p>
+        <div className="mt-3">
+          <button onClick={() => void loadAudit(row.id)} disabled={auditLoading === row.id} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-white/5 disabled:opacity-50">
+            {auditLoading === row.id ? 'Loading history…' : 'View audit history'}
+          </button>
+          {auditRows[row.id] && <ol className="mt-3 space-y-2 border-l border-white/10 pl-4">
+            {auditRows[row.id].map((event) => <li key={event.id} className="text-xs text-slate-300">
+              <p className="font-bold text-slate-100">{event.action.replaceAll('_', ' ')}</p>
+              <p>{new Date(event.created_at).toLocaleString('en-IN')} · {event.actor_user_id || 'System / public request'}</p>
+              <p className="text-slate-500">{JSON.stringify(event.details)}</p>
+            </li>)}
+            {auditRows[row.id].length === 0 && <li className="text-xs text-slate-500">No audit events recorded.</li>}
+          </ol>}
+        </div>
         <p className="mt-3 text-xs text-slate-500">Linked account: {row.user_id || 'Not linked — verify identity before linking manually.'}</p>
         {row.ownership_verified_at && <p className="mt-2 text-xs font-bold text-emerald-300">Ownership verified · {new Date(row.ownership_verified_at).toLocaleString('en-IN')}</p>}
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"><textarea value={notes[row.id] ?? row.admin_note ?? ''} onChange={(e) => setNotes((old) => ({ ...old, [row.id]: e.target.value }))} maxLength={1000} rows={2} placeholder="Internal review note. Record how ownership was checked." className="w-full rounded-xl border border-white/10 bg-slate-950/60 p-3 text-sm text-white placeholder:text-slate-500" />
