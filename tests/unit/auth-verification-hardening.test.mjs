@@ -11,6 +11,8 @@ test('Supabase refresh is single-flight across concurrent API callers', () => {
   assert.match(source, /refreshInFlight = \(async \(\) =>/);
   assert.match(source, /finally \{\s*refreshInFlight = null/);
   assert.ok((source.match(/refreshSessionSingleFlight\(\)/g) ?? []).length >= 3);
+  assert.match(source, /inFlightGetRequests = new Map/);
+  assert.match(source, /method !== 'GET' \|\| init.signal/);
 });
 
 test('verification document downloads use the existing owner/admin signed URL route', () => {
