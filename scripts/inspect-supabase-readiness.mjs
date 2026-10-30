@@ -71,6 +71,15 @@ try {
     ORDER BY tablename, policyname
   `, [expectedTables]);
 
+  const tableGrants = await client.query(`
+    SELECT table_name, grantee, privilege_type, is_grantable
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = ANY($1::text[])
+      AND grantee IN ('anon','authenticated','service_role')
+    ORDER BY table_name, grantee, privilege_type
+  `, [expectedTables]);
+
   const indexes = await client.query(`
     SELECT tablename, indexname, indexdef
     FROM pg_indexes
@@ -135,6 +144,7 @@ try {
     tables: tables.rows,
     columns: columns.rows,
     rls_policies: policies.rows,
+    table_grants: tableGrants.rows,
     indexes: indexes.rows,
     migration_tracking_candidates: migrationTables.rows,
     dispatch_rpc_privileges: rpcFunctions.rows,
