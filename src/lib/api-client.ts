@@ -121,7 +121,7 @@ function apiTelemetryGroup(path: string): string | null {
 }
 
 /** Best-effort sampled API latency reporting; telemetry must never block an API response. */
-function reportApiTiming(path: string, startedAt: number, status: number): void {
+function reportApiTiming(path: string, startedAt: number, status: number, coalesced = false): void {
   if (typeof window === 'undefined' || process.env.NODE_ENV !== 'production' ||
       !navigator.sendBeacon || Math.random() > 0.2) return;
   const apiGroup = apiTelemetryGroup(path);
@@ -136,6 +136,7 @@ function reportApiTiming(path: string, startedAt: number, status: number): void 
         apiGroup === 'supplier_orders' ? 'supplier' :
         apiGroup === 'technician_jobs' ? 'technician' : 'admin',
       api_group: apiGroup,
+      coalesced,
       status_class: status >= 500 ? '5xx' : status >= 400 ? '4xx' : '2xx',
     };
     navigator.sendBeacon('/api/internal/telemetry/web-vitals', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
@@ -211,7 +212,12 @@ async function fetchWithRetryParse(
   const headers = new Headers(init.headers);
   const key = [path, headers.get('Authorization') ?? '', headers.get('Accept') ?? '', String(init.cache ?? '')].join('|');
   const existing = inFlightGetRequests.get(key);
-  if (existing) return existing;
+  if (existing) {
+    const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
+    const result = await existing;
+    reportApiTiming(path, startedAt, result.res.status, true);
+    return result;
+  }
   const request = performFetchWithRetryParse(path, init);
   inFlightGetRequests.set(key, request);
   try {
