@@ -2863,6 +2863,8 @@ export default function SupplierDashboardPage() {
     let active = true;
     let initialized = false;
     let refreshInFlight = false;
+    let lastFocusRefreshAt = 0;
+    const FOCUS_REFRESH_COOLDOWN_MS = 12_000;
     const redirectToLogin = () => { if (active) router.replace('/auth/login?redirect=/supplier/dashboard'); };
 
     const initialize = async () => {
@@ -2904,6 +2906,11 @@ export default function SupplierDashboardPage() {
 
     const refreshOnFocus = () => {
       if (!active || !initialized || document.visibilityState !== 'visible' || !navigator.onLine || refreshInFlight) return;
+      // Focus and visibilitychange commonly fire together. Coalesce these
+      // events to avoid duplicate auth/profile/stock requests and UI churn.
+      const now = Date.now();
+      if (now - lastFocusRefreshAt < FOCUS_REFRESH_COOLDOWN_MS) return;
+      lastFocusRefreshAt = now;
       refreshInFlight = true;
       void (async () => {
         try {
