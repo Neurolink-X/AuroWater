@@ -17,6 +17,7 @@ const inspector = readFileSync(new URL('../scripts/inspect-supabase-readiness.mj
 assert.match(inspector, /BEGIN READ ONLY/);
 assert.match(inspector, /ROLLBACK/);
 assert.match(inspector, /pg_stat_statements/);
+assert.match(inspector, /role_table_grants/);
 assert.doesNotMatch(inspector, /\b(?:INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE|CREATE TABLE|DROP TABLE)\b/i);
 
 const migrationAudit = readFileSync(new URL('../scripts/audit-supabase-migrations.mjs', import.meta.url), 'utf8');
