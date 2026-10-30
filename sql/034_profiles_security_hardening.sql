@@ -38,10 +38,24 @@ BEGIN
       'REVOKE ALL (%s) ON TABLE public.profiles FROM PUBLIC, anon',
       v_columns
     );
+    EXECUTE format(
+      'REVOKE INSERT, REFERENCES (%s) ON TABLE public.profiles FROM authenticated',
+      v_columns
+    );
+    EXECUTE format(
+      'REVOKE UPDATE (%s) ON TABLE public.profiles FROM authenticated',
+      v_columns
+    );
   END IF;
 END;
 $block$;
-GRANT SELECT, UPDATE ON TABLE public.profiles TO authenticated;
+GRANT SELECT ON TABLE public.profiles TO authenticated;
+-- Only profile/preferences/availability fields may be changed by the signed-in user.
+-- Role, approval, counters, referral balances and account state remain server-managed.
+GRANT UPDATE (
+  full_name, phone, city, avatar_url, language, whatsapp, settings,
+  is_online, availability_status, current_lat, current_lng, last_seen_at, updated_at, device_token
+) ON TABLE public.profiles TO authenticated;
 GRANT ALL PRIVILEGES ON TABLE public.profiles TO service_role;
 
 CREATE POLICY profiles_select_own_or_admin
@@ -100,6 +114,10 @@ BEGIN
      OR NEW.rejection_reason IS DISTINCT FROM OLD.rejection_reason
      OR NEW.referral_credits IS DISTINCT FROM OLD.referral_credits
      OR NEW.referred_by IS DISTINCT FROM OLD.referred_by
+     OR NEW.completed_orders IS DISTINCT FROM OLD.completed_orders
+     OR NEW.tier IS DISTINCT FROM OLD.tier
+     OR NEW.milestone_tier IS DISTINCT FROM OLD.milestone_tier
+     OR NEW.aurotap_id IS DISTINCT FROM OLD.aurotap_id
      OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at
   THEN
     RAISE EXCEPTION 'Protected profile fields can only be changed by an administrator'
