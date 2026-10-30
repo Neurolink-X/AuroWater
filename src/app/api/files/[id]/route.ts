@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   if (!isOwner && !isAdmin) return jsonErr('You are not allowed to access this file.', 403);
 
   // Identity/business verification files are not exposed until an admin reviews them.
-  if (!isAdmin && ['identity_document', 'business_document', 'skill_certificate'].includes(file.category)) {
+  if (!isAdmin && file.review_status !== 'approved' && ['identity_document', 'business_document', 'skill_certificate'].includes(file.category)) {
     return jsonErr('This document is awaiting secure review.', 403);
   }
 
@@ -33,11 +33,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     return jsonErr('Could not open this file right now.', 503);
   }
 
-  await db.from('audit_logs').insert({
+  const { error: auditError } = await db.from('audit_logs').insert({
     actor_id: auth.ctx.user.id, action: 'file_accessed',
     entity: 'user_file', entity_id: file.id,
     meta: { category: file.category, owner_access: isOwner, admin_access: isAdmin },
   });
+  if (auditError) {
+    console.error('[files/download] access audit failed', auditError);
+    return jsonErr('File access could not be safely recorded. Please retry.', 503);
+  }
 
   return jsonOk({
     file: { id: file.id, name: file.original_name, category: file.category, content_type: file.content_type },
