@@ -23,6 +23,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 -- No anonymous access to the raw profile table. Authenticated reads are limited
 -- to the caller's own row or admins. Trusted server code uses service_role.
 REVOKE ALL PRIVILEGES ON TABLE public.profiles FROM PUBLIC, anon;
+REVOKE INSERT, UPDATE, REFERENCES ON TABLE public.profiles FROM authenticated;
 -- Column-level grants are independent of table-level grants; remove those too.
 DO $block$
 DECLARE
