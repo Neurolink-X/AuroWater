@@ -134,7 +134,7 @@ export default function ForgotPasswordPage() {
                 If you can’t access your registered email, contact AuroTap support for help restoring account access.
               </p>
               <button type="button" onClick={() => { setDone(false); setErr(null); }} className="mt-6 self-start text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline">
-                Try another email or number
+                Try another email
               </button>
             </div>
           )}
