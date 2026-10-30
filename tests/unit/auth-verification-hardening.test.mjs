@@ -39,5 +39,5 @@ test('verification storage migration keeps the bucket private and metadata inacc
 
 test('waitlist endpoint does not log raw submitted contact details', () => {
   const route = read('../../src/app/api/waitlist/route.ts');
-  assert.doesNotMatch(route, /console\\.(?:log|info|debug)\\([^\\n]*(phone|email|name|body)/i);
+  assert.doesNotMatch(route, /console\.(?:log|info|debug)\s*\([^)]*(?:phone|email|name|body)/i);
 });
