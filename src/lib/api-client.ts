@@ -111,6 +111,39 @@ type Envelope<T> = { success: boolean; data?: T; error?: string; code?: string }
 
 const RETRY_503_MS = 800;
 
+function apiTelemetryGroup(path: string): string | null {
+  const clean = path.split('?')[0] ?? path;
+  if (/^\\/customer\\/orders\\/[^/]+$/.test(clean)) return 'customer_order_detail';
+  if (clean === '/supplier/orders' || clean.startsWith('/supplier/orders/')) return 'supplier_orders';
+  if (clean === '/technician/jobs' || clean.startsWith('/technician/jobs/')) return 'technician_jobs';
+  if (clean === '/admin/dashboard' || clean === '/admin/orders' || clean.startsWith('/admin/dashboard/')) return 'admin_dashboard';
+  return null;
+}
+
+/** Best-effort sampled API latency reporting; telemetry must never block an API response. */
+function reportApiTiming(path: string, startedAt: number, status: number): void {
+  if (typeof window === 'undefined' || process.env.NODE_ENV !== 'production' ||
+      !navigator.sendBeacon || Math.random() > 0.2) return;
+  const apiGroup = apiTelemetryGroup(path);
+  if (!apiGroup) return;
+  try {
+    const payload = {
+      kind: 'api',
+      name: 'API',
+      value: Math.round(performance.now() - startedAt),
+      rating: 'unknown',
+      route_group: apiGroup === 'customer_order_detail' ? 'customer' :
+        apiGroup === 'supplier_orders' ? 'supplier' :
+        apiGroup === 'technician_jobs' ? 'technician' : 'admin',
+      api_group: apiGroup,
+      status_class: status >= 500 ? '5xx' : status >= 400 ? '4xx' : '2xx',
+    };
+    navigator.sendBeacon('/api/internal/telemetry/web-vitals', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
+  } catch {
+    // Telemetry must never affect the user request.
+  }
+}
+
 async function parseJson(res: Response): Promise<Envelope<unknown>> {
   try {
     return (await res.json()) as Envelope<unknown>;
@@ -139,6 +172,7 @@ async function performFetchWithRetryParse(
   };
 
   let last: { res: Response; json: Envelope<unknown> } | null = null;
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(url, merged);
@@ -148,6 +182,7 @@ async function performFetchWithRetryParse(
         await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
         continue;
       }
+      reportApiTiming(path, startedAt, res.status);
       return last;
     } catch {
       // Network changes are common on mobile/Wi-Fi handoffs. Retry once rather
@@ -203,6 +238,7 @@ async function fetchWithRetryRaw(
   };
 
   let last: { res: Response; body: unknown } | null = null;
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const res = await fetch(url, merged);
@@ -212,6 +248,7 @@ async function fetchWithRetryRaw(
         await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
         continue;
       }
+      reportApiTiming(path, startedAt, res.status);
       return last;
     } catch {
       if (attempt === 0) {
