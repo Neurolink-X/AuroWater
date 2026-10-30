@@ -8,7 +8,7 @@ The repository includes `npm run db:inspect-live`. It runs a PostgreSQL read-onl
 
 - RLS enabled/forced state for the core dispatch and waitlist tables.
 - Actual columns and nullability.
-- Policies and indexes.
+- Policies, table grants and indexes.
 - Candidate migration-tracking tables (without assuming a `supabase_migrations` schema).
 - Execute privileges for the supplier/technician atomic dispatch RPCs.
 - Top query samples from `pg_stat_statements`, when the extension is enabled and the database role can read it.
