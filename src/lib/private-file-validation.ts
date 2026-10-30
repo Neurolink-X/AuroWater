@@ -24,7 +24,7 @@ export function matchesPrivateFileSignature(bytes: Uint8Array, type: string): bo
 }
 
 export function sanitizePrivateFileName(value: string, fallback: string): string {
-  return value.replace(/[\\/\\0-\\x1f\\x7f]/g, '_').trim().slice(0, 180) || fallback;
+  return value.replace(/[\/\\\x00-\x1F\x7F]/g, '_').trim().slice(0, 180) || fallback;
 }
 
 export function isValidPrivateFileSize(size: number): boolean {
