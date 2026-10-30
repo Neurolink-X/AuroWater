@@ -266,12 +266,22 @@ assert.doesNotMatch(supplierRealtime, /if \(!supplierId \|\| status === 'live'\)
 // validates serviceability, while dispatch must not offer work to pending/unverified suppliers.
 const customerAddressApi = readFileSync(join(root, 'src', 'app', 'api', 'customer', 'addresses', 'route.ts'), 'utf8');
 assert.match(customerAddressApi, /Saving an address and booking a service are separate operations/);
-assert.match(customerAddressApi, /status === 'NO_MATCH'/);
+assert.match(customerAddressApi, /serviceability\.status === 'LOOKUP_ERROR'/);
+const activeAddressApi = customerAddressApi.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+assert.doesNotMatch(activeAddressApi, /status === 'NO_MATCH'/);
 assert.match(customerAddressApi, /serviceability:\s*\{/);
 assert.match(customerAddressApi, /serviceable: serviceability\.serviceable/);
-const activeAddressApi = customerAddressApi.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
 assert.match(activeAddressApi, /resolveServiceability\(/);
 assert.match(activeAddressApi, /SERVICEABILITY_LOOKUP_FAILED/);
+
+const localIntelligenceApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'local-intelligence', 'route.ts'), 'utf8');
+assert.match(localIntelligenceApi, /\.from\('addresses'\)/);
+assert.match(localIntelligenceApi, /savedAddresses/);
+assert.match(localIntelligenceApi, /interestedCustomers/);
+assert.match(localIntelligenceApi, /Saved-address demand signals are unavailable/);
+const localIntelligencePage = readFileSync(join(root, 'src', 'app', 'admin', 'local-intelligence', 'page.tsx'), 'utf8');
+assert.match(localIntelligencePage, /'Saved addresses'/);
+assert.match(localIntelligencePage, /'Interested customers'/);
 
 const dispatchApi = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
 assert.match(dispatchApi, /verification_status/);

@@ -57,6 +57,8 @@ export default function AddressesPage() {
   const [label, setLabel] = useState('Home');
   const [isDefault, setIsDefault] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!isLoggedIn || !isCustomer) return;
@@ -64,8 +66,10 @@ export default function AddressesPage() {
       setLoading(true);
       const list = await api.customer.addresses.list();
       setAddresses((list ?? []).map(mapApiToUi));
+      setListError(null);
     } catch {
-      setAddresses([]);
+      // Keep the last known-good list visible during a temporary read outage.
+      setListError('We couldn’t refresh your saved addresses. Your existing addresses are still shown. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -82,11 +86,13 @@ export default function AddressesPage() {
   const defaultId = useMemo(() => addresses.find((a) => a.isDefault)?.id ?? null, [addresses]);
 
   const save = async () => {
+    if (isSaving) return;
     setError(null);
     if (!houseFlat.trim()) return setError('House/Flat No is required.');
     if (!area.trim()) return setError('Area is required.');
     if (!isValidCity(city)) return setError('City is required.');
     if (!isValidPincode(pincode)) return setError('Pincode must be a 6-digit number.');
+    setIsSaving(true);
     try {
       await api.customer.addresses.create({
         house_flat: houseFlat.trim(),
@@ -104,10 +110,17 @@ export default function AddressesPage() {
       setLandmark('');
       setLabel('Home');
       setIsDefault(false);
-      toast.success('Address saved.');
+      toast.success('Address saved successfully. You can use it for your next booking.');
       await reload();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Could not save address');
+      const apiError = e as { status?: number; code?: string };
+      if (apiError.code === 'SERVICEABILITY_LOOKUP_FAILED' || apiError.code === 'NETWORK' || (apiError.status ?? 0) >= 500) {
+        setError('We couldn’t complete the save right now. Your details are still here—please try again in a moment.');
+      } else {
+        setError(e instanceof Error && e.message.trim() ? e.message : 'We couldn’t save this address. Please check the details and try again.');
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -179,7 +192,7 @@ export default function AddressesPage() {
           <GlassCard className="p-6 rounded-2xl">
             <h2 className="text-lg font-extrabold text-[#0F1C18] mb-4">Add new address</h2>
             {error ? (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 text-sm">{error}</div>
+              <div role="alert" aria-live="polite" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900 text-sm">{error}</div>
             ) : null}
 
             <div className="grid grid-cols-1 gap-3">
@@ -235,15 +248,18 @@ export default function AddressesPage() {
               <button
                 type="button"
                 onClick={() => void save()}
-                className="rounded-xl px-5 py-3 bg-[#0D9B6C] text-white font-bold hover:bg-[#086D4C] transition"
+                disabled={isSaving}
+                aria-busy={isSaving}
+                className="rounded-xl px-5 py-3 bg-[#0D9B6C] text-white font-bold hover:bg-[#086D4C] transition disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Save address
+                {isSaving ? 'Saving address…' : 'Save address'}
               </button>
             </div>
           </GlassCard>
 
           <GlassCard className="p-6 rounded-2xl">
             <h2 className="text-lg font-extrabold text-[#0F1C18] mb-4">Your addresses</h2>
+            {listError ? <p role="status" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{listError}</p> : null}
             {loading ? (
               <p className="text-slate-600 text-sm">Loading…</p>
             ) : addresses.length === 0 ? (

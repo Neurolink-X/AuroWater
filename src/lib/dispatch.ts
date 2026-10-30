@@ -1041,6 +1041,9 @@ async function retryPendingOrders(db: any, cfg: Cfg, limit: number, customerId?:
     .eq('service_type', 'water_can')
     .eq('status', 'PENDING')
     .is('supplier_id', null)
+    // Filter exhausted orders BEFORE limit(); otherwise the oldest exhausted rows
+    // can occupy every batch and permanently starve newer customers' orders.
+    .or(`dispatch_attempts.is.null,dispatch_attempts.lt.${cfg.maxAttempts}`)
     .order('created_at', { ascending: true })
     .limit(limit);
   if (customerId) q = q.eq('customer_id', customerId);

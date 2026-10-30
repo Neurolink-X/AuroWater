@@ -16,9 +16,14 @@ import { PINCODE, sanitiseText } from '@/lib/sanitise';
  *   - Cities WITHOUT configured zones keep the legacy serviceability behavior.
  *   - Cities WITH zones resolve by pincode -> coordinates -> catch-all.
  *   - AVAILABLE / LIMITED addresses are immediately bookable.
- *   - COMING_SOON / TEMPORARILY_UNAVAILABLE addresses are still saved so
- *     the customer can see the correct status and waitlist experience.
- *   - NO_MATCH addresses are rejected.
+ *   - COMING_SOON / TEMPORARILY_UNAVAILABLE and NO_MATCH addresses are saved
+ *     as demand signals; only a serviceability lookup failure blocks saving.
+ *
+ * Saving an address and booking a service are separate operations.
+ * This endpoint preserves a customer's chosen address even when its PIN code
+ * is not covered yet. The booking endpoint independently re-checks current
+ * serviceability, supplier approval, coverage and stock before accepting an
+ * order; saving an address never makes an unsupported area bookable.
  */
 
 const DEFAULT_STATE = 'Uttar Pradesh';
@@ -43,28 +48,6 @@ function withFormFields(row: Record<string, unknown>) {
     house_flat: row.house_flat ?? row.line1 ?? '',
     area: row.area ?? row.line2 ?? '',
   };
-}
-
-/**
- * POST address serviceability is intentionally checked without a service key.
- *
- * Why?
- * Address creation should not fail just because the zone is currently
- * COMING_SOON or TEMPORARILY_UNAVAILABLE. The address must be persisted with
- * its zone so the frontend can show the correct status / waitlist UI.
- */
-function isAddressRejected(serviceability: {
-  serviceable: boolean;
-  status: string;
-  zone: unknown;
-}): boolean {
-  /*
-   * Saving an address and booking a service are separate operations.
-   * Customers may save an out-of-area address for later availability or
-   * waitlist updates; POST /api/customer/orders independently re-checks
-   * serviceability and must continue to reject unserviceable bookings.
-   */
-  return serviceability.status === 'NO_MATCH';
 }
 
 export async function GET(req: NextRequest) {
@@ -207,13 +190,6 @@ export async function POST(req: NextRequest) {
     return jsonErr(serviceability.message, 503, 'SERVICEABILITY_LOOKUP_FAILED');
   }
 
-
-  if (isAddressRejected(serviceability)) {
-    return jsonErr(
-      serviceability.message || 'This address is outside our service area',
-      400
-    );
-  }
 
   /* ───────────────────────────── Address row ─────────────────────────── */
 

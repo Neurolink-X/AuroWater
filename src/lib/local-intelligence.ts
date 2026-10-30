@@ -43,6 +43,9 @@ export type LocalDemandRow = {
   unassignedOrders: number;
   mappedSuppliers: number;
   coverageGap: boolean;
+  /** Aggregate address-book demand, including customers who have not booked yet. */
+  savedAddresses?: number;
+  interestedCustomers?: number;
 };
 
 export type LocalIntelligenceSummary = {
