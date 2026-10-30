@@ -18,7 +18,8 @@
  *   "stockRaceOrderIds":["uuid","uuid"],
  *   "stockRaceSupplierId":"uuid",
  *   "technicianRaceOrderId":"uuid",
- *   "technicianIds":["uuid","uuid"]
+ *   "technicianIds":["uuid","uuid"],
+ *   "exhaustedTechnicianOrderId":"uuid"
  * }
  *
  * All order_number values must start with TEST-DISPATCH-. Test rows remain
@@ -40,7 +41,7 @@ try {
   process.exit(2);
 }
 
-const required = ['supplierRaceOrderId', 'supplierIds', 'stockRaceOrderIds', 'stockRaceSupplierId', 'technicianRaceOrderId', 'technicianIds'];
+const required = ['supplierRaceOrderId', 'supplierIds', 'stockRaceOrderIds', 'stockRaceSupplierId', 'technicianRaceOrderId', 'technicianIds', 'exhaustedTechnicianOrderId'];
 if (required.some((key) => fixtures?.[key] == null)) {
   console.error('Dispatch fixture JSON is missing required keys.');
   process.exit(2);
