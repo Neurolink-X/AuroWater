@@ -35,6 +35,7 @@ export default function UpdatePasswordPage() {
       try {
         const params = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const tokenHash = params.get('token_hash');
         const code = params.get('code');
         const callbackError = params.get('error_description') ?? params.get('error') ??
           hashParams.get('error_description') ?? hashParams.get('error');
@@ -48,26 +49,41 @@ export default function UpdatePasswordPage() {
           return;
         }
 
-        // The browser Supabase client automatically processes PKCE ?code=
-        // callbacks when it initializes. Do not exchange the same one-time code
-        // again here: a second exchange can fail after the automatic exchange
-        // succeeds and incorrectly show "Reset link unavailable".
-        // Legacy recovery links with URL fragments are also processed by the
-        // same client. Wait briefly for either flow to establish the session.
+        // Token-hash recovery is independent of the browser that requested the
+        // email. This supports opening the email on another device/browser and
+        // avoids the PKCE verifier being unavailable on that second device.
+        if (tokenHash) {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: 'recovery',
+          });
+          if (cancelled) return;
+          if (error || !data.session) {
+            setErrorMessage('This reset link is invalid, expired, or already used. Request a fresh link to continue.');
+            window.history.replaceState({}, document.title, '/auth/update-password');
+            setReady(true);
+            return;
+          }
+          window.history.replaceState({}, document.title, '/auth/update-password');
+          markSession(data.session);
+          return;
+        }
+
+        // Backward compatibility for already-issued PKCE and legacy fragment links.
+        // The browser client processes these using its existing singleton session.
         for (let attempt = 0; attempt < 20; attempt += 1) {
           const { data, error } = await supabase.auth.getSession();
           if (cancelled) return;
           if (!error && data.session) {
             markSession(data.session);
-            // Remove one-time authorization material only after a session exists.
             window.history.replaceState({}, document.title, '/auth/update-password');
             return;
           }
           await new Promise((resolve) => window.setTimeout(resolve, 250));
         }
 
-        if (code && !cancelled) {
-          setErrorMessage('We could not verify this reset link. Please request a fresh password-reset email and open the newest link in the same browser.');
+        if ((code || window.location.hash.includes('access_token')) && !cancelled) {
+          setErrorMessage('We could not verify this reset link. It may have expired or already been used. Request a fresh link to continue.');
           window.history.replaceState({}, document.title, '/auth/update-password');
         }
       } catch {
