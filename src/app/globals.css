@@ -543,3 +543,23 @@
   }
   .aw-launch-ring { opacity: .35; }
 }
+
+/* Mobile scroll responsiveness: avoid expensive clip-path reveals and full-page
+   view-transition snapshots on touch devices. Preserve readable content and
+   existing desktop animations. This is a paint-cost mitigation, not a substitute
+   for measuring JS long tasks on real devices. */
+@media (hover: none) and (pointer: coarse) {
+  html { scroll-behavior: auto; }
+  [data-reveal-ready] :is([data-reveal], .fade-up) {
+    transition-property: opacity, transform;
+    transition-duration: 180ms;
+    clip-path: none !important;
+  }
+  [data-reveal-ready] :is([data-reveal='wipe'], [data-reveal='fill'], [data-reveal='ripple']):not([data-revealed]) {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  ::view-transition-old(root), ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
