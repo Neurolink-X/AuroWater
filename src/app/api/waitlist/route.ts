@@ -42,10 +42,6 @@ export async function POST(req: NextRequest) {
   if (typeof d.website === 'string' && d.website.trim()) {
     return jsonOk({ success: true, message: 'Added to waitlist!' });
   }
-  // Honeypot: accept automated submissions without storing them.
-  if (typeof d.website === 'string' && d.website.trim()) {
-    return jsonOk({ success: true, message: 'Added to waitlist!' });
-  }
   const phone = (d.phone ?? '').replace(/\D/g, '').slice(-10);
   const name = (d.name ?? '').trim() || 'Waitlist';
   const rawId = (d.city_id ?? '').trim() || null;
@@ -70,7 +66,7 @@ export async function POST(req: NextRequest) {
       if (city_id) q = q.eq('city_id', city_id);
       else if (custom_city) q = q.ilike('custom_city', custom_city);
       if (d.area) q = q.ilike('area', d.area.trim());
-      const { data: existing } = await q.maybeSingle();
+      const { data: existing } = await q.limit(1).maybeSingle();
       if (existing) {
         return jsonOk({ message: 'Already on waitlist. We will notify you!' });
       }
@@ -83,7 +79,8 @@ export async function POST(req: NextRequest) {
         .gte('created_at', new Date(Date.now() - 86_400_000).toISOString());
       if (city_id) q = q.eq('city_id', city_id);
       else if (custom_city) q = q.ilike('custom_city', custom_city);
-      const { data: existing } = await q.maybeSingle();
+      if (d.area) q = q.ilike('area', d.area.trim());
+      const { data: existing } = await q.limit(1).maybeSingle();
       if (existing) return jsonOk({ message: 'Already on waitlist. We will notify you!' });
     }
 
