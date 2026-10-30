@@ -7,6 +7,7 @@ const CITIES = ['Delhi', 'Noida', 'Greater Noida', 'Ghaziabad'] as const;
 export default function NcrWaitlistForm() {
   const [city, setCity] = useState<(typeof CITIES)[number]>('Noida');
   const [area, setArea] = useState('');
+  const [pincode, setPincode] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [website, setWebsite] = useState('');
@@ -19,16 +20,28 @@ export default function NcrWaitlistForm() {
     setStatus('sending');
     setMessage('');
     try {
-      const response = await fetch('/api/public/ncr-waitlist', {
+      const response = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ city, area, email, phone, website }),
+        body: JSON.stringify({
+          custom_city: city,
+          area,
+          pincode: pincode || null,
+          custom_state: city === 'Delhi' ? 'Delhi' : 'Uttar Pradesh',
+          name: 'NCR resident',
+          email: email || null,
+          phone: phone || null,
+          role: 'customer',
+          source: 'ncr',
+          website,
+        }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : 'Could not submit. Please try again.');
       setStatus('success');
       setMessage('Thank you! Your NCR expansion interest has been received.');
       setArea('');
+      setPincode('');
       setEmail('');
       setPhone('');
       setWebsite('');
@@ -55,6 +68,10 @@ export default function NcrWaitlistForm() {
         <label className="grid gap-2 text-sm font-semibold text-slate-700">
           Sector / neighbourhood
           <input value={area} onChange={(e) => setArea(e.target.value)} maxLength={100} minLength={2} autoComplete="address-level3" placeholder="e.g. Sector 62, Indirapuram" className="min-h-11 rounded-xl border border-slate-300 px-3" required />
+        </label>
+        <label className="grid gap-2 text-sm font-semibold text-slate-700">
+          PIN code (optional)
+          <input inputMode="numeric" pattern="[1-9][0-9]{5}" value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} maxLength={6} autoComplete="postal-code" placeholder="6-digit PIN code" className="min-h-11 rounded-xl border border-slate-300 px-3" />
         </label>
         <label className="grid gap-2 text-sm font-semibold text-slate-700">
           Email (optional if phone provided)
