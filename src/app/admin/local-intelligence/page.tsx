@@ -18,6 +18,8 @@ type DemandRow = {
   unassignedOrders: number;
   mappedSuppliers: number;
   coverageGap: boolean;
+  savedAddresses?: number;
+  interestedCustomers?: number;
 };
 
 type StockSummary = {
@@ -604,6 +606,8 @@ export default function LocalIntelligencePage() {
     const head = [
       'PIN code',
       'City / area',
+      'Saved addresses',
+      'Interested customers',
       'Orders',
       'Cancelled',
       'Cancel rate %',
@@ -616,6 +620,8 @@ export default function LocalIntelligencePage() {
       [
         row.pincode,
         row.city,
+        row.savedAddresses ?? 0,
+        row.interestedCustomers ?? 0,
         row.orders,
         row.cancelled,
         row.cancellationRate,
@@ -1204,6 +1210,8 @@ export default function LocalIntelligencePage() {
                           {[
                             'PIN code',
                             'City / area',
+                            'Saved addresses',
+                            'Interested customers',
                             'Orders',
                             'Cancelled',
                             'Cancel rate',
@@ -1227,6 +1235,8 @@ export default function LocalIntelligencePage() {
                               {row.pincode}
                             </td>
                             <td className="px-3 py-3 sm:px-4">{row.city}</td>
+                            <td className="px-3 py-3 tabular-nums sm:px-4">{count(row.savedAddresses ?? 0)}</td>
+                            <td className="px-3 py-3 tabular-nums sm:px-4">{count(row.interestedCustomers ?? 0)}</td>
                             <td className="px-3 py-3 tabular-nums sm:px-4">{count(row.orders)}</td>
                             <td className="px-3 py-3 tabular-nums sm:px-4">
                               {count(row.cancelled)}
