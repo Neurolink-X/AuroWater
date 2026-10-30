@@ -91,7 +91,7 @@ try {
   let slowQueries = [];
   if (pgStatExtension.rows[0]?.enabled) {
     try {
-      const slow = await client.query(\`
+      const slow = await client.query(`
         SELECT queryid, calls, round(mean_exec_time::numeric, 2) AS mean_ms,
                round(max_exec_time::numeric, 2) AS max_ms,
                round(total_exec_time::numeric, 2) AS total_ms,
@@ -101,7 +101,7 @@ try {
         WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
         ORDER BY mean_exec_time DESC
         LIMIT 20
-      \`);
+      `);
       slowQueries = slow.rows;
     } catch (error) {
       slowQueries = [{ unavailable: error instanceof Error ? error.message : 'insufficient privileges' }];
