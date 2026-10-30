@@ -10,8 +10,19 @@ export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
   if (!auth.ok) return auth.response;
   if (auth.ctx.profile.role !== 'admin') return jsonErr('Forbidden', 403);
-  const status = req.nextUrl.searchParams.get('status');
+  const requestId = req.nextUrl.searchParams.get('request_id');
   const db = createServiceClient();
+  if (requestId) {
+    const { data: audit, error: auditError } = await db.from('account_recovery_audit')
+      .select('id, request_id, actor_user_id, action, details, created_at')
+      .eq('request_id', requestId).order('created_at', { ascending: false }).limit(100);
+    if (auditError) {
+      console.error('[admin/account-recovery] audit history failed', auditError);
+      return jsonErr('Could not load audit history.', 502);
+    }
+    return jsonOk(audit ?? []);
+  }
+  const status = req.nextUrl.searchParams.get('status');
   let query = db.from('account_recovery_requests')
     .select('id, request_number, user_id, contact_name, contact_email, contact_phone, category, message, status, assigned_admin_id, admin_note, ownership_verified_at, resolved_at, created_at, updated_at')
     .order('created_at', { ascending: false }).limit(100);
@@ -39,36 +50,18 @@ export async function PATCH(req: NextRequest) {
   if (verify && note.length < 10) return jsonErr('Add a verification note before confirming ownership.', 422);
 
   const db = createServiceClient();
-  const { data: existing, error: readError } = await db.from('account_recovery_requests')
-    .select('id, status, user_id, ownership_verified_at').eq('id', id).maybeSingle();
-  if (readError || !existing) return jsonErr('Request not found.', 404);
-  if (existing.status === 'resolved' || existing.status === 'rejected') return jsonErr('This request is already closed.', 409);
-
-  const now = new Date().toISOString();
-  const patch: Record<string, unknown> = {
-    status, admin_note: note || null, assigned_admin_id: auth.ctx.user.id, updated_at: now,
-  };
-  if (verify) {
-    patch.ownership_verified_at = now;
-    patch.ownership_verified_by = auth.ctx.user.id;
-  }
-  if (status === 'resolved' || status === 'rejected') patch.resolved_at = now;
-
-  const { data: updated, error } = await db.from('account_recovery_requests')
-    .update(patch).eq('id', id).eq('status', existing.status)
-    .select('id, status, ownership_verified_at, resolved_at, updated_at').maybeSingle();
-  if (error || !updated) {
-    console.error('[admin/account-recovery] update failed', error);
-    return jsonErr('Request changed or could not be updated. Refresh and try again.', 409);
-  }
-  const { error: auditError } = await db.from('account_recovery_audit').insert({
-    request_id: id, actor_user_id: auth.ctx.user.id,
-    action: verify ? 'ownership_verified_and_review_updated' : 'review_updated',
-    details: { from_status: existing.status, to_status: status, note_added: Boolean(note), ownership_verified: verify },
+  const { data, error } = await db.rpc('update_account_recovery_review', {
+    p_request_id: id, p_admin_id: auth.ctx.user.id, p_status: status,
+    p_admin_note: note, p_verify_ownership: verify,
   });
-  if (auditError) {
-    console.error('[admin/account-recovery] audit insert failed', auditError);
-    return jsonErr('Request was updated, but audit logging failed. Escalate this incident; do not repeat the action.', 500);
+  const updated = Array.isArray(data) ? data[0] : data;
+  if (error || !updated) {
+    console.error('[admin/account-recovery] transactional update failed', error);
+    const message = error?.message?.includes('already closed') ? 'This request is already closed.' :
+      error?.message?.includes('not found') ? 'Request not found.' :
+      error?.message?.includes('verification note') ? 'Add a verification note before confirming ownership.' :
+      'Request changed or could not be updated. Refresh and try again.';
+    return jsonErr(message, error?.message?.includes('not found') ? 404 : 409);
   }
   return jsonOk(updated);
 }

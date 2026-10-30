@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
+import { createHash } from 'node:crypto';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireSupabaseAuth } from '@/lib/api/supabase-request';
-import { checkRateLimit } from '@/lib/rate-limit';
 import { createServiceClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -13,8 +13,9 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export async function POST(req: NextRequest) {
   const forwarded = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   const ip = forwarded || req.headers.get('x-real-ip') || 'unknown';
-  const limit = checkRateLimit(`account-recovery:${ip}`);
-  if (!limit.allowed) return jsonErr('Too many requests. Please try again later.', 429, 'RATE_LIMITED');
+  const rateSecret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!rateSecret) return jsonErr('Account support is temporarily unavailable.', 503);
+  const keyHash = createHash('sha256').update(`${rateSecret}:account-recovery:${ip}`).digest('hex');
 
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return jsonErr('Invalid request.', 400); }
@@ -41,19 +42,26 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = createServiceClient();
-    const { data, error } = await db.from('account_recovery_requests').insert({
-      user_id: userId, contact_name: name, contact_email: email, contact_phone: phone || null,
-      category, message, status: 'open',
-    }).select('id, request_number, status, created_at').single();
-    if (error || !data) {
+    const { data: rateRows, error: rateError } = await db.rpc('consume_account_recovery_rate_limit', {
+      p_key_hash: keyHash, p_max: 5, p_window_seconds: 3600,
+    });
+    if (rateError || !Array.isArray(rateRows) || !rateRows[0]) {
+      console.error('[account-recovery] durable rate limit unavailable', rateError);
+      return jsonErr('Account support is temporarily unavailable.', 503);
+    }
+    if (!rateRows[0].allowed) {
+      return jsonErr('Too many requests. Please try again later.', 429, 'RATE_LIMITED');
+    }
+    const { data, error } = await db.rpc('submit_account_recovery_request', {
+      p_user_id: userId, p_contact_name: name, p_contact_email: email,
+      p_contact_phone: phone || null, p_category: category, p_message: message,
+    });
+    const request = Array.isArray(data) ? data[0] : data;
+    if (error || !request) {
       console.error('[account-recovery] request create failed', error);
       return jsonErr('We could not submit your request. Please try again later.', 503);
     }
-    await db.from('account_recovery_audit').insert({
-      request_id: data.id, actor_user_id: userId, action: 'request_submitted',
-      details: { category, authenticated: Boolean(userId) },
-    });
-    return jsonOk({ request: data, message: 'Your account help request has been received.' }, 201);
+    return jsonOk({ request, message: 'Your account help request has been received.' }, 201);
   } catch (error) {
     console.error('[account-recovery] service unavailable', error);
     return jsonErr('Account support is temporarily unavailable.', 503);
