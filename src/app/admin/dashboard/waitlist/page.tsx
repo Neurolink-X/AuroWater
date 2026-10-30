@@ -13,6 +13,8 @@ type WaitlistRow = {
   source: string | null;
   created_at: string;
   custom_city: string | null;
+  area: string | null;
+  pincode: string | null;
   business_name: string | null;
   city_name: string;
   city_status: string | null;
@@ -69,8 +71,8 @@ export default function AdminWaitlistPage() {
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-black text-white">City waitlist</h1>
-          <p className="mt-1 text-sm text-slate-400">Demand by city. Use this when deciding where to launch next.</p>
+          <h1 className="text-xl font-black text-white">City & area waitlist</h1>
+          <p className="mt-1 text-sm text-slate-400">Locality-level demand helps prioritise safe, area-by-area launches.</p>
         </div>
         <button
           type="button"
@@ -116,7 +118,7 @@ export default function AdminWaitlistPage() {
         <table className="min-w-full text-left text-sm">
           <thead className="bg-white/5 text-xs uppercase tracking-wide text-slate-400">
             <tr>
-              <th className="px-3 py-2">City</th>
+              <th className="px-3 py-2">City / Area</th>
               <th className="px-3 py-2">Name</th>
               <th className="px-3 py-2">Contact</th>
               <th className="px-3 py-2">Role</th>
