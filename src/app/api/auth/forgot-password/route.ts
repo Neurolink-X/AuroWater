@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[auth/forgot-password] Phone lookup failed:', error.message);
-        email = '';
+        return jsonErr('We could not process the recovery request right now. Please try again shortly.', 503, 'RECOVERY_UNAVAILABLE');
       } else if (typeof profile?.email === 'string') {
         const profileEmail = profile.email.trim().toLowerCase();
         email =
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         '[auth/forgot-password] Phone recovery lookup unavailable:',
         error instanceof Error ? error.message : 'Unknown error',
       );
-      email = '';
+      return jsonErr('We could not process the recovery request right now. Please try again shortly.', 503, 'RECOVERY_UNAVAILABLE');
     }
   }
 
@@ -104,12 +104,14 @@ export async function POST(req: NextRequest) {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) {
         console.error('[auth/forgot-password] Supabase reset request failed:', error.message);
+        return jsonErr('We could not send the recovery email right now. Please try again shortly or contact support.', 503, 'RECOVERY_DELIVERY_FAILED');
       }
     } catch (error) {
       console.error(
         '[auth/forgot-password] Reset request failed:',
         error instanceof Error ? error.message : 'Unknown error',
       );
+      return jsonErr('We could not send the recovery email right now. Please try again shortly or contact support.', 503, 'RECOVERY_DELIVERY_FAILED');
     }
   }
 
