@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 
 const reporter = readFileSync(new URL('../src/components/observability/WebVitalsReporter.tsx', import.meta.url), 'utf8');
 const endpoint = readFileSync(new URL('../src/app/api/internal/telemetry/web-vitals/route.ts', import.meta.url), 'utf8');
+const apiClient = readFileSync(new URL('../src/lib/api-client.ts', import.meta.url), 'utf8');
 const budgets = readFileSync(new URL('../src/lib/observability/performance-budgets.ts', import.meta.url), 'utf8');
 const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8');
 
