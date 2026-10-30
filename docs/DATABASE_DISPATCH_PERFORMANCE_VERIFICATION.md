@@ -43,7 +43,8 @@ The opt-in runner is `npm run test:dispatch:db`. It invokes the real Postgres RP
 
 1. Two suppliers racing for one water order: exactly one assignment wins.
 2. Two water orders racing for one supplier's limited stock pool: exactly one stock reservation wins.
-3. Two technicians racing for one technician-service order: exactly one assignment wins.
+3. An exhausted pending technician order is excluded by the configured retry ceiling.
+4. Two technicians racing for one technician-service order: exactly one assignment wins.
 
 It intentionally mutates fixture orders and is therefore restricted to a disposable database. It refuses to run unless the database name contains `test`, `staging` or `branch`, the explicit safety flag is set, and every order number begins `TEST-DISPATCH-`.
 
