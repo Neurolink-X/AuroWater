@@ -18,6 +18,17 @@ import type { User } from '@/types';
    ============================================================= */
 const NAV = [
   {
+    href: '/admin/technician-documents',
+    label: 'Technician Verification',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M8 3h8l4 4v14H4V3h4Z" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M8 12h8M8 16h5M14 3v5h6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m8 9 1.5 1.5L12 8" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/dashboard',
     label: 'Dashboard',
     icon: (
