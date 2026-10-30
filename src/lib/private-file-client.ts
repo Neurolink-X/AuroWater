@@ -92,7 +92,7 @@ export async function listMyFiles(signal?: AbortSignal) {
 
 export async function getSignedFileUrl(id: string, disposition: 'inline' | 'attachment' = 'inline') {
   const json = await requestJson<{ url: string; file: { name: string; content_type: string } }>(
-    `/api/files/${encodeURIComponent(id)}/download?disposition=${disposition}`, { headers: await authHeaders(), cache: 'no-store', retries: 1 });
+    `/api/files/${encodeURIComponent(id)}?disposition=${disposition}`, { headers: await authHeaders(), cache: 'no-store', retries: 1 });
   if (!json.data?.url) throw new HttpError('Could not open this file.', 502);
   return json.data;
 }
