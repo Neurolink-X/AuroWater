@@ -1,3 +1,4 @@
+import { jsonHeaders, requestJson } from '@/lib/api/transport';
 import type { ProfileRow } from '@/lib/db/types';
 import type { AuthToken, User } from '@/types';
 import { clearAuthGateCookies } from '@/lib/auth/client-gate-cookies';
@@ -109,7 +110,6 @@ export function clearToken(): void {
 
 type Envelope<T> = { success: boolean; data?: T; error?: string; code?: string };
 
-const RETRY_503_MS = 800;
 
 function apiTelemetryGroup(path: string): string | null {
   const clean = path.split('?')[0] ?? path;
@@ -154,49 +154,25 @@ async function parseJson(res: Response): Promise<Envelope<unknown>> {
 }
 
 /**
- * All app API calls: `credentials: 'include'`, one automatic retry after 800ms on HTTP 503.
+ * All app API calls: `credentials: 'include'`, one automatic read-only retry after 800ms on HTTP 503.
  * Network failure → `ApiError` with code `NETWORK` (use `apiFetchSafe` to get `{ ok: false }` instead).
  */
 async function performFetchWithRetryParse(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; json: Envelope<unknown> }> {
-  const url = `${API_BASE}${path}`;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; json: Envelope<unknown> } | null = null;
   const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const json = await parseJson(res);
-      last = { res, json };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      reportApiTiming(path, startedAt, res.status);
-      return last;
-    } catch {
-      // Network changes are common on mobile/Wi-Fi handoffs. Retry once rather
-      // than failing the first same-origin request immediately.
-      if (attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, 350));
-        continue;
-      }
-      throw new ApiError('Network error', 503, 'NETWORK');
+  try {
+    const { res, body: json } = await requestJson(`${API_BASE}${path}`, init, parseJson);
+    reportApiTiming(path, startedAt, res.status);
+    return { res, json };
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ApiError('Request timed out', 504, 'TIMEOUT');
     }
+    throw new ApiError('Network error', 503, 'NETWORK');
   }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
 }
 
 // Coalesce identical in-flight GETs (including auth identity) to avoid duplicate
@@ -232,40 +208,18 @@ async function fetchWithRetryRaw(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; body: unknown }> {
-  const url = `${API_BASE}${path}`;
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(init.headers ?? {}),
-  };
-  const merged: RequestInit = {
-    ...init,
-    headers,
-    credentials: 'include',
-  };
-
-  let last: { res: Response; body: unknown } | null = null;
   const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(url, merged);
-      const body: unknown = await res.json().catch(() => ({}));
-      last = { res, body };
-      if (res.status === 503 && attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, RETRY_503_MS));
-        continue;
-      }
-      reportApiTiming(path, startedAt, res.status);
-      return last;
-    } catch {
-      if (attempt === 0) {
-        await new Promise<void>((r) => setTimeout(r, 350));
-        continue;
-      }
-      throw new ApiError('Network error', 503, 'NETWORK');
+  try {
+    const result = await requestJson(`${API_BASE}${path}`, init, (res) => res.json().catch(() => ({})));
+    reportApiTiming(path, startedAt, result.res.status);
+    return result;
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new ApiError('Request timed out', 504, 'TIMEOUT');
     }
+    throw new ApiError('Network error', 503, 'NETWORK');
   }
-  if (last) return last;
-  throw new ApiError('Network error', 503, 'NETWORK');
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnauthorized = true): Promise<T> {
@@ -341,19 +295,19 @@ export async function apiFetchSafe<T>(path: string, init: RequestInit = {}): Pro
 async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
   const supabase = createClient();
 
-  const requestWithToken = (token: string) =>
-    apiFetch<T>(
+  const requestWithToken = (token: string) => {
+    const headers = jsonHeaders(init.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return apiFetch<T>(
       path,
       {
         ...init,
         credentials: 'include',
-        headers: {
-          ...(init.headers ?? {}),
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       },
       false, // Do not redirect until a one-time session refresh has been attempted.
     );
+  };
 
   try {
     const token = await getToken();

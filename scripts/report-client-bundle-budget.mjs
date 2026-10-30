@@ -22,13 +22,46 @@ if (!manifestPath) {
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-const routes = manifest.pages && typeof manifest.pages === 'object' ? manifest.pages : {};
+let routes = manifest.pages && typeof manifest.pages === 'object' ? manifest.pages : {};
 const budgetsKb = { public: 250, customer: 350, supplier: 400, technician: 400, admin: 450 };
 const results = [];
 const sharedFiles = [
   ...(Array.isArray(manifest.rootMainFiles) ? manifest.rootMainFiles : []),
   ...(Array.isArray(manifest.polyfillFiles) ? manifest.polyfillFiles : []),
 ].filter((file) => typeof file === 'string' && file.endsWith('.js'));
+
+// Next 16 webpack builds may omit app-build-manifest.json. The Pages Router
+// fallback contains only /_app and cannot represent application route coverage.
+const appRoutesPath = resolve(nextDir, 'app-path-routes-manifest.json');
+let measurement = 'entry-chunks';
+if (existsSync(appRoutesPath)) {
+  const appRoutes = JSON.parse(readFileSync(appRoutesPath, 'utf8'));
+  const appResults = {};
+  for (const [entry, route] of Object.entries(appRoutes)) {
+    if (!entry.endsWith('/page') || typeof route !== 'string') continue;
+    const referencePath = resolve(nextDir, 'server', 'app', entry.replace(/^\/+/, '') + '_client-reference-manifest.js');
+    if (!referencePath.startsWith(nextDir + sep) || !existsSync(referencePath)) {
+      throw new Error('Missing App Router client manifest for ' + route);
+    }
+    const source = readFileSync(referencePath, 'utf8');
+    // Parse only the JSON assignment; never evaluate generated JavaScript.
+    const assignment = source.indexOf(']=');
+    if (assignment < 0) throw new Error('Unsupported client manifest format for ' + route);
+    const reference = JSON.parse(source.slice(assignment + 2).trim().replace(/;$/, ''));
+    if (!reference.clientModules || typeof reference.clientModules !== 'object') {
+      throw new Error('Missing client module inventory for ' + route);
+    }
+    const chunks = Object.values(reference.clientModules).flatMap((module) =>
+      module && Array.isArray(module.chunks) ? module.chunks.filter((file) => typeof file === 'string' && file.endsWith('.js')) : []);
+    appResults[route] = [...(appResults[route] ?? []), ...chunks];
+  }
+  if (!Object.keys(appResults).length) throw new Error('No App Router pages measured');
+  routes = appResults;
+  // Includes referenced/lazy chunks: conservative inventory, NOT initial load
+  // bytes or a browser speed score. Keep budgets informational until calibrated.
+  measurement = 'referenced-client-chunks';
+}
+const gzipSizes = new Map();
 
 function groupFor(route) {
   const value = String(route).replace(/^\/+/, '');
@@ -44,9 +77,12 @@ for (const [route, files] of Object.entries(routes)) {
   const chunks = [...new Set([...sharedFiles, ...files.filter((file) => typeof file === 'string' && file.endsWith('.js'))])];
   let bytes = 0;
   for (const file of chunks) {
-    const absolute = resolve(nextDir, file.replace(/^\/+/, ''));
-    if (!absolute.startsWith(nextDir + sep) || !existsSync(absolute)) continue;
-    bytes += gzipSync(readFileSync(absolute)).byteLength;
+    const absolute = resolve(nextDir, decodeURIComponent(file).replace(/^\/+/, ''));
+    if (!absolute.startsWith(nextDir + sep) || !existsSync(absolute)) {
+      throw new Error('Missing or invalid client chunk: ' + file);
+    }
+    if (!gzipSizes.has(absolute)) gzipSizes.set(absolute, gzipSync(readFileSync(absolute)).byteLength);
+    bytes += gzipSizes.get(absolute);
   }
   if (chunks.length) {
     const group = groupFor(route);
@@ -56,12 +92,12 @@ for (const [route, files] of Object.entries(routes)) {
 }
 
 results.sort((a, b) => b.gzip_kb - a.gzip_kb);
-console.log(JSON.stringify({ report: 'route-client-js-gzip', manifest: manifestPath.slice(root.length + 1), routes: results }, null, 2));
+console.log(JSON.stringify({ report: 'route-client-js-gzip', measurement, route_count: results.length, manifest: manifestPath.slice(root.length + 1), routes: results }, null, 2));
 
 const exceeded = results.filter((row) => row.exceeded);
 if (exceeded.length) {
   console.warn('Client bundle budgets exceeded on ' + exceeded.length + ' route(s). Review lazy loading and client component boundaries.');
   if (process.env.AUROWATER_ENFORCE_BUNDLE_BUDGET === '1') process.exitCode = 1;
 } else {
-  console.log('All measured route bundles are within the current informational budgets.');
+  console.log('All measured route bundles are within the current informational budgets. This is not a runtime speed measurement.');
 }
