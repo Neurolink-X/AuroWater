@@ -111,7 +111,7 @@ try {
   assert(Number(supplierRace.can_count ?? 0) > 0, 'Supplier race order must have can_count > 0.');
   const [supplierA, supplierB] = fixtures.supplierIds;
   const supplierProfiles = await pool.query(
-    "select id from public.profiles where id = any($1::uuid[]) and role = 'supplier' and is_active = true",
+    "select id from public.profiles where id = any($1::uuid[]) and role = 'supplier' and is_active = true and lower(coalesce(status,'')) = 'active' and (verification_status is null or lower(verification_status) = 'approved')",
     [[supplierA, supplierB]],
   );
   assert(supplierProfiles.rowCount === 2, 'Both supplier fixture profiles must exist and be active.');
