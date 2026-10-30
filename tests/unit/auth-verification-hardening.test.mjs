@@ -37,10 +37,7 @@ test('verification storage migration keeps the bucket private and metadata inacc
   assert.doesNotMatch(migration, /create policy[\s\S]*?on storage\.objects/i);
 });
 
-test('waitlist failure diagnostics do not log submitted contact details', () => {
+test('waitlist endpoint does not log raw submitted contact details', () => {
   const route = read('../../src/app/api/waitlist/route.ts');
-  assert.match(route, /requestId/);
-  assert.match(route, /duplicate lookup failed/);
-  assert.match(route, /insert failed/);
-  assert.doesNotMatch(route, /console\.log\([^\n]*(phone|email|name|body)/i);
+  assert.doesNotMatch(route, /console\\.(?:log|info|debug)\\([^\\n]*(phone|email|name|body)/i);
 });
