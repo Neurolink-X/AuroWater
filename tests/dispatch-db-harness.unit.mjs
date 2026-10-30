@@ -8,6 +8,8 @@ assert.match(runner, /\/test\|staging\|branch\//);
 assert.match(runner, /TEST-DISPATCH-/);
 assert.match(runner, /try_assign_supplier_with_stock/);
 assert.match(runner, /try_assign_technician/);
+assert.match(runner, /exhaustedTechnicianOrderId/);
+assert.match(runner, /retryEligibility/);
 assert.match(runner, /exactly one winner/);
 assert.match(runner, /two orders \/ one supplier stock pool/);
 
