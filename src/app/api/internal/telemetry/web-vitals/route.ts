@@ -25,12 +25,14 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 403 });
   }
 
-  const contentLength = Number(request.headers.get('content-length') ?? 0);
-  if (contentLength > 2048) return new NextResponse(null, { status: 413 });
+  const fetchSite = request.headers.get('sec-fetch-site');
+  if (fetchSite && fetchSite !== 'same-origin') return new NextResponse(null, { status: 403 });
 
   let body: unknown;
   try {
-    body = await request.json();
+    const rawBody = await request.text();
+    if (rawBody.length > 2048) return new NextResponse(null, { status: 413 });
+    body = JSON.parse(rawBody);
   } catch {
     return new NextResponse(null, { status: 400 });
   }
@@ -67,7 +69,7 @@ export async function POST(request: NextRequest) {
   };
 
   // Vercel captures stdout. No URL, IP, account ID, order ID or payload is logged.
-  process.stdout.write(`[AuroTap Web Vitals] ${JSON.stringify(event)}\\n`);
+  process.stdout.write(`[AuroTap Web Vitals] ${JSON.stringify(event)}\n`);
   return new NextResponse(null, {
     status: 204,
     headers: { 'Cache-Control': 'no-store' },
