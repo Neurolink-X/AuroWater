@@ -76,7 +76,7 @@ async function withServiceRole(sql, values = []) {
 
 async function readOrder(id) {
   const result = await pool.query(
-    "select id, order_number, status, supplier_id, technician_id, can_count, stock_reserved_quantity from public.orders where id = $1",
+    "select id, order_number, status, service_type, supplier_id, technician_id, can_count, stock_reserved_quantity from public.orders where id = $1",
     [id],
   );
   assert(result.rowCount === 1, `Fixture order not found: ${id}`);
