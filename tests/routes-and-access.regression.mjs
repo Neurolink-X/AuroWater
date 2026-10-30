@@ -53,6 +53,14 @@ for (const [file, label] of [
   assert.ok(source.includes("status === 'LOOKUP_ERROR'"), `${label} must fail closed on zone lookup failure`);
 }
 
+// Dispatch sweep observability: a successful bounded batch must disclose when queues
+// may still contain work; this is a source-level guard, not a substitute for live tests.
+const dispatchSweep = readFileSync(join(root, 'src', 'app', 'api', 'internal', 'technician-dispatch-sweep', 'route.ts'), 'utf8');
+assert.match(dispatchSweep, /backlog_may_remain:\s*backlogMayRemain/);
+assert.match(dispatchSweep, /batch_limits_hit:\s*batchLimitsHit/);
+assert.match(dispatchSweep, /Object\.values\(batchLimitsHit\)\.some\(Boolean\)/);
+assert.match(dispatchSweep, /one or more queues reached the per-run batch limit/);
+
 const proxySource = readFileSync(join(root, 'src', 'proxy.ts'), 'utf8');
 assert.doesNotMatch(proxySource, /['"]\/supplier\/['"]/);
 assert.match(proxySource, /prefix:\s*'\/supplier'/);
