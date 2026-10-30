@@ -274,6 +274,15 @@ assert.match(customerAddressApi, /serviceable: serviceability\.serviceable/);
 assert.match(activeAddressApi, /resolveServiceability\(/);
 assert.match(activeAddressApi, /SERVICEABILITY_LOOKUP_FAILED/);
 
+const localIntelligenceApi = readFileSync(join(root, 'src', 'app', 'api', 'admin', 'local-intelligence', 'route.ts'), 'utf8');
+assert.match(localIntelligenceApi, /\.from\('addresses'\)/);
+assert.match(localIntelligenceApi, /savedAddresses/);
+assert.match(localIntelligenceApi, /interestedCustomers/);
+assert.match(localIntelligenceApi, /Saved-address demand signals are unavailable/);
+const localIntelligencePage = readFileSync(join(root, 'src', 'app', 'admin', 'local-intelligence', 'page.tsx'), 'utf8');
+assert.match(localIntelligencePage, /'Saved addresses'/);
+assert.match(localIntelligencePage, /'Interested customers'/);
+
 const dispatchApi = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
 assert.match(dispatchApi, /verification_status/);
 assert.match(dispatchApi, /profileStatus !== 'active'/);
