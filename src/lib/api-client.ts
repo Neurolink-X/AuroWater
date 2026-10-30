@@ -123,7 +123,7 @@ async function parseJson(res: Response): Promise<Envelope<unknown>> {
  * All app API calls: `credentials: 'include'`, one automatic retry after 800ms on HTTP 503.
  * Network failure → `ApiError` with code `NETWORK` (use `apiFetchSafe` to get `{ ok: false }` instead).
  */
-async function fetchWithRetryParse(
+async function performFetchWithRetryParse(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; json: Envelope<unknown> }> {
@@ -161,6 +161,29 @@ async function fetchWithRetryParse(
   }
   if (last) return last;
   throw new ApiError('Network error', 503, 'NETWORK');
+}
+
+// Coalesce identical in-flight GETs (including auth identity) to avoid duplicate
+// dashboard reads during concurrent component mounts. Never share mutations or abortable calls.
+const inFlightGetRequests = new Map<string, Promise<{ res: Response; json: Envelope<unknown> }>>();
+
+async function fetchWithRetryParse(
+  path: string,
+  init: RequestInit
+): Promise<{ res: Response; json: Envelope<unknown> }> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (method !== 'GET' || init.signal) return performFetchWithRetryParse(path, init);
+  const headers = new Headers(init.headers);
+  const key = [path, headers.get('Authorization') ?? '', headers.get('Accept') ?? '', String(init.cache ?? '')].join('|');
+  const existing = inFlightGetRequests.get(key);
+  if (existing) return existing;
+  const request = performFetchWithRetryParse(path, init);
+  inFlightGetRequests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (inFlightGetRequests.get(key) === request) inFlightGetRequests.delete(key);
+  }
 }
 
 /** Same retry/credentials/network rules; parses JSON body without `{ success, data }` envelope (admin routes). */
