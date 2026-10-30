@@ -209,9 +209,26 @@ async function runSweep(req: NextRequest) {
   }
 
   const durationMs = Date.now() - startedAt;
+  // A full batch means this sweep may have left eligible rows waiting. Expose this
+  // signal to monitoring instead of implying that a successful HTTP response means
+  // the entire backlog has been drained.
+  const batchLimitsHit = {
+    expired_offers: (stale?.length ?? 0) === BATCH_SIZE,
+    technician_jobs: (pending?.length ?? 0) === BATCH_SIZE,
+    supplier_orders: (pendingSupplierOrders?.length ?? 0) === BATCH_SIZE,
+  };
+  const backlogMayRemain = Object.values(batchLimitsHit).some(Boolean);
+  if (backlogMayRemain) {
+    console.warn('[technician-dispatch-sweep] one or more queues reached the per-run batch limit', {
+      ...batchLimitsHit,
+      durationMs,
+    });
+  }
 
   return Response.json({
     ok: true,
+    backlog_may_remain: backlogMayRemain,
+    batch_limits_hit: batchLimitsHit,
     expired,
     reassigned,
     retried,
