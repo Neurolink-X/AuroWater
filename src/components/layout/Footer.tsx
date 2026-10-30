@@ -204,6 +204,7 @@ const NAV_LINKS = [
 ];
 
 const CITIES = ['Gorakhpur', 'Kanpur', 'Lucknow'] as const;
+const EXPANSION_AREAS = ['Delhi NCR · Expansion updates'] as const;
 
 const SERVICE_LINKS = [
   { label: 'RO Water Can Delivery', href: '/book?service=water_can' },
@@ -553,13 +554,19 @@ export default function Footer() {
                 <span className="ft-brand-wordmark">AuroWater</span>
               </div>
               <p className="ft-brand-desc">
-                Fresh water cans delivered daily across Uttar Pradesh. Same-day service, QR or cash — no app store required.
+                Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Follow AuroTap for Delhi NCR expansion updates.
               </p>
               <div className="ft-trust-badges" aria-label="Cities we serve">
                 {CITIES.map((city) => (
                   <div key={city} className="ft-trust-badge">
                     <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Available in</div>
                     <div className="ft-trust-badge-lbl">{city}</div>
+                  </div>
+                ))}
+                {EXPANSION_AREAS.map((area) => (
+                  <div key={area} className="ft-trust-badge">
+                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Coming soon</div>
+                    <div className="ft-trust-badge-lbl">{area}</div>
                   </div>
                 ))}
               </div>

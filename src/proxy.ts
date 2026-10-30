@@ -96,6 +96,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   '/auth/verify',
   '/auth/otp',
   '/auth/update-password',
+  '/account-help',
 
   /* Server-authenticated scheduler API; route validates CRON_SECRET. */
   '/api/internal/technician-dispatch-sweep',
