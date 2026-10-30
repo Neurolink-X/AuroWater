@@ -41,13 +41,6 @@ const files = [
   '031_noida_sector_73_pilot_staged.sql',
   '032_subscription_loyalty_rewards.sql',
   '033_subscription_loyalty_redemption.sql',
-  // Historical numbered migrations omitted from the original manual bundle.
-  // These are additive/idempotent and are included for fresh-environment parity;
-  // production application state must still be verified independently.
-  '006_supplier_payout_lifecycle.sql',
-  '030_supplier_profile_change_requests.sql',
-  '031_supplier_profile_address_fields.sql',
-  '032_orders_cancel_reason_compat.sql',
   '../supabase/migrations/202610300004_city_waitlist_contact_and_ncr.sql',
 ];
 
