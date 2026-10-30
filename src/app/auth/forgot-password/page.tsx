@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/api-client';
 
 const schema = z.object({
   identifier: z.string().trim().min(1, 'Enter your registered email or mobile number.').max(254, 'Details are too long.').refine(
-    (value) => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$/.test(value) || /^(?:\\+91[\\s-]?)?[6-9]\\d{9}$/.test(value.replace(/[\\s-]/g, '')),
+    (value) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) || /^(?:\+91[\s-]?)?[6-9]\d{9}$/.test(value.replace(/[\s-]/g, '')),
     'Enter a valid email address or 10-digit Indian mobile number.',
   ),
 });
@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(value.includes('@') ? { email: value.toLowerCase() } : { phone: value.replace(/\\D/g, '') }),
+        body: JSON.stringify(value.includes('@') ? { email: value.toLowerCase() } : { phone: value.replace(/\D/g, '') }),
       });
       const json = (await res.json()) as { success?: boolean; error?: string; message?: string };
       if (!res.ok || json.success === false) {
@@ -86,13 +86,13 @@ export default function ForgotPasswordPage() {
               <form onSubmit={(e) => void onSubmit(e)} className="mt-7 space-y-5" noValidate>
                 <div>
                   <label htmlFor="recovery-identifier" className="block text-sm font-semibold text-slate-700">
-                    Email address
+                    Email address or mobile number
                   </label>
                   <input
                     id="recovery-identifier"
                     name="username"
-                    type="email"
-                    inputMode="email"
+                    type="text"
+                    inputMode="text"
                     autoComplete="username"
                     autoCapitalize="none"
                     spellCheck={false}
@@ -137,7 +137,7 @@ export default function ForgotPasswordPage() {
                 If you entered a mobile number, the reset goes to the email already linked to that account. If you no longer have access to that email, contact AuroTap support to verify ownership before changing it.
               </p>
               <button type="button" onClick={() => { setDone(false); setErr(null); }} className="mt-6 self-start text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline">
-                Try another email
+                Try another detail
               </button>
             </div>
           )}
