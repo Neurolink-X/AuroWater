@@ -6,7 +6,7 @@ import { getToken } from '@/lib/api-client';
 type WaitlistRow = {
   id: string;
   name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   role: string;
   status: string;
@@ -118,8 +118,9 @@ export default function AdminWaitlistPage() {
             <tr>
               <th className="px-3 py-2">City</th>
               <th className="px-3 py-2">Name</th>
-              <th className="px-3 py-2">Phone</th>
+              <th className="px-3 py-2">Contact</th>
               <th className="px-3 py-2">Role</th>
+              <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Source</th>
               <th className="px-3 py-2">When</th>
             </tr>
@@ -132,8 +133,9 @@ export default function AdminWaitlistPage() {
                   {r.business_name ? <span className="mt-0.5 block text-[10px] text-slate-500">{r.business_name}</span> : null}
                 </td>
                 <td className="px-3 py-2 text-white">{r.name}</td>
-                <td className="px-3 py-2 font-mono text-xs text-cyan-200">{r.phone}</td>
+                <td className="px-3 py-2 text-xs text-cyan-200">{r.phone ? <span className="block font-mono">{r.phone}</span> : null}{r.email ? <span className="block text-slate-400">{r.email}</span> : null}</td>
                 <td className="px-3 py-2 capitalize text-slate-300">{r.role}</td>
+                <td className="px-3 py-2"><span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold capitalize text-slate-300">{r.status}</span></td>
                 <td className="px-3 py-2 text-slate-400">{r.source ?? '—'}</td>
                 <td className="px-3 py-2 text-slate-400">{new Date(r.created_at).toLocaleString('en-IN')}</td>
               </tr>
