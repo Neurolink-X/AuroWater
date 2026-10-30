@@ -60,11 +60,12 @@ function isAddressRejected(serviceability: {
 }): boolean {
   /*
    * Saving an address and booking a service are separate operations.
-   * Customers may save an out-of-area address for later availability or
-   * waitlist updates; POST /api/customer/orders independently re-checks
-   * serviceability and must continue to reject unserviceable bookings.
+   * Preserve addresses even when the current zone catalogue has no match:
+   * this keeps customer data and lets us notify/serve them when coverage opens.
+   * POST /api/customer/orders independently re-checks serviceability and must
+   * continue to reject unserviceable bookings.
    */
-  return serviceability.status === 'NO_MATCH';
+  return false;
 }
 
 export async function GET(req: NextRequest) {
