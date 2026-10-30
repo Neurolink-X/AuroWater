@@ -10,6 +10,7 @@ assert.match(runner, /try_assign_supplier_with_stock/);
 assert.match(runner, /try_assign_technician/);
 assert.match(runner, /exhaustedTechnicianOrderId/);
 assert.match(runner, /retryEligibility/);
+assert.match(runner, /separate supplier for the stock-pool race/);
 assert.match(runner, /exactly one winner/);
 assert.match(runner, /two orders \/ one supplier stock pool/);
 
