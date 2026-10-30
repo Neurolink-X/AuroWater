@@ -28,6 +28,9 @@ function matchesSignature(bytes: Uint8Array, type: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const contentLength = Number(req.headers.get('content-length') || 0);
+  // Allow multipart framing overhead, but reject oversized bodies before parsing them.
+  if (contentLength > MAX_BYTES + 256 * 1024) return jsonErr('Upload request is too large.', 413);
   const auth = await requireSupabaseAuth(req);
   if (!auth.ok) return auth.response;
   const role = auth.ctx.profile.role;
