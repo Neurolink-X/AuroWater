@@ -128,12 +128,12 @@ try {
     WHERE n.nspname = 'public'
       AND p.proname = ANY($1::text[])
     ORDER BY p.proname, arguments
-  `, [
+   `, [[
     'try_assign_supplier_with_stock',
     'try_assign_technician',
     'accept_technician_job',
     'release_technician_assignment',
-  ]);
+  ]]);
 
   await client.query('COMMIT');
   console.log(JSON.stringify({
