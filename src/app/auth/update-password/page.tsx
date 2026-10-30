@@ -48,33 +48,27 @@ export default function UpdatePasswordPage() {
           return;
         }
 
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            if (!cancelled) {
-              setErrorMessage('This reset link could not be verified. It may have expired or already been used. Request a fresh link to continue.');
-              window.history.replaceState({}, document.title, '/auth/update-password');
-            }
-            setReady(true);
-            return;
-          }
-          if (!cancelled) {
-            // Remove one-time authorization material from the address bar.
-            window.history.replaceState({}, document.title, '/auth/update-password');
-          }
-        }
-
-        // PKCE links use ?code=; legacy recovery links can return access_token
-        // and type=recovery in the URL fragment. Let the singleton Supabase
-        // client process either callback before showing an invalid-link state.
-        for (let attempt = 0; attempt < 12; attempt += 1) {
+        // The browser Supabase client automatically processes PKCE ?code=
+        // callbacks when it initializes. Do not exchange the same one-time code
+        // again here: a second exchange can fail after the automatic exchange
+        // succeeds and incorrectly show "Reset link unavailable".
+        // Legacy recovery links with URL fragments are also processed by the
+        // same client. Wait briefly for either flow to establish the session.
+        for (let attempt = 0; attempt < 20; attempt += 1) {
           const { data, error } = await supabase.auth.getSession();
           if (cancelled) return;
           if (!error && data.session) {
             markSession(data.session);
+            // Remove one-time authorization material only after a session exists.
+            window.history.replaceState({}, document.title, '/auth/update-password');
             return;
           }
           await new Promise((resolve) => window.setTimeout(resolve, 250));
+        }
+
+        if (code && !cancelled) {
+          setErrorMessage('We could not verify this reset link. Please request a fresh password-reset email and open the newest link in the same browser.');
+          window.history.replaceState({}, document.title, '/auth/update-password');
         }
       } catch {
         if (!cancelled) {

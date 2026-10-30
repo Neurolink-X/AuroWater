@@ -1,12 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
-import { Plus_Jakarta_Sans } from 'next/font/google';
 
 import TechniciansClient from './TechniciansClient';
 import { BRAND, FAQS, PAGE_PATH, SERVICES, SITE_URL, UP_CITIES } from './technicians-shared';
-
-// Self-hosted by Next at build time: replaces the render-blocking Google Fonts @import.
-const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], display: 'swap', weight: ['400', '500', '600', '700', '800'] });
 
 // Page is fully static: serve from the edge/CDN and refresh once a day.
 export const revalidate = 86400;
@@ -222,7 +218,7 @@ export default function TechniciansPage() {
   ];
 
   return (
-    <div className={jakarta.className}>
+    <div className="font-sans">
       {/* Tiny global CSS: smooth anchor scrolling and no tap flash. Motion is switched off for users who ask for it. */}
       <style>{`html{scroll-behavior:smooth}a,summary{-webkit-tap-highlight-color:transparent}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}`}</style>
 
