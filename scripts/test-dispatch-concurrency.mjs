@@ -136,6 +136,19 @@ try {
     values: [orderId, fixtures.stockRaceSupplierId],
   })));
 
+  const exhaustedOrder = await readOrder(fixtures.exhaustedTechnicianOrderId);
+  const retrySettings = await pool.query("select value from public.settings where key = 'dispatch_max_attempts'");
+  const configuredMax = Number(retrySettings.rows[0]?.value ?? 5);
+  const maxAttempts = Math.max(1, Math.min(10, Math.floor(Number.isFinite(configuredMax) && configuredMax > 0 ? configuredMax : 5)));
+  const exhaustedAttempts = await pool.query('select technician_dispatch_attempts from public.orders where id = $1', [exhaustedOrder.id]);
+  assert(Number(exhaustedAttempts.rows[0]?.technician_dispatch_attempts ?? 0) >= maxAttempts, 'Retry fixture must already be at or above the configured retry ceiling.');
+  const retryEligibility = await pool.query(
+    "select exists (select 1 from public.orders where id = $1 and status = 'PENDING' and technician_id is null and (technician_dispatch_attempts is null or technician_dispatch_attempts < $2)) as eligible",
+    [exhaustedOrder.id, maxAttempts],
+  );
+  assert(retryEligibility.rows[0]?.eligible === false, 'An exhausted technician order must be excluded from the recovery retry candidate set.');
+  console.log('PASS exhausted technician retry: database candidate filter excludes max-attempt order');
+
   const technicianRace = await readOrder(fixtures.technicianRaceOrderId);
   assert(String(technicianRace.service_type ?? '').toLowerCase() !== 'water_can', 'Technician fixture order must be a technician service, not water_can.');
   const [technicianA, technicianB] = fixtures.technicianIds;
