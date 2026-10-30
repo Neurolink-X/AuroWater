@@ -417,15 +417,21 @@ export async function authResendConfirmation(email: string): Promise<void> {
 }
 
 export async function authLogout(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' });
-  } catch {
-    /* ignore */
-  }
+  // Clear client credentials synchronously so logout never waits on network latency.
   clearToken();
   clearUser();
   clearAuthGateCookies();
   safeRemove('aurowater_session');
+
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    });
+  } catch {
+    /* Local logout is already complete; server cleanup is best-effort. */
+  }
 }
 
 export async function authMe(): Promise<ProfileRow> {

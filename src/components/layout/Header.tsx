@@ -1710,26 +1710,19 @@ export default function Header() {
   }, [mobileOpen]);
 
   /** Real sign out: server cookies, Supabase session, local state, then home. */
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(() => {
     if (signingOut) return;
     setSigningOut(true);
     setMenuOpen(false);
     setMobileOpen(false);
-    try {
-      await authLogout();
-    } catch {
-      /* continue: local sign-out below still happens */
-    }
-    try {
-      await createClient().auth.signOut();
-    } catch {
-      /* session may already be gone */
-    }
+
+    // Clear local access immediately; do not wait for network round trips.
     clearSession();
-    setSigningOut(false);
-    // Force a full document navigation so protected UI and cached client state
-    // cannot remain visible after sign-out.
     window.location.replace('/');
+
+    // Best-effort server cookie and Supabase local-session cleanup.
+    void authLogout();
+    void createClient().auth.signOut({ scope: 'local' }).catch(() => undefined);
   }, [signingOut]);
 
   const initial = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase();
