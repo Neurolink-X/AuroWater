@@ -19,10 +19,19 @@ export default function NcrWaitlistForm() {
     setStatus('sending');
     setMessage('');
     try {
-      const response = await fetch('/api/public/ncr-waitlist', {
+      const response = await fetch('/api/waitlist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ city, area, email, phone, website }),
+        body: JSON.stringify({
+          custom_city: `${city} — ${area}`,
+          custom_state: city === 'Delhi' ? 'Delhi' : 'Uttar Pradesh',
+          name: 'NCR resident',
+          email: email || null,
+          phone: phone || null,
+          role: 'customer',
+          source: 'ncr',
+          website,
+        }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : 'Could not submit. Please try again.');
