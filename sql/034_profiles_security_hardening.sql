@@ -39,8 +39,8 @@ BEGIN
       v_columns
     );
     EXECUTE format(
-      'REVOKE INSERT, REFERENCES (%s) ON TABLE public.profiles FROM authenticated',
-      v_columns
+      'REVOKE INSERT (%s), REFERENCES (%s) ON TABLE public.profiles FROM authenticated',
+      v_columns, v_columns
     );
     EXECUTE format(
       'REVOKE UPDATE (%s) ON TABLE public.profiles FROM authenticated',
