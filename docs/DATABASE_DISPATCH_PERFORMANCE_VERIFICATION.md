@@ -58,7 +58,7 @@ AUROWATER_DISPATCH_TEST_FIXTURES='{"supplierRaceOrderId":"...","supplierIds":[".
 npm run test:dispatch:db
 ```
 
-Provision the fixture profiles, stock rows and unassigned pending orders in a disposable Supabase branch/local project first. Each order must have an order number beginning `TEST-DISPATCH-`; the two stock-race orders must individually fit the available stock but not both together. Supplier and technician profiles must meet the same active/availability conditions as production.
+Provision the fixture profiles, stock rows and unassigned pending orders in a disposable Supabase branch/local project first. Each order must have an order number beginning `TEST-DISPATCH-`; the two stock-race orders must individually fit the available stock but not both together. Use a stock-race supplier distinct from the two suppliers used in the first race so the fixtures do not consume one another's stock. Supplier and technician profiles must meet the same active/availability conditions as production.
 
 The runner leaves fixture orders assigned and stock reserved. Discard/reset the disposable database after the test. Never point this runner at production.
 
