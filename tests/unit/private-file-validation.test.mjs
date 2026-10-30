@@ -33,7 +33,7 @@ test('rejects empty, oversized and non-integer file sizes', () => {
 });
 
 test('sanitizes path separators and control characters in original names', () => {
-  assert.equal(sanitizePrivateFileName('../private\\\\doc.pdf', 'upload.pdf'), '.._private__doc.pdf');
+  assert.equal(sanitizePrivateFileName('../private\\\\doc.pdf', 'upload.pdf'), '_private__doc.pdf');
   assert.equal(sanitizePrivateFileName('bad\nname.pdf', 'upload.pdf'), 'bad_name.pdf');
   assert.equal(sanitizePrivateFileName('   ', 'upload.pdf'), 'upload.pdf');
   assert.equal(sanitizePrivateFileName('a'.repeat(250), 'upload.pdf').length, 180);
