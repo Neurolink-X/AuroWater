@@ -16,6 +16,7 @@ assert.match(runner, /two orders \/ one supplier stock pool/);
 const inspector = readFileSync(new URL('../scripts/inspect-supabase-readiness.mjs', import.meta.url), 'utf8');
 assert.match(inspector, /BEGIN READ ONLY/);
 assert.match(inspector, /ROLLBACK/);
+assert.match(inspector, /pg_stat_statements/);
 assert.doesNotMatch(inspector, /\b(?:INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE|CREATE TABLE|DROP TABLE)\b/i);
 
 const migrationAudit = readFileSync(new URL('../scripts/audit-supabase-migrations.mjs', import.meta.url), 'utf8');
