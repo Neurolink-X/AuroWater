@@ -8,7 +8,7 @@ import type { ApiAddress } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import GlassCard from '@/components/ui/GlassCard';
 import BottomNav from '@/components/customer/BottomNav';
-import { ACTIVE_CITY_NAMES } from '@/lib/cities';
+import { ADDRESS_CITY_NAMES } from '@/lib/cities';
 
 type Address = {
   id: string;
@@ -42,7 +42,7 @@ function isValidPincode(pin: string) {
 
 function isValidCity(city: string) {
   const normalized = city.trim().toLowerCase();
-  return ACTIVE_CITY_NAMES.some((c) => c.toLowerCase() === normalized);
+  return ADDRESS_CITY_NAMES.some((c) => c.toLowerCase() === normalized);
 }
 
 export default function AddressesPage() {
@@ -207,7 +207,7 @@ export default function AddressesPage() {
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               >
                 <option value="">Select City</option>
-                {ACTIVE_CITY_NAMES.map((c) => (
+                {ADDRESS_CITY_NAMES.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
