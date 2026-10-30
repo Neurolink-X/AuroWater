@@ -1987,12 +1987,30 @@ export default function BookingWizard() {
             <h2 className="text-base font-bold text-slate-900">2 · Delivery address</h2>
             <p className="text-sm text-slate-500">We deliver in: {LIVE_CITIES.join(', ')}</p>
 
-            <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-slate-700">My city isn&apos;t listed — join waitlist</summary>
-              <div className="mt-3 rounded-2xl bg-[#0A1628] p-3 space-y-3">
-                <input className="w-full rounded-xl border border-white/10 bg-[#0d1f35] px-3 py-2.5 text-base sm:text-sm text-white placeholder:text-white/40"
-                  placeholder="Your city" aria-label="Your city" value={waitlistCity} onChange={(e) => setWaitlistCity(e.target.value)} />
-                <WaitlistPanel cityName={waitlistCity.trim() || 'your city'} cityId={null} role="customer" source="book" />
+            <details className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-800">
+                <span>Not in a live delivery city? Join the launch waitlist</span>
+                <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-[10px] font-bold text-cyan-800">2 min</span>
+              </summary>
+              <div className="mt-3 space-y-3">
+                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
+                  Your city
+                  <input
+                    required
+                    maxLength={100}
+                    autoComplete="address-level2"
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+                    placeholder="e.g. Noida, Varanasi, Prayagraj"
+                    aria-label="Your city"
+                    value={waitlistCity}
+                    onChange={(e) => setWaitlistCity(e.target.value)}
+                  />
+                </label>
+                {waitlistCity.trim().length >= 2 ? (
+                  <WaitlistPanel cityName={waitlistCity.trim()} cityId={null} role="customer" source="book" />
+                ) : (
+                  <p className="text-xs leading-5 text-slate-500">Enter your city to continue. We will also ask for your locality and optional PIN code so we can map demand accurately.</p>
+                )}
               </div>
             </details>
 
