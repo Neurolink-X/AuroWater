@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const sb = createServiceClient();
-    if (/^[6-9]\\d{9}$/.test(phone)) {
+    if (/^[6-9]\d{9}$/.test(phone)) {
       let q = sb
         .from('city_waitlist')
         .select('id')
