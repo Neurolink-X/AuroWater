@@ -3,34 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
+import { isPrivateFileMime, isValidPrivateFileSize, matchesPrivateFileSignature, PRIVATE_FILE_TYPES, sanitizePrivateFileName, MAX_PRIVATE_FILE_BYTES } from '@/lib/private-file-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const BUCKET = 'private-user-files';
-const MAX_BYTES = 5 * 1024 * 1024;
 const categories = new Set([
   'profile_photo', 'identity_document', 'business_document',
   'skill_certificate', 'service_evidence', 'support_attachment',
 ]);
-const mimeExtensions: Record<string, string> = {
-  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
-  'application/pdf': 'pdf',
-};
-
-function matchesSignature(bytes: Uint8Array, type: string): boolean {
-  if (type === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-  if (type === 'image/png') return bytes.slice(0, 8).join(',') === '137,80,78,71,13,10,26,10';
-  if (type === 'image/webp') return String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' &&
-    String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP';
-  if (type === 'application/pdf') return String.fromCharCode(...bytes.slice(0, 5)) === '%PDF-';
-  return false;
-}
 
 export async function POST(req: NextRequest) {
   const contentLength = Number(req.headers.get('content-length') || 0);
   // Allow multipart framing overhead, but reject oversized bodies before parsing them.
-  if (contentLength > MAX_BYTES + 256 * 1024) return jsonErr('Upload request is too large.', 413);
+  if (contentLength > MAX_PRIVATE_FILE_BYTES + 256 * 1024) return jsonErr('Upload request is too large.', 413);
   const auth = await requireSupabaseAuth(req);
   if (!auth.ok) return auth.response;
   const role = auth.ctx.profile.role;
@@ -45,12 +32,12 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File) || typeof category !== 'string' || !categories.has(category)) {
     return jsonErr('Choose a valid file and file category.', 422);
   }
-  if (file.size < 1 || file.size > MAX_BYTES) return jsonErr('Files must be between 1 byte and 5 MB.', 413);
-  const extension = mimeExtensions[file.type];
+  if (!isValidPrivateFileSize(file.size)) return jsonErr('Files must be between 1 byte and 5 MB.', 413);
+  const extension = isPrivateFileMime(file.type) ? PRIVATE_FILE_TYPES[file.type] : undefined;
   if (!extension) return jsonErr('Use JPG, PNG, WebP or PDF files only.', 415);
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (!matchesSignature(bytes, file.type)) return jsonErr('The file content does not match its declared type.', 415);
+  if (!matchesPrivateFileSignature(bytes, file.type)) return jsonErr('The file content does not match its declared type.', 415);
 
   const id = randomUUID();
   const path = `${auth.ctx.user.id}/${category}/${id}.${extension}`;
