@@ -113,7 +113,7 @@ const RETRY_503_MS = 800;
 
 function apiTelemetryGroup(path: string): string | null {
   const clean = path.split('?')[0] ?? path;
-  if (/^\\/customer\\/orders\\/[^/]+$/.test(clean)) return 'customer_order_detail';
+  if (/^\/customer\/orders\/[^/]+$/.test(clean)) return 'customer_order_detail';
   if (clean === '/supplier/orders' || clean.startsWith('/supplier/orders/')) return 'supplier_orders';
   if (clean === '/technician/jobs' || clean.startsWith('/technician/jobs/')) return 'technician_jobs';
   if (clean === '/admin/dashboard' || clean === '/admin/orders' || clean.startsWith('/admin/dashboard/')) return 'admin_dashboard';
