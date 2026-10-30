@@ -1,3 +1,4 @@
+// PATH: src/lib/account-recovery/shared.ts
 import { z } from 'zod';
 
 /**
