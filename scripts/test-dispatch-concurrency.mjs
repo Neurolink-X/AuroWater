@@ -50,6 +50,11 @@ if (fixtures.supplierIds.length !== 2 || fixtures.stockRaceOrderIds.length !== 2
   console.error('Each race test requires exactly two competing IDs.');
   process.exit(2);
 }
+const fixtureOrderIds = [fixtures.supplierRaceOrderId, ...fixtures.stockRaceOrderIds, fixtures.technicianRaceOrderId, fixtures.exhaustedTechnicianOrderId];
+if (new Set(fixtureOrderIds).size !== fixtureOrderIds.length || fixtures.supplierIds.includes(fixtures.stockRaceSupplierId)) {
+  console.error('Use distinct test orders and a separate supplier for the stock-pool race.');
+  process.exit(2);
+}
 
 const { Pool } = pg;
 const pool = new Pool({
@@ -102,6 +107,7 @@ try {
   console.log(`Running against disposable database: ${databaseName}`);
 
   const supplierRace = await readOrder(fixtures.supplierRaceOrderId);
+  assert(String(supplierRace.service_type ?? '').toLowerCase() === 'water_can', 'Supplier race order must be water_can.');
   assert(Number(supplierRace.can_count ?? 0) > 0, 'Supplier race order must have can_count > 0.');
   const [supplierA, supplierB] = fixtures.supplierIds;
   const supplierProfiles = await pool.query(
@@ -123,8 +129,11 @@ try {
   ]);
 
   const stockOrders = await Promise.all(fixtures.stockRaceOrderIds.map(readOrder));
+  assert(stockOrders.every((row) => String(row.service_type ?? '').toLowerCase() === 'water_can'), 'Both stock race orders must be water_can.');
   const stockQty = stockOrders.map((row) => Number(row.can_count ?? 0));
   assert(stockQty.every((qty) => qty > 0), 'Stock race orders must each require at least one can.');
+  const stockSupplierProfile = await pool.query("select id from public.profiles where id = $1 and role = 'supplier' and is_active = true and lower(coalesce(status,'')) = 'active' and (verification_status is null or lower(verification_status) = 'approved')", [fixtures.stockRaceSupplierId]);
+  assert(stockSupplierProfile.rowCount === 1, 'Stock race supplier profile must be approved and active.');
   const stockSupplier = await pool.query(
     'select cans_available, reserved_cans, reservation_buffer_cans from public.supplier_stock where supplier_id = $1',
     [fixtures.stockRaceSupplierId],
@@ -154,7 +163,7 @@ try {
   assert(String(technicianRace.service_type ?? '').toLowerCase() !== 'water_can', 'Technician fixture order must be a technician service, not water_can.');
   const [technicianA, technicianB] = fixtures.technicianIds;
   const technicianProfiles = await pool.query(
-    "select id from public.profiles where id = any($1::uuid[]) and role = 'technician' and is_active = true and lower(coalesce(status,'')) = 'active' and lower(coalesce(availability_status,'available')) in ('available','online')",
+    "select id from public.profiles where id = any($1::uuid[]) and role = 'technician' and is_active = true and lower(coalesce(status,'')) = 'active' and lower(coalesce(availability_status,'available')) in ('available','online') and (verification_status is null or lower(verification_status) = 'approved')",
     [[technicianA, technicianB]],
   );
   assert(technicianProfiles.rowCount === 2, 'Both technician fixture profiles must be active and available.');
