@@ -20,5 +20,14 @@ assert.match(budgets, /LCP: \{ target: 2500/);
 assert.match(budgets, /INP: \{ target: 200/);
 assert.match(budgets, /CLS: \{ target: 0\.1/);
 assert.match(layout, /<WebVitalsReporter \/>/);
+assert.match(apiClient, /reportApiTiming\\(path, startedAt, result\\.res\\.status, true\\)/);
+assert.match(apiClient, /customer_order_detail/);
+assert.match(apiClient, /supplier_orders/);
+assert.match(apiClient, /technician_jobs/);
+assert.match(apiClient, /admin_dashboard/);
+assert.match(budgets, /API_CUSTOMER_ORDER: \\{ target: 600/);
+const bundleReport = readFileSync(new URL('../scripts/report-client-bundle-budget.mjs', import.meta.url), 'utf8');
+assert.match(bundleReport, /gzipSync/);
+assert.match(bundleReport, /AUROWATER_ENFORCE_BUNDLE_BUDGET/);
 
 console.log('Web Vitals telemetry privacy and budget regression checks passed.');
