@@ -10,6 +10,28 @@ const API_BASE = '/api';
 
 const TOKEN_KEY = 'auth_token';
 
+// Supabase rotates refresh tokens. Share one refresh operation across concurrent
+// requests in this tab so parallel dashboard calls cannot consume the same token.
+let refreshInFlight: Promise<{ access_token: string; refresh_token: string } | null> | null = null;
+
+async function refreshSessionSingleFlight(): Promise<{ access_token: string; refresh_token: string } | null> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const { data, error } = await createClient().auth.refreshSession();
+      if (error || !data.session?.access_token || !data.session.refresh_token) return null;
+      return { access_token: data.session.access_token, refresh_token: data.session.refresh_token };
+    } catch {
+      return null;
+    }
+  })();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -65,18 +87,10 @@ export async function getToken(): Promise<string | null> {
       !expiresAtMs ||
       expiresAtMs - Date.now() <= refreshBeforeMs
     ) {
-      const { data: refreshed, error } =
-        await supabase.auth.refreshSession();
-
-      if (error || !refreshed.session?.access_token) {
-        clearToken();
-        clearUser();
-        clearAuthGateCookies();
-        safeRemove('aurowater_session');
-        return null;
-      }
-
-      return refreshed.session.access_token;
+      const refreshed = await refreshSessionSingleFlight();
+      if (!refreshed?.access_token) return null;
+      setToken(refreshed.access_token);
+      return refreshed.access_token;
     }
 
     return session.access_token;
@@ -204,9 +218,9 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnaut
       const supabase = createClient();
       const { data: current } = await supabase.auth.getSession();
       if (current.session?.refresh_token) {
-        const { data: refreshed, error } = await supabase.auth.refreshSession();
-        const token = refreshed.session?.access_token;
-        if (!error && token) {
+        const refreshed = await refreshSessionSingleFlight();
+        const token = refreshed?.access_token;
+        if (token) {
           const headers = new Headers(init.headers);
           headers.set('Authorization', `Bearer ${token}`);
           ({ res, json } = await fetchWithRetryParse(path, { ...init, headers, credentials: 'include' }));
@@ -290,9 +304,9 @@ async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T>
 
       // A stale access token can return 401 even while the refresh token is still valid.
       // Refresh once and retry the exact same request before treating the user as signed out.
-      const { data, error } = await supabase.auth.refreshSession();
-      const refreshedToken = data.session?.access_token;
-      if (error || !refreshedToken) {
+      const refreshed = await refreshSessionSingleFlight();
+      const refreshedToken = refreshed?.access_token;
+      if (!refreshedToken) {
         throw new ApiError('Your session has expired. Please sign in again.', 401, 'SESSION_EXPIRED');
       }
 
