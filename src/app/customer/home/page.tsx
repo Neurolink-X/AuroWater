@@ -92,6 +92,11 @@ const CH_CSS = `
   .ch-in { animation: ch-in .5s cubic-bezier(.22,1,.36,1) both; }
   .ch-defer { content-visibility: auto; contain-intrinsic-size: auto 420px; }
   @media (max-width: 640px) { .ch-bubble:nth-child(n+7) { display: none; } }
+  /* Keep the dashboard lightweight on touch devices; the decorative scene is not interactive there. */
+  @media (hover: none), (pointer: coarse) {
+    .ch-bubble, .ch-wave { display: none; }
+    .ch-orb, .ch-h-orb { transition: none; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .ch-root *, .ch-root *::before { animation: none !important; transition: none !important; }
     .ch-bubble { display: none; }
@@ -568,7 +573,12 @@ export default function CustomerHomePage() {
   /* ── Spatial parallax: writes CSS variables only (no re-render), rAF-throttled ── */
   useEffect(() => {
     const el = rootRef.current;
-    if (!ready || !el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (
+      !ready ||
+      !el ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      window.matchMedia('(hover: none), (pointer: coarse)').matches
+    ) return;
 
     let raf = 0;
     let px = 0;
