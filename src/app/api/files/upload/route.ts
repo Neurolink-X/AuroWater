@@ -29,6 +29,14 @@ export async function POST(req: NextRequest) {
   try { form = await req.formData(); } catch { return jsonErr('Invalid upload request.', 400); }
   const file = form.get('file');
   const category = form.get('category');
+  const slot = form.get('document_slot');
+  const slotCategory: Record<string, string> = {
+    aadhaar_front: 'identity_document', aadhaar_back: 'identity_document',
+    profile_photo: 'profile_photo', skill_certificate: 'skill_certificate',
+  };
+  if (slot !== null && (typeof slot !== 'string' || slotCategory[slot] !== category || role !== 'technician')) {
+    return jsonErr('Invalid technician document type.', 422);
+  }
   if (!(file instanceof File) || typeof category !== 'string' || !categories.has(category)) {
     return jsonErr('Choose a valid file and file category.', 422);
   }
@@ -54,6 +62,7 @@ export async function POST(req: NextRequest) {
     owner_user_id: auth.ctx.user.id,
     object_path: path,
     category,
+    ...(typeof slot === 'string' ? { document_slot: slot } : {}),
     original_name: sanitizePrivateFileName(file.name, `upload.${extension}`),
     content_type: file.type,
     size_bytes: file.size,
@@ -68,7 +77,7 @@ export async function POST(req: NextRequest) {
   const { error: auditError } = await db.from('audit_logs').insert({
     actor_id: auth.ctx.user.id, action: 'file_uploaded',
     entity: 'user_file', entity_id: data.id,
-    meta: { category, content_type: file.type, size_bytes: file.size },
+    meta: { category, document_slot: typeof slot === 'string' ? slot : null, content_type: file.type, size_bytes: file.size },
   });
   if (auditError) {
     await db.from('user_files').delete().eq('id', data.id);
