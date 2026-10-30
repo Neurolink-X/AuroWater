@@ -65,7 +65,7 @@ function isAddressRejected(serviceability: {
    * POST /api/customer/orders independently re-checks serviceability and must
    * continue to reject unserviceable bookings.
    */
-  return false;
+  return serviceability.status === 'LOOKUP_ERROR';
 }
 
 export async function GET(req: NextRequest) {
