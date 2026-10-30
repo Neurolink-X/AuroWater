@@ -4,7 +4,7 @@
  * separately: they must not be merged automatically because deployment history
  * may already contain independently applied patches.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,7 +22,7 @@ if (!match) {
 const listed = [...match[1].matchAll(/'([^']+\.sql)'/g)].map((item) => item[1]);
 const listedSet = new Set(listed);
 const duplicates = listed.filter((file, index) => listed.indexOf(file) !== index);
-const missingFiles = listed.filter((file) => !readdirSync(sqlDir).includes(file));
+const missingFiles = listed.filter((file) => !existsSync(join(sqlDir, file)));
 const numberedFiles = readdirSync(sqlDir)
   .filter((file) => /^\d{3}_.*\.sql$/i.test(file))
   .sort((a, b) => a.localeCompare(b));
