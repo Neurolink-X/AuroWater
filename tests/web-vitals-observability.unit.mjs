@@ -13,7 +13,7 @@ assert.match(reporter, /route_group: routeGroup/);
 assert.doesNotMatch(reporter, /customer_id|order_id|accessToken|email|phone/);
 assert.match(endpoint, /ALLOWED_METRICS/);
 assert.match(endpoint, /origin !== new URL\(request.url\)\.origin/);
-assert.match(endpoint, /contentLength > 2048/);
+assert.match(endpoint, /rawBody.length > 2048/);
 assert.match(endpoint, /budget_exceeded: value > budget/);
 assert.doesNotMatch(endpoint, /request\.url|x-forwarded-for|authorization|cookie/);
 assert.match(budgets, /LCP: \{ target: 2500/);
