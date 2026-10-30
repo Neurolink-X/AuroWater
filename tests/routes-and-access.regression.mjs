@@ -60,6 +60,7 @@ assert.match(dispatchSweep, /backlog_may_remain:\s*backlogMayRemain/);
 assert.match(dispatchSweep, /batch_limits_hit:\s*batchLimitsHit/);
 assert.match(dispatchSweep, /Object\.values\(batchLimitsHit\)\.some\(Boolean\)/);
 assert.match(dispatchSweep, /one or more queues reached the per-run batch limit/);
+assert.ok(dispatchSweep.includes('technician_dispatch_attempts.lt.${maxTechnicianAttempts}'), 'exhausted technician retries must not starve eligible pending jobs');
 
 const proxySource = readFileSync(join(root, 'src', 'proxy.ts'), 'utf8');
 assert.doesNotMatch(proxySource, /['"]\/supplier\/['"]/);
