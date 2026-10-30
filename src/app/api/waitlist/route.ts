@@ -9,6 +9,8 @@ const WaitlistSchema = z.object({
   city_id: z.string().max(80).optional().nullable(),
   custom_city: z.string().max(100).optional().nullable(),
   custom_state: z.string().max(100).optional().nullable(),
+  area: z.string().trim().min(2).max(120).optional().nullable(),
+  pincode: z.string().regex(/^[1-9][0-9]{5}$/).optional().nullable(),
   name: z.string().min(2).max(100).optional(),
   phone: z.string().max(30).optional().nullable(),
   email: z.string().email().optional().nullable(),
@@ -36,6 +38,10 @@ export async function POST(req: NextRequest) {
   }
 
   const d = parsed.data;
+  // Honeypot: silently discard automated submissions.
+  if (typeof d.website === 'string' && d.website.trim()) {
+    return jsonOk({ success: true, message: 'Added to waitlist!' });
+  }
   // Honeypot: accept automated submissions without storing them.
   if (typeof d.website === 'string' && d.website.trim()) {
     return jsonOk({ success: true, message: 'Added to waitlist!' });
@@ -63,11 +69,13 @@ export async function POST(req: NextRequest) {
         .gte('created_at', new Date(Date.now() - 86_400_000).toISOString());
       if (city_id) q = q.eq('city_id', city_id);
       else if (custom_city) q = q.ilike('custom_city', custom_city);
+      if (d.area) q = q.ilike('area', d.area.trim());
       const { data: existing } = await q.maybeSingle();
       if (existing) {
         return jsonOk({ message: 'Already on waitlist. We will notify you!' });
       }
-    } else if (d.email) {
+    }
+    if (d.email) {
       let q = sb
         .from('city_waitlist')
         .select('id')
@@ -83,6 +91,8 @@ export async function POST(req: NextRequest) {
       city_id,
       custom_city,
       custom_state: d.custom_state ?? null,
+      area: d.area?.trim() || null,
+      pincode: d.pincode ?? null,
       name,
       phone: /^[6-9]\d{9}$/.test(phone) ? phone : null,
       email: d.email ?? null,
@@ -115,7 +125,7 @@ export async function GET(req: NextRequest) {
       .select(
         `
         id, name, phone, email, role, status, source, created_at,
-        custom_city, custom_state, business_name, city_id,
+        custom_city, custom_state, area, pincode, business_name, city_id,
         cities ( name, status )
       `
       )
@@ -137,6 +147,8 @@ export async function GET(req: NextRequest) {
         source: row.source,
         created_at: row.created_at,
         custom_city: row.custom_city,
+        area: row.area,
+        pincode: row.pincode,
         custom_state: row.custom_state,
         business_name: row.business_name,
         city_id: row.city_id,
