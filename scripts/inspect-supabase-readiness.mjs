@@ -76,7 +76,7 @@ try {
     FROM information_schema.role_table_grants
     WHERE table_schema = 'public'
       AND table_name = ANY($1::text[])
-      AND grantee IN ('anon','authenticated','service_role')
+      AND grantee IN ('PUBLIC','anon','authenticated','service_role')
     ORDER BY table_name, grantee, privilege_type
   `, [expectedTables]);
 
