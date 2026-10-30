@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
   const event = {
     event: kind === 'api' ? 'aurotap.api_latency' : 'aurotap.web_vital',
     metric: name,
-    ...(kind === 'api' ? { api_group: apiGroup, status_class: statusClass } : { rating, navigation_type: navigationType.slice(0, 32) }),
+    ...(kind === 'api' ? { api_group: apiGroup, status_class: statusClass, coalesced: metric.coalesced === true } : { rating, navigation_type: navigationType.slice(0, 32) }),
     value,
     route_group: group,
     budget_ms_or_score: budget,
