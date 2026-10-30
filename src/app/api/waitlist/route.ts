@@ -10,14 +10,15 @@ const WaitlistSchema = z.object({
   custom_city: z.string().max(100).optional().nullable(),
   custom_state: z.string().max(100).optional().nullable(),
   name: z.string().min(2).max(100).optional(),
-  phone: z.string().optional(),
+  phone: z.string().max(30).optional().nullable(),
   email: z.string().email().optional().nullable(),
   role: z.enum(['customer', 'seller', 'agent']).optional(),
   business_name: z.string().max(200).optional().nullable(),
   message: z.string().max(500).optional().nullable(),
   lat: z.number().optional().nullable(),
   lng: z.number().optional().nullable(),
-  source: z.enum(['register', 'homepage', 'book']).optional(),
+  source: z.enum(['register', 'homepage', 'book', 'book-zone', 'ncr']).optional(),
+  website: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
 });
 
@@ -35,6 +36,10 @@ export async function POST(req: NextRequest) {
   }
 
   const d = parsed.data;
+  // Honeypot: accept automated submissions without storing them.
+  if (typeof d.website === 'string' && d.website.trim()) {
+    return jsonOk({ success: true, message: 'Added to waitlist!' });
+  }
   const phone = (d.phone ?? '').replace(/\D/g, '').slice(-10);
   const name = (d.name ?? '').trim() || 'Waitlist';
   const rawId = (d.city_id ?? '').trim() || null;
@@ -57,10 +62,21 @@ export async function POST(req: NextRequest) {
         .eq('phone', phone)
         .gte('created_at', new Date(Date.now() - 86_400_000).toISOString());
       if (city_id) q = q.eq('city_id', city_id);
+      else if (custom_city) q = q.ilike('custom_city', custom_city);
       const { data: existing } = await q.maybeSingle();
       if (existing) {
         return jsonOk({ message: 'Already on waitlist. We will notify you!' });
       }
+    } else if (d.email) {
+      let q = sb
+        .from('city_waitlist')
+        .select('id')
+        .ilike('email', d.email.trim())
+        .gte('created_at', new Date(Date.now() - 86_400_000).toISOString());
+      if (city_id) q = q.eq('city_id', city_id);
+      else if (custom_city) q = q.ilike('custom_city', custom_city);
+      const { data: existing } = await q.maybeSingle();
+      if (existing) return jsonOk({ message: 'Already on waitlist. We will notify you!' });
     }
 
     const { error } = await sb.from('city_waitlist').insert({
@@ -68,7 +84,7 @@ export async function POST(req: NextRequest) {
       custom_city,
       custom_state: d.custom_state ?? null,
       name,
-      phone: /^[6-9]\d{9}$/.test(phone) ? phone : '0000000000',
+      phone: /^[6-9]\d{9}$/.test(phone) ? phone : null,
       email: d.email ?? null,
       role: d.role ?? 'customer',
       business_name: d.business_name ?? null,
