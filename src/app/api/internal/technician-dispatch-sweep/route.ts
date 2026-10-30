@@ -36,11 +36,13 @@ async function runSweep(req: NextRequest) {
 
   const db = createServiceClient();
 
-  const { data: setting, error: settingError } = await db
+  // Read the same retry ceiling used by dispatchTechnicianJob. Exhausted jobs
+  // remain visible to admins but must not occupy the oldest 25-row retry batch
+  // forever and starve newer eligible jobs.
+  const { data: settings, error: settingError } = await db
     .from('settings')
-    .select('value')
-    .eq('key', 'dispatch_response_seconds')
-    .maybeSingle();
+    .select('key, value')
+    .in('key', ['dispatch_response_seconds', 'dispatch_max_attempts']);
 
   if (settingError) {
     console.error('[technician-dispatch-sweep] settings lookup failed:', settingError);
@@ -50,9 +52,16 @@ async function runSweep(req: NextRequest) {
     );
   }
 
+  const settingMap = new Map(
+    (settings ?? []).map((setting) => [String(setting.key), String(setting.value ?? '')]),
+  );
   const responseSeconds = Math.max(
     60,
-    Number(setting?.value ?? 300) || 300,
+    Number(settingMap.get('dispatch_response_seconds') ?? 300) || 300,
+  );
+  const maxTechnicianAttempts = Math.max(
+    1,
+    Math.min(10, Math.floor(Number(settingMap.get('dispatch_max_attempts') ?? 5) || 5)),
   );
 
   const staleBefore = new Date(
@@ -114,6 +123,7 @@ async function runSweep(req: NextRequest) {
     .is('technician_id', null)
     .neq('service_type', 'water_can')
     .lt('created_at', retryBefore)
+    .or(`technician_dispatch_attempts.is.null,technician_dispatch_attempts.lt.${maxTechnicianAttempts}`)
     .order('created_at', { ascending: true })
     .limit(BATCH_SIZE);
 
