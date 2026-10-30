@@ -28,8 +28,8 @@ const numberedFiles = readdirSync(sqlDir)
   .sort((a, b) => a.localeCompare(b));
 const bundledSqlFiles = listed.filter((file) => !file.startsWith('../'));
 const unbundled = numberedFiles.filter((file) => !listedSet.has(file));
-const bundledPrefixes = new Set(bundledSqlFiles.map((file) => file.match(/^(\\d{3})_/)?.[1]).filter(Boolean));
-const prefixCollisions = unbundled.filter((file) => bundledPrefixes.has(file.match(/^(\\d{3})_/)?.[1]));
+const bundledPrefixes = new Set(bundledSqlFiles.map((file) => file.match(/^(\d{3})_/)?.[1]).filter(Boolean));
+const prefixCollisions = unbundled.filter((file) => bundledPrefixes.has(file.match(/^(\d{3})_/)?.[1]));
 const timestamped = readdirSync(join(root, 'supabase', 'migrations'), { withFileTypes: true })
   .filter((entry) => entry.isFile() && /^\d{12}_.*\.sql$/i.test(entry.name))
   .map((entry) => entry.name)
