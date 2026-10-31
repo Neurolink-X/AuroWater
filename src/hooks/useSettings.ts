@@ -271,6 +271,8 @@ export function mergeSettings(
     bulk_threshold:         safePositive(raw.bulk_threshold,         DEFAULT_SETTINGS.bulk_threshold),
     market_can_price:       safePositive(raw.market_can_price,       DEFAULT_SETTINGS.market_can_price),
     convenience_fee:        safePositive(raw.convenience_fee,        DEFAULT_SETTINGS.convenience_fee),
+    delivery_fee:           safePositive(raw.delivery_fee,           DEFAULT_SETTINGS.delivery_fee),
+    surge_charge:           safePositive(raw.surge_charge,           DEFAULT_SETTINGS.surge_charge),
     emergency_surcharge:    safePositive(raw.emergency_surcharge,    DEFAULT_SETTINGS.emergency_surcharge),
     gst_rate: gstRate,
     commissions,
