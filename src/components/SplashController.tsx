@@ -22,8 +22,8 @@ import { useEffect } from 'react';
  * components/pwa/ServiceWorkerRegistration.tsx, so it is registered only once.
  */
 
-const MIN_SPLASH_MS = 180;
-const MAX_SPLASH_MS = 800;
+const MIN_SPLASH_MS = 0;
+const MAX_SPLASH_MS = 350;
 
 export default function SplashController() {
   useEffect(() => {
@@ -39,24 +39,14 @@ export default function SplashController() {
       root.dataset.splash = 'done';
     };
 
-    // performance.now() = milliseconds since this page started loading.
-    // On a fast phone most of MIN_SPLASH_MS is already used up.
-    const minWait = Math.max(0, MIN_SPLASH_MS - performance.now());
-
-    const minTimer = new Promise<void>((resolve) =>
-      window.setTimeout(resolve, minWait),
-    );
-
-    const fontsReady: Promise<unknown> =
-      document.fonts?.ready ?? Promise.resolve();
-
-    void Promise.all([minTimer, fontsReady]).then(hide);
-
-    // Safety net: whatever happens, hide by MAX_SPLASH_MS.
+    // Never gate the launch behind a network font or arbitrary animation timer.
+    // The logo is pure branding and should yield as soon as React hydrates.
+    const frame = window.requestAnimationFrame(hide);
     const maxTimer = window.setTimeout(hide, MAX_SPLASH_MS);
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(frame);
       window.clearTimeout(maxTimer);
     };
   }, []);
