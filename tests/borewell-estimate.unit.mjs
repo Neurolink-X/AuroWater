@@ -5,9 +5,9 @@ import ts from 'typescript';
 
 const source = readFileSync('src/lib/borewell-estimate.ts', 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const module = { exports: {} };
-new Function('module', 'exports', compiled)(module, module.exports);
-const { estimateBorewell, BOREWELL_GUIDE } = module.exports;
+const testModule = { exports: {} };
+new Function('module', 'exports', compiled)(testModule, testModule.exports);
+const { estimateBorewell, BOREWELL_GUIDE } = testModule.exports;
 
 test('4.5-inch 300 feet at 100 rupees gives 30000 drilling only', () => {
   const quote = estimateBorewell({ job: 'drilling', diameter: '4.5', depthFeet: 300, ratePerFoot: 100 });
