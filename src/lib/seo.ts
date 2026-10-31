@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from 'next';
 /* ================== ONE PLACE TO CHANGE BRAND SETTINGS ================== */
 
 export const BRAND = 'AuroTap'; // Public-facing product brand; keep consistent across metadata and schema.
-export const APP_ORIGIN = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://aurotap.in').replace(/\/$/, '');
+export const APP_ORIGIN = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://www.aurotap.in').replace(/\/$/, '');
 export const SITE_URL = APP_ORIGIN; // alias used by sitemap.ts and robots.ts
 // No verified AuroTap social handle: avoid claiming an unrelated account.
 export const TWITTER_HANDLE = '';
