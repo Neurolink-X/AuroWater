@@ -82,8 +82,8 @@ export default function AnimatedServiceCard({
         aria-pressed={selected}
         className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded-xl"
       >
-        <div className="relative mb-4 aspect-[16/7] w-full overflow-hidden rounded-xl bg-sky-50">
-          <Image src={ILLUSTRATIONS[visual]} alt={ILLUSTRATION_ALT[visual]} fill sizes="(max-width: 640px) 90vw, 420px" className="object-cover transition-transform duration-300 motion-reduce:transition-none group-hover:scale-[1.025]" />
+        <div className="relative mb-4 h-[210px] w-full overflow-hidden rounded-xl bg-sky-50 sm:h-[235px]">
+          <Image src={ILLUSTRATIONS[visual]} alt={ILLUSTRATION_ALT[visual]} fill quality={90} sizes="(max-width: 640px) 300px, 360px" className="object-contain transition-transform duration-300 motion-reduce:transition-none group-hover:scale-[1.015]" />
         </div>
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
