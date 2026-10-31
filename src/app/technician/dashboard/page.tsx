@@ -92,6 +92,7 @@ import {
   getApiErrorMessage,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
+import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
 import { safeGet as lsGet, safeSet as lsSet, safeRemove as lsRemove } from '@/lib/storage';
 
 /* ───────────────────────────── Types ───────────────────────────── */
@@ -1934,6 +1935,41 @@ export default function TechnicianDashboardPage() {
           </aside>
 
           <main id="tech-main" role="tabpanel" aria-labelledby={`tech-tab-${tab}`} tabIndex={-1} className="min-w-0 flex-1 pb-24 outline-none lg:pb-0">
+            {tab === 'overview' && <LiveOperationsActionCenter
+              title={isHindi ? 'अभी किस काम पर ध्यान दें' : 'What needs attention now'}
+              description={isHindi
+                ? 'असली असाइनमेंट और जॉब स्टेटस दिख रहे हैं। कमाई की गारंटी या भुगतान का दावा नहीं।'
+                : 'Based on assigned work only. Job value is not proof of an earned or settled payout.'}
+              loading={loading}
+              cards={[
+                {
+                  id: 'offers',
+                  title: isHindi ? 'नए ऑफर' : 'Open job offers',
+                  value: String(offers.length),
+                  description: 'Check deadline, location and job details before accepting.',
+                  href: '/technician/jobs',
+                  action: 'Review offers',
+                  tone: offers.length > 0 ? 'attention' : 'neutral',
+                },
+                {
+                  id: 'active',
+                  title: isHindi ? 'चल रहे काम' : 'Jobs in progress',
+                  value: String(stageCounts.in_progress),
+                  description: 'Complete the service first, then request the free customer service code.',
+                  href: '/technician/jobs',
+                  action: 'Resume work',
+                  tone: stageCounts.in_progress > 0 ? 'attention' : 'good',
+                },
+                {
+                  id: 'upcoming',
+                  title: isHindi ? 'आने वाले काम' : 'Upcoming accepted jobs',
+                  value: String(stageCounts.upcoming),
+                  description: 'Confirm your appointment and navigation details before departure.',
+                  href: '/technician/jobs',
+                  action: 'See schedule',
+                },
+              ]}
+            />}
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
               <span aria-live="polite">
                 {lastSynced ? `${isHindi ? 'सिंक हुआ' : 'Synced'} ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : (isHindi ? 'सिंक हो रहा है…' : 'Syncing…')}
