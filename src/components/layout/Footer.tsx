@@ -4,8 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRight, Facebook, Instagram, Linkedin, Mail, MapPin,
-  MessageCircle, Phone, Youtube,
+  ArrowRight, Mail, MapPin, MessageCircle, Phone,
 } from 'lucide-react';
 
 import type { City } from '@/lib/cities';
@@ -79,11 +78,48 @@ const iconLinkClass = [
 
 type GroupedCities = ReturnType<typeof selectFooterCities>;
 
+/**
+ * Social brand marks are intentionally implemented with tiny native SVG.
+ * Current lucide-react releases do not ship brand logos (Instagram,
+ * Facebook, LinkedIn or YouTube); importing them fails the production build.
+ * A single SVG per visible, verified social profile avoids extra icon packages.
+ */
 function SocialIcon({ platform }: { platform: FooterSocialPlatform }) {
-  if (platform === 'instagram') return <Instagram size={18} strokeWidth={1.8} aria-hidden="true" />;
-  if (platform === 'facebook') return <Facebook size={18} strokeWidth={1.8} aria-hidden="true" />;
-  if (platform === 'linkedin') return <Linkedin size={18} strokeWidth={1.8} aria-hidden="true" />;
-  return <Youtube size={18} strokeWidth={1.8} aria-hidden="true" />;
+  if (platform === 'instagram') {
+    return (
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+        strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="5.4" />
+        <circle cx="12" cy="12" r="4.2" />
+        <circle cx="17.9" cy="6.2" r="1.1" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
+  if (platform === 'facebook') {
+    return (
+      <svg width="19" height="19" viewBox="0 0 24 24"
+        fill="currentColor" aria-hidden="true" focusable="false">
+        <path d="M14.2 21v-8.1H17l.45-3.6h-3.25V7.2c0-1.06.28-1.78 1.9-1.78H17.6V2.25C17.1 2.1 16.25 2 15.25 2c-3.14 0-4.92 1.75-4.92 4.97V9.3H7.45v3.6h2.88V21h3.87Z" />
+      </svg>
+    );
+  }
+  if (platform === 'linkedin') {
+    return (
+      <svg width="19" height="19" viewBox="0 0 24 24"
+        fill="currentColor" aria-hidden="true" focusable="false">
+        <rect x="2" y="8.4" width="4.1" height="13" rx=".5" />
+        <circle cx="4.05" cy="4.35" r="2.1" />
+        <path d="M9.15 8.4h4v1.8c.72-1.25 2.01-2.2 4.06-2.2 3.2 0 4.79 2.05 4.79 5.76V21h-4.18v-6.55c0-1.7-.61-2.55-1.92-2.55-1.51 0-2.53 1.03-2.53 2.58V21H9.15V8.4Z" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="20" height="19" viewBox="0 0 24 24"
+      fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M21.6 7.15a2.75 2.75 0 0 0-1.94-1.94C17.95 4.76 12 4.76 12 4.76s-5.95 0-7.66.45A2.75 2.75 0 0 0 2.4 7.15a28.6 28.6 0 0 0-.4 4.85c0 1.64.13 3.26.4 4.85a2.75 2.75 0 0 0 1.94 1.94c1.71.45 7.66.45 7.66.45s5.95 0 7.66-.45a2.75 2.75 0 0 0 1.94-1.94c.27-1.59.4-3.21.4-4.85s-.13-3.26-.4-4.85ZM10 15.55v-7.1L16.25 12 10 15.55Z" />
+    </svg>
+  );
 }
 
 function SocialChannels() {
