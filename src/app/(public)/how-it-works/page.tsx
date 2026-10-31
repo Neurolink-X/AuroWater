@@ -76,13 +76,13 @@ const STEPS = [
   {
     step: '03', icon: <IconCalendar />, color: '#7C3AED', light: '#F5F3FF',
     title: 'Pick a date & time',
-    desc: 'Select a convenient slot. Same-day emergency options are available in most cities depending on technician availability.',
-    detail: 'Flexible rescheduling up to 2 hours before',
+    desc: 'Select a convenient slot. Emergency options appear only when eligible partners and slots are available.',
+    detail: 'Rescheduling depends on booking status',
   },
   {
     step: '04', icon: <IconShield />, color: '#059669', light: '#ECFDF5',
     title: 'We handle everything',
-    desc: 'A verified pro arrives on time. Track your booking live in the dashboard. Pay on completion — zero surprises.',
+    desc: 'Follow partner assignment and status updates in your dashboard. Check available payment options and charges before confirming.',
     detail: 'Ratings appear when verified customer reviews are available',
   },
 ];
@@ -94,9 +94,9 @@ const FAQ = [
   { q: 'How fast is delivery?', a: 'Available delivery slots are shown after your address is checked. Delivery time depends on local supplier and technician availability.' },
   { q: 'What areas do you serve?', a: 'We currently serve eligible areas of Kanpur, Lucknow and Gorakhpur. Enter your delivery address to check availability; other locations can join the waitlist.' },
   { q: 'How do I track my booking?', a: 'After booking confirmation, visit "Dashboard" to see a live status timeline — Pending → Assigned → En Route → Completed.' },
-  { q: 'Can I reschedule or cancel?', a: 'Pending bookings can be rescheduled anytime. Accepted jobs can be adjusted up to 2 hours before the slot. Contact support for urgent changes.' },
-  { q: 'How are technicians verified?', a: 'Every technician goes through a 3-step process: ID verification, skill assessment, and an onboarding call. Only verified pros receive job requests.' },
-  { q: 'What payment methods are accepted?', a: 'Cash on service completion is the primary method today. Online payment (UPI, cards) is rolling out city by city — check your booking confirmation for your area.' },
+  { q: 'Can I reschedule or cancel?', a: 'Pending bookings can be rescheduled anytime. Rescheduling depends on booking status and the options available in your account. Contact support for urgent changes.' },
+  { q: 'How are technicians verified?', a: 'Technicians complete the applicable onboarding and approval checks before receiving eligible jobs.' },
+  { q: 'What payment methods are accepted?', a: 'Available payment methods are displayed at checkout and can vary by service and location.' },
 ];
 
 const TRUST_STATS = [
@@ -193,19 +193,15 @@ export default function HowItWorksPage() {
     return () => window.removeEventListener('scroll', h);
   }, []);
 
-  // Auto-advance active step
-  useEffect(() => {
-    const timer = setInterval(() => setActiveStep((s) => (s + 1) % STEPS.length), 3200);
-    return () => clearInterval(timer);
-  }, []);
+  // Step selection is user-driven; avoid idle timers and needless rerenders.
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        /* Use local system fonts to avoid a blocking third-party CSS request. */
 
         /* ── Base ── */
-        .hiw-page { font-family: 'DM Sans', sans-serif; min-height: 100vh; background: #F5F7FF; }
+        .hiw-page { font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; min-height: 100vh; background: #F5F7FF; }
 
         /* ══ HERO ══════════════════════════════════════════ */
         .hiw-hero {
