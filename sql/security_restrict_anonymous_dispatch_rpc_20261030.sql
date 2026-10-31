@@ -5,7 +5,8 @@
 BEGIN;
 REVOKE EXECUTE ON FUNCTION public.accept_technician_job(uuid, uuid) FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.adjust_supplier_stock(uuid, integer, integer, integer) FROM PUBLIC, anon;
--- Dispatch must be server-only: supplier-authenticated callers could assign any pending order.\nREVOKE EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid, uuid, numeric) FROM PUBLIC, anon, authenticated;
+-- Dispatch must be server-only: supplier-authenticated callers could assign any pending order.
+REVOKE EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid, uuid, numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_technician_job(uuid, uuid) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.adjust_supplier_stock(uuid, integer, integer, integer) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid, uuid, numeric) TO service_role;
