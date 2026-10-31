@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/env';
 import { canIndexDeployment } from '@/lib/seo-policy';
 import { publishedGuides } from '@/lib/blog/posts';
+import { publishedNews } from '@/lib/blog/reviewed-news';
 
 const BASE_URL = getSiteUrl().replace(/\/+$/, '');
 
@@ -97,5 +98,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(post.updatedAt), changeFrequency: 'monthly', priority: 0.65,
     })),
   ];
-  return [...publicEntries, ...detailEntries, ...guideEntries];
+  const newsEntries = publishedNews().map((item) => page(`/blog/news/${item.slug}`, {
+    lastModified: new Date(item.reviewed_at), changeFrequency: 'monthly', priority: 0.55,
+  }));
+  return [...publicEntries, ...detailEntries, ...guideEntries, ...newsEntries];
 }
