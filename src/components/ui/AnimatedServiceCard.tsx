@@ -1,7 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Check, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { ILLUSTRATIONS, ILLUSTRATION_ALT, type ServiceKey } from '@/app/(public)/services/services-data';
+import { Check, ChevronRight } from 'lucide-react';
 
 const GlassCard: React.FC<
   React.PropsWithChildren<{ className?: string }>
@@ -28,6 +30,17 @@ type Service = {
   base_price?: number;
 };
 
+const visualFor = (name: string): ServiceKey => {
+  const value = name.toLowerCase();
+  if (/tanker|bulk water/.test(value)) return 'water_tanker';
+  if (/borewell|boring|drilling/.test(value)) return 'borewell';
+  if (/tank clean/.test(value)) return 'tank_cleaning';
+  if (/motor|pump/.test(value)) return 'motor_pump';
+  if (/plumb|pipe|tap|leak/.test(value)) return 'plumbing';
+  if (/ro service|ro repair|purifier|filter/.test(value)) return 'ro_service';
+  return 'water_can';
+};
+
 export default function AnimatedServiceCard({
   service,
   onSelect,
@@ -37,6 +50,7 @@ export default function AnimatedServiceCard({
   onSelect?: (id: number) => void;
   selected?: boolean;
 }) {
+  const visual = visualFor(service.name);
   const price =
     typeof service.base_price === 'number'
       ? `₹${service.base_price.toLocaleString('en-IN')}`
@@ -68,6 +82,9 @@ export default function AnimatedServiceCard({
         aria-pressed={selected}
         className="block w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded-xl"
       >
+        <div className="relative mb-4 aspect-[16/7] w-full overflow-hidden rounded-xl bg-sky-50">
+          <Image src={ILLUSTRATIONS[visual]} alt={ILLUSTRATION_ALT[visual]} fill sizes="(max-width: 640px) 90vw, 420px" className="object-cover transition-transform duration-300 motion-reduce:transition-none group-hover:scale-[1.025]" />
+        </div>
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 pr-8">
@@ -80,7 +97,7 @@ export default function AnimatedServiceCard({
                     : 'bg-emerald-50 text-emerald-600',
                 ].join(' ')}
               >
-                <Sparkles size={17} />
+                <span aria-hidden="true">●</span>
               </span>
 
               <div className="min-w-0">
@@ -89,8 +106,7 @@ export default function AnimatedServiceCard({
                 </h3>
 
                 <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                  <ShieldCheck size={12} />
-                  Trusted service
+                  Transparent booking details
                 </div>
               </div>
             </div>
@@ -117,15 +133,15 @@ export default function AnimatedServiceCard({
         {/* Benefits */}
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3">
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Fast booking
+            ✓ Availability checked
           </span>
 
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Verified professionals
+            ✓ Clear service scope
           </span>
 
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Doorstep service
+            ✓ Price review before confirmation
           </span>
         </div>
 
