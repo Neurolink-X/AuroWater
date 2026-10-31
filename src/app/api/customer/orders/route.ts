@@ -282,8 +282,7 @@ export async function POST(req: NextRequest) {
   if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
   const flat = settingsResult.map;
 
-  // Select only a rule already effective at the current server time. Until migration 021
-  // is installed, retain the known launch-safe settings fallback.
+  // Require the authoritative effective pricing version for every new order.
   const { data: activePricingRow, error: activePricingError } = await auth.ctx.supabase
     .from('pricing_versions')
     .select('version, effective_from, config')
@@ -299,14 +298,16 @@ export async function POST(req: NextRequest) {
     ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
   const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
     ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
-  // City overrides are complete validated price snapshots; otherwise use the global version.
+  // Inherit global rates when a city override omits individual services.
   const activePricingConfig: Record<string, unknown> | null = publishedPricingConfig
     ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
     : null;
-  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
-    ? activePricingConfig.services as Record<string, unknown>
-    : {};
-  if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
+  const globalServicePrices = publishedPricingConfig?.services && typeof publishedPricingConfig.services === 'object'
+    ? publishedPricingConfig.services as Record<string, unknown> : {};
+  const cityServicePrices = cityOverride?.services && typeof cityOverride.services === 'object'
+    ? cityOverride.services as Record<string, unknown> : {};
+  const activeServicePrices: Record<string, unknown> = { ...globalServicePrices, ...cityServicePrices };
+  if (activePricingError || !publishedPricingConfig) {
     console.error('[orders] active pricing lookup failed', activePricingError);
     return jsonErr('Pricing is temporarily unavailable. Please retry shortly.', 503);
   }
