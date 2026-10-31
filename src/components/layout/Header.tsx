@@ -264,7 +264,37 @@
 //   useDismiss(moreOpen, closeMore, moreRef);
 //   useDismiss(menuOpen, closeMenu, menuRef);
 
-//   const isCustomer = isLoggedIn && role === 'customer';
+//   // Warm service routes only when the user signals intent. Prefetching every
+  // service on initial paint wastes bandwidth on slow mobile connections.
+  const warmedRoutes = useRef<Set<string>>(new Set());
+  const warmService = useCallback((key: string) => {
+    const href = serviceHref(key);
+    if (warmedRoutes.current.has(href)) return;
+    warmedRoutes.current.add(href);
+    router.prefetch(href);
+  }, [router]);
+
+  // Navigation feedback is shown immediately, even if the route's server
+  // payload is still loading. Clear it on successful pathname change.
+  const [openingService, setOpeningService] = useState<string | null>(null);
+  const openService = useCallback((key: string) => {
+    setOpeningService(key);
+    setMobileOpen(false);
+    setServicesOpen(false);
+    setMenuOpen(false);
+    router.push(serviceHref(key));
+  }, [router]);
+
+  useEffect(() => {
+    // This is a post-navigation reset, not an extra network request.
+    // Avoid timers that can leave the loading state stuck.
+    if (pathname) {
+      const frame = requestAnimationFrame(() => setOpeningService(null));
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [pathname]);
+
+  const isCustomer = isLoggedIn && role === 'customer';
 //   const activeOrder = useActiveOrder(Boolean(hydrated && isCustomer));
 
 //   const dashboardHref = useMemo(() => {
@@ -1813,6 +1843,14 @@ export default function Header() {
                         role="menuitem"
                         href={serviceHref(s.key)}
                         prefetch={false}
+                        onPointerEnter={() => warmService(s.key)}
+                        onFocus={() => warmService(s.key)}
+                        onTouchStart={() => warmService(s.key)}
+                        onClick={(event) => {
+                          if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                          event.preventDefault();
+                          openService(s.key);
+                        }}
                         className="flex items-start gap-2.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/5 focus-visible:bg-white/5 focus-visible:outline-none"
                       >
                         <span className="mt-0.5 text-base" aria-hidden="true">
@@ -2145,6 +2183,14 @@ export default function Header() {
                   key={s.key}
                   href={serviceHref(s.key)}
                   prefetch={false}
+                  onPointerEnter={() => warmService(s.key)}
+                  onFocus={() => warmService(s.key)}
+                  onTouchStart={() => warmService(s.key)}
+                  onClick={(event) => {
+                    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    openService(s.key);
+                  }}
                   className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/5 px-3 py-3 text-sm font-medium text-white transition-colors hover:border-cyan-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                 >
                   <span className="text-lg" aria-hidden="true">
