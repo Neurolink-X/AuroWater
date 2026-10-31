@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import Image from 'next/image';
+import { ILLUSTRATIONS, ILLUSTRATION_ALT, type ServiceKey } from '../services/services-data';
 import JsonLd from '@/components/seo/JsonLd';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { APP_ORIGIN, BRAND, SITE } from '@/lib/seo';
@@ -13,7 +15,7 @@ import { APP_ORIGIN, BRAND, SITE } from '@/lib/seo';
 
 const WHATSAPP = 'https://wa.me/919889305803';
 
-type Service = { key: string; icon: string; title: string; desc: string };
+type Service = { key: ServiceKey; icon: string; title: string; desc: string };
 
 const SERVICES: Service[] = [
   { key: 'water_can', icon: '💧', title: '20L Water Can Delivery', desc: 'Normal RO cans for homes and offices, with Chilled RO for one-time events where available. Pick a slot and see the total before you confirm.' },
@@ -97,6 +99,9 @@ background:var(--bg);color:var(--ink);font-family:var(--font-sans),system-ui,san
 .ab-g3{grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
 .ab-ico{width:50px;height:50px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:var(--inset);background:var(--bg);margin-bottom:14px}
 .ab-svc{display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .18s,transform .18s;content-visibility:auto;contain-intrinsic-size:auto 230px}
+.ab-svc-photo{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:14px;margin-bottom:16px;background:#e7f1f3}
+.ab-svc-photo img{object-fit:cover;transition:transform .25s ease}
+@media (hover:hover) and (prefers-reduced-motion:no-preference){.ab-svc:hover .ab-svc-photo img{transform:scale(1.035)}}
 .ab-svc h3{font-size:17px;font-weight:800}
 .ab-svc p{margin-top:8px;font-size:13.5px;color:var(--ink2);flex:1}
 .ab-more{margin-top:14px;font-size:13px;font-weight:800;color:var(--brand2)}
@@ -263,6 +268,7 @@ export default function AboutPage() {
           <div className="ab-grid ab-g3">
             {SERVICES.map((s) => (
               <Link key={s.key} href={`/services/${s.key}`} className="ab-card ab-svc" aria-label={`${s.title}: learn more`}>
+                <div className="ab-svc-photo"><Image src={ILLUSTRATIONS[s.key]} alt={ILLUSTRATION_ALT[s.key]} fill sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 350px" loading="lazy" /></div>
                 <div className="ab-ico" aria-hidden="true">{s.icon}</div>
                 <h3>{s.title}</h3>
                 <p>{s.desc}</p>
