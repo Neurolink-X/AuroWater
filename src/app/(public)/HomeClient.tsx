@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
-import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
+import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, PILOT_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
@@ -397,7 +397,7 @@ export default function HomeClient() {
               {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery'].map(b => <span key={b}>{b}</span>)}
             </div>
             <p className="mx-auto mt-3 max-w-4xl text-center text-xs leading-relaxed text-slate-500 sm:text-sm">
-              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — live service areas. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN codes only. Confirm your PIN code before booking.
+              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — live service areas. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN-code coverage only. Noida Sector 73 is a pre-launch pilot pending supplier capacity; verify your exact address at booking.
             </p>
           </div>
         </section>
@@ -474,6 +474,16 @@ export default function HomeClient() {
                 </div>
               ))}
             </div>
+            {PILOT_CITIES.length > 0 && <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {PILOT_CITIES.map(city => <div key={city.slug} className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {city.name}</h3>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Pilot · not yet live</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">Our {city.areas.join(', ')} pilot is being prepared. Bookings depend on verified available suppliers and exact address coverage. No guaranteed delivery yet.</p>
+                <Link href={`/cities/${city.slug}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-900 hover:underline">Check pilot updates →</Link>
+              </div>)}
+            </div>}
             <div className="grid sm:grid-cols-3 gap-4 mt-5">
               {PIN_CITIES.map(c => (
                 <div key={c.slug} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
