@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
       if (typeof config.surge_charge === 'number') payload.surge_charge = config.surge_charge;
       if (typeof config.emergency_surcharge === 'number') payload.emergency_surcharge = config.emergency_surcharge;
       if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
-      if (Object.keys(servicePrices).length) payload.service_base_prices = { ...(payload.service_base_prices as Record<string, number>), ...servicePrices };
+      payload.service_base_prices = servicePrices;
     }
     return ok(payload);
   } catch (err: unknown) {
