@@ -26,7 +26,7 @@ test('blog is discoverable and exposes original branded article with safe SEO', 
   const detail = read('src/app/blog/[slug]/page.tsx');
   const source = read('src/lib/blog/posts.ts');
   const svg = read('public/images/water-delivery-checklist.svg');
-  assert.match(footer, /href="\/blog"/);
+  assert.match(footer, /\{ href: '\/blog', title: 'Guides & updates' \}/);
   assert.match(source, /20-litre-water-can-delivery-checklist-india/);
   assert.match(source, /coverImage: '\/images\/water-delivery-checklist\.svg'/);
   assert.match(source, /A valid six-digit Indian PIN code/);
