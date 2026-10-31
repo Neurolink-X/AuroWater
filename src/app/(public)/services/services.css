@@ -161,19 +161,33 @@
   transition: box-shadow 0.25s ease, transform 0.25s ease;
 }
 
-/* Image sits in a pressed-in well */
+/* Responsive editorial photography: fill the image well instead of rendering a narrow portrait
+   in a wide empty frame. Keep focal points visible and prevent layout shifts. */
 .sv-card-illustration {
-  margin: 16px 16px 0; padding: 8px; border-radius: 20px;
-  height: clamp(190px, 25vw, 235px);
-  background: #e8f3f7; box-shadow: var(--nm-inset);
-  display: flex; align-items: center; justify-content: center;
+  margin: 12px 12px 0;
+  padding: 0;
+  border-radius: 18px;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  background: #e8f3f7;
   overflow: hidden;
+  position: relative;
 }
-/* The original photographs are 399–557px wide. Avoid cropping and
-   stretching them as oversized wide hero banners on retina screens. */
 .sv-card-illustration img {
-  display: block; width: auto; max-width: 100%; height: 100%;
-  object-fit: contain; border-radius: 14px;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center 35%;
+  border-radius: inherit;
+}
+@media (max-width: 640px) {
+  .sv-body { padding: 28px 16px 64px; }
+  .sv-grid { gap: 22px; padding: 4px; }
+  .sv-card-illustration { margin: 10px 10px 0; aspect-ratio: 16 / 10; }
+  .sv-card-body { padding: 18px 18px 22px; }
+  .sv-chips { padding: 14px 18px 0; }
 }
 
 .sv-card-tag {
