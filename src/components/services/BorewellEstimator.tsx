@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSettings } from '@/hooks/useSettings';
 import { BOREWELL_GUIDE, estimateBorewell, type BorewellDiameter, type BorewellJob } from '@/lib/borewell-estimate';
 
 const currency = (amount: number) => '₹' + amount.toLocaleString('en-IN');
@@ -9,29 +10,33 @@ const field = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text
 const diameters: BorewellDiameter[] = ['4.5', '6', '6.5', '8'];
 
 export default function BorewellEstimator() {
+  const { settings } = useSettings();
   const [job, setJob] = useState<BorewellJob>('drilling');
   const [diameter, setDiameter] = useState<BorewellDiameter>('4.5');
   const [depth, setDepth] = useState(300);
-  const [rate, setRate] = useState(100);
+  const [rate, setRate] = useState<number | null>(null);
   const [casingFeet, setCasingFeet] = useState(0);
   const [pump, setPump] = useState(false);
   const [electrical, setElectrical] = useState(false);
   const [survey, setSurvey] = useState(false);
   const guide = BOREWELL_GUIDE.drilling[diameter];
+  const key = `borewell_drilling_${diameter.replace('.', '_')}`;
+  const publishedRate = settings.service_base_prices[key];
+  const selectedRate = rate ?? (Number.isFinite(publishedRate) && publishedRate >= guide.min && publishedRate <= guide.max ? publishedRate : guide.min);
   const estimate = useMemo(() => {
     try {
       return { result: estimateBorewell({
-        job, diameter, depthFeet: depth, ratePerFoot: rate,
+        job, diameter, depthFeet: depth, ratePerFoot: selectedRate,
         casingFeet, includePump: pump, includeElectrical: electrical, includeSurvey: survey,
       }), error: '' };
     } catch (error) {
       return { result: null, error: error instanceof Error ? error.message : 'Invalid estimate' };
     }
-  }, [job, diameter, depth, rate, casingFeet, pump, electrical, survey]);
+  }, [job, diameter, depth, selectedRate, casingFeet, pump, electrical, survey]);
 
   const changeDiameter = (next: BorewellDiameter) => {
     setDiameter(next);
-    setRate(BOREWELL_GUIDE.drilling[next].min);
+    setRate(null);
   };
   return (
     <section aria-labelledby="borewell-estimate-heading" className="mx-auto max-w-6xl px-5 py-12">
@@ -61,8 +66,8 @@ export default function BorewellEstimator() {
                   <span className="mt-1 block text-xs font-normal text-slate-500">Your contractor will confirm the actual depth.</span>
                 </label>
                 <label className="block font-semibold text-slate-900">4. Indicative drilling rate (₹ per foot)
-                  <input className={`mt-2 ${field}`} type="number" inputMode="numeric" min={guide.min} max={guide.max} step={1} value={rate} onChange={event => setRate(Number(event.target.value))} />
-                  <span className="mt-1 block text-xs font-normal text-slate-500">Guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
+                  <input className={`mt-2 ${field}`} type="number" inputMode="numeric" min={guide.min} max={guide.max} step={1} value={selectedRate} onChange={event => setRate(Number(event.target.value))} />
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Published rate: {currency(selectedRate)}/ft. Guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
                 </label>
                 <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4">
                   <legend className="px-2 font-semibold text-slate-900">Optional work</legend>
