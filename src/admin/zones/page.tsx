@@ -367,13 +367,13 @@ export default function AdminZonesPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
+    <div className="aw-admin-zones mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
       <header>
         <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Service zones</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-600">
           Open or close an area instantly. Changes apply to new bookings right away, with no deployment.
         </p>
-        <p className="mt-3"><a href="/admin/coverage-requests" className="inline-flex rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Review supplier coverage requests</a></p>
+        <p className="mt-3"><a href="/admin/coverage-requests" className="inline-flex rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-800 hover:bg-slate-50">Review supplier coverage requests</a></p>
       </header>
 
       {error ? (
@@ -388,9 +388,9 @@ export default function AdminZonesPage() {
       <form onSubmit={(e) => void addZone(e)} className="mt-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
         <h2 className="font-extrabold text-slate-900">Add a zone</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-4">
-          <input required placeholder="City (e.g. Kanpur)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input required placeholder="Zone name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input placeholder="Pincodes (208017, 208025)" value={form.pincodes} onChange={(e) => setForm({ ...form, pincodes: e.target.value })} className="rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+          <input required placeholder="City (e.g. Kanpur)" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500" />
+          <input required placeholder="Zone name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500" />
+          <input placeholder="Pincodes (208017, 208025)" value={form.pincodes} onChange={(e) => setForm({ ...form, pincodes: e.target.value })} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500" />
           <button type="submit" disabled={adding} className="rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white hover:bg-emerald-700 disabled:opacity-50">
             {adding ? 'Adding…' : '+ Add zone'}
           </button>

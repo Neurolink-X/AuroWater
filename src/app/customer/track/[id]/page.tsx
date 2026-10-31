@@ -164,7 +164,9 @@ export default function TrackOrderPage() {
   const [copied, setCopied] = useState(false);
   // Prevent realtime events, focus events and the polling timer from issuing
   // overlapping reads for the same order.
-  const loadInFlight = useRef(false);
+  const lastFetchAt = useRef(0);
+  const lastLoadedOrderId = useRef('');
+  const loadPromise = useRef<Promise<'success' | 'error' | 'stale'> | null>(null);
   // A realtime status event always wins over an older in-flight REST response.
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
@@ -177,32 +179,47 @@ export default function TrackOrderPage() {
   /** silent=true refreshes in the background without blanking the page. */
   const load = useCallback(
     async (silent = false) => {
-      if (!id || loadInFlight.current) return;
-      loadInFlight.current = true;
+      if (!id) return;
+      if (loadPromise.current) return loadPromise.current;
+      // Avoid duplicate automatic fetches during focus/visibility bursts.
+      if (silent && lastLoadedOrderId.current === id && Date.now() - lastFetchAt.current < 5_000) return;
       const generationAtStart = realtimeGeneration.current;
       if (!silent) {
         setLoading(true);
         setError(null);
       }
+      const request = (async (): Promise<'success' | 'error' | 'stale'> => {
       try {
         const o = (await customerOrderGet(id)) as OrderRow;
         if (mountedRef.current && generationAtStart === realtimeGeneration.current) {
-          setOrder(o);
+          setOrder((previous) => {
+            // Preserve object identity when the server snapshot is unchanged.
+            // This avoids recomputing the full tracking timeline and cards.
+            if (previous && JSON.stringify(previous) === JSON.stringify(o)) return previous;
+            return o;
+          });
+          lastLoadedOrderId.current = id;
+          lastFetchAt.current = Date.now();
           setError(null);
+          return 'success';
         }
+        return 'stale';
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           router.push(`/auth/login?returnTo=${encodeURIComponent(`/customer/track/${id}`)}`);
-          return;
+          return 'error';
         }
         if (!silent && mountedRef.current && generationAtStart === realtimeGeneration.current) {
           setError(e instanceof ApiError ? e.message : 'Could not load order.');
           setOrder(null);
         }
+        return 'error';
       } finally {
-        loadInFlight.current = false;
         if (!silent && mountedRef.current) setLoading(false);
       }
+      })();
+      loadPromise.current = request;
+      try { return await request; } finally { if (loadPromise.current === request) loadPromise.current = null; }
     },
     [id, router]
   );
@@ -248,6 +265,9 @@ export default function TrackOrderPage() {
 
   const status = String(order?.status ?? '');
   const supplierId = String((order as Record<string, unknown> | null)?.supplier_id ?? '').trim();
+  const supplierProfile = (order as Record<string, unknown> | null)?.supplier_profile;
+  const supplierProfileId = supplierProfile && typeof supplierProfile === 'object'
+    ? String((supplierProfile as Record<string, unknown>).id ?? '') : '';
   const technicianId = String((order as Record<string, unknown> | null)?.technician_id ?? '').trim();
   const isActive = ACTIVE.includes(status);
 
@@ -311,7 +331,7 @@ export default function TrackOrderPage() {
 
   /* Supplier profile + rating (re-runs only when the supplier changes) */
   useEffect(() => {
-    const provider = (order as Record<string, unknown> | null)?.supplier_profile;
+    const provider = supplierProfile;
     if (!supplierId || !provider || typeof provider !== 'object') {
       setSupplier(null);
       setSupplierRating(null);
@@ -354,7 +374,7 @@ export default function TrackOrderPage() {
         if (!cancelled) setSupplierRating(averageRating);
       });
     return () => { cancelled = true; };
-  }, [supplierId, session?.accessToken, order]);
+  }, [supplierId, supplierProfileId, session?.accessToken]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
   const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);
@@ -417,8 +437,9 @@ export default function TrackOrderPage() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await load(true);
-      toast.success('Order status refreshed.');
+      const result = await load(true);
+      if (result === 'success') toast.success('Order status is up to date.');
+      else if (result === 'error') toast.error('Could not refresh order. Please try again.');
     } finally {
       setRefreshing(false);
     }

@@ -28,7 +28,7 @@ export function useScrollAnimation({
 
     // Respect reduced motion and old browsers: never hide anything.
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion || !('IntersectionObserver' in window)) return;
+    // On touch devices, prefer immediate content over decorative observers.\n    // This also avoids MutationObserver scans while scrolling long home pages.\n    const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;\n    if (reduceMotion || coarsePointer || !('IntersectionObserver' in window)) return;
 
     const registered = new WeakSet<Element>();
 
