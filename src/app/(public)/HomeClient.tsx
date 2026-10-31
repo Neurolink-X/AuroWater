@@ -5,6 +5,7 @@ import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
+import { useSettings } from '@/hooks/useSettings';
 import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, memberCanPrice, upcomingIncrease, planForQty } from '@/lib/marketing-pricing';
 
 /* ───────── DATA ───────── */
@@ -211,6 +212,27 @@ function PricingSection() {
 
 /* ───────── PAGE ───────── */
 export default function HomeClient() {
+  // Published versioned prices are the source of truth; fallback prices show only while unavailable.
+  const { settings } = useSettings();
+  const currentNormal = Math.max(20, Number(settings.default_can_price) || W.normal);
+  const currentChilled = Math.max(25, Number(settings.chilled_can_price) || W.chilled);
+  const currentPlumbing = Number(settings.service_base_prices?.plumbing) || PRICING.plumber.visitFee;
+  const currentTank = Number(settings.service_base_prices?.tank_cleaning) || PRICING.tank[0].from;
+  const currentDeliveryFee = Number(settings.delivery_fee) || 0;
+  const currentHandlingFee = Number(settings.convenience_fee) || 0;
+  const currentSurgeFee = Number(settings.surge_charge) || 0;
+  const currentEmergencyFee = Number(settings.emergency_surcharge) || 0;
+  const liveServices = useMemo(() => SERVICES.map((service) => {
+    if (service.href.includes('water_can')) return { ...service,
+      badge: `From ₹${currentNormal} / 20L`,
+      body: `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` };
+    if (service.href.includes('plumbing')) return { ...service,
+      badge: `From ₹${currentPlumbing}`,
+      body: 'Tell us your plumbing issue. The applicable visit or repair charges are confirmed in checkout before you book.' };
+    if (service.href.includes('tank_cleaning')) return { ...service,
+      badge: `From ₹${currentTank}` };
+    return service;
+  }), [currentNormal, currentChilled, currentPlumbing, currentTank]);
   const [founding, setFounding] = useState<{ count: number } | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -318,7 +340,7 @@ export default function HomeClient() {
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in {LIVE_CITY_NAMES.replace(' and ', ' & ')} · {PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
-                    <span className="hero-h block mt-2">RO Water from ₹{W.normal},</span>
+                    <span className="hero-h block mt-2">RO Water from ₹{currentNormal},</span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
@@ -331,10 +353,10 @@ export default function HomeClient() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      [`₹${W.normal}`, 'Normal RO · 20L'],
-                      [`₹${W.chilled}`, 'Chilled RO · 20L'],
+                      [`₹${currentNormal}`, 'Normal RO · 20L'],
+                      [`₹${currentChilled}`, 'Chilled RO · 20L'],
                       [`${MAX_LOCK}mo`, 'Price lock on plans'],
-                      [`₹${PRICING.tank[0].from}`, 'Tank cleaning from'],
+                      [`₹${currentTank}`, 'Tank cleaning from'],
                     ].map(([v, l]) => (
                       <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
                         <div className="text-xl font-black text-white">{v}</div>
@@ -364,7 +386,7 @@ export default function HomeClient() {
                   <div className="aw-glass p-5">
                     <p className="font-display text-sm font-bold text-emerald-300 mb-3">Why customers switch</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${W.normal} per 20L can, ₹${W.chilled} for chilled`, `Monthly plans lock your price up to ${MAX_LOCK} months`, `Plumber visit ₹${PRICING.plumber.visitFee}, adjusted in your bill`, `Tank cleaning priced by size from ₹${PRICING.tank[0].from}`].map(i => (
+                      {[`Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled`, `Monthly plans lock your price up to ${MAX_LOCK} months`, `Plumber visit ₹${currentPlumbing}, adjusted in your bill`, `Tank cleaning priced by size from ₹${currentTank}`].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -400,7 +422,7 @@ export default function HomeClient() {
               <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white">Water first. Plumbing and tank care when you need them.</h2>
             </div>
             <div className="flex justify-center gap-2 flex-wrap mb-8" role="tablist">
-              {SERVICES.map((x, i) => (
+              {liveServices.map((x, i) => (
                 <button key={x.title} type="button" role="tab" aria-selected={svc === i} onClick={() => setSvc(i)} className={`aw-tab ${svc === i ? 'active' : ''}`}>{x.icon} {x.title}</button>
               ))}
             </div>
@@ -552,6 +574,15 @@ export default function HomeClient() {
               <p className="mt-2 text-sm leading-6 text-slate-600">Check PIN code coverage, delivery availability and the final order total before confirming.</p>
               <Link href="/blog/how-to-check-20-litre-water-can-delivery" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-cyan-800 hover:underline">Read the guide →</Link>
             </article>
+          </div>
+        </section>
+
+        <section aria-labelledby="live-pricing-notice" className="bg-cyan-50 px-5 py-6 text-slate-900">
+          <div className="mx-auto max-w-6xl rounded-2xl border border-cyan-200 bg-white p-5 sm:p-6">
+            <h2 id="live-pricing-notice" className="text-lg font-extrabold">Current prices & extra fees</h2>
+            <p className="mt-2 text-sm leading-6">Normal RO from ₹{currentNormal} · Chilled RO from ₹{currentChilled}. Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}. Some fees apply only to eligible services or emergency bookings.</p>
+            <p className="mt-2 text-xs leading-5 text-slate-600">Prices reflect published platform settings and may differ by city, service, quantity or scheduled change. The final server-calculated total before confirmation is authoritative.</p>
+            <Link href="/pricing" className="mt-3 inline-flex min-h-11 items-center font-bold text-cyan-800 hover:underline">See full pricing & availability →</Link>
           </div>
         </section>
 
