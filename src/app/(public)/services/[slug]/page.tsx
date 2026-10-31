@@ -192,7 +192,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                 {PHONE && (
                   <a href={`tel:${PHONE}`} className={BTN_GHOST}>Call us</a>
                 )}
-                <Link href="/pricing" prefetch={false} className={BTN_GHOST}>View pricing</Link>
+                <Link href="/pricing" className={BTN_GHOST}>View pricing</Link>
               </div>
 
               {/* Trust points: all true to how booking works today */}
@@ -295,7 +295,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <ul className="mt-8 grid gap-7 md:grid-cols-3">
           {related.map((r) => (
             <li key={r.key}>
-              <Link href={`/services/${r.key}`} prefetch={false} className={`flex h-full flex-col gap-3 p-6 ${RAISED} ${PRESS} ${FOCUS}`}>
+              <Link href={`/services/${r.key}`} className={`flex h-full flex-col gap-3 p-6 ${RAISED} ${PRESS} ${FOCUS}`}>
                 <span aria-hidden className={`${INSET} flex h-12 w-12 items-center justify-center text-2xl`}>{r.icon}</span>
                 <span className="text-lg font-extrabold leading-6">{r.title}</span>
                 <span className="text-sm leading-6 text-slate-600">{r.eyebrow}</span>
