@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { publishedGuides } from '@/lib/blog/posts';
 import { publishedNews } from '@/lib/blog/reviewed-news';
 
@@ -22,7 +23,7 @@ export default function BlogIndex() {
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         {posts.map((post) => (
-          <article key={post.slug} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <article key={post.slug} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">\n            {post.coverImage && <Image src={post.coverImage} alt="Illustrated checklist for 20-litre water can delivery" width={1200} height={630} className="h-auto w-full" loading="lazy" />}\n            <div className="p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{post.category}</p>
             <h2 className="mt-3 text-xl font-semibold text-slate-900">
               <Link className="hover:text-emerald-700 focus-visible:underline" href={`/blog/${post.slug}`}>{post.title}</Link>
@@ -30,6 +31,7 @@ export default function BlogIndex() {
             <p className="mt-3 text-sm leading-6 text-slate-600">{post.description}</p>
             <p className="mt-4 text-xs text-slate-500">Published {new Date(post.publishAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}</p>
             <Link className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700 hover:underline" href={`/blog/${post.slug}`}>Read guide →</Link>
+            </div>
           </article>
         ))}
       </div>
