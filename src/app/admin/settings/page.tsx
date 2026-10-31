@@ -80,11 +80,12 @@ interface FieldMeta {
  * can prices are pinned to the approved launch prices and recurring is capped at the
  * recurring launch price. Set to false once pricing is fully admin-controlled.
  */
-const ENFORCE_LAUNCH_PRICING = true;
+const ENFORCE_LAUNCH_PRICING = false; // Versioned pricing is the canonical rate publisher.
 const LAUNCH = { normal: 20, chilled: 25, recurringMax: 20, bulk: 20 } as const;
-const LOCKED_KEYS: ReadonlySet<ManagedKey> = new Set(
-  ENFORCE_LAUNCH_PRICING ? (['default_can_price', 'chilled_can_price', 'subscription_can_price', 'bulk_can_price', 'bulk_threshold', 'convenience_fee', 'emergency_surcharge'] as ManagedKey[]) : [],
-);
+const LOCKED_KEYS: ReadonlySet<ManagedKey> = new Set([
+  'default_can_price', 'chilled_can_price', 'subscription_can_price',
+  'bulk_can_price', 'bulk_threshold', 'convenience_fee', 'emergency_surcharge',
+]);
 
 const FIELD_META: Record<ManagedKey, FieldMeta> = {
   default_can_price: {
@@ -334,6 +335,8 @@ function validate(values: Values): Errors {
 function buildRequestBody(values: Values): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const key of MANAGED_KEYS) {
+    // Published prices live in immutable pricing_versions, not legacy settings.
+    if (LOCKED_KEYS.has(key)) continue;
     const { kind } = FIELD_META[key];
     const raw = values[key]?.trim() ?? '';
 
@@ -462,7 +465,7 @@ const Field = memo(function Field({
             <rect x="5" y="11" width="14" height="9" rx="2" />
             <path d="M8 11V8a4 4 0 0 1 8 0v3" />
           </svg>
-          Launch price
+          Managed in Pricing
         </span>
       )}
       {dirty && !locked && (
