@@ -276,7 +276,7 @@
 
   // Navigation feedback is shown immediately, even if the route's server
   // payload is still loading. Clear it on successful pathname change.
-  const [openingService, setOpeningService] = useState<string | null>(null);
+  const [, setOpeningService] = useState<string | null>(null);
   const openService = useCallback((key: string) => {
     setOpeningService(key);
     setMobileOpen(false);
