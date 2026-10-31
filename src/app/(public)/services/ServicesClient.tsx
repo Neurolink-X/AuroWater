@@ -187,7 +187,7 @@ export default function ServicesClient() {
         <div className="sv-hero-inner">
           <div className="sv-hero-eyebrow">
             <span className="sv-eyebrow-dot" />
-            Serving {CITY_LINE}
+            Explore services in {CITY_LINE}
           </div>
 
           <h1 className="sv-hero-title">
@@ -200,7 +200,7 @@ export default function ServicesClient() {
           </p>
 
           <ul className="sv-hero-stats">
-            {[`${SERVICES.length} services`, '3 live service zones', 'Upfront pricing', 'Availability checked before booking'].map((t) => (
+            {[`${SERVICES.length} services`, 'Serviceability checked by address', 'Upfront pricing', 'Availability checked before booking'].map((t) => (
               <li key={t} className="sv-stat">
                 <span className="sv-stat-dot" />
                 {t}
@@ -208,6 +208,7 @@ export default function ServicesClient() {
             ))}
           </ul>
 
+          <p className="mt-3 text-sm text-white/80">Service availability and final pricing depend on your address, selected service and checkout details.</p>
           <div className="sv-hero-actions">
             <Link href="/book?service=water_can" className="sv-hero-btn-primary">
               Order 20L Water
