@@ -17,11 +17,11 @@ export function normalizePricingCity(value: unknown): string {
   if (!raw) return '';
   const aliases: Record<string, string> = {
     gurgaon: 'gurugram',
-    'new delhi': 'delhi',
-    'greater noida': 'greater-noida',
+    'new-delhi': 'delhi',
+    'greater-noida': 'greater-noida',
   };
   const normalized = raw.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return aliases[raw] ?? normalized;
+  return aliases[normalized] ?? normalized;
 }
 
 export function isPlainRecord(value: unknown): value is Record<string, unknown> {
