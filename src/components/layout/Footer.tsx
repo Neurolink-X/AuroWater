@@ -1,3 +1,4 @@
+'use client';
 // import Link from 'next/link';
 // // import { MessageCircle } from 'lucide-react';
 
@@ -127,7 +128,7 @@
 
 /* eslint-disable react/no-unescaped-entities */
 import Link from 'next/link';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 /* ─────────────────────────────────────────────
    ICONS — all inline, no external deps
@@ -240,7 +241,24 @@ const TRUST_BADGES = [
 /* ─────────────────────────────────────────────
    FOOTER COMPONENT
 ───────────────────────────────────────────── */
+type CityDisplay = { name: string; status: 'available' | 'limited' | 'coming-soon' };
+
 export default function Footer() {
+  const [publicCities, setPublicCities] = useState<CityDisplay[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/public/service-cities', { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error('City lookup unavailable'); return response.json(); })
+      .then((payload: { cities?: CityDisplay[] }) => {
+        if (Array.isArray(payload.cities)) setPublicCities(payload.cities.slice(0, 30));
+      })
+      .catch(() => { /* Keep existing city fallback when offline. */ });
+    return () => controller.abort();
+  }, []);
+  const displayedCities: CityDisplay[] = publicCities.length ? publicCities : [
+    ...CITIES.map((name) => ({ name, status: 'available' as const })),
+    ...EXPANSION_AREAS.map((name) => ({ name, status: 'coming-soon' as const })),
+  ];
   return (
     <>
       <style>{`
@@ -559,16 +577,12 @@ export default function Footer() {
                 Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Check availability for your address before booking.
               </p>
               <div className="ft-trust-badges" aria-label="Cities we serve">
-                {CITIES.map((city) => (
-                  <div key={city} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Available in</div>
-                    <div className="ft-trust-badge-lbl">{city}</div>
-                  </div>
-                ))}
-                {EXPANSION_AREAS.map((area) => (
-                  <div key={area} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Coming soon</div>
-                    <div className="ft-trust-badge-lbl">{area}</div>
+                {displayedCities.map((city) => (
+                  <div key={city.name} className="ft-trust-badge">
+                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>
+                      {city.status === 'available' ? 'Service area' : city.status === 'limited' ? 'Limited coverage' : 'Coming soon'}
+                    </div>
+                    <div className="ft-trust-badge-lbl">{city.name}</div>
                   </div>
                 ))}
               </div>
