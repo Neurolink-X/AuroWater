@@ -28,9 +28,17 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { data: before } = await db.from('service_zones').select('id, name, city, status').eq('id', id).maybeSingle();
   if (!before) return jsonErr('Zone not found', 404);
 
+  // Preserve canonical city relationship when an administrator edits a zone's city.
+  let canonicalCityId: string | null | undefined;
+  if (typeof parsed.value.city === 'string') {
+    const { data: canonical, error: cityError } = await db.from('cities')
+      .select('id').ilike('name', parsed.value.city.trim()).limit(1).maybeSingle();
+    if (cityError) return jsonErr('Could not verify city directory.',503);
+    canonicalCityId = canonical?.id ?? null;
+  }
   const { data, error } = await db
     .from('service_zones')
-    .update({ ...parsed.value, updated_at: new Date().toISOString() })
+    .update({ ...parsed.value, ...(canonicalCityId !== undefined ? {city_id:canonicalCityId} : {}), updated_at: new Date().toISOString() })
     .eq('id', id)
     .select('*')
     .single();

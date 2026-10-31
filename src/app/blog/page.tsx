@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { publishedGuides } from '@/lib/blog/posts';
+import { allPublishedGuides } from '@/lib/blog/managed-posts';
 import { publishedNews } from '@/lib/blog/reviewed-news';
 
 export const revalidate = 3600;
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 const date = (value: string) => new Date(value).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
 const readTime = (sections: readonly { paragraphs: readonly string[] }[]) => Math.max(1, Math.ceil(sections.reduce((n, s) => n + s.paragraphs.join(' ').split(/\s+/).length, 0) / 200));
 
-export default function BlogIndex() {
-  const posts = publishedGuides();
+export default async function BlogIndex() {
+  const posts = await allPublishedGuides();
   const news = publishedNews();
   const [featured, ...others] = posts;
   return <main className="min-h-[70vh] bg-slate-50 text-slate-900">
