@@ -125,13 +125,13 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
                 <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
                 <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(chilled)} / can</p>
                 <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
-                <p className="mt-1 text-xs text-slate-500">Actual plan eligibility and price lock are confirmed when booking.</p>
+                
               </div>
             );
           })}
         </div>
 
-        {/* Calculator */}
+        <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">Plan availability and any price-lock terms are shown before you confirm your booking.</p>\n\n        {/* Calculator */}
         <div className="rounded-3xl bg-slate-900 text-white p-6 sm:p-8 grid lg:grid-cols-2 gap-8">
           <div>
             <h3 className="font-display text-xl font-extrabold">Savings calculator</h3>
