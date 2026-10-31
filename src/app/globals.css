@@ -605,3 +605,75 @@
     will-change: auto;
   }
 }
+
+
+/* Consistent readable controls across public and role-specific screens.
+   Explicit component colors take precedence; these are safe defaults only. */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea {
+    min-width: 0;
+    font-size: max(16px, 1em);
+    line-height: 1.45;
+  }
+  input::placeholder, textarea::placeholder { opacity: 1; }
+  input:disabled, textarea:disabled, select:disabled {
+    cursor: not-allowed;
+  }
+  button:disabled, a[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  button, a, select, summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html:focus-within { scroll-behavior: auto; }
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+/* Keep card content legible even when a dark page wrapper supplies its own
+   foreground token. Avoid overriding deliberately dark card components. */
+.aw-admin-zones :is(form.bg-white, article.bg-white) {
+  color-scheme: light;
+}
+.aw-admin-zones :is(form.bg-white, article.bg-white) :is(input, textarea) {
+  border-color: #cbd5e1;
+  box-shadow: none;
+}
+.aw-admin-zones :is(form.bg-white, article.bg-white) :is(input, textarea):focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, .14);
+}
+.aw-admin-zones :is(form.bg-white, article.bg-white) :is(input, textarea):disabled {
+  background: #f1f5f9;
+  color: #475569;
+}
+.aw-admin-zones :is(form.bg-white, article.bg-white) p.text-slate-400 {
+  color: #64748b;
+}
+.aw-admin-zones > section > h2 span {
+  color: #cbd5e1;
+}
+.aw-admin-zones > header a:hover {
+  background: #f1f5f9;
+}
+.aw-admin-zones :is(button, a, input, select) {
+  touch-action: manipulation;
+}
+@media (max-width: 640px) {
+  .aw-admin-zones > header h1 {
+    font-size: clamp(1.5rem, 6vw, 2rem);
+    line-height: 1.2;
+  }
+  .aw-admin-zones > header p {
+    line-height: 1.6;
+  }
+  .aw-admin-zones :is(form.bg-white, article.bg-white) {
+    overflow-wrap: anywhere;
+  }
+}
