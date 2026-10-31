@@ -1156,6 +1156,7 @@ import { safeSet } from '@/lib/storage';
 /** "Services" is rendered separately (link + quick-book menu). */
 const PRIMARY_LINKS = [
   { label: 'How it works', href: '/how-it-works', hint: 'Order in three steps' },
+  { label: 'Blog & Guides', href: '/blog', hint: 'Water delivery and home care advice' },
   { label: 'Pricing', href: '/pricing', hint: 'Clear, upfront rates' },
 ];
 
