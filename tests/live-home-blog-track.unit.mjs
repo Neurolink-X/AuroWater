@@ -10,11 +10,15 @@ test('homepage prices are from versioned live settings, not immutable marketing 
   assert.match(home, /currentChilled = Math.max\(25/);
   assert.match(home, /liveServices\[svc\]/);
   assert.match(home, /liveServices\.map\(/);
+  assert.match(home, /<PricingSection normal=\{currentNormal\} chilled=\{currentChilled\}/);
   assert.match(home, /currentDeliveryFee/);
   assert.match(home, /currentHandlingFee/);
   assert.match(home, /currentSurgeFee/);
   assert.match(home, /currentEmergencyFee/);
   assert.doesNotMatch(meta.slice(0, 4000), /price: PRICING\.water\./);
+  assert.doesNotMatch(home, /Most popular · Best for families/);
+  assert.match(home, /Pilot · not yet live/);
+  assert.match(read('src/lib/marketing-pricing.ts'), /status: 'pilot' as CityStatus/);
 });
 test('blog is discoverable and exposes original branded article with safe SEO', () => {
   const footer = read('src/components/layout/Footer.tsx');
