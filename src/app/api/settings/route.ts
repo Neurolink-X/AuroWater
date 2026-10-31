@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     };
 
     // Public prices follow the same effective immutable version as server checkout.
-    // The legacy settings payload remains the fallback until migration 021 is applied.
+    // Fail closed if the authoritative version table is unavailable.
     const { data: activeVersion, error: versionError } = await supabase
       .from('pricing_versions')
       .select('version, effective_from, config')
@@ -97,11 +97,11 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (versionError && !['42P01', 'PGRST205'].includes(String(versionError.code ?? ''))) {
+    if (versionError) {
       console.error('[settings] active pricing lookup failed', { code: versionError.code });
       return NextResponse.json({ success: false, error: 'Live pricing temporarily unavailable.' }, { status: 503, headers: CACHE });
     }
-    if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
+    if (activeVersion?.config && typeof activeVersion.config === 'object') {
       const publishedConfig = activeVersion.config as Record<string, unknown>;
       const requestedCity = req.nextUrl.searchParams.get('city');
       const cityKey = normalizePricingCity(requestedCity);
