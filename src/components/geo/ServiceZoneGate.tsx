@@ -12,15 +12,30 @@ type Props = {
 export default function ServiceZoneGate({ onInZone }: Props) {
   const [blocked, setBlocked] = useState(false);
   const [cityGuess, setCityGuess] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [accuracyWarning, setAccuracyWarning] = useState('');
 
   const locate = () => {
+    if (locating) return;
+    setAccuracyWarning('');
     if (!navigator.geolocation) {
       toast.error('Location is not available on this device.');
       return;
     }
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude, longitude } = pos.coords;
+        setLocating(false);
+        const { latitude, longitude, accuracy } = pos.coords;
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(accuracy)) {
+          toast.error('Location accuracy is unavailable. Enter your address or PIN code manually.');
+          return;
+        }
+        if (accuracy > 1500) {
+          setAccuracyWarning('Location is too approximate to confirm a delivery area. Please enable precise location or enter your address and PIN code.');
+          return;
+        }
+        if (accuracy > 200) setAccuracyWarning('Your location is approximate. Confirm your building and PIN code before ordering.');
         const zone = getServiceZone(latitude, longitude);
         if (!zone) {
           setBlocked(true);
@@ -28,9 +43,13 @@ export default function ServiceZoneGate({ onInZone }: Props) {
         }
         setBlocked(false);
         onInZone?.(zone.city, latitude, longitude);
-        toast.success(`We deliver in ${zone.city}.`);
+        toast.success(`Your location is near ${zone.city}. Verify delivery availability at checkout.`);
       },
-      () => toast.error('Could not read your location. Allow location access or pick a city address.')
+      () => {
+        setLocating(false);
+        toast.error('Could not read your location. Allow location access or pick a city address.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
     );
   };
 
@@ -41,10 +60,13 @@ export default function ServiceZoneGate({ onInZone }: Props) {
       <button
         type="button"
         onClick={locate}
+        disabled={locating}
+        aria-busy={locating}
         className="mt-3 rounded-xl bg-[#0A1628] px-4 py-2 text-xs font-extrabold text-white"
       >
-        Use my location
+        {locating ? 'Detecting location…' : 'Use my location'}
       </button>
+      {accuracyWarning && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{accuracyWarning}</p>}
       {blocked && (
         <div className="mt-4 space-y-3">
           <p className="font-semibold text-amber-950">{OUT_OF_ZONE_MESSAGE}</p>
