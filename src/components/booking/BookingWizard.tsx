@@ -2144,7 +2144,7 @@ export default function BookingWizard() {
                               <p className="font-semibold">What to do next</p>
                               <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
                                 <li>Enter your house number, area, city and 6-digit PIN code below.</li>
-                                <li>To use GPS, turn on device location and allow location for this website in browser settings.</li>
+                                <li>First check that Location is ON in your phone settings (Settings → Location). Then open this site's permissions in your browser and select Allow location. If location is still unavailable, enter the address manually.</li>
                                 <li>Tap “Try again” after updating permission, if you prefer automatic detection.</li>
                               </ol>
                             </div>
