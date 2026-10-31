@@ -19,7 +19,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   for (const [key, label, minimum] of [['water_normal','Normal water',20],['water_chilled','Chilled water',25],['water_subscription','Subscription water',20],['bulk_can_price','Bulk water',20]] as const) {
     if (!money(v[key], minimum, 500)) return { error: label + ' price must be between ₹' + minimum + ' and ₹500 under the current launch pricing policy.' };
   }
-  if (!Number.isInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
+  if (!Number.isSafeInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
   if (!money(v.convenience_fee, 0, 500) || !money(v.emergency_surcharge, 0, 5000)) return { error: 'Fees are outside the allowed range.' };
   if (v.delivery_fee !== undefined && !money(v.delivery_fee, 0, 500)) return { error: 'Delivery fee must be between ₹0 and ₹500.' };
   if (v.surge_charge !== undefined && !money(v.surge_charge, 0, 5000)) return { error: 'Surge charge must be between ₹0 and ₹5000.' };
@@ -28,7 +28,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   if (!v.services || typeof v.services !== 'object' || Array.isArray(v.services)) return { error: 'Service prices are required.' };
   const serviceEntries: Array<[string, number]> = [];
   for (const [key, value] of Object.entries(v.services as Record<string, unknown>)) {
-    if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 1, 100000)) return { error: 'Invalid service price: ' + key };
+    if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 0, 100000) || Math.abs(Math.round((value as number) * 100) - (value as number) * 100) > 1e-7) return { error: 'Invalid service price: ' + key };
     serviceEntries.push([key, Math.round(value * 100) / 100]);
   }
   const services = Object.fromEntries(serviceEntries) as Record<string, number>;
