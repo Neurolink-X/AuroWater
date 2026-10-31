@@ -164,11 +164,9 @@ export default function TrackOrderPage() {
   const [copied, setCopied] = useState(false);
   // Prevent realtime events, focus events and the polling timer from issuing
   // overlapping reads for the same order.
-  const loadInFlight = useRef(false);
   const lastFetchAt = useRef(0);
   const lastLoadedOrderId = useRef('');
-  const lastRequestResult = useRef<'success' | 'error' | null>(null);
-  const loadPromise = useRef<Promise<void> | null>(null);
+  const loadPromise = useRef<Promise<'success' | 'error' | 'stale'> | null>(null);
   // A realtime status event always wins over an older in-flight REST response.
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
@@ -185,13 +183,12 @@ export default function TrackOrderPage() {
       if (loadPromise.current) return loadPromise.current;
       // Avoid duplicate automatic fetches during focus/visibility bursts.
       if (silent && lastLoadedOrderId.current === id && Date.now() - lastFetchAt.current < 5_000) return;
-      loadInFlight.current = true;
       const generationAtStart = realtimeGeneration.current;
       if (!silent) {
         setLoading(true);
         setError(null);
       }
-      const request = (async () => {
+      const request = (async (): Promise<'success' | 'error' | 'stale'> => {
       try {
         const o = (await customerOrderGet(id)) as OrderRow;
         if (mountedRef.current && generationAtStart === realtimeGeneration.current) {
@@ -201,28 +198,28 @@ export default function TrackOrderPage() {
             if (previous && JSON.stringify(previous) === JSON.stringify(o)) return previous;
             return o;
           });
-          lastRequestResult.current = 'success';
           lastLoadedOrderId.current = id;
           lastFetchAt.current = Date.now();
           setError(null);
+          return 'success';
         }
+        return 'stale';
       } catch (e) {
-        lastRequestResult.current = 'error';
         if (e instanceof ApiError && e.status === 401) {
           router.push(`/auth/login?returnTo=${encodeURIComponent(`/customer/track/${id}`)}`);
-          return;
+          return 'error';
         }
         if (!silent && mountedRef.current && generationAtStart === realtimeGeneration.current) {
           setError(e instanceof ApiError ? e.message : 'Could not load order.');
           setOrder(null);
         }
+        return 'error';
       } finally {
-        loadInFlight.current = false;
         if (!silent && mountedRef.current) setLoading(false);
       }
       })();
       loadPromise.current = request;
-      try { await request; } finally { loadPromise.current = null; }
+      try { return await request; } finally { if (loadPromise.current === request) loadPromise.current = null; }
     },
     [id, router]
   );
@@ -440,9 +437,9 @@ export default function TrackOrderPage() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      await load(true);
-      if (lastRequestResult.current === 'success') toast.success('Order status is up to date.');
-      else toast.error('Could not refresh order. Please try again.');
+      const result = await load(true);
+      if (result === 'success') toast.success('Order status is up to date.');
+      else if (result === 'error') toast.error('Could not refresh order. Please try again.');
     } finally {
       setRefreshing(false);
     }
