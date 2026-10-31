@@ -231,10 +231,23 @@ export default function HomeClient() {
   const [busy, setBusy] = useState(false);
   const [svc, setSvc] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [season, setSeason] = useState<'diwali' | 'winter' | 'summer' | 'everyday'>('everyday');
+  const [season, setSeason] = useState<'festive' | 'winter' | 'summer' | 'everyday'>('everyday');
   useEffect(() => {
-    const month = new Date().getMonth();
-    setSeason(month === 9 || month === 10 ? 'diwali' : month === 11 || month <= 1 ? 'winter' : month >= 3 && month <= 6 ? 'summer' : 'everyday');
+    // Refresh season when the tab becomes visible and at most once per hour.
+    // No animation loops, polling requests, or scroll listeners.
+    const refreshSeason = () => {
+      if (document.visibilityState !== 'visible') return;
+      const month = new Date().getMonth();
+      const next = month === 9 || month === 10 ? 'festive' : month === 11 || month <= 1 ? 'winter' : month >= 3 && month <= 6 ? 'summer' : 'everyday';
+      setSeason(next);
+    };
+    refreshSeason();
+    document.addEventListener('visibilitychange', refreshSeason, { passive: true });
+    const interval = window.setInterval(refreshSeason, 60 * 60 * 1000);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshSeason);
+      window.clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -320,12 +333,13 @@ export default function HomeClient() {
         .aw-mql{animation:aw-mql 42s linear infinite}.aw-mqr{animation:aw-mqr 48s linear infinite}
         .aw-mql:hover,.aw-mqr:hover{animation-play-state:paused}
         .aw-prog{background:linear-gradient(90deg,#0284c7,#22d3ee,#10b981)}
-        .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:5px 2px 14px}
+        .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;padding:5px 2px 14px}
         .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
         .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
         @keyframes aw-campaign-float{0%,100%{transform:translateY(0);opacity:.65}50%{transform:translateY(-7px);opacity:1}}
         @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){.aw-campaign-spark{animation:aw-campaign-float 5s ease-in-out infinite}}
         @media (prefers-reduced-motion:reduce){.aw-campaign-spark{animation:none!important}}
+        @media (hover:none) and (pointer:coarse){.aw-campaign-spark{animation:none!important}}
         @media(prefers-reduced-motion:reduce){.aw-mql,.aw-mqr,.aw-btn,.aw-live{animation:none}}
       `}</style>
 
@@ -405,7 +419,7 @@ export default function HomeClient() {
         <section aria-label="Explore AuroTap services" className="bg-slate-50 px-5 pt-7 pb-5 sm:px-8">
           <div className="mx-auto max-w-6xl">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-extrabold text-slate-900 sm:text-xl">{season === 'diwali' ? '✨ Festive season essentials' : season === 'summer' ? '☀️ Summer essentials' : season === 'winter' ? '❄️ Home care this season' : 'Discover AuroTap services'}</h2>
+              <h2 className="font-display text-lg font-extrabold text-slate-900 sm:text-xl">{season === 'festive' ? '✨ Festive season essentials' : season === 'summer' ? '☀️ Summer essentials' : season === 'winter' ? '❄️ Home care this season' : 'Discover AuroTap services'}</h2>
               <span className="text-xs text-slate-500">Swipe to explore →</span>
             </div>
             <div className="aw-campaign-rail" role="region" aria-label="Swipeable service highlights" tabIndex={0}>
