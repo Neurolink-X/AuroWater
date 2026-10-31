@@ -14,6 +14,7 @@ export default function NoidaReadinessPage() {
   const [data, setData] = useState<Readiness | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
@@ -37,7 +38,7 @@ export default function NoidaReadinessPage() {
     }
     void load();
     return () => { active = false; controller.abort(); };
-  }, []);
+  }, [version]);
   return <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
     <div className="mx-auto max-w-3xl space-y-6">
       <Link href="/admin/dashboard" className="text-sm font-semibold text-cyan-800 hover:underline">← Admin dashboard</Link>
@@ -46,7 +47,7 @@ export default function NoidaReadinessPage() {
         <p className="mt-3 leading-7 text-slate-600">City discovery is not proof of delivery capacity. Check the verified, online and stocked supplier gate before advertising Noida as live.</p>
       </header>
       {loading && <p role="status">Checking live operational readiness…</p>}
-      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900"><p>{error}</p><button type="button" onClick={() => { setError(''); setLoading(true); setVersion(v => v + 1); }} className="mt-3 rounded-lg bg-red-800 px-4 py-2 text-sm font-semibold text-white">Retry readiness check</button></div>}
       {data && <div className="space-y-5">
         <div className={data.launch_ready ? 'rounded-2xl border border-emerald-300 bg-emerald-50 p-6' : 'rounded-2xl border border-amber-300 bg-amber-50 p-6'}>
           <p className="text-xs font-bold uppercase">Pilot readiness gate</p>
