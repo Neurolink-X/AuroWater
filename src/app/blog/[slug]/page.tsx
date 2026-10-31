@@ -45,7 +45,8 @@ export default async function BlogArticle({ params }: Props) {
         <h1 className="mt-3 text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">{post.title}</h1>
         <p className="mt-4 text-lg leading-8 text-slate-600">{post.description}</p>
         <p className="mt-3 text-sm text-slate-500">Published {new Date(post.publishAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}</p>
-        {post.coverImage && <Image src={post.coverImage} alt="Illustrated 20-litre drinking-water delivery checklist" width={1200} height={630} priority className="mt-8 h-auto w-full rounded-2xl border border-cyan-100" />}\n        <div className="mt-10 space-y-10">
+        {post.coverImage && <Image src={post.coverImage} alt="Illustrated 20-litre drinking-water delivery checklist" width={1200} height={630} priority className="mt-8 h-auto w-full rounded-2xl border border-cyan-100" />}
+        <div className="mt-10 space-y-10">
           {post.sections.map((section) => <section key={section.heading}>
             <h2 className="text-2xl font-semibold text-slate-900">{section.heading}</h2>
             {section.paragraphs.map((paragraph) => <p key={paragraph} className="mt-4 leading-8 text-slate-700">{paragraph}</p>)}
