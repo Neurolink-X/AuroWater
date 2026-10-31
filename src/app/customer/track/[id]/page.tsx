@@ -167,6 +167,7 @@ export default function TrackOrderPage() {
   const loadInFlight = useRef(false);
   const lastFetchAt = useRef(0);
   const lastLoadedOrderId = useRef('');
+  const lastRequestResult = useRef<'success' | 'error' | null>(null);
   // A realtime status event always wins over an older in-flight REST response.
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
@@ -197,11 +198,13 @@ export default function TrackOrderPage() {
             if (previous && JSON.stringify(previous) === JSON.stringify(o)) return previous;
             return o;
           });
+          lastRequestResult.current = 'success';
           lastLoadedOrderId.current = id;
           lastFetchAt.current = Date.now();
           setError(null);
         }
       } catch (e) {
+        lastRequestResult.current = 'error';
         if (e instanceof ApiError && e.status === 401) {
           router.push(`/auth/login?returnTo=${encodeURIComponent(`/customer/track/${id}`)}`);
           return;
@@ -260,6 +263,8 @@ export default function TrackOrderPage() {
   const status = String(order?.status ?? '');
   const supplierId = String((order as Record<string, unknown> | null)?.supplier_id ?? '').trim();
   const supplierProfile = (order as Record<string, unknown> | null)?.supplier_profile;
+  const supplierProfileId = supplierProfile && typeof supplierProfile === 'object'
+    ? String((supplierProfile as Record<string, unknown>).id ?? '') : '';
   const technicianId = String((order as Record<string, unknown> | null)?.technician_id ?? '').trim();
   const isActive = ACTIVE.includes(status);
 
@@ -366,7 +371,7 @@ export default function TrackOrderPage() {
         if (!cancelled) setSupplierRating(averageRating);
       });
     return () => { cancelled = true; };
-  }, [supplierId, session?.accessToken, supplierProfile]);
+  }, [supplierId, supplierProfileId, session?.accessToken]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
   const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);
@@ -430,7 +435,8 @@ export default function TrackOrderPage() {
     setRefreshing(true);
     try {
       await load(true);
-      toast.success('Order status refreshed.');
+      if (lastRequestResult.current === 'success') toast.success('Order status is up to date.');
+      else toast.error('Could not refresh order. Please try again.');
     } finally {
       setRefreshing(false);
     }
