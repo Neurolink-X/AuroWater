@@ -32,15 +32,15 @@ const SERVICES = [
 ] as const;
 
 const WHY = [
-  { icon: '💰', t: 'Price before you pay', d: 'Review the full order total before confirming. No surprise add-ons.', c: '#10b981' },
-  { icon: '📉', t: 'Price lock', d: `Monthly plans keep your per-can price fixed for up to ${MAX_LOCK} months, even if list prices change.`, c: '#0ea5e9' },
+  { icon: '💰', t: 'Price before you pay', d: 'Review the checkout total, including applicable charges, before confirming.', c: '#10b981' },
+  { icon: '📉', t: 'Plan options', d: 'Review recurrence and any applicable price-lock terms when choosing a plan.', c: '#0ea5e9' },
   { icon: '✅', t: 'Verified partners', d: 'Suppliers and technicians go through verification before they receive jobs.', c: '#8b5cf6' },
   { icon: '📱', t: 'Order updates', d: 'Follow your booking status from request to completion.', c: '#f59e0b' },
 ] as const;
 
 const ROLES = [
   { icon: '💧', title: 'I need water, plumber or tank cleaning', href: '/auth/register', cta: 'Sign Up Free →',
-    perks: ['30-second signup', 'No documents needed', 'Order immediately'], g: 'from-sky-500 to-cyan-400' },
+    perks: ['Simple signup', 'No business verification for customer registration', 'Check availability before booking'], g: 'from-sky-500 to-cyan-400' },
   { icon: '🚛', title: 'I supply water', href: '/register/pro?type=supplier', cta: 'Apply as Supplier →',
     perks: ['KYC verification', 'Admin approval', 'Receive orders once approved'], g: 'from-emerald-500 to-teal-400' },
   { icon: '🔧', title: "I'm a plumber / tank cleaner", href: '/register/pro?type=technician', cta: 'Apply as Technician →',
@@ -124,7 +124,7 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
                 <p className="mt-1 text-xs sm:text-sm leading-snug text-slate-500">{p.note}</p>
                 <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
                 <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(chilled)} / can</p>
-                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Price locked ${p.lockMonths} months` : 'Standard price'}</p>
+                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
                 <p className="mt-1 text-xs text-slate-500">Actual plan eligibility and price lock are confirmed when booking.</p>
               </div>
             );
