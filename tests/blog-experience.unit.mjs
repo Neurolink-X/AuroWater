@@ -11,8 +11,8 @@ test('blog is discoverable in active mobile drawer and footer navigation', () =>
   const footer = read('src/components/layout/Footer.tsx');
   assert.match(header, /\{ label: 'Blog & Guides', href: '\/blog'/);
   assert.match(header, /const drawerLinks =/);
-  assert.match(footer, /\{ label: 'Blog & Guides', href: '\/blog'/);
-  assert.match(footer, /NAV_LINKS\.map/);
+  assert.match(footer, /\{ href: '\/blog', title: 'Guides & updates' \}/);
+  assert.match(footer, /QUICK_LINKS\.map/);
 });
 
 test('blog index renders editorial cards, safe article links and reviewed updates', () => {
