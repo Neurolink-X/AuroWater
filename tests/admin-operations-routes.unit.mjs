@@ -43,7 +43,8 @@ test('city readiness remains admin-only and never approves citywide launch', () 
   assert.match(api, /\.from\('cities'\)/);
   assert.match(api, /\.from\('service_zones'\)/);
   assert.match(api, /stockedIds/);
-  assert.match(api, /not citywide launch approval/);
+  assert.match(api, /not permission to launch a city/);
+  assert.match(api, /service-specific eligibility and dispatch capacity/);
   const shell = read('src/components/admin/AdminShell.tsx');
   assert.match(shell, /href: '\/admin\/zones'/);
   assert.match(shell, /href: '\/admin\/city-readiness'/);
