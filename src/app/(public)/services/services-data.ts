@@ -161,13 +161,13 @@ export const CATEGORY_ICONS: Record<ServiceCategory, string> = {
 
 /* ── Images: one lookup table instead of long ternary chains ── */
 export const ILLUSTRATIONS: Record<ServiceKey, string> = {
-  water_can: '/illustrations/water-can-delivery.svg',
-  water_tanker: '/illustrations/water-tanker.svg',
-  ro_service: '/illustrations/pump-service.svg',
-  motor_pump: '/illustrations/pump-service.svg',
-  tank_cleaning: '/illustrations/tank-cleaning.svg',
-  plumbing: '/illustrations/plumber-repair.svg',
-  borewell: '/illustrations/home-technician.svg',
+  water_can: '/images/water_can.webp',
+  water_tanker: '/images/water_tanker.webp',
+  ro_service: '/images/ro_service.webp',
+  motor_pump: '/images/motor_pump.webp',
+  tank_cleaning: '/images/tank_cleaning.webp',
+  plumbing: '/images/plumbing.webp',
+  borewell: '/images/borewell.webp',
 };
 
 export const ILLUSTRATION_ALT: Record<ServiceKey, string> = {

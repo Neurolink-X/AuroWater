@@ -265,8 +265,8 @@ export default function ServicesClient() {
           <div className="sv-help-main">
             <div className="sv-help-well">
               <Image
-                src="/illustrations/home-technician.svg"
-                alt="Home-service professional illustration"
+                src="/images/plumbing.webp"
+                alt="Illustrative photograph of plumbing service work"
                 width={160}
                 height={105}
                 loading="lazy"
