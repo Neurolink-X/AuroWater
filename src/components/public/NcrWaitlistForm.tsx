@@ -27,7 +27,7 @@ export default function NcrWaitlistForm({
     if (status === 'sending') return;
     if (!city.trim() || (city === 'Other city' && otherCity.trim().length < 2)) {
       setStatus('error');
-      setMessage('Choose a city first.');
+      setMessage(city === 'Other city' ? 'Enter the city name.' : 'Choose a city first.');
       return;
     }
     setStatus('sending');
@@ -40,7 +40,7 @@ export default function NcrWaitlistForm({
           custom_city: city === 'Other city' ? otherCity.trim() : city,
           area,
           pincode: pincode || null,
-                    name: 'NCR resident',
+          name: 'Waitlist visitor',
           email: email || null,
           phone: phone || null,
           role: 'customer',
