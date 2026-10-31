@@ -34,7 +34,7 @@ export function estimateBorewell(input: BorewellEstimateInput): {
   const guide = BOREWELL_GUIDE.drilling[input.diameter];
   if (!guide) throw new RangeError('Unsupported borewell diameter');
   const rate = input.ratePerFoot ?? guide.min;
-  if (!Number.isFinite(rate) || rate < guide.min || rate > guide.max) throw new RangeError('Rate outside indicative diameter range');
+  if (!Number.isFinite(rate) || rate <= 0 || rate > 100000) throw new RangeError('Invalid drilling rate');
   const lines: BorewellLine[] = [{ label: `Drilling (${depth} ft × ₹${rate}/ft)`, amount: depth * rate, provisional: true }];
   if (input.casingFeet !== undefined) {
     const feet = input.casingFeet;
