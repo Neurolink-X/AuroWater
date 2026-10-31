@@ -16,6 +16,9 @@
     "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs tests/unit/*.test.mjs",
     "db:audit-migrations": "node scripts/audit-supabase-migrations.mjs",
     "db:inspect-live": "node scripts/inspect-supabase-readiness.mjs",
+    "db:audit-indexes": "node scripts/audit-index-overlap.mjs",
+    "content:discover": "node scripts/discover-water-news.mjs",
+    "smoke:health": "node scripts/check-site-health.mjs",
     "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
     "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs"
   },
