@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
@@ -110,5 +111,6 @@ export async function POST(req: NextRequest) {
       : code === '23505' ? 'A concurrent pricing publish occurred. Refresh history and try again.'
       : 'Pricing could not be published. The database transaction was rolled back.', code === '42501' ? 403 : 409);
   }
+  for (const route of ['/', '/pricing', '/services', '/book', '/service-areas']) revalidatePath(route);
   return jsonOk(published, 201);
 }
