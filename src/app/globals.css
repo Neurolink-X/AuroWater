@@ -806,3 +806,35 @@
     scroll-behavior: auto;
   }
 }
+
+
+/* Mobile scrolling and touch interaction baseline.
+ * Never disable document scrolling to hide layout overflow.
+ * Contain expensive offscreen sections without changing their semantics.
+ */
+@media (pointer: coarse) {
+  html, body {
+    touch-action: pan-y pinch-zoom;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  button, a, input, select, textarea {
+    touch-action: manipulation;
+  }
+}
+@media (max-width: 767px) {
+  main {
+    min-width: 0;
+    max-width: 100%;
+  }
+  main :is(section, article, aside) {
+    min-width: 0;
+  }
+  main :is(img, video, svg) {
+    max-width: 100%;
+  }
+  .responsive-table-scroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}

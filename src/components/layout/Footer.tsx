@@ -1,3 +1,4 @@
+'use client';
 // import Link from 'next/link';
 // // import { MessageCircle } from 'lucide-react';
 
@@ -127,7 +128,7 @@
 
 /* eslint-disable react/no-unescaped-entities */
 import Link from 'next/link';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 /* ─────────────────────────────────────────────
    ICONS — all inline, no external deps
@@ -240,7 +241,24 @@ const TRUST_BADGES = [
 /* ─────────────────────────────────────────────
    FOOTER COMPONENT
 ───────────────────────────────────────────── */
+type CityDisplay = { name: string; status: 'available' | 'limited' | 'coming-soon' };
+
 export default function Footer() {
+  const [publicCities, setPublicCities] = useState<CityDisplay[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/public/service-cities', { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error('City lookup unavailable'); return response.json(); })
+      .then((payload: { cities?: CityDisplay[] }) => {
+        if (Array.isArray(payload.cities)) setPublicCities(payload.cities.slice(0, 30));
+      })
+      .catch(() => { /* Keep existing city fallback when offline. */ });
+    return () => controller.abort();
+  }, []);
+  const displayedCities: CityDisplay[] = publicCities.length ? publicCities : [
+    ...CITIES.map((name) => ({ name, status: 'available' as const })),
+    ...EXPANSION_AREAS.map((name) => ({ name, status: 'coming-soon' as const })),
+  ];
   return (
     <>
       <style>{`
@@ -359,12 +377,12 @@ export default function Footer() {
 
         /* Trust badges */
         .ft-trust-badges {
-          display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px;
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr)); gap: 8px; margin-bottom: 22px;
         }
         .ft-trust-badge {
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 8px; padding: 7px 12px; text-align: center;
+          border-radius: 10px; padding: 10px 12px; text-align: left; min-width: 0;
           min-width: 64px;
         }
         .ft-trust-badge-val {
@@ -372,7 +390,7 @@ export default function Footer() {
           font-size: 14px; color: #60A5FA; letter-spacing: -0.3px; line-height: 1;
         }
         .ft-trust-badge-lbl {
-          font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.72);
+          font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.72);
           text-transform: uppercase; letter-spacing: 0.07em; margin-top: 2px;
         }
 
@@ -401,10 +419,10 @@ export default function Footer() {
         .ft-link-list { display: flex; flex-direction: column; }
         .ft-link {
           display: inline-flex; align-items: center; gap: 5px;
-          font-size: 13px; color: rgba(255,255,255,0.45);
+          font-size: 13px; color: rgba(255,255,255,0.82);
           text-decoration: none; font-weight: 500;
-          line-height: 1;
-          padding: 5px 0;
+          line-height: 1.5;
+          padding: 7px 0;
           margin-bottom: 0;
           transition: color 0.15s; width: fit-content;
         }
@@ -559,16 +577,12 @@ export default function Footer() {
                 Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Check availability for your address before booking.
               </p>
               <div className="ft-trust-badges" aria-label="Cities we serve">
-                {CITIES.map((city) => (
-                  <div key={city} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Available in</div>
-                    <div className="ft-trust-badge-lbl">{city}</div>
-                  </div>
-                ))}
-                {EXPANSION_AREAS.map((area) => (
-                  <div key={area} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Coming soon</div>
-                    <div className="ft-trust-badge-lbl">{area}</div>
+                {displayedCities.map((city) => (
+                  <div key={city.name} className="ft-trust-badge">
+                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>
+                      {city.status === 'available' ? 'Service area' : city.status === 'limited' ? 'Limited coverage' : 'Coming soon'}
+                    </div>
+                    <div className="ft-trust-badge-lbl">{city.name}</div>
                   </div>
                 ))}
               </div>
