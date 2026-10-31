@@ -239,12 +239,21 @@ export default function TrackOrderPage() {
   const technicianId = String((order as Record<string, unknown> | null)?.technician_id ?? '').trim();
   const isActive = ACTIVE.includes(status);
 
-  /* Auto-refresh for every active status (fast when realtime is down, slow safety net when live) */
+  /* Auto-refresh active orders. Realtime is primary; polling is a safety net.
+   * Coalesce focus/visibility/poll refreshes so mobile tab switching does not
+   * flood the order API or block the main thread with redundant renders.
+   * Manual refresh remains immediate.
+   */
   useEffect(() => {
     if (!id || !isActive) return;
     const ms = channelLive ? 90_000 : 30_000;
+    let lastAutomaticFetchAt = Date.now();
     const tick = () => {
-      if (document.visibilityState === 'visible') void load(true);
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      const now = Date.now();
+      if (now - lastAutomaticFetchAt < 15_000) return;
+      lastAutomaticFetchAt = now;
+      void load(true);
     };
     const t = window.setInterval(tick, ms);
     document.addEventListener('visibilitychange', tick);
