@@ -32,6 +32,7 @@ test('role polling coalesces requests and rewards link to subscriptions', () => 
   assert.match(supplier, /const POLL_MS = 30_000/);
   assert.match(supplier, /backgroundFetchInFlight\.current/);
   assert.match(tech, /lastBackgroundRefresh/);
+  assert.match(tech, /run\(false, true\)/);
   assert.match(tech, /\}, 30000\)/);
   assert.match(rewards, /href="\/customer\/subscriptions"/);
   assert.match(subs, /href="\/customer\/loyalty"/);
