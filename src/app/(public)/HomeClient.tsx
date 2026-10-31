@@ -231,6 +231,11 @@ export default function HomeClient() {
   const [busy, setBusy] = useState(false);
   const [svc, setSvc] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [season, setSeason] = useState<'diwali' | 'winter' | 'summer' | 'everyday'>('everyday');
+  useEffect(() => {
+    const month = new Date().getMonth();
+    setSeason(month === 9 || month === 10 ? 'diwali' : month === 11 || month <= 1 ? 'winter' : month >= 3 && month <= 6 ? 'summer' : 'everyday');
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--footer-prev-bg', '#08111F');
@@ -315,6 +320,12 @@ export default function HomeClient() {
         .aw-mql{animation:aw-mql 42s linear infinite}.aw-mqr{animation:aw-mqr 48s linear infinite}
         .aw-mql:hover,.aw-mqr:hover{animation-play-state:paused}
         .aw-prog{background:linear-gradient(90deg,#0284c7,#22d3ee,#10b981)}
+        .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:5px 2px 14px}
+        .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
+        .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
+        @keyframes aw-campaign-float{0%,100%{transform:translateY(0);opacity:.65}50%{transform:translateY(-7px);opacity:1}}
+        @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){.aw-campaign-spark{animation:aw-campaign-float 5s ease-in-out infinite}}
+        @media (prefers-reduced-motion:reduce){.aw-campaign-spark{animation:none!important}}
         @media(prefers-reduced-motion:reduce){.aw-mql,.aw-mqr,.aw-btn,.aw-live{animation:none}}
       `}</style>
 
@@ -388,6 +399,39 @@ export default function HomeClient() {
             </div>
           </div>
           <div className="relative z-10"><Wave color="#f8fafc" /></div>
+        </section>
+
+        {/* Lightweight, swipeable seasonal merchandising: no timers, flashing lights, or layout-shifting carousels. */}
+        <section aria-label="Explore AuroTap services" className="bg-slate-50 px-5 pt-7 pb-5 sm:px-8">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-extrabold text-slate-900 sm:text-xl">{season === 'diwali' ? '✨ Festive season essentials' : season === 'summer' ? '☀️ Summer essentials' : season === 'winter' ? '❄️ Home care this season' : 'Discover AuroTap services'}</h2>
+              <span className="text-xs text-slate-500">Swipe to explore →</span>
+            </div>
+            <div className="aw-campaign-rail" role="region" aria-label="Swipeable service highlights" tabIndex={0}>
+              <Link href="/book?service=water_can" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-sky-900 to-cyan-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
+                <span className="aw-campaign-spark" aria-hidden="true">💧</span>
+                <p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Everyday essential</p>
+                <h3 className="mt-2 text-xl font-extrabold">RO water to your doorstep</h3>
+                <p className="mt-2 max-w-[240px] text-sm text-sky-100">20L normal from ₹{currentNormal}. Confirm availability and final price at checkout.</p>
+                <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-sky-900">Order water →</span>
+              </Link>
+              <Link href="/book?service=plumbing" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-indigo-900 to-violet-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+                <span className="aw-campaign-spark" aria-hidden="true">🔧</span>
+                <p className="text-xs font-bold uppercase tracking-widest text-violet-200">Home maintenance</p>
+                <h3 className="mt-2 text-xl font-extrabold">A plumber when you need one</h3>
+                <p className="mt-2 max-w-[240px] text-sm text-indigo-100">Tell us the problem. Check serviceability and charges before confirming.</p>
+                <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-900">Find a plumber →</span>
+              </Link>
+              <Link href="/book?service=tank_cleaning" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-emerald-900 to-teal-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+                <span className="aw-campaign-spark" aria-hidden="true">✨</span>
+                <p className="text-xs font-bold uppercase tracking-widest text-teal-200">Seasonal home care</p>
+                <h3 className="mt-2 text-xl font-extrabold">Refresh your water tank</h3>
+                <p className="mt-2 max-w-[240px] text-sm text-emerald-100">Book a cleaning visit with transparent pricing and area checks.</p>
+                <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-emerald-900">Explore cleaning →</span>
+              </Link>
+            </div>
+          </div>
         </section>
 
         {/* ═══ TRUST STRIP ═══ */}
