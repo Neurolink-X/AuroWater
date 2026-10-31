@@ -175,8 +175,17 @@ const NAV = [
     ),
   },
   {
-    href: '/admin/noida-readiness',
-    label: 'Noida Pilot',
+    href: '/admin/zones',
+    label: 'Service Zones',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 5h16v14H4zM8 9h8M8 13h5M15 13h1" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/city-readiness',
+    label: 'City Readiness',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path d="M12 22s8-6 8-12a8 8 0 1 0-16 0c0 6 8 12 8 12Z" strokeWidth="1.8" />
