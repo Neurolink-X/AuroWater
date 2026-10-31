@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { publishedGuides } from '@/lib/blog/posts';
+import { publishedNews } from '@/lib/blog/reviewed-news';
 
 export const revalidate = 3600;
 export const metadata: Metadata = {
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 
 export default function BlogIndex() {
   const posts = publishedGuides();
+  const news = publishedNews();
   return (
     <main className="mx-auto min-h-[70vh] max-w-5xl px-4 py-12 sm:px-6">
       <div className="mb-10">
@@ -31,6 +33,18 @@ export default function BlogIndex() {
           </article>
         ))}
       </div>
+      {news.length > 0 && <section aria-labelledby="reviewed-news-heading" className="mt-14">
+        <h2 id="reviewed-news-heading" className="text-2xl font-bold text-slate-900">Reviewed water updates</h2>
+        <p className="mt-2 text-sm text-slate-600">Source-attributed developments reviewed before publication.</p>
+        <div className="mt-6 grid gap-5 md:grid-cols-2">{news.map((item) => <article key={item.slug}
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 className="text-xl font-semibold"><Link className="hover:text-emerald-700" href={`/blog/news/${item.slug}`}>{item.title}</Link></h3>
+          <p className="mt-3 text-sm text-slate-700">{item.summary}</p>
+          <p className="mt-3 text-xs text-slate-500">Reviewed source: {item.source_name}</p>
+          <Link className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-emerald-700 hover:underline"
+            href={`/blog/news/${item.slug}`}>Read update →</Link>
+        </article>)}</div>
+      </section>}
     </main>
   );
 }
