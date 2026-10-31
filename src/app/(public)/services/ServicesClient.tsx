@@ -76,10 +76,10 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
           alt={ILLUSTRATION_ALT[s.key]}
           width={SERVICE_IMAGE_DIMENSIONS[s.key].width}
           height={SERVICE_IMAGE_DIMENSIONS[s.key].height}
-          quality={90}
+          quality={85}
           loading={aboveFold ? 'eager' : 'lazy'}
           fetchPriority={index === 0 ? 'high' : 'auto'}
-          sizes="(max-width: 640px) 300px, (max-width: 1024px) 320px, 360px"
+          sizes="(max-width: 640px) calc(100vw - 52px), (max-width: 1024px) 45vw, 31vw"
         />
       </div>
 
@@ -127,7 +127,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
         </div>
 
         {/* Real links: crawlable, middle-click and long-press work, and Next can prefetch them. */}
-        <Link href={`/services/${s.key}`} prefetch={false} className="sv-cta sv-cta-details">
+        <Link href={`/services/${s.key}`} className="sv-cta sv-cta-details">
           <span>View details</span>
           <IconArrow />
         </Link>
