@@ -202,9 +202,9 @@ export default function TechnicianJobs() {
     let refreshDebounce: number | undefined;
     let lastBackgroundRefresh = 0;
 
-    const run = async (showLoader: boolean) => {
+    const run = async (showLoader: boolean, realtime = false) => {
       if (inFlight || !mounted) return;
-      if (!showLoader && Date.now() - lastBackgroundRefresh < 8_000) return;
+      if (!showLoader && !realtime && Date.now() - lastBackgroundRefresh < 8_000) return;
       if (!showLoader) lastBackgroundRefresh = Date.now();
       inFlight = true;
       if (showLoader) setLoading(true);
@@ -234,7 +234,7 @@ export default function TechnicianJobs() {
         },
         () => {
           window.clearTimeout(refreshDebounce);
-          refreshDebounce = window.setTimeout(() => void run(false), 300);
+          refreshDebounce = window.setTimeout(() => void run(false, true), 300);
         },
       )
       .subscribe();
