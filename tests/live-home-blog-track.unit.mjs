@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const read = (p) => readFileSync(new URL('../'+p, import.meta.url), 'utf8');
+test('homepage prices are from versioned live settings, not immutable marketing constants', () => {
+  const home = read('src/app/(public)/HomeClient.tsx');
+  const meta = read('src/app/(public)/page.tsx');
+  assert.match(home, /const \{ settings \} = useSettings\(\)/);
+  assert.match(home, /currentNormal = Math.max\(20/);
+  assert.match(home, /currentChilled = Math.max\(25/);
+  assert.match(home, /liveServices\[svc\]/);
+  assert.match(home, /liveServices\.map\(/);
+  assert.match(home, /currentDeliveryFee/);
+  assert.match(home, /currentHandlingFee/);
+  assert.match(home, /currentSurgeFee/);
+  assert.match(home, /currentEmergencyFee/);
+  assert.doesNotMatch(meta.slice(0, 4000), /price: PRICING\.water\./);
+});
+test('blog is discoverable and exposes original branded article with safe SEO', () => {
+  const footer = read('src/components/layout/Footer.tsx');
+  const blog = read('src/app/blog/page.tsx');
+  const detail = read('src/app/blog/[slug]/page.tsx');
+  const source = read('src/lib/blog/posts.ts');
+  const svg = read('public/images/water-delivery-checklist.svg');
+  assert.match(footer, /href="\/blog"/);
+  assert.match(source, /20-litre-water-can-delivery-checklist-india/);
+  assert.match(source, /coverImage: '\/images\/water-delivery-checklist\.svg'/);
+  assert.match(source, /A valid six-digit Indian PIN code/);
+  assert.match(blog, /post\.coverImage/);
+  assert.match(detail, /post\.coverImage/);
+  assert.match(detail, /'@type': 'Article'/);
+  assert.match(svg, /<svg/);
+  assert.doesNotMatch(svg, /<script|onload=|href="http/i);
+});
+test('order track does not roll backwards after realtime events', () => {
+  const page = read('src/app/customer/track/[id]/page.tsx');
+  assert.match(page, /realtimeGeneration\.current\+\+/);
+  assert.match(page, /generationAtStart === realtimeGeneration\.current/);
+  assert.match(page, /if \(!id \|\| loadInFlight\.current\) return/);
+  assert.match(page, /const ms = channelLive \? 90_000 : 30_000/);
+});
+test('loyalty progress reflects only API balances and never redeems on page load', () => {
+  const page = read('src/app/customer/loyalty/page.tsx');
+  assert.match(page, /data\.rewards_available/);
+  assert.match(page, /data\.points_to_next_reward/);
+  assert.match(page, /href="\/book"/);
+  assert.match(page, /Opening this page does not redeem points/);
+});
