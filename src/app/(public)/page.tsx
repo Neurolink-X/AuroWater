@@ -59,7 +59,7 @@ const jsonLd = {
       priceRange: '₹',
       paymentAccepted: 'Cash, UPI',
       currenciesAccepted: 'INR',
-      areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name, url: `${SITE.url}/cities/${c.slug}` })),
+      areaServed: CITIES.filter(c => c.status !== 'pilot').map(c => ({ '@type': 'City', name: c.name, url: `${SITE.url}/cities/${c.slug}` })),
       // No static Offer.price: admin can publish a new price without redeploy.
       // The live checkout, not old JSON-LD, is authoritative.
       serviceType: [
