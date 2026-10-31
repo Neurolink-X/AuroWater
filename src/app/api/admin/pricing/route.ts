@@ -109,6 +109,9 @@ export async function POST(req: NextRequest) {
     if (cityIssues.length) return jsonErr('Invalid pricing for ' + city + ': ' + cityIssues[0].field, 400);
   }
   const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
+  if (typeof body.effective_from === 'string' && !/(Z|[+-]\\d{2}:\\d{2})$/.test(body.effective_from)) {
+    return jsonErr('Effective date must include an explicit timezone.', 400);
+  }
   if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
 
   const { data, error } = await auth.ctx.supabase.rpc('publish_pricing_version', {
