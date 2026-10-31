@@ -214,6 +214,22 @@ try {
     FROM public.supplier_stock
   `);
 
+  const dispatchIntegrity = await client.query(`
+    SELECT
+      (SELECT count(*) FROM public.orders
+        WHERE status IN ('ASSIGNED','IN_PROGRESS')
+          AND supplier_id IS NULL AND technician_id IS NULL) AS active_orders_without_actor,
+      (SELECT count(*) FROM (
+        SELECT order_id FROM public.order_dispatch
+        WHERE status IN ('ASSIGNED','ACCEPTED')
+        GROUP BY order_id HAVING count(*) > 1
+      ) duplicates) AS multiple_active_supplier_assignments,
+      (SELECT count(*) FROM (
+        SELECT order_id FROM public.technician_job_dispatch
+        WHERE status IN ('OFFERED','ACCEPTED')
+        GROUP BY order_id HAVING count(*) > 1
+      ) duplicates) AS multiple_active_technician_offers
+  `);
   await client.query('COMMIT');
   console.log(JSON.stringify({
     audit: 'read-only',
@@ -229,6 +245,7 @@ try {
     dispatch_rpc_privileges: rpcFunctions.rows,
     finance_integrity: financeIntegrity.rows[0],
     stock_integrity: stockIntegrity.rows[0],
+    dispatch_integrity: dispatchIntegrity.rows[0],
     hardened_security: {
       status: failures.length ? 'FAIL' : 'PASS',
       findings: failures,
