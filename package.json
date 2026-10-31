@@ -19,6 +19,7 @@
     "db:audit-indexes": "node scripts/audit-index-overlap.mjs",
     "content:discover": "node scripts/discover-water-news.mjs",
     "smoke:health": "node scripts/check-site-health.mjs",
+    "seo:audit-public": "node scripts/audit-public-seo.mjs",
     "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
     "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs"
   },
