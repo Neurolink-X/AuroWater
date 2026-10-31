@@ -18,6 +18,11 @@ test('postal intelligence is admin only and never claims bookability from PIN al
   assert.match(endpoint, /\.eq\('pincode', pin\)/);
   assert.match(endpoint, /\.contains\('pincodes', \[pin\]\)/);
   assert.match(admin, /href: '\/admin\/postal-intelligence'/);
+  const partner = read('src/components/geo/PartnerPostalLookup.tsx');
+  assert.match(partner, /\/api\/geo\/postal/);
+  assert.match(partner, /controller.abort\(\)/);
+  assert.match(read('src/app/supplier/[section]/page.tsx'), /<PartnerPostalLookup/);
+  assert.match(read('src/app/technician/jobs/page.tsx'), /<PartnerPostalLookup/);
 });
 test('role polling coalesces requests and rewards link to subscriptions', () => {
   const supplier = read('src/app/supplier/[section]/page.tsx');
