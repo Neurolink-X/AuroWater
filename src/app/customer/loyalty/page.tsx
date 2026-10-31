@@ -291,6 +291,11 @@ export default function CustomerLoyaltyPage() {
             Referral benefits <span aria-hidden="true">→</span>
           </Link>
         </div>
+        <section aria-label="How points work" className="mt-4 rounded-2xl border border-[#BDDDE0] bg-white p-5 text-sm leading-6 text-[#16313D]">
+          <h2 className="font-bold">How AuroTap rewards work</h2>
+          <p className="mt-1">Only eligible completed and paid subscription renewals earn points. Your current balance and qualifying rewards are calculated by the server. No points are awarded just for subscribing or viewing this page.</p>
+          <p className="mt-2 text-[#4F6A75]">Redemption eligibility and minimum order prices are checked again at checkout, so a displayed reward never guarantees a free order.</p>
+        </section>
         {/* Hero */}
         <header className="mt-2 overflow-hidden rounded-3xl bg-[#0B2B3A] text-white">
           <div className="flex flex-col-reverse items-center gap-6 p-6 sm:flex-row sm:justify-between sm:p-10">
