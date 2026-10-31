@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import ServiceMedia from '@/components/services/ServiceMedia';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
 import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
-import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
+import { BRAND, CITY_LINE, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
 
 /* ─────────────────────────────────────────────
    Speed: every service page is built once, served from the CDN,
@@ -76,8 +76,6 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   const path = `/services/${service.key}`;
   const pageUrl = SITE_URL + path;
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
-  const illustration = ILLUSTRATIONS[service.key];
-  const illustrationAlt = ILLUSTRATION_ALT[service.key];
   const waLink = WHATSAPP ? `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Hi ${BRAND}, I want to book: ${service.title}`)}` : '';
 
   const allFaqs = [...service.faqs, ...SHARED_FAQS];
@@ -204,20 +202,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             </div>
 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.07] shadow-2xl">
-              {/* Full-bleed editorial photo: prevent the narrow, centered thumbnail shown on mobile.
-                  Intrinsic dimensions preserve source metadata; fill and sizes match the actual card. */}
-              <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-800 sm:aspect-[16/11] lg:aspect-[4/3]">
-                <Image
-                  src={illustration}
-                  alt={illustrationAlt}
-                  fill
-                  quality={85}
-                  loading="eager"
-                  fetchPriority="high"
-                  className="object-cover object-center"
-                  sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1024px) 90vw, 42vw"
-                />
-              </div>
+              <ServiceMedia serviceKey={service.key} variant="detail" priority />
               <div className="p-7">
                 <p className="text-sm font-semibold text-slate-300">Current configured price</p>
                 {service.key === 'water_can' ? (
