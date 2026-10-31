@@ -87,6 +87,18 @@ export function validateEffectivePriceBook(book: EffectivePriceBook): PricingIss
     issues.push({ field: 'services', reason: 'Published service price map is missing' });
     return issues;
   }
+  const requiredServices = [
+    'water_tanker', 'ro_service', 'plumbing', 'plumbing_mistri',
+    'borewell', 'motor_pump', 'tank_cleaning',
+    'ro_service_filter_change', 'ro_service_amc', 'ro_service_new_installation',
+    'plumbing_drainage', 'plumbing_new_fitting',
+    'water_tanker_1000', 'water_tanker_2000', 'water_tanker_custom',
+    'borewell_drilling_4_5', 'borewell_drilling_6',
+    'borewell_drilling_6_5', 'borewell_drilling_8',
+  ];
+  for (const key of requiredServices) {
+    if (!(key in book.services)) issues.push({ field: `services.${key}`, reason: 'Required published service rate missing' });
+  }
   for (const [key, value] of Object.entries(book.services)) {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1000000) {
       issues.push({ field: `services.${key}`, reason: 'Invalid published service rate' });
