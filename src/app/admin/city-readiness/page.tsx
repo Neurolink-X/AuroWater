@@ -33,7 +33,7 @@ export default function CityReadinessPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => null);
-        if (!response.ok || !body?.success) {
+        if (!response.ok || !body?.data || !Array.isArray(body.data.cities)) {
           throw new Error(body?.error ?? `Readiness request failed (HTTP ${response.status})`);
         }
         if (mounted) setReport(body.data as Report);
