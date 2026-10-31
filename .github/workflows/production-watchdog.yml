@@ -1,0 +1,55 @@
+name: Production health watchdog
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: production-health-watchdog
+  cancel-in-progress: false
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check live read-only endpoints
+        id: health
+        continue-on-error: true
+        run: node scripts/check-site-health.mjs | tee /tmp/health-result.json
+      - name: Report failure as a deduplicated GitHub issue
+        if: steps.health.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const data = fs.readFileSync('/tmp/health-result.json','utf8');
+          fs.writeFileSync('/tmp/health-body.md', [
+            'Production read-only watchdog detected degraded endpoints.',
+            '',
+            'No production changes or financial operations were attempted.',
+            '',
+            'Run: ' + process.env.GITHUB_SERVER_URL + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + process.env.GITHUB_RUN_ID,
+            '',
+            'Response:',
+            '```json', data.slice(0,4000), '```',
+            '',
+            'Investigate and verify a fix in staging before deployment.'
+          ].join('\n'));
+          NODE
+          existing=$(gh issue list --state open --search 'Production health watchdog degraded in:title' --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file /tmp/health-body.md
+          else
+            gh issue create --title 'Production health watchdog degraded' --body-file /tmp/health-body.md
+          fi
+      - name: Fail workflow when production is degraded
+        if: steps.health.outcome == 'failure'
+        run: exit 1

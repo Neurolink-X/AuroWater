@@ -3,7 +3,7 @@
  * Designed for GitHub Actions. Returns nonzero on a repeated failure.
  */
 const base = (process.env.BASE_URL || 'https://www.aurotap.in').replace(/\/$/, '');
-const paths = ['/api/health', '/', '/blog', '/api/settings'];
+const paths = ['/api/health', '/', '/blog', '/api/settings', '/api/cities'];
 const attempts = 3;
 const timeoutMs = 7000;
 function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -23,6 +23,18 @@ export async function checkSite(fetchImpl = fetch) {
             const body = await response.json();
             succeeded = body?.status === 'ok' && body?.db === 'ok';
             if (!succeeded) last = 'health payload degraded';
+          } else if (path === '/api/settings') {
+            const body = await response.json();
+            const settings = body?.data ?? body;
+            succeeded = Number.isSafeInteger(settings?.pricing_version) && settings.pricing_version > 0
+              && Number(settings?.default_can_price) >= 20
+              && Number(settings?.chilled_can_price) >= 25;
+            if (!succeeded) last = 'pricing payload missing or invalid';
+          } else if (path === '/api/cities') {
+            const body = await response.json();
+            const cities = Array.isArray(body) ? body : body?.data;
+            succeeded = Array.isArray(cities) && cities.every(city => typeof city.slug === 'string' && ['active', 'coming_soon', 'waitlist'].includes(city.status));
+            if (!succeeded) last = 'city directory payload invalid';
           } else succeeded = true;
           if (succeeded) break;
         } else last = `HTTP ${response.status}`;

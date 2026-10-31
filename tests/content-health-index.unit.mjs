@@ -21,14 +21,19 @@ test('discovery validates freshness and deduplicates headlines', () => {
   assert.ok(!('summary' in out[0])); // No fabricated story/body.
 });
 
-test('health watchdog accepts healthy response and checks four routes', async () => {
+test('health watchdog validates five healthy read-only routes', async () => {
   const calls = [];
   const result = await checkSite(async (url) => {
     calls.push(url.pathname);
-    return { status: 200, json: async () => ({ status: 'ok', db: 'ok' }) };
+    const payload = url.pathname === '/api/settings'
+      ? { pricing_version: 3, default_can_price: 20, chilled_can_price: 25 }
+      : url.pathname === '/api/cities'
+        ? [{ slug: 'kanpur', status: 'active' }]
+        : { status: 'ok', db: 'ok' };
+    return { status: 200, json: async () => payload };
   });
   assert.equal(result.status, 'healthy');
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.deepEqual(result.failures, []);
 });
 

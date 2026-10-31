@@ -1,21 +1,17 @@
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rowsToSettingsPayload } from '@/lib/api/settings-map';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 import { successResponse } from '@/lib/utils/helpers';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const CACHE = {
-  'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+  'Cache-Control': 'private, no-store, max-age=0',
 };
 
-function normalizePricingCity(value: unknown): string {
-  const raw = String(value ?? '').trim().toLowerCase();
-  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
-  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-') || raw.startsWith(prefix + ','));
-  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
 
 function defaultPayload(): Record<string, unknown> {
   return {
@@ -52,14 +48,14 @@ function ok(data: Record<string, unknown>, status = 200) {
  */
 export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Pricing configuration unavailable.' }, { status: 503, headers: CACHE });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Pricing credentials unavailable.' }, { status: 503, headers: CACHE });
   }
 
   const controller = new AbortController();
@@ -76,7 +72,8 @@ export async function GET(req: NextRequest) {
       .abortSignal(controller.signal);
 
     if (error) {
-      return ok(defaultPayload());
+      console.error('[settings] authoritative settings unavailable', { code: error.code });
+      return NextResponse.json({ success: false, error: 'Live settings temporarily unavailable.' }, { status: 503, headers: CACHE });
     }
 
     const payload: Record<string, unknown> = {
@@ -85,7 +82,7 @@ export async function GET(req: NextRequest) {
     };
 
     // Public prices follow the same effective immutable version as server checkout.
-    // The legacy settings payload remains the fallback until migration 021 is applied.
+    // Fail closed if the authoritative version table is unavailable.
     const { data: activeVersion, error: versionError } = await supabase
       .from('pricing_versions')
       .select('version, effective_from, config')
@@ -93,20 +90,22 @@ export async function GET(req: NextRequest) {
       .order('effective_from', { ascending: false })
       .order('version', { ascending: false })
       .limit(1)
+      .abortSignal(controller.signal)
       .maybeSingle();
 
-    if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
-      const publishedConfig = activeVersion.config as Record<string, unknown>;
-      const requestedCity = req.nextUrl.searchParams.get('city');
-      const cityKey = normalizePricingCity(requestedCity);
-      const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
-        ? publishedConfig.city_overrides as Record<string, unknown> : {};
-      const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
-        ? cityOverrides[cityKey] as Record<string, unknown> : null;
-      const config = { ...publishedConfig, ...(cityOverride ?? {}) };
-      const servicePrices = config.services && typeof config.services === 'object'
-        ? config.services as Record<string, number>
-        : {};
+    if (versionError) {
+      console.error('[settings] active pricing lookup failed', { code: versionError.code });
+      return NextResponse.json({ success: false, error: 'Live pricing temporarily unavailable.' }, { status: 503, headers: CACHE });
+    }
+    if (!activeVersion?.config || typeof activeVersion.config !== 'object') {
+      return NextResponse.json({ success: false, error: 'No active published pricing version.' }, { status: 503, headers: CACHE });
+    }
+    if (activeVersion?.config && typeof activeVersion.config === 'object') {
+      const config = resolveEffectivePriceBook(activeVersion.config, req.nextUrl.searchParams.get('city'));
+      if (!config || validateEffectivePriceBook(config).length) {
+        return NextResponse.json({ success: false, error: 'Published pricing configuration invalid.' }, { status: 503, headers: CACHE });
+      }
+      const servicePrices = config.services;
       payload.pricing_version = activeVersion.version;
       payload.pricing_effective_from = activeVersion.effective_from;
       if (typeof config.water_normal === 'number') payload.default_can_price = config.water_normal;
@@ -119,15 +118,16 @@ export async function GET(req: NextRequest) {
       if (typeof config.surge_charge === 'number') payload.surge_charge = config.surge_charge;
       if (typeof config.emergency_surcharge === 'number') payload.emergency_surcharge = config.emergency_surcharge;
       if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
-      if (Object.keys(servicePrices).length) payload.service_base_prices = servicePrices;
+      payload.service_base_prices = servicePrices;
+      payload.pricing_city_key = config.city_key;
     }
     return ok(payload);
   } catch (err: unknown) {
     const name = err instanceof Error ? err.name : '';
     if (name === 'AbortError') {
-      /* timed out — serve defaults */
+      console.warn('[settings] authoritative pricing lookup timed out');
     }
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Live settings temporarily unavailable.' }, { status: 503, headers: CACHE });
   } finally {
     clearTimeout(timeout);
   }

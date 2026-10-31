@@ -1,3 +1,4 @@
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
@@ -43,12 +44,6 @@ function toNum(v: unknown): number {
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
 
-function normalizePricingCity(value: unknown): string {
-  const raw = String(value ?? '').trim().toLowerCase();
-  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
-  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-') || raw.startsWith(prefix + ','));
-  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 function hourSetting(v: unknown, fallback: number): number {
@@ -282,8 +277,7 @@ export async function POST(req: NextRequest) {
   if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
   const flat = settingsResult.map;
 
-  // Select only a rule already effective at the current server time. Until migration 021
-  // is installed, retain the known launch-safe settings fallback.
+  // Require the authoritative effective pricing version for every new order.
   const { data: activePricingRow, error: activePricingError } = await auth.ctx.supabase
     .from('pricing_versions')
     .select('version, effective_from, config')
@@ -294,31 +288,35 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const publishedPricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown> : null;
-  const pricingCityKey = normalizePricingCity(a.city);
-  const cityOverrides = publishedPricingConfig?.city_overrides && typeof publishedPricingConfig.city_overrides === 'object'
-    ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
-  const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
-    ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
-  // City overrides are complete validated price snapshots; otherwise use the global version.
-  const activePricingConfig: Record<string, unknown> | null = publishedPricingConfig
-    ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
-    : null;
-  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services && typeof activePricingConfig.services === 'object'
-    ? activePricingConfig.services as Record<string, unknown>
-    : {};
-  if (activePricingError && !['42P01', 'PGRST205'].includes(String((activePricingError as { code?: string }).code ?? ''))) {
+  const activePricingConfig = resolveEffectivePriceBook(publishedPricingConfig, a.city);
+  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services ?? {};
+  if (activePricingError || !activePricingConfig) {
     console.error('[orders] active pricing lookup failed', activePricingError);
     return jsonErr('Pricing is temporarily unavailable. Please retry shortly.', 503);
   }
 
+  const pricingIssues = validateEffectivePriceBook(activePricingConfig);
+  if (pricingIssues.length > 0) {
+    console.error('[orders] published pricing validation failed', pricingIssues.map(issue => issue.field));
+    return jsonErr('Published pricing configuration is incomplete. Please contact support.', 503);
+  }
+
   // Keep GST at the currently approved zero-rate behavior unless an administrator
   // publishes a version with an explicitly configured decimal rate.
-  const gstCandidate = Number(activePricingConfig?.gst_rate ?? 0);
-  const gstRate = Number.isFinite(gstCandidate) && gstCandidate >= 0 && gstCandidate <= 1 ? gstCandidate : 0;
-  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 0);
-  const deliveryFee = Number(activePricingConfig?.delivery_fee ?? 0);
+  const gstCandidate = Number(activePricingConfig?.gst_rate);
+  if (!Number.isFinite(gstCandidate) || gstCandidate < 0 || gstCandidate > 1) {
+    return jsonErr('Published tax rate is invalid.', 503);
+  }
+  const gstRate = gstCandidate;
+  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee);
+  const deliveryFee = Number(activePricingConfig?.delivery_fee);
   const convenience = handlingFee + deliveryFee;
-  const emergencyFee = Number(activePricingConfig?.emergency_surcharge ?? flat.emergency_surcharge ?? 0) + Number(activePricingConfig?.surge_charge ?? 0);
+  const emergencySurcharge = Number(activePricingConfig?.emergency_surcharge);
+  const surgeFee = Number(activePricingConfig?.surge_charge);
+  const emergencyFee = emergencySurcharge + surgeFee;
+  if (![handlingFee, deliveryFee, emergencySurcharge, surgeFee].every((amount) => Number.isFinite(amount) && amount >= 0)) {
+    return jsonErr('Published booking fees are invalid.', 503);
+  }
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
@@ -332,7 +330,10 @@ export async function POST(req: NextRequest) {
   let subscriptionFrequency: string | null = null;
 
   if (isWater) {
-    const bulkThreshold = Math.max(1, Math.floor(Number(activePricingConfig?.bulk_threshold ?? flat.bulk_threshold)) || 50);
+    const bulkThreshold = Number(activePricingConfig?.bulk_threshold);
+    if (!Number.isSafeInteger(bulkThreshold) || bulkThreshold < 2 || bulkThreshold > 200) {
+      return jsonErr('Published bulk threshold is invalid.', 503);
+    }
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
     // Chilled RO is a separate one-time product: it uses its own configured
@@ -344,7 +345,14 @@ export async function POST(req: NextRequest) {
     const maxOneTime = Math.max(1, Math.floor(Number(flat.max_cans_per_order)) || 50);
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
     const cap = isSubscription ? maxSub : maxOneTime;
-    const requested = Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1;
+    const rawQuantity = Number(body.can_count ?? body.can_quantity ?? 1);
+    if (body.can_count != null && body.can_quantity != null && Number(body.can_count) !== Number(body.can_quantity)) {
+      return jsonErr('Conflicting can quantities supplied.', 400);
+    }
+    if (!Number.isSafeInteger(rawQuantity) || rawQuantity < 1) {
+      return jsonErr('Enter a valid whole-number can quantity.', 400);
+    }
+    const requested = rawQuantity;
 
     if (requested > cap) {
       return jsonErr(
@@ -368,16 +376,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    qty = Math.max(1, requested);
+    qty = requested;
 
     // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
     // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
-    const regularPrice = Number(activePricingConfig?.water_normal ?? 20);
-    const chilledPrice = Math.max(25, Number(activePricingConfig?.water_chilled ?? 25));
-    const subscriptionPrice = Number(activePricingConfig?.water_subscription ?? regularPrice);
-    const bulkPrice = Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice);
+    const regularPrice = Number(activePricingConfig?.water_normal);
+    const chilledPrice = Number(activePricingConfig?.water_chilled);
+    const subscriptionPrice = Number(activePricingConfig?.water_subscription);
+    const bulkPrice = Number(activePricingConfig?.bulk_can_price);
     const unitPrice = isSubscription ? subscriptionPrice : isChilled ? chilledPrice : qty >= bulkThreshold ? bulkPrice : regularPrice;
-    if (![regularPrice, chilledPrice, subscriptionPrice].every((price) => Number.isFinite(price) && price > 0)) {
+    if (![regularPrice, subscriptionPrice, bulkPrice].every((price) => Number.isFinite(price) && price >= 20) || !Number.isFinite(chilledPrice) || chilledPrice < 25) {
       return jsonErr('Water pricing configuration is invalid. Please contact support.', 503);
     }
     waterUnitPrice = unitPrice;
@@ -387,17 +395,26 @@ export async function POST(req: NextRequest) {
   } else {
     // Never trust a client-supplied base amount. Resolve the canonical service
     // rate from server settings, then apply only known option adjustments.
-    const configuredPrice = Number(activeServicePrices[service_type_key] ?? flat[service_type_key + '_price']);
+    const configuredPrice = Number(activeServicePrices[service_type_key]);
     const plumberType = str(body.plumber_type) ?? 'labour';
     if (service_type_key === 'plumbing' && !['labour', 'mistri'].includes(plumberType)) {
       return jsonErr('Choose a valid plumber charge type.', 400);
     }
     const serviceBase = service_type_key === 'plumbing'
-      ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri ?? 700) : Number(activeServicePrices.plumbing ?? 149))
+      ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri) : Number(activeServicePrices.plumbing))
       : Number.isFinite(configuredPrice) && configuredPrice > 0
         ? configuredPrice
-        : Number(st.base_price) || 0;
+        : Number.NaN;
+    if (!Number.isFinite(serviceBase) || serviceBase <= 0) {
+      return jsonErr('Published service pricing is missing or invalid. Please retry later.', 503);
+    }
     const optionKey = str(body.sub_option_key) ?? '';
+    if (service_type_key === 'borewell' && optionKey && !['inspection', 'repair'].includes(optionKey)) {
+      return jsonErr('Borewell drilling requires a site quotation; select inspection or repair.', 400);
+    }
+    if (service_type_key === 'borewell' && (body.depth_feet != null || body.rate_per_foot != null || body.casing_feet != null)) {
+      return jsonErr('Borewell drilling requires a verified site quotation. Do not submit estimator values as a fixed-price booking.', 400);
+    }
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
       plumbing: { pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 },
@@ -407,10 +424,17 @@ export async function POST(req: NextRequest) {
     if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
       return jsonErr('Invalid service option. Please choose an available option.', 400);
     }
-    const configuredOptionFee = Number(activeServicePrices[`${service_type_key}_${optionKey}`]);
-    const optionFee = Number.isFinite(configuredOptionFee) && configuredOptionFee >= 0
-      ? configuredOptionFee
-      : (allowedOptions?.[optionKey] ?? 0);
+    const optionRateKeys: Record<string, Record<string, string>> = {
+      ro_service: { filter_change: 'ro_service_filter_change', amc: 'ro_service_amc', new_installation: 'ro_service_new_installation' },
+      plumbing: { drainage: 'plumbing_drainage', new_fitting: 'plumbing_new_fitting' },
+      water_tanker: { '1000': 'water_tanker_1000', '2000': 'water_tanker_2000', custom: 'water_tanker_custom' },
+    };
+    const optionRateKey = optionRateKeys[service_type_key]?.[optionKey];
+    const configuredOptionFee = optionRateKey ? Number(activeServicePrices[optionRateKey]) : Number.NaN;
+    if (optionRateKey && (!Number.isFinite(configuredOptionFee) || configuredOptionFee < 0)) {
+      return jsonErr('Published service option pricing is missing or invalid.', 503);
+    }
+    const optionFee = optionRateKey ? configuredOptionFee : (allowedOptions?.[optionKey] ?? 0);
     base_amount = round2(serviceBase + optionFee);
   }
 
@@ -503,6 +527,9 @@ export async function POST(req: NextRequest) {
   }
 
   const clientTotal = Number(body.total_amount);
+  if (typeof body.total_amount !== 'number' || body.total_amount < 0) {
+    return jsonErr('total_amount must be a non-negative numeric amount.', 400);
+  }
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
   if (!totalsMatch(clientTotal, netBaseAmount, convenience, emergency_charge, gstRate, 0.5)) {

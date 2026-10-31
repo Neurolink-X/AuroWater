@@ -1,4 +1,6 @@
+import { normalizePricingCity, resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 
@@ -17,7 +19,7 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   for (const [key, label, minimum] of [['water_normal','Normal water',20],['water_chilled','Chilled water',25],['water_subscription','Subscription water',20],['bulk_can_price','Bulk water',20]] as const) {
     if (!money(v[key], minimum, 500)) return { error: label + ' price must be between ₹' + minimum + ' and ₹500 under the current launch pricing policy.' };
   }
-  if (!Number.isInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
+  if (typeof v.bulk_threshold !== 'number' || !Number.isSafeInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
   if (!money(v.convenience_fee, 0, 500) || !money(v.emergency_surcharge, 0, 5000)) return { error: 'Fees are outside the allowed range.' };
   if (v.delivery_fee !== undefined && !money(v.delivery_fee, 0, 500)) return { error: 'Delivery fee must be between ₹0 and ₹500.' };
   if (v.surge_charge !== undefined && !money(v.surge_charge, 0, 5000)) return { error: 'Surge charge must be between ₹0 and ₹5000.' };
@@ -26,17 +28,21 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   if (!v.services || typeof v.services !== 'object' || Array.isArray(v.services)) return { error: 'Service prices are required.' };
   const serviceEntries: Array<[string, number]> = [];
   for (const [key, value] of Object.entries(v.services as Record<string, unknown>)) {
-    if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 1, 100000)) return { error: 'Invalid service price: ' + key };
+    if (!/^[a-z][a-z0-9_]{1,49}$/.test(key) || !money(value, 0, 100000) || Math.abs(Math.round((value as number) * 100) - (value as number) * 100) > 1e-7) return { error: 'Invalid service price: ' + key };
     serviceEntries.push([key, Math.round(value * 100) / 100]);
   }
   const services = Object.fromEntries(serviceEntries) as Record<string, number>;
+  const requiredPositiveServices = ['water_tanker', 'ro_service', 'plumbing', 'plumbing_mistri', 'borewell', 'motor_pump', 'tank_cleaning'];
+  for (const key of requiredPositiveServices) {
+    if (!money(services[key], 1, 100000)) return { error: 'A positive base price is required for ' + key };
+  }
   if (!serviceEntries.length) return { error: 'At least one service price is required.' };
   const cityOverrideEntries: Array<[string, PriceBook]> = [];
   if (v.city_overrides !== undefined) {
     if (!v.city_overrides || typeof v.city_overrides !== 'object' || Array.isArray(v.city_overrides)) return { error: 'City pricing overrides must be an object.' };
     const seenCities = new Set<string>();
     for (const [rawCity, rawOverride] of Object.entries(v.city_overrides as Record<string, unknown>)) {
-      const city = rawCity.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const city = normalizePricingCity(rawCity);
       if (!city || city.length > 60) return { error: 'Invalid city name in pricing overrides.' };
       if (seenCities.has(city)) return { error: `Duplicate city pricing override: ${city}.` };
       seenCities.add(city);
@@ -76,7 +82,9 @@ export async function GET(req: NextRequest) {
       : 'Unable to load pricing versions.', error.code === '42P01' || error.code === 'PGRST205' ? 503 : 502);
   }
   const versions = (data ?? []).map((row) => ({ ...row, currently_effective: Date.parse(row.effective_from) <= Date.now() }));
-  return jsonOk({ versions, current: versions.find((row) => row.currently_effective) ?? null });
+  const current = versions.filter((row) => row.currently_effective)
+    .sort((a, b) => Date.parse(b.effective_from) - Date.parse(a.effective_from) || b.version - a.version)[0] ?? null;
+  return jsonOk({ versions, current });
 }
 
 export async function POST(req: NextRequest) {
@@ -94,7 +102,20 @@ export async function POST(req: NextRequest) {
   if (reason.length < 3 || reason.length > 500) return jsonErr('Reason must be 3–500 characters.', 400);
   const result = validate(body.config);
   if (!result.config) return jsonErr(result.error ?? 'Invalid pricing configuration.', 400);
+  const resolvedGlobal = resolveEffectivePriceBook(result.config, '');
+  if (!resolvedGlobal) return jsonErr('Invalid global pricing configuration.', 400);
+  const globalIssues = validateEffectivePriceBook(resolvedGlobal);
+  if (globalIssues.length) return jsonErr('Published pricing is incomplete: ' + globalIssues[0].field, 400);
+  for (const city of Object.keys(result.config.city_overrides ?? {})) {
+    const resolvedCity = resolveEffectivePriceBook(result.config, city);
+    if (!resolvedCity) return jsonErr('Invalid city pricing: ' + city, 400);
+    const cityIssues = validateEffectivePriceBook(resolvedCity);
+    if (cityIssues.length) return jsonErr('Invalid pricing for ' + city + ': ' + cityIssues[0].field, 400);
+  }
   const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
+  if (typeof body.effective_from === 'string' && !/(Z|[+-]\\d{2}:\\d{2})$/.test(body.effective_from)) {
+    return jsonErr('Effective date must include an explicit timezone.', 400);
+  }
   if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
 
   const { data, error } = await auth.ctx.supabase.rpc('publish_pricing_version', {
@@ -110,5 +131,6 @@ export async function POST(req: NextRequest) {
       : code === '23505' ? 'A concurrent pricing publish occurred. Refresh history and try again.'
       : 'Pricing could not be published. The database transaction was rolled back.', code === '42501' ? 403 : 409);
   }
+  for (const route of ['/', '/pricing', '/services', '/book', '/service-areas']) revalidatePath(route);
   return jsonOk(published, 201);
 }

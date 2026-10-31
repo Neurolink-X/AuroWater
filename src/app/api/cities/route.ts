@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-import { FALLBACK_CITIES, type City } from '@/lib/cities';
+import type { City } from '@/lib/cities';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 
 export const dynamic = 'force-dynamic';
 
 const CACHE_HEADERS = {
   'Cache-Control':
-    'public, s-maxage=30, stale-while-revalidate=60',
+    'no-store, max-age=0',
 };
 
 const CITY_SELECT =
   'id, name, slug, status, lat, lng, radius_km, is_featured, sort_order';
 
-/** Keep the database as the source of truth, but retain fallback cities missing from it.
- * This makes expansion cities discoverable during partial DB configuration/outages without
- * upgrading their fallback status to bookable.
- */
-function mergeWithFallback(data: City[]): City[] {
+/** Return only authoritative database cities; never synthesize active coverage. */
+function normalizeDatabaseCities(data: City[]): City[] {
   const merged = new Map<string, City>();
   for (const city of data) {
     if (!city || typeof city.name !== 'string' || !['active', 'coming_soon', 'waitlist'].includes(city.status)) continue;
@@ -29,13 +26,8 @@ function mergeWithFallback(data: City[]): City[] {
       merged.set(key, city);
     }
   }
-  for (const city of FALLBACK_CITIES) {
-    const key = city.slug.toLowerCase();
-    // A missing DB record must never silently become a live expansion city.
-    // Preserve legacy core cities during partial migrations; discovery-only
-    // fallback entries remain non-bookable.
-    if (!merged.has(key)) merged.set(key, city.status === 'active' ? city : { ...city, status: city.status });
-  }
+  // Never append fallback active cities to an authoritative DB response.
+  // An administrator may have deliberately removed or deactivated a city.
   return [...merged.values()].sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 }
 
@@ -50,7 +42,7 @@ function ok(data: unknown) {
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return ok(FALLBACK_CITIES);
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   }
 
   const url =
@@ -68,7 +60,7 @@ export async function GET() {
    * the Supabase service-role key.
    */
   if (!url || !key) {
-    return ok(FALLBACK_CITIES);
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   }
 
   const controller =
@@ -109,26 +101,18 @@ export async function GET() {
         controller.signal,
       );
 
-    if (
-      error ||
-      !data ||
-      data.length === 0
-    ) {
-      return ok(
-        FALLBACK_CITIES,
-      );
+    if (error || !data) {
+      return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
     }
 
-    return ok(mergeWithFallback(data as City[]));
+    return ok(normalizeDatabaseCities(data as City[]));
   } catch {
     /*
      * Public city discovery should remain
      * available even if Supabase is temporarily
      * unavailable.
      */
-    return ok(
-      FALLBACK_CITIES,
-    );
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   } finally {
     clearTimeout(timeout);
   }

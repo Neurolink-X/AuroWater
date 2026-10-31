@@ -22,7 +22,7 @@ export default function BorewellEstimator() {
   const guide = BOREWELL_GUIDE.drilling[diameter];
   const key = `borewell_drilling_${diameter.replace('.', '_')}`;
   const publishedRate = settings.service_base_prices[key];
-  const selectedRate = rate ?? (Number.isFinite(publishedRate) && publishedRate >= guide.min && publishedRate <= guide.max ? publishedRate : guide.min);
+  const selectedRate = rate ?? (Number.isFinite(publishedRate) && publishedRate > 0 ? publishedRate : guide.min);
   const estimate = useMemo(() => {
     try {
       return { result: estimateBorewell({
@@ -66,8 +66,8 @@ export default function BorewellEstimator() {
                   <span className="mt-1 block text-xs font-normal text-slate-500">Your contractor will confirm the actual depth.</span>
                 </label>
                 <label className="block font-semibold text-slate-900">4. Indicative drilling rate (₹ per foot)
-                  <input className={`mt-2 ${field}`} type="number" inputMode="numeric" min={guide.min} max={guide.max} step={1} value={selectedRate} onChange={event => setRate(Number(event.target.value))} />
-                  <span className="mt-1 block text-xs font-normal text-slate-500">Published rate: {currency(selectedRate)}/ft. Guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
+                  <input className={`mt-2 ${field}`} type="number" inputMode="numeric" min={1} max={100000} step={1} value={selectedRate} onChange={event => setRate(Number(event.target.value))} />
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Indicative rate: {currency(selectedRate)}/ft. Guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
                 </label>
                 <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4">
                   <legend className="px-2 font-semibold text-slate-900">Optional work</legend>
