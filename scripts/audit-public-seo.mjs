@@ -60,7 +60,11 @@ async function readPage(path) {
 }
 
 function cleanText(value) {
-  return value.replace(/<[^>]*>/g, '').replace(/&(?:amp|quot|#39|lt|gt);/g, ' ').trim();
+  // SEO diagnostics are never injected into HTML. Do not attempt to sanitize
+  // arbitrary markup by removing tags: incomplete multi-character removal can
+  // expose a script-like sequence from previously separated characters.
+  // Titles from fetched pages are treated only as inert text in JSON output.
+  return value.replace(/&(?:amp|quot|#39|lt|gt);/g, ' ').trim();
 }
 function tagAttr(tag, attribute) {
   const escaped = attribute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
