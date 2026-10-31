@@ -29,8 +29,17 @@ export default function RootChrome({ children }: { children: React.ReactNode }) 
     return <main style={{ minHeight: '100vh' }}>{children}</main>;
   }
 
+  // The footer transition should inherit the actual background at the end
+  // of each public route. Avoid a large decorative divider or a hard cut.
+  const previousBackground =
+    pathname === '/' ? '#08111F' :
+    pathname?.startsWith('/service-areas') ? '#f1f5f9' :
+    pathname?.startsWith('/water-delivery') ? '#ffffff' :
+    '#f8fafc';
+
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-slate-50"
+      style={{ '--footer-prev-bg': previousBackground } as React.CSSProperties}>
       <Header />
       <main className="flex-1 pt-16">{children}</main>
       <Footer />
