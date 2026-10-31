@@ -12,12 +12,6 @@ const CACHE = {
   'Cache-Control': 'private, no-store, max-age=0',
 };
 
-function normalizePricingCity(value: unknown): string {
-  const raw = String(value ?? '').trim().toLowerCase();
-  const aliases: Array<[string, string]> = [['gurgaon','gurugram'],['ghaziabad','ghaziabad'],['gorakhpur','gorakhpur'],['kanpur','kanpur'],['lucknow','lucknow'],['noida','noida'],['delhi','delhi'],['gurugram','gurugram']];
-  const match = aliases.find(([prefix]) => raw === prefix || raw.startsWith(prefix + ' ') || raw.startsWith(prefix + '-') || raw.startsWith(prefix + ','));
-  return (match?.[1] ?? raw).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
 
 function defaultPayload(): Record<string, unknown> {
   return {
