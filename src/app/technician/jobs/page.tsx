@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -199,9 +200,12 @@ export default function TechnicianJobs() {
     let mounted = true;
     let inFlight = false;
     let refreshDebounce: number | undefined;
+    let lastBackgroundRefresh = 0;
 
-    const run = async (showLoader: boolean) => {
-      if (inFlight) return;
+    const run = async (showLoader: boolean, realtime = false) => {
+      if (inFlight || !mounted) return;
+      if (!showLoader && !realtime && Date.now() - lastBackgroundRefresh < 8_000) return;
+      if (!showLoader) lastBackgroundRefresh = Date.now();
       inFlight = true;
       if (showLoader) setLoading(true);
       try {
@@ -230,7 +234,7 @@ export default function TechnicianJobs() {
         },
         () => {
           window.clearTimeout(refreshDebounce);
-          refreshDebounce = window.setTimeout(() => void run(false), 300);
+          refreshDebounce = window.setTimeout(() => void run(false, true), 300);
         },
       )
       .subscribe();
@@ -238,7 +242,7 @@ export default function TechnicianJobs() {
     // Safety net for missed websocket events, background-tab resume and reconnect.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
-    }, 10000);
+    }, 30000);
     const onVisible = () => {
       if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
     };
@@ -343,6 +347,8 @@ export default function TechnicianJobs() {
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+
+        <div className="mb-4"><PartnerPostalLookup label={isHindi ? 'काम की जगह का पिन कोड' : 'Job location PIN reference'} /></div>
 
         {/* ============================================================
             HEADER

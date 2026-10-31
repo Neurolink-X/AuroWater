@@ -310,7 +310,8 @@ assert.match(dispatchSource, /if \(coverageTier === 1 && !sameCity\) continue/);
 assert.match(dispatchSource, /eq\('key', order\.service_type\)/);
 
 const supplierSection = readFileSync(join(root, 'src', 'app', 'supplier', '\[section\]', 'page.tsx'), 'utf8');
-assert.match(supplierSection, /const POLL_MS = 10_000/);
+assert.match(supplierSection, /const POLL_MS = 30_000/);
+assert.match(supplierSection, /backgroundFetchInFlight/);
 const supplierRealtimeSource = readFileSync(join(root, 'src', 'hooks', 'useSupplierRealtime.ts'), 'utf8');
 assert.match(supplierRealtimeSource, /fallbackPollMs = 10_000/);
 

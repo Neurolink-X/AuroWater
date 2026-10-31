@@ -283,6 +283,14 @@ export default function CustomerLoyaltyPage() {
       <div className="mx-auto max-w-5xl">
         <Link href="/customer/home" className={`inline-flex min-h-11 items-center text-sm font-semibold text-[#126F7A] hover:underline ${ring}`}>← Dashboard</Link>
 
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <Link href="/customer/subscriptions" className="flex min-h-16 items-center justify-between rounded-2xl border border-cyan-200 bg-white px-5 py-4 text-sm font-bold text-[#126F7A] shadow-sm hover:bg-cyan-50">
+            Manage subscriptions <span aria-hidden="true">→</span>
+          </Link>
+          <Link href="/customer/referrals" className="flex min-h-16 items-center justify-between rounded-2xl border border-cyan-200 bg-white px-5 py-4 text-sm font-bold text-[#126F7A] shadow-sm hover:bg-cyan-50">
+            Referral benefits <span aria-hidden="true">→</span>
+          </Link>
+        </div>
         {/* Hero */}
         <header className="mt-2 overflow-hidden rounded-3xl bg-[#0B2B3A] text-white">
           <div className="flex flex-col-reverse items-center gap-6 p-6 sm:flex-row sm:justify-between sm:p-10">
