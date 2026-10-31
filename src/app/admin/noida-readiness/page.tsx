@@ -8,6 +8,7 @@ type Readiness = {
   city: string; launch_ready: boolean; scope: string;
   verified_suppliers: number; online_stocked_suppliers: number;
   available_pilot_zones: string[]; missing: string[]; note: string;
+  pilot_zone_count?: number; pilot_zones_without_pincodes?: string[];
 };
 
 export default function NoidaReadinessPage() {
@@ -49,6 +50,7 @@ export default function NoidaReadinessPage() {
       {loading && <p role="status">Checking live operational readiness…</p>}
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900"><p>{error}</p><button type="button" onClick={() => { setError(''); setLoading(true); setVersion(v => v + 1); }} className="mt-3 rounded-lg bg-red-800 px-4 py-2 text-sm font-semibold text-white">Retry readiness check</button></div>}
       {data && <div className="space-y-5">
+        {!!data.pilot_zones_without_pincodes?.length && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><p className="font-semibold">Pilot zone configuration needs attention</p><p className="mt-1 text-sm">These zones have no delivery PIN codes configured: {data.pilot_zones_without_pincodes.join(', ')}. Add verified PIN codes before enabling launch claims.</p></div>}
         <div className={data.launch_ready ? 'rounded-2xl border border-emerald-300 bg-emerald-50 p-6' : 'rounded-2xl border border-amber-300 bg-amber-50 p-6'}>
           <p className="text-xs font-bold uppercase">Pilot readiness gate</p>
           <p className="mt-2 text-2xl font-bold">{data.launch_ready ? 'Pilot suppliers ready for coverage checks' : 'Not operationally ready'}</p>
