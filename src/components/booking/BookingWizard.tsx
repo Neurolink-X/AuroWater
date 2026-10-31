@@ -2126,9 +2126,33 @@ export default function BookingWizard() {
                     </div>
 
                     {locationError && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
-                        <p className="font-semibold">⚠ {locationError}</p>
-                        <p className="text-xs mt-1">You can always type the address in the fields below.</p>
+                      <div className="min-w-0 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 shadow-sm" role="alert" aria-live="polite">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-lg" aria-hidden="true">📍</span>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <p className="text-base font-bold leading-snug">
+                              {locationError === MSG_DENIED ? 'Location permission is off' : locationError === MSG_TIMEOUT ? 'Location request timed out' : 'We could not fill your address automatically'}
+                            </p>
+                            <p className="leading-relaxed text-amber-900">
+                              {locationError === MSG_DENIED
+                                ? 'Your browser is not allowing location access. You can still book by entering your address.'
+                                : locationError === MSG_TIMEOUT
+                                  ? 'GPS may be slow indoors or when the signal is weak. You can retry or enter your address.'
+                                  : 'Automatic location is unavailable right now. You can continue by entering your address.'}
+                            </p>
+                            <div className="rounded-xl bg-white/80 p-3 text-slate-800">
+                              <p className="font-semibold">What to do next</p>
+                              <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
+                                <li>Enter your house number, area, city and 6-digit PIN code below.</li>
+                                <li>To use GPS, turn on device location and allow location for this website in browser settings.</li>
+                                <li>Tap “Try again” after updating permission, if you prefer automatic detection.</li>
+                              </ol>
+                            </div>
+                            <p className="text-xs leading-relaxed text-amber-900" lang="hi">
+                              आप नीचे अपना पता और 6 अंकों का पिनकोड भरकर बुकिंग जारी रख सकते हैं।
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
 
