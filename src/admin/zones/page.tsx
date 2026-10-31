@@ -315,18 +315,23 @@ export default function AdminZonesPage() {
   const [form, setForm] = useState({ city: '', name: '', pincodes: '' });
 
   const load = useCallback(async () => {
-    const [z, m] = await Promise.all([
-      call<Zone[]>('/api/admin/zones'),
-      call<Metric[]>('/api/admin/zones/metrics?days=30'),
-    ]);
+    // Zone controls should render as soon as their data arrives. Historical
+    // metrics can be slower; never hold up operational zone management for them.
+    const zonesRequest = call<Zone[]>('/api/admin/zones');
+    const metricsRequest = call<Metric[]>('/api/admin/zones/metrics?days=30');
+    const z = await zonesRequest;
     if (!z.ok) {
       setError(z.status === 403 ? 'Admin access required.' : z.error);
       setZones([]);
-      return;
+    } else {
+      setError(null);
+      setZones(z.data);
     }
-    setError(null);
-    setZones(z.data);
-    if (m.ok) setMetrics(new Map(m.data.map((x) => [x.zone_id, x])));
+    void metricsRequest.then((m) => {
+      if (m.ok && Array.isArray(m.data)) {
+        setMetrics(new Map(m.data.map((x) => [x.zone_id, x])));
+      }
+    });
   }, []);
 
   useEffect(() => {
