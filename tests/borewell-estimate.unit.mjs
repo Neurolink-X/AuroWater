@@ -18,9 +18,10 @@ test('casing is calculated on casing feet, not all drilled feet', () => {
   const quote = estimateBorewell({ job: 'drilling', diameter: '4.5', depthFeet: 300, ratePerFoot: 100, casingFeet: 50, includePump: true });
   assert.equal(quote.subtotal, 55000);
 });
-test('diameter-specific rates are bounded', () => {
+test('admin rates are independent of indicative diameter ranges', () => {
   assert.equal(BOREWELL_GUIDE.drilling['8'].min, 300);
-  assert.throws(() => estimateBorewell({ job: 'drilling', diameter: '8', depthFeet: 300, ratePerFoot: 100 }), RangeError);
+  assert.equal(estimateBorewell({ job: 'drilling', diameter: '8', depthFeet: 300, ratePerFoot: 100 }).subtotal, 30000);
+  assert.throws(() => estimateBorewell({ job: 'drilling', diameter: '8', depthFeet: 300, ratePerFoot: 0 }), RangeError);
 });
 test('reject invalid depth and casing', () => {
   for (const depthFeet of [0, -1, 2001, 12.5, NaN, Infinity]) {
