@@ -12,6 +12,7 @@ const patchSchema = z.object({
   title: z.string().trim().min(12).max(180),
   description: z.string().trim().min(30).max(400),
   category: z.string().trim().min(2).max(80),
+  cover_image: z.string().regex(/^\/images\/[A-Za-z0-9_/-]+\.(?:webp|png|jpg|jpeg|svg)$/).nullable(),
   sections: z.array(section).min(1).max(24),
   status: z.enum(['draft','published']),
   publish_at: z.string().datetime({ offset:true }).nullable(),
