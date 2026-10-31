@@ -1,0 +1,49 @@
+name: Free water-news discovery for editorial review
+on:
+  schedule:
+    - cron: '13 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: editorial-water-news-discovery
+  cancel-in-progress: false
+
+jobs:
+  candidates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Discover bounded public headlines (untrusted)
+        run: node scripts/discover-water-news.mjs
+      - name: Propose review queue, never auto-publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- content/water-news-candidates.json; then
+            echo "No new candidates."
+            exit 0
+          fi
+          branch="bot/water-news-review"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add content/water-news-candidates.json
+          git commit -m "content: queue water news leads for source verification"
+          git push --force-with-lease origin "$branch"
+          if gh pr list --head "$branch" --state open --json number -q '.[0].number' | grep -q '[0-9]'; then
+            echo "Existing editor-review PR updated."
+          else
+            gh pr create --base main --head "$branch" \
+              --title "Editorial review: water news candidates (NOT verified)" \
+              --body "Automatically discovered headlines. **DO NOT MERGE AS FACTS OR PUBLISH WITHOUT VERIFYING PRIMARY SOURCES.** Editors may manually add approved, attributed updates to src/data/water-news-reviewed.json. No autonomous publishing or AI-generated claims."
+          fi
