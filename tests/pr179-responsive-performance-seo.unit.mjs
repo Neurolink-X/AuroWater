@@ -14,7 +14,7 @@ const seo = source('src/lib/seo-policy.ts');
 
 test('scroll reveal executes the mobile/reduced motion guard rather than commenting it out', () => {
   assert.match(scroll, /if \(reducedMotion \|\| coarsePointer \|\|/);
-  assert.doesNotMatch(scroll, /observers\.\\n\s*\/\/);
+  assert.match(scroll, /^\s*if \(reducedMotion \|\| coarsePointer \|\|/m);
 });
 test('reveals use passive browser intersections instead of scroll listeners', () => {
   assert.match(scroll, /new IntersectionObserver/);
