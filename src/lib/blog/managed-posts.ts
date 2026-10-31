@@ -6,7 +6,7 @@ import type { GuidePost } from '@/lib/blog/posts';
 export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost[]> => {
   try {
     const { data, error } = await createServiceClient().from('blog_posts')
-      .select('slug,title,description,category,sections,publish_at,updated_at')
+      .select('slug,title,description,category,cover_image,sections,publish_at,updated_at')
       .eq('status','published')
       .lte('publish_at',new Date().toISOString())
       .order('publish_at',{ascending:false}).limit(100);
@@ -28,6 +28,7 @@ export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost
       title: post.title,
       description: post.description,
       category: post.category,
+      coverImage: post.cover_image ?? undefined,
       publishAt: post.publish_at!,
       updatedAt: post.updated_at,
       sections: post.sections as GuidePost['sections'],
