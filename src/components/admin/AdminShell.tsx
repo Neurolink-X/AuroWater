@@ -157,6 +157,15 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/postal-intelligence',
+    label: 'PIN Intelligence',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 5h16v14H4zM8 9h8M8 13h5" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/noida-readiness',
     label: 'Noida Pilot',
     icon: (
