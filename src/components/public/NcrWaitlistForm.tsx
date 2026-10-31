@@ -2,10 +2,18 @@
 
 import { useState } from 'react';
 
-const CITIES = ['Delhi', 'Noida', 'Greater Noida', 'Ghaziabad'] as const;
+type CityOption = { name: string; status: 'active' | 'coming_soon' | 'waitlist' };
 
-export default function NcrWaitlistForm() {
-  const [city, setCity] = useState<(typeof CITIES)[number]>('Noida');
+/** Shared waitlist form for any configured expansion area, not only NCR. */
+export default function NcrWaitlistForm({
+  cities = [],
+}: {
+  cities?: readonly CityOption[];
+}) {
+  const upcoming = cities.filter((city) => city.status !== 'active').map((city) => city.name);
+  const options = [...new Set([...upcoming, 'Other city'])];
+  const [city, setCity] = useState('');
+  const [otherCity, setOtherCity] = useState('');
   const [area, setArea] = useState('');
   const [pincode, setPincode] = useState('');
   const [email, setEmail] = useState('');
@@ -17,6 +25,11 @@ export default function NcrWaitlistForm() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (status === 'sending') return;
+    if (!city.trim() || (city === 'Other city' && otherCity.trim().length < 2)) {
+      setStatus('error');
+      setMessage('Choose a city first.');
+      return;
+    }
     setStatus('sending');
     setMessage('');
     try {
@@ -24,22 +37,22 @@ export default function NcrWaitlistForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          custom_city: city,
+          custom_city: city === 'Other city' ? otherCity.trim() : city,
           area,
           pincode: pincode || null,
-          custom_state: city === 'Delhi' ? 'Delhi' : 'Uttar Pradesh',
-          name: 'NCR resident',
+                    name: 'NCR resident',
           email: email || null,
           phone: phone || null,
           role: 'customer',
-          source: 'ncr',
+          source: 'service-areas',
           website,
         }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : 'Could not submit. Please try again.');
       setStatus('success');
-      setMessage('Thank you! Your NCR expansion interest has been received.');
+      setMessage('Thank you! Your interest in this city has been recorded.');
+      setOtherCity('');
       setArea('');
       setPincode('');
       setEmail('');
@@ -55,16 +68,29 @@ export default function NcrWaitlistForm() {
     <section aria-labelledby="ncr-waitlist-title" className="rounded-3xl border border-cyan-100 bg-white p-6 shadow-sm sm:p-8">
       <div className="max-w-2xl">
         <p className="text-sm font-bold uppercase tracking-wider text-cyan-800">Help us launch locally</p>
-        <h2 id="ncr-waitlist-title" className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Get notified when AuroTap reaches your area</h2>
-        <p className="mt-3 text-sm leading-6 text-slate-600">Share your sector or neighbourhood and one way to contact you. This is an expression of interest, not a confirmed booking.</p>
+        <h2 id="ncr-waitlist-title" className="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Tell us where AuroTap should expand next</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">Choose any listed expansion city, or enter another city. Leave your neighbourhood and a contact method. Joining a waitlist does not confirm delivery.</p>
       </div>
       <form onSubmit={submit} className="mt-6 grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm font-semibold text-slate-700">
           City
-          <select value={city} onChange={(e) => setCity(e.target.value as (typeof CITIES)[number])} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3" required>
-            {CITIES.map((item) => <option key={item} value={item}>{item}</option>)}
+          <select value={city} onChange={(e) => setCity(e.target.value)}
+            className="min-h-11 rounded-xl border border-slate-300 bg-white px-3" required>
+            <option value="">Choose a city</option>
+            {options.filter((item) => item !== 'Other city').map((item) =>
+              <option key={item} value={item}>{item}</option>)}
+            <option value="Other city">Other city</option>
           </select>
         </label>
+        {city === 'Other city' ? (
+          <label className="grid gap-2 text-sm font-semibold text-slate-700">
+            City name
+            <input value={otherCity} onChange={(e) => setOtherCity(e.target.value)}
+              maxLength={100} minLength={2} required
+              placeholder="Enter your city"
+              className="min-h-11 rounded-xl border border-slate-300 bg-white px-3" />
+          </label>
+        ) : null}
         <label className="grid gap-2 text-sm font-semibold text-slate-700">
           Sector / neighbourhood
           <input value={area} onChange={(e) => setArea(e.target.value)} maxLength={100} minLength={2} autoComplete="address-level3" placeholder="e.g. Sector 62, Indirapuram" className="min-h-11 rounded-xl border border-slate-300 px-3" required />
@@ -89,7 +115,7 @@ export default function NcrWaitlistForm() {
             {status === 'sending' ? 'Submitting…' : 'Notify me about the launch'}
           </button>
           <p role="status" aria-live="polite" className={`mt-3 text-sm ${status === 'error' ? 'text-red-700' : status === 'success' ? 'text-emerald-700' : 'text-slate-600'}`}>{message}</p>
-          <p className="mt-2 text-xs leading-5 text-slate-500">Please share only contact details you are comfortable providing. Your details are used to record interest in NCR availability; this does not activate service in your area.</p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">Please share only contact details you are comfortable providing. Your details are used to record interest in local availability; this does not activate service in your area.</p>
         </div>
       </form>
     </section>
