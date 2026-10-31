@@ -7,12 +7,12 @@ import { getToken } from '@/lib/api-client';
 type Section = { heading:string; paragraphs:string[] };
 type Post = {
   id:string;slug:string;title:string;description:string;category:string;
-  sections:Section[];status:'draft'|'published';publish_at:string|null;updated_at:string;
+  sections:Section[];status:'draft'|'published';publish_at:string|null;cover_image:string|null;updated_at:string;
 };
 type Editor = Omit<Post,'id'|'updated_at'>;
 const blank = ():Editor => ({
   slug:'',title:'',description:'',category:'Water and home services',
-  status:'draft',publish_at:null,sections:[{heading:'',paragraphs:['']}],
+  status:'draft',publish_at:null,cover_image:null,sections:[{heading:'',paragraphs:['']}],
 });
 
 export default function AdminBlogPage() {
@@ -46,7 +46,7 @@ export default function AdminBlogPage() {
   const choose = (post:Post) => {
     setSelected(post.id);
     setEditor({slug:post.slug,title:post.title,description:post.description,category:post.category,
-      sections:post.sections,status:post.status,publish_at:post.publish_at});
+      sections:post.sections,status:post.status,publish_at:post.publish_at,cover_image:post.cover_image});
     setError('');setNotice('');
   };
   const updateSection=(index:number,update:Section)=>{
@@ -122,12 +122,17 @@ export default function AdminBlogPage() {
           <label className="block text-sm font-semibold">Category
             <input value={editor.category} maxLength={80} onChange={e=>setEditor(p=>({...p,category:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
           </label>
-          <label className="block text-sm font-semibold">Publication date (optional for drafts)
+          <label className="block text-sm font-semibold">Publication date (UTC, optional for drafts)
             <input type="datetime-local" value={editor.publish_at?new Date(editor.publish_at).toISOString().slice(0,16):''}
-              onChange={e=>setEditor(p=>({...p,publish_at:e.target.value?new Date(e.target.value).toISOString():null}))}
+              onChange={e=>setEditor(p=>({...p,publish_at:e.target.value?new Date(e.target.value+'Z').toISOString():null}))}
               className="mt-1 w-full rounded-lg border p-3 font-normal"/>
           </label>
         </div>
+        <label className="block text-sm font-semibold">Cover image (optional, existing /public/images file)
+          <input value={editor.cover_image??''} onChange={e=>setEditor(p=>({...p,cover_image:e.target.value.trim()||null}))}
+            placeholder="/images/water-delivery-checklist.svg" className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+          <span className="mt-1 block text-xs font-normal text-slate-500">Upload approved artwork into public/images via repository before entering its path. No external URLs or HTML.</span>
+        </label>
         <h3 className="pt-2 text-base font-bold">Article sections</h3>
         {editor.sections.map((section,i)=><div key={i} className="space-y-3 rounded-xl border border-slate-200 p-4">
           <div className="flex justify-between"><span className="text-sm font-semibold">Section {i+1}</span>
