@@ -62,7 +62,7 @@ test('footer status labels are derived from admin city directory', () => {
   assert.match(directory, /'waitlist'/);
 });
 test('footer uses compact responsive grid', () => {
-  assert.match(footer, /md:grid-cols-\[1\.2fr_1fr_1fr\]/);
+  assert.match(footer, /lg:grid-cols-\[1\.2fr_0\.82fr_0\.82fr_1\.08fr\]/);
 });
 test('footer text contrast uses readable Tailwind tokens', () => {
   assert.match(footer, /text-slate-300/);
