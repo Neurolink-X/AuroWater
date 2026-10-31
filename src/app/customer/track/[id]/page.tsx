@@ -165,32 +165,43 @@ export default function TrackOrderPage() {
   // Prevent realtime events, focus events and the polling timer from issuing
   // overlapping reads for the same order.
   const loadInFlight = useRef(false);
+  // A realtime status event always wins over an older in-flight REST response.
+  // Avoid bouncing the tracking timeline backwards on congested mobile networks.
+  const realtimeGeneration = useRef(0);
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   /** silent=true refreshes in the background without blanking the page. */
   const load = useCallback(
     async (silent = false) => {
       if (!id || loadInFlight.current) return;
       loadInFlight.current = true;
+      const generationAtStart = realtimeGeneration.current;
       if (!silent) {
         setLoading(true);
         setError(null);
       }
       try {
         const o = (await customerOrderGet(id)) as OrderRow;
-        setOrder(o);
-        setError(null);
+        if (mountedRef.current && generationAtStart === realtimeGeneration.current) {
+          setOrder(o);
+          setError(null);
+        }
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) {
           router.push(`/auth/login?returnTo=${encodeURIComponent(`/customer/track/${id}`)}`);
           return;
         }
-        if (!silent) {
+        if (!silent && mountedRef.current && generationAtStart === realtimeGeneration.current) {
           setError(e instanceof ApiError ? e.message : 'Could not load order.');
           setOrder(null);
         }
       } finally {
         loadInFlight.current = false;
-        if (!silent) setLoading(false);
+        if (!silent && mountedRef.current) setLoading(false);
       }
     },
     [id, router]
@@ -224,6 +235,7 @@ export default function TrackOrderPage() {
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
         (payload) => {
           const row = payload.new as Record<string, unknown>;
+          realtimeGeneration.current++;
           setOrder((prev) => ({ ...(prev ?? {}), ...row }) as OrderRow);
         }
       )
