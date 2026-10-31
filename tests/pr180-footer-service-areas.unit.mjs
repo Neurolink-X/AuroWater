@@ -44,8 +44,9 @@ test('footer preserves fallback if city API fails', () => {
   assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
 });
 test('footer supports upcoming cities without implying availability', () => {
-  assert.match(footer, /'coming_soon'/);
-  assert.match(footer, /Coming soon/);
+  assert.match(directory, /'coming_soon'/);
+  assert.match(footer, /groups\.upcoming\.map/);
+  assert.match(footer, /Soon/);
 });
 test('footer links to book water directly', () => {
   assert.match(footer, /href="\/book\?service=water_can"/);
