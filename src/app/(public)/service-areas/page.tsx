@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createServiceClient } from '@/utils/supabase/server';
-import { FALLBACK_CITIES, type City } from '@/lib/cities';
+import type { City } from '@/lib/cities';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import {
   cityAvailabilityLabel,
-  mergePublicCityDirectory,
 } from '@/lib/public-city-directory';
 import NcrWaitlistForm from '@/components/public/NcrWaitlistForm';
 
@@ -22,29 +21,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
-
-/**
- * The directory comes from the same cities table used by the admin expansion
- * dashboard, never a hardcoded Kanpur/Noida-only list. Failure falls back to
- * safe discovery entries; checkout is independently authoritative.
- */
-async function getPublicServiceCities(): Promise<City[]> {
-  try {
-    const client = createServiceClient();
-    const { data, error } = await client
-      .from('cities')
-      .select('id,name,slug,status,is_featured,sort_order')
-      .order('sort_order', { ascending: true })
-      .limit(500);
-    if (error) {
-      console.error('[service-areas] directory read failed', { code: error.code });
-      return mergePublicCityDirectory([], FALLBACK_CITIES);
-    }
-    return mergePublicCityDirectory(data ?? [], FALLBACK_CITIES);
-  } catch {
-    return mergePublicCityDirectory([], FALLBACK_CITIES);
-  }
-}
 
 function CityCard({ city }: { city: City }) {
   const active = city.status === 'active';
