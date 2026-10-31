@@ -333,7 +333,10 @@ export async function POST(req: NextRequest) {
   let subscriptionFrequency: string | null = null;
 
   if (isWater) {
-    const bulkThreshold = Math.max(1, Math.floor(Number(activePricingConfig?.bulk_threshold ?? flat.bulk_threshold)) || 50);
+    const bulkThreshold = Number(activePricingConfig?.bulk_threshold);
+    if (!Number.isSafeInteger(bulkThreshold) || bulkThreshold < 2 || bulkThreshold > 200) {
+      return jsonErr('Published bulk threshold is invalid.', 503);
+    }
     const isChilled = str(body.sub_option_key) === 'chilled_ro';
 
     // Chilled RO is a separate one-time product: it uses its own configured
@@ -398,7 +401,7 @@ export async function POST(req: NextRequest) {
       return jsonErr('Choose a valid plumber charge type.', 400);
     }
     const serviceBase = service_type_key === 'plumbing'
-      ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri ?? 700) : Number(activeServicePrices.plumbing ?? 149))
+      ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri) : Number(activeServicePrices.plumbing))
       : Number.isFinite(configuredPrice) && configuredPrice > 0
         ? configuredPrice
         : Number.NaN;
