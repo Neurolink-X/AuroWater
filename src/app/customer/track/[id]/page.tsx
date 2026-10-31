@@ -165,6 +165,8 @@ export default function TrackOrderPage() {
   // Prevent realtime events, focus events and the polling timer from issuing
   // overlapping reads for the same order.
   const loadInFlight = useRef(false);
+  const lastFetchAt = useRef(0);
+  const lastLoadedOrderId = useRef('');
   // A realtime status event always wins over an older in-flight REST response.
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
@@ -178,6 +180,8 @@ export default function TrackOrderPage() {
   const load = useCallback(
     async (silent = false) => {
       if (!id || loadInFlight.current) return;
+      // Avoid duplicate automatic fetches during focus/visibility bursts.
+      if (silent && lastLoadedOrderId.current === id && Date.now() - lastFetchAt.current < 5_000) return;
       loadInFlight.current = true;
       const generationAtStart = realtimeGeneration.current;
       if (!silent) {
@@ -187,7 +191,14 @@ export default function TrackOrderPage() {
       try {
         const o = (await customerOrderGet(id)) as OrderRow;
         if (mountedRef.current && generationAtStart === realtimeGeneration.current) {
-          setOrder(o);
+          setOrder((previous) => {
+            // Preserve object identity when the server snapshot is unchanged.
+            // This avoids recomputing the full tracking timeline and cards.
+            if (previous && JSON.stringify(previous) === JSON.stringify(o)) return previous;
+            return o;
+          });
+          lastLoadedOrderId.current = id;
+          lastFetchAt.current = Date.now();
           setError(null);
         }
       } catch (e) {
