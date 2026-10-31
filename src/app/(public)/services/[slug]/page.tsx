@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
 import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
-import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, SERVICE_IMAGE_DIMENSIONS, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
+import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
 
 /* ─────────────────────────────────────────────
    Speed: every service page is built once, served from the CDN,
@@ -204,18 +204,20 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             </div>
 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.07] shadow-2xl">
-              {/* Local SVG: no external image host, nothing to block rendering. The first image loads at top priority. */}
-              <Image
-                src={illustration}
-                alt={illustrationAlt}
-                width={SERVICE_IMAGE_DIMENSIONS[service.key].width}
-                height={SERVICE_IMAGE_DIMENSIONS[service.key].height}
-                quality={90}
-                loading="eager"
-                fetchPriority="high"
-                className="mx-auto block h-auto max-h-[350px] w-auto max-w-full object-contain"
-                sizes="(max-width: 768px) 320px, 400px"
-              />
+              {/* Full-bleed editorial photo: prevent the narrow, centered thumbnail shown on mobile.
+                  Intrinsic dimensions preserve source metadata; fill and sizes match the actual card. */}
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-800 sm:aspect-[16/11] lg:aspect-[4/3]">
+                <Image
+                  src={illustration}
+                  alt={illustrationAlt}
+                  fill
+                  quality={85}
+                  loading="eager"
+                  fetchPriority="high"
+                  className="object-cover object-center"
+                  sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1024px) 90vw, 42vw"
+                />
+              </div>
               <div className="p-7">
                 <p className="text-sm font-semibold text-slate-300">Current configured price</p>
                 {service.key === 'water_can' ? (
