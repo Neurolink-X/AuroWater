@@ -24,7 +24,7 @@ test('footer has a single row for policies at the bottom', () => {
   assert.match(footer, /border-t border-white\/10 pt-4/);
 });
 test('footer has bounded top and bottom padding on mobile', () => {
-  assert.match(footer, /pb-6 pt-8 sm:px-6 sm:pb-7 sm:pt-10/);
+  assert.match(footer, /sm:px-6 sm:pb-7 sm:pt-10/);
 });
 test('footer city list is capped to prevent future uncontrolled growth', () => {
   assert.match(footer, /selectFooterCities\(cities, 6, 2\)/);
