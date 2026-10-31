@@ -180,6 +180,34 @@ try {
       )).map((name) => `masked view missing security_invoker/barrier: ${name}`),
   ];
 
+  // Aggregate-only financial integrity diagnostics. Historical completed
+  // orders may predate the ledger; do not invent missing earnings or rewrite
+  // a paid payout without an audited reconciliation.
+  const financeIntegrity = await client.query(`
+    SELECT count(*) FILTER (WHERE o.status='COMPLETED' AND lower(o.payment_status)='paid') AS completed_paid,
+           count(*) FILTER (WHERE o.status='COMPLETED'
+             AND lower(o.payment_status)='paid'
+             AND o.supplier_id IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM public.wallet_ledger l
+               WHERE l.order_id=o.id AND l.entry_type='ORDER_EARNING')) AS paid_missing_earning,
+           count(*) FILTER (WHERE o.status='COMPLETED'
+             AND lower(o.payment_status)='paid'
+             AND o.supplier_id IS NOT NULL
+             AND o.payout_status='paid'
+             AND NOT EXISTS (SELECT 1 FROM public.wallet_ledger l
+               WHERE l.order_id=o.id AND l.entry_type='ORDER_EARNING')) AS payout_paid_without_earning,
+           count(*) FILTER (WHERE o.status<>'COMPLETED'
+             AND EXISTS (SELECT 1 FROM public.wallet_ledger l
+               WHERE l.order_id=o.id AND l.entry_type='ORDER_EARNING')) AS noncompleted_with_earning
+    FROM public.orders o
+  `);
+  const stockIntegrity = await client.query(`
+    SELECT count(*) FILTER (WHERE cans_available<0) AS negative_stock,
+           count(*) FILTER (WHERE reserved_cans<0) AS negative_reserved,
+           count(*) FILTER (WHERE reserved_cans>cans_available) AS reservations_exceed_stock
+    FROM public.supplier_stock
+  `);
+
   await client.query('COMMIT');
   console.log(JSON.stringify({
     audit: 'read-only',
@@ -193,6 +221,8 @@ try {
     indexes: indexes.rows,
     migration_tracking_candidates: migrationTables.rows,
     dispatch_rpc_privileges: rpcFunctions.rows,
+    finance_integrity: financeIntegrity.rows[0],
+    stock_integrity: stockIntegrity.rows[0],
     hardened_security: {
       status: failures.length ? 'FAIL' : 'PASS',
       findings: failures,
@@ -202,6 +232,7 @@ try {
     pg_stat_statements_enabled: pgStatExtension.rows[0]?.enabled ?? false,
     slow_query_samples: slowQueries,
     notes: [
+      'Finance/stock metrics are aggregates only. Historical gaps require manual reconciliation, never silent backfills.',
       'Security PASS checks metadata permissions, not application end-to-end authorization. Test customer contact after acceptance separately.',
       'No application migration ledger is assumed; inspect the returned candidates.',
       'RLS enabled does not by itself prove policies are correct; review each policy and grants.',
