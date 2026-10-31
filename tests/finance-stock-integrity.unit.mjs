@@ -11,5 +11,8 @@ assert.match(source, /noncompleted_with_earning/);
 assert.match(source, /reservations_exceed_stock/);
 assert.match(source, /finance_integrity: financeIntegrity.rows\[0\]/);
 assert.match(source, /stock_integrity: stockIntegrity.rows\[0\]/);
+assert.match(source, /dispatch_integrity: dispatchIntegrity.rows\[0\]/);
+assert.match(source, /multiple_active_supplier_assignments/);
+assert.match(source, /multiple_active_technician_offers/);
 assert.doesNotMatch(source, /(?:INSERT INTO|UPDATE public|DELETE FROM|ALTER TABLE|CREATE TABLE|DROP TABLE)/i);
 console.log('Finance and stock audit remains read-only.');
