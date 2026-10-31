@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { GUIDE_POSTS, publishedGuide } from '@/lib/blog/posts';
 import { getSiteUrl } from '@/lib/env';
@@ -16,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${post.title} | AuroTap`,
     description: post.description,
     alternates: { canonical: `/blog/${post.slug}` },
-    openGraph: { title: post.title, description: post.description, type: 'article', publishedTime: post.publishAt, modifiedTime: post.updatedAt, url: `/blog/${post.slug}` },
+    openGraph: { title: post.title, description: post.description, type: 'article', publishedTime: post.publishAt, modifiedTime: post.updatedAt, url: `/blog/${post.slug}`, ...(post.coverImage ? { images: [{ url: post.coverImage, width: 1200, height: 630, alt: post.title }] } : {}) },
   };
 }
 
@@ -31,6 +32,7 @@ export default async function BlogArticle({ params }: Props) {
     description: post.description,
     datePublished: post.publishAt,
     dateModified: post.updatedAt,
+    ...(post.coverImage ? { image: `${getSiteUrl().replace(/\\/+$/, '')}${post.coverImage}` } : {}),
     author: { '@type': 'Organization', name: 'AuroTap' },
     publisher: { '@type': 'Organization', name: 'AuroTap' },
     mainEntityOfPage: `${getSiteUrl().replace(/\/+$/, '')}/blog/${post.slug}`,
@@ -43,7 +45,7 @@ export default async function BlogArticle({ params }: Props) {
         <h1 className="mt-3 text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">{post.title}</h1>
         <p className="mt-4 text-lg leading-8 text-slate-600">{post.description}</p>
         <p className="mt-3 text-sm text-slate-500">Published {new Date(post.publishAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' })}</p>
-        <div className="mt-10 space-y-10">
+        {post.coverImage && <Image src={post.coverImage} alt="Illustrated 20-litre drinking-water delivery checklist" width={1200} height={630} priority className="mt-8 h-auto w-full rounded-2xl border border-cyan-100" />}\n        <div className="mt-10 space-y-10">
           {post.sections.map((section) => <section key={section.heading}>
             <h2 className="text-2xl font-semibold text-slate-900">{section.heading}</h2>
             {section.paragraphs.map((paragraph) => <p key={paragraph} className="mt-4 leading-8 text-slate-700">{paragraph}</p>)}
