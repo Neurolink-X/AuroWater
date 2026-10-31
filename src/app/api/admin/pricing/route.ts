@@ -1,3 +1,4 @@
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
@@ -97,6 +98,16 @@ export async function POST(req: NextRequest) {
   if (reason.length < 3 || reason.length > 500) return jsonErr('Reason must be 3–500 characters.', 400);
   const result = validate(body.config);
   if (!result.config) return jsonErr(result.error ?? 'Invalid pricing configuration.', 400);
+  const resolvedGlobal = resolveEffectivePriceBook(result.config, '');
+  if (!resolvedGlobal) return jsonErr('Invalid global pricing configuration.', 400);
+  const globalIssues = validateEffectivePriceBook(resolvedGlobal);
+  if (globalIssues.length) return jsonErr('Published pricing is incomplete: ' + globalIssues[0].field, 400);
+  for (const city of Object.keys(result.config.city_overrides ?? {})) {
+    const resolvedCity = resolveEffectivePriceBook(result.config, city);
+    if (!resolvedCity) return jsonErr('Invalid city pricing: ' + city, 400);
+    const cityIssues = validateEffectivePriceBook(resolvedCity);
+    if (cityIssues.length) return jsonErr('Invalid pricing for ' + city + ': ' + cityIssues[0].field, 400);
+  }
   const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
   if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
 
