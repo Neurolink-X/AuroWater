@@ -39,6 +39,7 @@ export type AddressGeo = AddressGeoOk | { ok: false; reason: 'NO_LOCATION' };
 const PIN_RE = /^[0-9]{6}$/;
 const PIN_MISMATCH_KM = 15;
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const MAX_CACHED_PIN_CENTROIDS = 512; // bounded per-instance memory; DB remains the source of truth
 
 /** First 3 digits → city. Coarse on purpose; only used for the city-centre fallback. */
 const PREFIX_TO_CITY: Record<string, string> = {
@@ -67,7 +68,13 @@ async function pincodeCentroid(pin: string): Promise<Centroid | null> {
   if (!PIN_RE.test(pin)) return null;
 
   const hit = cache.get(pin);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    // Refresh LRU recency in O(1) expected time, no per-read array allocations.
+    cache.delete(pin);
+    cache.set(pin, hit);
+    return hit.value;
+  }
+  if (hit) cache.delete(pin);
 
   let value: Centroid | null = null;
   let failed = false;
@@ -148,7 +155,14 @@ async function pincodeCentroid(pin: string): Promise<Centroid | null> {
     console.error('[address-geo] pincode lookup failed:', e);
   }
 
-  if (!failed) cache.set(pin, { at: Date.now(), value }); // never cache a transient failure
+  if (!failed) {
+    cache.delete(pin);
+    cache.set(pin, { at: Date.now(), value }); // never cache a transient failure
+    if (cache.size > MAX_CACHED_PIN_CENTROIDS) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+  }
   return value;
 }
 
