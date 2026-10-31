@@ -202,6 +202,11 @@ export default function CustomerSubscriptionsPage() {
       return;
     }
 
+    // Invalidate any earlier subscription GET before the mutation.
+    // Otherwise a slow response can revert a successful pause/resume in UI.
+    requestSeq.current++;
+    loadInFlight.current = false;
+    setRefreshing(false);
     setBusyId(id);
     setError('');
     setNotice('');
