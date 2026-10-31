@@ -319,11 +319,13 @@ export async function POST(req: NextRequest) {
     return jsonErr('Published tax rate is invalid.', 503);
   }
   const gstRate = gstCandidate;
-  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 0);
-  const deliveryFee = Number(activePricingConfig?.delivery_fee ?? 0);
+  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee);
+  const deliveryFee = Number(activePricingConfig?.delivery_fee);
   const convenience = handlingFee + deliveryFee;
-  const emergencyFee = Number(activePricingConfig?.emergency_surcharge) + Number(activePricingConfig?.surge_charge);
-  if (![handlingFee, deliveryFee, emergencyFee].every((amount) => Number.isFinite(amount) && amount >= 0)) {
+  const emergencySurcharge = Number(activePricingConfig?.emergency_surcharge);
+  const surgeFee = Number(activePricingConfig?.surge_charge);
+  const emergencyFee = emergencySurcharge + surgeFee;
+  if (![handlingFee, deliveryFee, emergencySurcharge, surgeFee].every((amount) => Number.isFinite(amount) && amount >= 0)) {
     return jsonErr('Published booking fees are invalid.', 503);
   }
   const is_emergency = Boolean(body.is_emergency);
@@ -385,7 +387,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    qty = Math.max(1, requested);
+    qty = requested;
 
     // Approved launch prices: Normal RO ₹20 and Chilled RO ₹25.
     // Recurring Normal RO uses the same ₹20 unit price; no hidden legacy discount.
@@ -418,6 +420,9 @@ export async function POST(req: NextRequest) {
       return jsonErr('Published service pricing is missing or invalid. Please retry later.', 503);
     }
     const optionKey = str(body.sub_option_key) ?? '';
+    if (service_type_key === 'borewell' && optionKey && !['inspection', 'repair'].includes(optionKey)) {
+      return jsonErr('Borewell drilling requires a site quotation; select inspection or repair.', 400);
+    }
     if (service_type_key === 'borewell' && (body.depth_feet != null || body.rate_per_foot != null || body.casing_feet != null)) {
       return jsonErr('Borewell drilling requires a verified site quotation. Do not submit estimator values as a fixed-price booking.', 400);
     }
