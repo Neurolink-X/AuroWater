@@ -42,6 +42,10 @@ test('order track does not roll backwards after realtime events', () => {
   assert.match(page, /generationAtStart === realtimeGeneration\.current/);
   assert.match(page, /if \(!id \|\| loadInFlight\.current\) return/);
   assert.match(page, /const ms = channelLive \? 90_000 : 30_000/);
+  const customerHome = read('src/app/customer/home/page.tsx');
+  assert.match(customerHome, /notificationInFlight\.current/);
+  assert.match(customerHome, /notificationRefreshQueued\.current/);
+  assert.match(customerHome, /setTimeout\(\(\) => void \(async \(\) =>/);
 });
 test('loyalty progress reflects only API balances and never redeems on page load', () => {
   const page = read('src/app/customer/loyalty/page.tsx');
