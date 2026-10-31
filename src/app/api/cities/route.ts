@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-import { FALLBACK_CITIES, type City } from '@/lib/cities';
+import type { City } from '@/lib/cities';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -14,11 +14,8 @@ const CACHE_HEADERS = {
 const CITY_SELECT =
   'id, name, slug, status, lat, lng, radius_km, is_featured, sort_order';
 
-/** Keep the database as the source of truth, but retain fallback cities missing from it.
- * This makes expansion cities discoverable during partial DB configuration/outages without
- * upgrading their fallback status to bookable.
- */
-function mergeWithFallback(data: City[]): City[] {
+/** Return only authoritative database cities; never synthesize active coverage. */
+function normalizeDatabaseCities(data: City[]): City[] {
   const merged = new Map<string, City>();
   for (const city of data) {
     if (!city || typeof city.name !== 'string' || !['active', 'coming_soon', 'waitlist'].includes(city.status)) continue;
@@ -108,7 +105,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
     }
 
-    return ok(mergeWithFallback(data as City[]));
+    return ok(normalizeDatabaseCities(data as City[]));
   } catch {
     /*
      * Public city discovery should remain
