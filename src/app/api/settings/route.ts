@@ -29,7 +29,7 @@ function defaultPayload(): Record<string, unknown> {
     emergency_surcharge: 0,
     surge_charge: 0,
     gst_rate: 0,
-    service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, plumbing_mistri: 700, borewell: 499, motor_pump: 299, tank_cleaning: 599, ro_service_filter_change: 49, ro_service_amc: 149, ro_service_new_installation: 599, plumbing_drainage: 49, plumbing_new_fitting: 99, water_tanker_1000: 50, water_tanker_2000: 120, water_tanker_custom: 80 },
+    service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, plumbing_mistri: 700, borewell: 499, borewell_drilling_4_5: 100, borewell_drilling_6: 180, borewell_drilling_6_5: 180, borewell_drilling_8: 350, motor_pump: 299, tank_cleaning: 599, ro_service_filter_change: 49, ro_service_amc: 149, ro_service_new_installation: 599, plumbing_drainage: 49, plumbing_new_fitting: 99, water_tanker_1000: 50, water_tanker_2000: 120, water_tanker_custom: 80 },
     can_price_small: 1000,
     can_price_large: 1200,
     delivery_fee: 0,
