@@ -21,6 +21,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Load any existing editorial queue before discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="bot/water-news-review"
+          if git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"; then
+            git show "origin/$branch:content/water-news-candidates.json" > content/water-news-candidates.json || true
+          fi
       - name: Discover bounded public headlines (untrusted)
         run: node scripts/discover-water-news.mjs
       - name: Propose review queue, never auto-publish
@@ -34,12 +42,22 @@ jobs:
             exit 0
           fi
           branch="bot/water-news-review"
+          cp content/water-news-candidates.json "$RUNNER_TEMP/water-news-candidates.json"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$branch"
+          if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+            git checkout -B "$branch" "origin/$branch"
+          else
+            git checkout -b "$branch"
+          fi
+          cp "$RUNNER_TEMP/water-news-candidates.json" content/water-news-candidates.json
           git add content/water-news-candidates.json
+          if git diff --cached --quiet; then
+            echo "Queue unchanged."
+            exit 0
+          fi
           git commit -m "content: queue water news leads for source verification"
-          git push --force-with-lease origin "$branch"
+          git push origin "$branch"
           if gh pr list --head "$branch" --state open --json number -q '.[0].number' | grep -q '[0-9]'; then
             echo "Existing editor-review PR updated."
           else
