@@ -127,7 +127,7 @@
 
 /* eslint-disable react/no-unescaped-entities */
 import Link from 'next/link';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 /* ─────────────────────────────────────────────
    ICONS — all inline, no external deps
@@ -205,8 +205,41 @@ const NAV_LINKS = [
   { label: 'Cookies', href: '/cookies' },
 ];
 
-const CITIES = ['Gorakhpur', 'Kanpur', 'Lucknow'] as const;
-const EXPANSION_AREAS = ['Delhi NCR · Expansion updates'] as const;
+const FALLBACK_CITIES: readonly PublicCity[] = [
+  { name: 'Gorakhpur', slug: 'gorakhpur', status: 'active', is_featured: true },
+  { name: 'Kanpur', slug: 'kanpur', status: 'active', is_featured: true },
+  { name: 'Lucknow', slug: 'lucknow', status: 'active', is_featured: true },
+  { name: 'Noida', slug: 'noida', status: 'coming_soon', is_featured: true },
+];
+
+type PublicCity = {
+  name: string;
+  slug: string;
+  status: 'active' | 'coming_soon' | 'waitlist';
+  is_featured: boolean;
+};
+
+function safeCityDirectory(value: unknown): PublicCity[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: PublicCity[] = [];
+  for (const item of value.slice(0, 100)) {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) continue;
+    const candidate = item as Record<string, unknown>;
+    if (typeof candidate.name !== 'string' || typeof candidate.slug !== 'string') continue;
+    const name = candidate.name.trim();
+    const slug = candidate.slug.trim().toLowerCase();
+    if (!name || name.length > 70 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || seen.has(slug)) continue;
+    if (candidate.status !== 'active' && candidate.status !== 'coming_soon' && candidate.status !== 'waitlist') continue;
+    seen.add(slug);
+    result.push({ name, slug, status: candidate.status, is_featured: candidate.is_featured === true });
+  }
+  return result
+    .sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') ||
+      Number(b.is_featured) - Number(a.is_featured) ||
+      a.name.localeCompare(b.name, 'en-IN'))
+    .slice(0, 12);
+}
 
 const SERVICE_LINKS = [
   { label: 'RO Water Can Delivery', href: '/book?service=water_can' },
@@ -241,6 +274,28 @@ const TRUST_BADGES = [
    FOOTER COMPONENT
 ───────────────────────────────────────────── */
 export default function Footer() {
+  const [cities, setCities] = useState<PublicCity[]>(FALLBACK_CITIES.slice());
+  useEffect(() => {
+    // Public /api/cities is the canonical directory consumed by expansion UI.
+    // Never derive city activation from a zone alone: the admin applies
+    // supplier approval, stock and coverage checks before cities.status=active.
+    const controller = new AbortController();
+    fetch('/api/cities', { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error('City directory unavailable');
+        return response.json() as Promise<unknown>;
+      })
+      .then((payload) => {
+        if (controller.signal.aborted) return;
+        const directory = safeCityDirectory(payload);
+        if (directory.length) setCities(directory);
+      })
+      .catch(() => {
+        // Offline or database error: fallback is discovery-only.
+      });
+    return () => controller.abort();
+  }, []);
+
   return (
     <>
       <style>{`
@@ -359,12 +414,12 @@ export default function Footer() {
 
         /* Trust badges */
         .ft-trust-badges {
-          display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px;
+          display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 114px), 1fr)); gap: 8px; margin-bottom: 22px;
         }
         .ft-trust-badge {
           background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 8px; padding: 7px 12px; text-align: center;
+          border-radius: 10px; padding: 9px 11px; text-align: left; min-width: 0;
           min-width: 64px;
         }
         .ft-trust-badge-val {
@@ -401,10 +456,10 @@ export default function Footer() {
         .ft-link-list { display: flex; flex-direction: column; }
         .ft-link {
           display: inline-flex; align-items: center; gap: 5px;
-          font-size: 13px; color: rgba(255,255,255,0.45);
+          font-size: 13px; color: rgba(255,255,255,0.82);
           text-decoration: none; font-weight: 500;
-          line-height: 1;
-          padding: 5px 0;
+          line-height: 1.5;
+          padding: 7px 0;
           margin-bottom: 0;
           transition: color 0.15s; width: fit-content;
         }
@@ -559,16 +614,14 @@ export default function Footer() {
                 Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Check availability for your address before booking.
               </p>
               <div className="ft-trust-badges" aria-label="Cities we serve">
-                {CITIES.map((city) => (
-                  <div key={city} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Available in</div>
-                    <div className="ft-trust-badge-lbl">{city}</div>
-                  </div>
-                ))}
-                {EXPANSION_AREAS.map((area) => (
-                  <div key={area} className="ft-trust-badge">
-                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>Coming soon</div>
-                    <div className="ft-trust-badge-lbl">{area}</div>
+                {cities.map((city) => (
+                  <div key={city.slug} className="ft-trust-badge"
+                    title={city.status === 'active' ? 'Availability depends on your address and service' : 'Not open for general bookings'}>
+                    <div className="ft-trust-badge-val" style={{ fontSize: 11 }}>
+                      {city.status === 'active' ? 'Check coverage' :
+                        city.status === 'coming_soon' ? 'Coming soon' : 'Waitlist'}
+                    </div>
+                    <div className="ft-trust-badge-lbl">{city.name}</div>
                   </div>
                 ))}
               </div>
