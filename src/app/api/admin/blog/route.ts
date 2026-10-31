@@ -16,6 +16,7 @@ const postInput = z.object({
   title: z.string().trim().min(12).max(180),
   description: z.string().trim().min(30).max(400),
   category: z.string().trim().min(2).max(80),
+  cover_image: z.string().regex(/^\/images\/[A-Za-z0-9_/-]+\.(?:webp|png|jpg|jpeg|svg)$/).nullable(),
   sections: z.array(section).min(1).max(24),
   status: z.enum(['draft','published']),
   publish_at: z.string().datetime({ offset: true }).nullable(),
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden',403);
   const { data, error } = await createServiceClient().from('blog_posts')
-    .select('id,slug,title,description,category,sections,status,publish_at,created_at,updated_at')
+    .select('id,slug,title,description,category,cover_image,sections,status,publish_at,created_at,updated_at')
     .order('updated_at',{ ascending: false }).limit(100);
   if (error) {
     console.error('[admin/blog] list failed', { code: error.code });
