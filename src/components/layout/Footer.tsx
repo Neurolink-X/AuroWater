@@ -268,7 +268,7 @@ export default function Footer() {
               <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
                 Services
               </h2>
-              <div className="grid gap-x-2 gap-y-0.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 sm:grid-cols-1">
                 {SERVICES.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -281,7 +281,7 @@ export default function Footer() {
               <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
                 Explore AuroTap
               </h2>
-              <div className="grid gap-x-2 gap-y-0.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 sm:grid-cols-1">
                 {QUICK_LINKS.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
