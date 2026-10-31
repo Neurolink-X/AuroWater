@@ -99,7 +99,7 @@ const OG_IMAGE = {
  * ──────────────────────────────────────────────────────────────────────── */
 
 //const SPLASH_ON_WEB = true; // false = installed app only
-const SPLASH_ON_WEB = false; // installed app (PWA) only
+const SPLASH_ON_WEB = false; // native PWA splash is sufficient; avoid a second branded blocking overlay
 const SPLASH_SESSION_KEY = 'aurotap_splash_seen';
 
 const splashBootScript = `(function(){try{
@@ -107,6 +107,8 @@ var d=document.documentElement;
 if(navigator.webdriver||/googlebot|bingbot|crawler|spider|lighthouse|pagespeed|gtmetrix|headlesschrome|prerender/i.test(navigator.userAgent))return;
 var app=window.matchMedia('(display-mode: standalone), (display-mode: minimal-ui)').matches||navigator.standalone===true;
 if(!app&&!${SPLASH_ON_WEB})return;
+// The operating system already displays the PWA launch splash. Do not stack a second overlay.
+if(app)return;
 if(sessionStorage.getItem('${SPLASH_SESSION_KEY}'))return;
 sessionStorage.setItem('${SPLASH_SESSION_KEY}','1');
 d.setAttribute('data-splash','show');
