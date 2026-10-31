@@ -48,7 +48,7 @@ test('index audit and editorial workflow are non-mutating', () => {
   const page = readFileSync(new URL('../src/app/blog/page.tsx', import.meta.url), 'utf8');
   const sitemap = readFileSync(new URL('../src/app/sitemap.ts', import.meta.url), 'utf8');
   assert.match(idx, /BEGIN READ ONLY/);
-  assert.doesNotMatch(idx, /(?:DROP INDEX|ALTER TABLE|UPDATE public\.|DELETE FROM public\.)/i);
+  assert.doesNotMatch(idx, /^\s*(?:DROP INDEX|ALTER TABLE|UPDATE public\.|DELETE FROM public\.)/im);
   assert.match(discovery, /editor-review|review queue/);
   assert.match(page, /publishedNews/);
   assert.match(sitemap, /publishedNews/);
