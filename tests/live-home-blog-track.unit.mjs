@@ -40,7 +40,10 @@ test('order track does not roll backwards after realtime events', () => {
   const page = read('src/app/customer/track/[id]/page.tsx');
   assert.match(page, /realtimeGeneration\.current\+\+/);
   assert.match(page, /generationAtStart === realtimeGeneration\.current/);
-  assert.match(page, /if \(!id \|\| loadInFlight\.current\) return/);
+  assert.match(page, /if \(loadPromise\.current\) return loadPromise\.current/);
+  assert.match(page, /if \(loadPromise\.current === request\) loadPromise\.current = null/);
+  assert.match(page, /return 'stale'/);
+  assert.match(page, /return await request/);
   assert.match(page, /const ms = channelLive \? 90_000 : 30_000/);
   const customerHome = read('src/app/customer/home/page.tsx');
   assert.match(customerHome, /notificationInFlight\.current/);
