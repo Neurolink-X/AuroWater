@@ -56,7 +56,7 @@ export default function OrderHealthPage() {
     return () => { active = false; controller.abort(); };
   }, [mode, page, version]);
 
-  return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 text-slate-900">
+  return <main className="mx-auto max-w-6xl space-y-6 rounded-3xl bg-slate-50 px-4 py-8 text-slate-900 sm:px-6">
     <Link href="/admin/dashboard" className="text-sm font-semibold text-cyan-700 hover:underline">← Admin dashboard</Link>
     <header>
       <h1 className="text-3xl font-extrabold">Order health & reconciliation</h1>
@@ -74,11 +74,11 @@ export default function OrderHealthPage() {
         className="min-h-11 rounded-xl border border-slate-300 bg-white px-3">
         {MODES.map(option => <option key={option.value} value={option.value}>{option.name}</option>)}
       </select>
-      <button onClick={() => setVersion(v => v + 1)} className="min-h-11 rounded-xl border border-slate-300 px-4 font-semibold hover:bg-slate-50">Refresh</button>
+      <button onClick={() => setVersion(v => v + 1)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 font-semibold text-slate-900 hover:bg-slate-100">Refresh</button>
       <Link href="/admin/finance" className="inline-flex min-h-11 items-center font-semibold text-cyan-800 hover:underline">Open finance →</Link>
     </div>
     {loading && <p role="status" className="rounded-xl border bg-white p-5">Checking orders…</p>}
-    {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-800">{error}</p>}
+    {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-900"><p>{error}</p><button type="button" onClick={() => setVersion(v => v + 1)} className="mt-3 rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white">Retry loading</button></div>}
     {payload && <section aria-label="Orders to review" className="rounded-2xl border bg-white shadow-sm">
       <div className="border-b px-5 py-4">
         <h2 className="text-lg font-bold">{payload.count.toLocaleString('en-IN')} orders need review in this filter</h2>

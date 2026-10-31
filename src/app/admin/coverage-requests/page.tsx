@@ -49,7 +49,7 @@ export default function AdminCoverageRequestsPage() {
     finally { setBusy(''); }
   };
   const pending = rows.filter(r => r.status === 'PENDING');
-  return <main className="mx-auto max-w-5xl px-4 py-8 text-slate-900">
+  return <main className="mx-auto max-w-5xl rounded-3xl bg-slate-50 px-4 py-8 text-slate-900 sm:px-6">
     <Link href="/admin/zones" className="text-sm font-semibold text-emerald-700 hover:underline">← Service zones</Link>
     <Link href="/admin/supplier-profile-requests" className="ml-4 text-sm font-semibold text-emerald-700 hover:underline">Review supplier profile changes →</Link>
     <h1 className="mt-4 text-3xl font-extrabold">Supplier coverage review</h1>
@@ -57,7 +57,7 @@ export default function AdminCoverageRequestsPage() {
     <p className="mt-2 text-sm text-slate-600">Review requested cities, pincodes/sectors, and service categories before mapping a supplier. Approval maps coverage only; it never automatically opens a Coming soon area for customer bookings.</p>
     {error && <p role="alert" className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
     {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">{pending.length} pending</span><button onClick={() => void load()} disabled={loading} className="rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50">Refresh</button></div>
+    <div className="mt-5 flex flex-wrap gap-2"><span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-800">{pending.length} pending</span><button onClick={() => void load()} disabled={loading} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50">Refresh</button></div>
     {loading ? <p className="py-8 text-slate-500">Loading requests…</p> : rows.length === 0 ? <p className="mt-6 rounded-2xl border p-6 text-slate-600">No supplier coverage requests yet.</p> :
       <div className="mt-5 space-y-4">{rows.map(r => <article key={r.id} className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap justify-between gap-2"><h2 className="text-lg font-bold">{r.profiles?.full_name || 'Supplier'} · {r.service_zones?.name || r.service_zones?.city || 'Service area'}</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{r.status}</span></div>
