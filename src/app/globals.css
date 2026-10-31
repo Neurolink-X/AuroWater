@@ -563,3 +563,45 @@
     animation: none !important;
   }
 }
+
+
+/* Accessible admin zones: dark admin shells must not inherit dark text on dark
+   surfaces. Scoped to zone management to avoid changing other role dashboards. */
+.aw-admin-zones { color: #e2e8f0; }
+.aw-admin-zones > header h1,
+.aw-admin-zones > section > h2 { color: #f8fafc !important; }
+.aw-admin-zones > header p:not(:has(a)) { color: #cbd5e1 !important; }
+.aw-admin-zones > header a {
+  background: #ffffff;
+  color: #0f172a !important;
+  border-color: #cbd5e1;
+}
+.aw-admin-zones :is(input:not([type="checkbox"]), textarea) {
+  background: #ffffff;
+  color: #0f172a;
+  caret-color: #047857;
+}
+.aw-admin-zones :is(input, textarea)::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+.aw-admin-zones :is(article, form) { color: #0f172a; }
+.aw-admin-zones :is(article, form) :is(h2, h3) { color: #0f172a; }
+.aw-admin-zones :is(article, form) select { color-scheme: light; }
+.aw-admin-zones :is(input, select, button, a):focus-visible {
+  outline: 3px solid #059669;
+  outline-offset: 2px;
+}
+@media (hover: none) and (pointer: coarse) {
+  /* Never hide content while waiting for an observer during mobile scroll. */
+  [data-reveal-ready] :is([data-reveal], .fade-up) {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+  .hero-ripple, .animate-float, .bounce-arrow {
+    animation: none !important;
+    will-change: auto;
+  }
+}
