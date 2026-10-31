@@ -362,8 +362,8 @@ export default function HomeClient() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { src: 'https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1000&q=80', alt: 'Clean 20 litre RO drinking water dispenser for home delivery', tag: '20L RO cans', priority: true },
-                      { src: '/Friendly Kitchen Water Service Team.png', alt: 'AuroTap delivery team handing over a 20 litre water can', tag: 'Doorstep delivery', priority: false },
-                      { src: '/mentinence image.png', alt: 'Plumber repairing pipes and cleaning a water tank', tag: 'Plumbing & tanks', priority: false },
+                      { src: '/Friendly Kitchen Water Service Team.png', alt: 'Illustrative scene of a water can being delivered at a doorstep', tag: 'How delivery works', priority: false },
+                      { src: '/mentinence image.png', alt: 'Illustrative plumbing and tank-care scene', tag: 'Plumbing & tanks', priority: false },
                     ].map(im => (
                       <figure key={im.tag} className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                         <div className="relative aspect-[4/3] w-full">
@@ -375,9 +375,9 @@ export default function HomeClient() {
                   </div>
 
                   <div className="aw-glass p-5">
-                    <p className="font-display text-sm font-bold text-emerald-300 mb-3">Why customers switch</p>
+                    <p className="font-display text-sm font-bold text-emerald-300 mb-3">Reasons to consider AuroTap</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled`, `Monthly plans lock your price up to ${MAX_LOCK} months`, `Plumber visit ₹${currentPlumbing}, adjusted in your bill`, `Tank cleaning priced by size from ₹${currentTank}`].map(i => (
+                      {[`Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled`, `Recurring delivery options; eligibility and price locks are confirmed at booking`, `Plumbing service estimates start from ₹${currentPlumbing}; verify any visit fee at checkout`, `Tank cleaning priced by size from ₹${currentTank}`].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -528,17 +528,39 @@ export default function HomeClient() {
           </div>
         </section>
 
-        {/* ═══ REVIEWS ═══ */}
-        <section className="bg-slate-50 py-14 overflow-hidden">
-          <div className="text-center mb-8 px-5">
-            <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Customer feedback</h2>
-            <p className="text-slate-500 mt-2 text-sm">Reviews from AuroTap customers.</p>
-          </div>
-          <div className="space-y-4">
-            <div className="overflow-hidden"><div className="flex gap-4 aw-mql">{left.map((r, i) => <ReviewCard key={`L${i}`} r={r} />)}</div></div>
-            <div className="overflow-hidden"><div className="flex gap-4 aw-mqr">{right.map((r, i) => <ReviewCard key={`R${i}`} r={r} />)}</div></div>
-          </div>
-        </section>
+        {/* Show real, consented order-backed testimonials only. Until then, show
+            the actual customer journey rather than empty review marquees. */}
+        {TRUST_REVIEWS.length > 0 ? (
+          <section aria-labelledby="verified-feedback-heading" className="bg-slate-50 py-14 overflow-hidden">
+            <div className="text-center mb-8 px-5">
+              <h2 id="verified-feedback-heading" className="font-display text-3xl sm:text-4xl font-extrabold text-slate-900">Customer feedback</h2>
+              <p className="text-slate-500 mt-2 text-sm">Reviews supplied by customers after service.</p>
+            </div>
+            <div className="space-y-4">
+              <div className="overflow-hidden"><div className="flex gap-4 aw-mql">{left.map((r, i) => <ReviewCard key={`L${i}`} r={r} />)}</div></div>
+              <div className="overflow-hidden"><div className="flex gap-4 aw-mqr">{right.map((r, i) => <ReviewCard key={`R${i}`} r={r} />)}</div></div>
+            </div>
+          </section>
+        ) : (
+          <section aria-labelledby="customer-confidence-heading" className="bg-slate-50 py-12">
+            <div className="mx-auto max-w-6xl px-5 sm:px-8">
+              <h2 id="customer-confidence-heading" className="text-center font-display text-2xl font-extrabold text-slate-900 sm:text-3xl">Know what happens before you order</h2>
+              <p className="mx-auto mt-2 max-w-2xl text-center text-sm leading-6 text-slate-600">We show you available services, checkout totals and order progress. Availability depends on your address and active service providers.</p>
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                {[
+                  { title: 'Address check first', body: 'Confirm the exact PIN, landmark and available service area before booking.' },
+                  { title: 'Review the final total', body: 'See applicable fees and taxes at checkout before you confirm payment.' },
+                  { title: 'Follow the order', body: 'Check assignment and progress in your account; reach support if anything looks incorrect.' },
+                ].map(step => (
+                  <div key={step.title} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h3 className="font-bold text-slate-900">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{step.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ═══ HOW IT WORKS ═══ */}
         <div className="bg-slate-50"><Wave flip color="var(--navy)" /></div>
