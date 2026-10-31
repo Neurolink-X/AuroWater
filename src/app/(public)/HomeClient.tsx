@@ -333,6 +333,13 @@ export default function HomeClient() {
         .aw-mql{animation:aw-mql 42s linear infinite}.aw-mqr{animation:aw-mqr 48s linear infinite}
         .aw-mql:hover,.aw-mqr:hover{animation-play-state:paused}
         .aw-prog{background:linear-gradient(90deg,#0284c7,#22d3ee,#10b981)}
+        /* Decorative hero lights are GPU-composited and never block the CTA. */
+        .aw-festival-lights{position:absolute;inset:0 0 auto;z-index:1;height:76px;overflow:hidden;pointer-events:none;contain:paint}
+        .aw-festival-lights::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 8% 20%,#fde68a 0 3px,transparent 5px),radial-gradient(circle at 23% 40%,#67e8f9 0 3px,transparent 5px),radial-gradient(circle at 40% 15%,#fda4af 0 3px,transparent 5px),radial-gradient(circle at 59% 45%,#fde68a 0 3px,transparent 5px),radial-gradient(circle at 78% 20%,#67e8f9 0 3px,transparent 5px),radial-gradient(circle at 94% 40%,#fde68a 0 3px,transparent 5px);background-size:100% 60px;opacity:.7;transform:translateZ(0)}
+        .aw-festival-lights::after{content:'';position:absolute;left:0;right:0;top:6px;height:42px;border-top:1px solid rgba(253,230,138,.3);border-radius:50%;opacity:.65}
+        @keyframes aw-lights-glow{0%,100%{opacity:.35}50%{opacity:.85}}
+        @media (hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference){.aw-festival-lights::before{animation:aw-lights-glow 5s ease-in-out infinite}}
+        @media (hover:none),(prefers-reduced-motion:reduce){.aw-festival-lights::before{animation:none}}
         .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;padding:5px 2px 14px}
         .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
         .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
@@ -347,6 +354,7 @@ export default function HomeClient() {
 
         {/* ═══ HERO ═══ */}
         <section className="aw-hero-bg relative min-h-screen flex flex-col overflow-x-hidden">
+          {season === 'festive' && <div className="aw-festival-lights" aria-hidden="true" />}
           <div className="absolute inset-0 pointer-events-none aw-dots" style={{ opacity: 0.028 }} aria-hidden="true" />
           <div className="relative z-10 flex-1 flex items-center">
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 w-full">
