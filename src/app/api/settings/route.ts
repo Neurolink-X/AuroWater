@@ -4,10 +4,11 @@ import { rowsToSettingsPayload } from '@/lib/api/settings-map';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 import { successResponse } from '@/lib/utils/helpers';
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 const CACHE = {
-  'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+  'Cache-Control': 'private, no-store, max-age=0',
 };
 
 function normalizePricingCity(value: unknown): string {
@@ -76,7 +77,8 @@ export async function GET(req: NextRequest) {
       .abortSignal(controller.signal);
 
     if (error) {
-      return ok(defaultPayload());
+      console.error('[settings] authoritative settings unavailable', { code: error.code });
+      return NextResponse.json({ success: false, error: 'Live settings temporarily unavailable.' }, { status: 503, headers: CACHE });
     }
 
     const payload: Record<string, unknown> = {
@@ -95,6 +97,10 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
+    if (versionError && !['42P01', 'PGRST205'].includes(String(versionError.code ?? ''))) {
+      console.error('[settings] active pricing lookup failed', { code: versionError.code });
+      return NextResponse.json({ success: false, error: 'Live pricing temporarily unavailable.' }, { status: 503, headers: CACHE });
+    }
     if (!versionError && activeVersion?.config && typeof activeVersion.config === 'object') {
       const publishedConfig = activeVersion.config as Record<string, unknown>;
       const requestedCity = req.nextUrl.searchParams.get('city');
@@ -127,7 +133,7 @@ export async function GET(req: NextRequest) {
     if (name === 'AbortError') {
       /* timed out — serve defaults */
     }
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Live settings temporarily unavailable.' }, { status: 503, headers: CACHE });
   } finally {
     clearTimeout(timeout);
   }
