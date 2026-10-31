@@ -311,9 +311,14 @@ export async function POST(
     return jsonErr('Create the zone as COMING_SOON, then activate it after coverage and capacity verification.', 422);
   }
 
+  const db = createServiceClient();
+  const { data: canonicalCity, error: cityLookupError } = await db.from('cities')
+    .select('id').ilike('name', city).limit(1).maybeSingle();
+  if (cityLookupError) return jsonErr('Could not verify the city directory.',503);
   const row = {
     ...value,
     city,
+    city_id: canonicalCity?.id ?? null,
     name,
     slug,
 
@@ -334,8 +339,7 @@ export async function POST(
         : [],
   };
 
-  const db =
-    createServiceClient();
+
 
   /*
    * Catch the common duplicate-slug case at
