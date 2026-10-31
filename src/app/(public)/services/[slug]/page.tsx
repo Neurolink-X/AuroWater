@@ -1,3 +1,4 @@
+import BorewellEstimator from '@/components/services/BorewellEstimator';
 import Link from 'next/link';
 import ServiceMedia from '@/components/services/ServiceMedia';
 import { notFound } from 'next/navigation';
@@ -217,13 +218,17 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                     </div>
                   </div>
                 ) : (
-                  <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
+                  service.key === 'borewell' ? (
+                    <p className="mt-2 text-xl font-bold text-white">Indicative drilling from ₹80/ft <span className="block text-sm font-normal text-slate-300">4.5-inch only · final rate after site quotation</span></p>
+                  ) : <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
                 )}
               </div>
             </aside>
           </div>
         </div>
       </section>
+
+      {service.key === 'borewell' && <BorewellEstimator />}
 
       {/* ══ BENEFITS ══ */}
       <section className="mx-auto max-w-6xl px-5 py-14 sm:py-20" aria-labelledby="benefits-h">
