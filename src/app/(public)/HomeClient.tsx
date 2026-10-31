@@ -131,7 +131,9 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
           })}
         </div>
 
-        <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">Plan availability and any price-lock terms are shown before you confirm your booking.</p>\n\n        {/* Calculator */}
+        <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">Plan availability and any price-lock terms are shown before you confirm your booking.</p>
+
+        {/* Calculator */}
         <div className="rounded-3xl bg-slate-900 text-white p-6 sm:p-8 grid lg:grid-cols-2 gap-8">
           <div>
             <h3 className="font-display text-xl font-extrabold">Savings calculator</h3>
