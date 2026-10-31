@@ -76,6 +76,15 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/order-health',
+    label: 'Order Health',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="M12 3a9 9 0 1 0 9 9M12 7v5l4 2M17 2v5h5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/finance',
     label: 'Finance',
     icon: (

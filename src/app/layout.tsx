@@ -121,7 +121,7 @@ html[data-splash] #app-splash{
   padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   transition:opacity .35s ease,visibility 0s linear .35s;
 }
-html[data-splash="show"] #app-splash{animation:sp-failsafe .01s linear 1.8s forwards}
+html[data-splash="show"] #app-splash{animation:sp-failsafe .01s linear .75s forwards}
 html[data-splash="done"] #app-splash{opacity:0;visibility:hidden;animation:none}
 .sp-stage{display:flex;flex-direction:column;align-items:center;text-align:center}
 .sp-orb{position:relative;display:grid;place-items:center;width:132px;height:132px}
@@ -151,6 +151,10 @@ html[data-splash="done"] #app-splash{opacity:0;visibility:hidden;animation:none}
   .sp-ring{animation:none;opacity:.18;transform:scale(1)}
   .sp-ring:nth-child(n+2){display:none}
   .sp-mark{animation:none}
+}
+@media (pointer:coarse){
+  .sp-ring{animation:none;opacity:.16;transform:scale(1)}
+  .sp-ring:nth-child(n+2){display:none}
 }
 `;
 
