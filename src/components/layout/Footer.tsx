@@ -169,6 +169,14 @@ export default function Footer() {
                 WhatsApp
               </a>
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href="/register/pro?type=technician" className={linkClass}>
+                Join as technician
+              </Link>
+              <a href="tel:+919889305803" className={linkClass}>
+                Call support
+              </a>
+            </div>
           </div>
 
           <nav aria-label="Footer navigation" className="min-w-0">
