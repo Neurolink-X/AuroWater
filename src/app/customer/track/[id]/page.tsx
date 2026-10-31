@@ -168,6 +168,7 @@ export default function TrackOrderPage() {
   const lastFetchAt = useRef(0);
   const lastLoadedOrderId = useRef('');
   const lastRequestResult = useRef<'success' | 'error' | null>(null);
+  const loadPromise = useRef<Promise<void> | null>(null);
   // A realtime status event always wins over an older in-flight REST response.
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
@@ -180,7 +181,8 @@ export default function TrackOrderPage() {
   /** silent=true refreshes in the background without blanking the page. */
   const load = useCallback(
     async (silent = false) => {
-      if (!id || loadInFlight.current) return;
+      if (!id) return;
+      if (loadPromise.current) return loadPromise.current;
       // Avoid duplicate automatic fetches during focus/visibility bursts.
       if (silent && lastLoadedOrderId.current === id && Date.now() - lastFetchAt.current < 5_000) return;
       loadInFlight.current = true;
@@ -189,6 +191,7 @@ export default function TrackOrderPage() {
         setLoading(true);
         setError(null);
       }
+      const request = (async () => {
       try {
         const o = (await customerOrderGet(id)) as OrderRow;
         if (mountedRef.current && generationAtStart === realtimeGeneration.current) {
@@ -217,6 +220,9 @@ export default function TrackOrderPage() {
         loadInFlight.current = false;
         if (!silent && mountedRef.current) setLoading(false);
       }
+      })();
+      loadPromise.current = request;
+      try { await request; } finally { loadPromise.current = null; }
     },
     [id, router]
   );
