@@ -33,11 +33,10 @@ export function useScrollAnimation({
     const root = document.documentElement;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    const hiddenDocument = document.visibilityState === 'hidden';
 
     // A literal "\\n" in the previous comment accidentally commented out
     // this guard. Keeping the condition executable avoids mobile scroll jank.
-    if (reducedMotion || coarsePointer || hiddenDocument ||
+    if (reducedMotion || coarsePointer ||
         !('IntersectionObserver' in window)) {
       root.removeAttribute('data-reveal-ready');
       return;
