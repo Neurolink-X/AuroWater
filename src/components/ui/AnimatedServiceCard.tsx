@@ -106,7 +106,7 @@ export default function AnimatedServiceCard({
                 </h3>
 
                 <div className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                  Service availability checked at booking
+                  Transparent booking details
                 </div>
               </div>
             </div>
@@ -133,15 +133,15 @@ export default function AnimatedServiceCard({
         {/* Benefits */}
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-slate-100 pt-3">
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Review availability
+            ✓ Availability checked
           </span>
 
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Confirm service details
+            ✓ Clear service scope
           </span>
 
           <span className="text-[11px] font-medium text-slate-500">
-            ✓ Review price before booking
+            ✓ Price review before confirmation
           </span>
         </div>
 
