@@ -657,7 +657,7 @@ export default function CustomerHomePage() {
   }, [ready, version]);
 
   /* ── Notifications ──────────────────────────────────────────────────── */
-  const loadNotifs = useCallback(async () => {
+  const loadNotifs = useCallback(async function refreshNotifications() {
     if (notificationInFlight.current) {
       notificationRefreshQueued.current = true;
       return;
@@ -674,7 +674,7 @@ export default function CustomerHomePage() {
       if (notificationRefreshQueued.current) {
         notificationRefreshQueued.current = false;
         if (notificationDebounce.current !== null) window.clearTimeout(notificationDebounce.current);
-        notificationDebounce.current = window.setTimeout(() => void loadNotifs(), 400);
+        notificationDebounce.current = window.setTimeout(() => void refreshNotifications(), 400);
       }
     }
   }, []);
