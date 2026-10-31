@@ -16,12 +16,12 @@
 export const CAN_PRICES = {
   normal: 20,
   chilled: 25,
-  subscription: 18,
+  subscription: 20,
   bulk: 20,
 } as const;
 
 /** Master switch for every "market price / % off / you save" element. */
-export const SHOW_MARKET_COMPARISON = true;
+export const SHOW_MARKET_COMPARISON = false;
 
 /** ⚠ PLACEHOLDERS: typical local delivered price per 20L can. Verify, then edit. */
 export const MARKET_CAN_PRICES = {

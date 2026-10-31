@@ -80,11 +80,12 @@ interface FieldMeta {
  * can prices are pinned to the approved launch prices and recurring is capped at the
  * recurring launch price. Set to false once pricing is fully admin-controlled.
  */
-const ENFORCE_LAUNCH_PRICING = true;
-const LAUNCH = { normal: 20, chilled: 25, recurringMax: 18, bulk: 20 } as const;
-const LOCKED_KEYS: ReadonlySet<ManagedKey> = new Set(
-  ENFORCE_LAUNCH_PRICING ? (['default_can_price', 'chilled_can_price', 'bulk_can_price'] as ManagedKey[]) : [],
-);
+const ENFORCE_LAUNCH_PRICING = false; // Versioned pricing is the canonical rate publisher.
+const LAUNCH = { normal: 20, chilled: 25, recurringMax: 20, bulk: 20 } as const;
+const LOCKED_KEYS: ReadonlySet<ManagedKey> = new Set([
+  'default_can_price', 'chilled_can_price', 'subscription_can_price',
+  'bulk_can_price', 'bulk_threshold', 'convenience_fee', 'emergency_surcharge',
+]);
 
 const FIELD_META: Record<ManagedKey, FieldMeta> = {
   default_can_price: {
@@ -334,6 +335,8 @@ function validate(values: Values): Errors {
 function buildRequestBody(values: Values): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   for (const key of MANAGED_KEYS) {
+    // Published prices live in immutable pricing_versions, not legacy settings.
+    if (LOCKED_KEYS.has(key)) continue;
     const { kind } = FIELD_META[key];
     const raw = values[key]?.trim() ?? '';
 
@@ -462,7 +465,7 @@ const Field = memo(function Field({
             <rect x="5" y="11" width="14" height="9" rx="2" />
             <path d="M8 11V8a4 4 0 0 1 8 0v3" />
           </svg>
-          Launch price
+          Managed in Pricing
         </span>
       )}
       {dirty && !locked && (
@@ -972,6 +975,8 @@ export default function AdminSettingsPage() {
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">
                 Manage pricing, commissions, operations and customer support details for AuroWater.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2"><a href="/admin/pricing" className="inline-flex min-h-10 items-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 text-sm font-bold text-emerald-900 hover:bg-emerald-100">Manage live prices, fees & city overrides →</a></div>
+              <p className="mt-2 text-xs text-slate-600">Water, service prices, convenience and emergency charges are versioned under Pricing. Changes in this legacy settings screen must not overwrite published prices or historical orders.</p>
               <a href="/admin/loyalty" className="mt-3 inline-flex min-h-10 items-center rounded-xl border border-sky-200 bg-sky-50 px-4 text-sm font-bold text-sky-800 hover:bg-sky-100">Manage subscription loyalty offers →</a>
             </div>
             <div className="flex flex-col items-start gap-1.5 sm:items-end">
