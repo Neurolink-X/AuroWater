@@ -4,11 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 import { FALLBACK_CITIES, type City } from '@/lib/cities';
 import { isSupabaseConfigured } from '@/lib/db/supabase';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 const CACHE_HEADERS = {
   'Cache-Control':
-    'public, s-maxage=300, stale-while-revalidate=600',
+    'public, s-maxage=30, stale-while-revalidate=60',
 };
 
 const CITY_SELECT =
@@ -31,7 +31,10 @@ function mergeWithFallback(data: City[]): City[] {
   }
   for (const city of FALLBACK_CITIES) {
     const key = city.slug.toLowerCase();
-    if (!merged.has(key)) merged.set(key, city);
+    // A missing DB record must never silently become a live expansion city.
+    // Preserve legacy core cities during partial migrations; discovery-only
+    // fallback entries remain non-bookable.
+    if (!merged.has(key)) merged.set(key, city.status === 'active' ? city : { ...city, status: city.status });
   }
   return [...merged.values()].sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 }

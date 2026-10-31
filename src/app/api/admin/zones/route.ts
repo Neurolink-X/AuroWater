@@ -306,6 +306,11 @@ export async function POST(
     );
   }
 
+  // Creation is always non-bookable; activation requires a separate review.
+  if (requestedStatus === 'AVAILABLE' || requestedStatus === 'LIMITED') {
+    return jsonErr('Create the zone as COMING_SOON, then activate it after coverage and capacity verification.', 422);
+  }
+
   const row = {
     ...value,
     city,
@@ -315,9 +320,7 @@ export async function POST(
     /*
      * Safe default for a newly-created zone.
      */
-    status:
-      requestedStatus ??
-      'COMING_SOON',
+    status: 'COMING_SOON',
 
     /*
      * Ensure an explicit empty array rather
