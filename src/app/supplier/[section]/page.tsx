@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
+import PartnerJourney from '@/components/operations/PartnerJourney';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
@@ -175,6 +176,8 @@ export default function SupplierSectionPage() {
           </div>
         </div>
       </header>
+
+      <PartnerJourney role="supplier" isHindi={isHindi} />
 
       <div className="mt-4 flex justify-end">
         <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>

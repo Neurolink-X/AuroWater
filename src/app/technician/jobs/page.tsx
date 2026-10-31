@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
+import PartnerJourney from '@/components/operations/PartnerJourney';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -347,6 +348,8 @@ export default function TechnicianJobs() {
   return (
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+
+        <PartnerJourney role="technician" isHindi={isHindi} />
 
         <div className="mb-4"><PartnerPostalLookup label={isHindi ? 'काम की जगह का पिन कोड' : 'Job location PIN reference'} /></div>
 
