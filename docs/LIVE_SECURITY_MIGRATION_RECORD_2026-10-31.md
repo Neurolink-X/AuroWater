@@ -6,7 +6,7 @@ Scope: Supabase project `mwfcwhxdlnqldciigicl`. Checks here do not expose custom
 
 - `20261031020324_security_rpc_permissions_rls_initplan_20261031`: RPC grants, customer stats invoker rights, four role-aware RLS policy optimizations.
 - `20261031020405_secure_masked_order_views_20261031`: RLS-invoker views plus assignment-gated contact projection.
-- `pin_trusted_function_search_paths_20261031`: 11 trusted search paths (verify actual version using `list_migrations`).
+- `20261031020600_pin_trusted_function_search_paths_20261031`: 11 trusted search paths.
 
 **Do not replay** SQL files blindly against production. The older SQL bundle and timestamped migration directory were not fully reconciled before this change. PostgreSQL schema is now the live authority for verification; new environments need a fresh, reviewed migration baseline.
 
