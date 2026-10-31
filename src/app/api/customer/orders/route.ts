@@ -349,6 +349,9 @@ export async function POST(req: NextRequest) {
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
     const cap = isSubscription ? maxSub : maxOneTime;
     const rawQuantity = Number(body.can_count ?? body.can_quantity ?? 1);
+    if (body.can_count != null && body.can_quantity != null && Number(body.can_count) !== Number(body.can_quantity)) {
+      return jsonErr('Conflicting can quantities supplied.', 400);
+    }
     if (!Number.isSafeInteger(rawQuantity) || rawQuantity < 1) {
       return jsonErr('Enter a valid whole-number can quantity.', 400);
     }
@@ -409,6 +412,9 @@ export async function POST(req: NextRequest) {
       return jsonErr('Published service pricing is missing or invalid. Please retry later.', 503);
     }
     const optionKey = str(body.sub_option_key) ?? '';
+    if (service_type_key === 'borewell' && (body.depth_feet != null || body.rate_per_foot != null || body.casing_feet != null)) {
+      return jsonErr('Borewell drilling requires a verified site quotation. Do not submit estimator values as a fixed-price booking.', 400);
+    }
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
       plumbing: { pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 },
@@ -521,6 +527,9 @@ export async function POST(req: NextRequest) {
   }
 
   const clientTotal = Number(body.total_amount);
+  if (typeof body.total_amount !== 'number' || body.total_amount < 0) {
+    return jsonErr('total_amount must be a non-negative numeric amount.', 400);
+  }
   if (!Number.isFinite(clientTotal)) return jsonErr('total_amount is required', 400);
 
   if (!totalsMatch(clientTotal, netBaseAmount, convenience, emergency_charge, gstRate, 0.5)) {
