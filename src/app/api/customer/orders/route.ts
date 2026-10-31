@@ -378,7 +378,7 @@ export async function POST(req: NextRequest) {
     const subscriptionPrice = Number(activePricingConfig?.water_subscription ?? regularPrice);
     const bulkPrice = Number(activePricingConfig?.bulk_can_price ?? flat.bulk_can_price ?? regularPrice);
     const unitPrice = isSubscription ? subscriptionPrice : isChilled ? chilledPrice : qty >= bulkThreshold ? bulkPrice : regularPrice;
-    if (![regularPrice, chilledPrice, subscriptionPrice].every((price) => Number.isFinite(price) && price > 0)) {
+    if (![regularPrice, subscriptionPrice, bulkPrice].every((price) => Number.isFinite(price) && price >= 20) || !Number.isFinite(chilledPrice) || chilledPrice < 25) {
       return jsonErr('Water pricing configuration is invalid. Please contact support.', 503);
     }
     waterUnitPrice = unitPrice;
@@ -408,7 +408,13 @@ export async function POST(req: NextRequest) {
     if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
       return jsonErr('Invalid service option. Please choose an available option.', 400);
     }
-    const configuredOptionFee = Number(activeServicePrices[`${service_type_key}_${optionKey}`]);
+    const optionRateKeys: Record<string, Record<string, string>> = {
+      ro_service: { filter_change: 'ro_service_filter_change', amc: 'ro_service_amc', new_installation: 'ro_service_new_installation' },
+      plumbing: { drainage: 'plumbing_drainage', new_fitting: 'plumbing_new_fitting' },
+      water_tanker: { '1000': 'water_tanker_1000', '2000': 'water_tanker_2000', custom: 'water_tanker_custom' },
+    };
+    const optionRateKey = optionRateKeys[service_type_key]?.[optionKey];
+    const configuredOptionFee = optionRateKey ? Number(activeServicePrices[optionRateKey]) : Number.NaN;
     const optionFee = Number.isFinite(configuredOptionFee) && configuredOptionFee >= 0
       ? configuredOptionFee
       : (allowedOptions?.[optionKey] ?? 0);
