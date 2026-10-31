@@ -22,7 +22,6 @@
 //   supplierRatingGet,
 // } from '@/lib/api-client';
 // import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
-import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
 
 // // ─── Types ───────────────────────────────────────────────────
 
@@ -1584,46 +1583,6 @@ import LiveOperationsActionCenter from '@/components/operations/LiveOperationsAc
 
 //         {/* ── MAIN ───────────────────────────────────────────────────────── */}
 //         <main className="sd-main">
-          <LiveOperationsActionCenter
-            title={isHindi ? 'आज के जरूरी काम' : "Today's operational priorities"}
-            description={isHindi
-              ? 'ऑर्डर और स्टॉक आपके अकाउंट डेटा से दिखते हैं। कमाई और बैंक ट्रांसफर की स्थिति अलग से सत्यापित करें।'
-              : 'Order and stock figures come from your account. Review earnings and bank transfers separately before considering them settled.'}
-            loading={loading || loadingOrders}
-            cards={[
-              {
-                id: 'accept',
-                title: isHindi ? 'स्वीकार करने वाले ऑर्डर' : 'Orders awaiting acceptance',
-                value: String(orders.filter((order) =>
-                  ['pending', 'assigned'].includes(order.status) && !order.accepted_at).length),
-                description: 'Review the address, slot and available stock before accepting.',
-                href: '/supplier/orders',
-                action: 'Review assigned orders',
-                tone: 'attention',
-              },
-              {
-                id: 'stock',
-                title: isHindi ? 'डिलीवरी के लिए उपलब्ध कैन' : 'Unreserved cans',
-                value: stock
-                  ? String(Math.max(0, Number(stock.cans_available || 0) -
-                      Number(stock.reserved_cans || 0) - Number(stock.reservation_buffer_cans || 0)))
-                  : '—',
-                description: 'Available stock less reservations and safety buffer; not a delivery guarantee.',
-                href: '/supplier/inventory',
-                action: 'Manage inventory',
-                tone: 'neutral',
-              },
-              {
-                id: 'settlement',
-                title: isHindi ? 'कमाई और पेआउट' : 'Earnings & payouts',
-                value: 'Review',
-                description: 'Check posted earnings against actual payout status; no assumed transfer amounts.',
-                href: '/supplier/earnings',
-                action: 'Reconcile earnings',
-                tone: 'good',
-              },
-            ]}
-          />
 //           {!loading && !profile && (
 //             <div role="alert" className="sd-alert sd-alert--bad" style={{ padding: '20px', display: 'block' }}>
 //               <div style={{ fontSize: 15, fontWeight: 800 }}>Supplier account not found</div>
@@ -2133,6 +2092,7 @@ import {
   type SupplierDispatchSettings,
 } from '@/lib/api-client';
 import { useSupplierRealtime } from '@/hooks/useSupplierRealtime';
+import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -2854,7 +2814,9 @@ function OrderCard({
 
 export default function SupplierDashboardPage() {
   const router = useRouter();
-  const supabase = createClient();
+  // A stable browser client avoids recreating auth listeners and invalidating
+  // effects on every dashboard state change.
+  const supabase = useMemo(() => createClient(), []);
 
   const [profile, setProfile] = useState<SupplierProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -3705,6 +3667,46 @@ export default function SupplierDashboardPage() {
 
         {/* ── MAIN ───────────────────────────────────────────────────────── */}
         <main className="sd-main">
+          <LiveOperationsActionCenter
+            title={isHindi ? 'आज के जरूरी काम' : "Today's operational priorities"}
+            description={isHindi
+              ? 'ऑर्डर और स्टॉक आपके अकाउंट डेटा से दिखते हैं। कमाई और बैंक ट्रांसफर की स्थिति अलग से सत्यापित करें।'
+              : 'Order and stock figures come from your account. Review earnings and bank transfers separately before considering them settled.'}
+            loading={loading || loadingOrders}
+            cards={[
+              {
+                id: 'accept',
+                title: isHindi ? 'स्वीकार करने वाले ऑर्डर' : 'Orders awaiting acceptance',
+                value: String(orders.filter((order) =>
+                  ['pending', 'assigned'].includes(order.status) && !order.accepted_at).length),
+                description: 'Review the address, slot and available stock before accepting.',
+                href: '/supplier/orders',
+                action: 'Review assigned orders',
+                tone: 'attention',
+              },
+              {
+                id: 'stock',
+                title: isHindi ? 'डिलीवरी के लिए उपलब्ध कैन' : 'Unreserved cans',
+                value: stock
+                  ? String(Math.max(0, Number(stock.cans_available || 0) -
+                      Number(stock.reserved_cans || 0) - Number(stock.reservation_buffer_cans || 0)))
+                  : '—',
+                description: 'Available stock less reservations and safety buffer; not a delivery guarantee.',
+                href: '/supplier/inventory',
+                action: 'Manage inventory',
+                tone: 'neutral',
+              },
+              {
+                id: 'settlement',
+                title: isHindi ? 'कमाई और पेआउट' : 'Earnings & payouts',
+                value: 'Review',
+                description: 'Check posted earnings against actual payout status; no assumed transfer amounts.',
+                href: '/supplier/earnings',
+                action: 'Reconcile earnings',
+                tone: 'good',
+              },
+            ]}
+          />
           {!loading && profile && (profile.application_status === 'pending' || profile.application_status === 'pending_approval') && (
             <section role="status" aria-live="polite" className="sd-alert sd-alert--warn" style={{ padding: 20, marginBottom: 18, display: 'block' }}>
               <div style={{ fontSize: 16, fontWeight: 800 }}>
