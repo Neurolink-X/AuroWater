@@ -16,12 +16,13 @@ test('service photographs retain measured source pixel dimensions', () => {
   }
 });
 
-test('service image layouts avoid wide object-cover enlargement', () => {
+test('service images use responsive cover frames while detail images preserve original proportions', () => {
   const css = read('src/app/(public)/services/services.css');
   const detail = read('src/app/(public)/services/[slug]/page.tsx');
   const booking = read('src/components/ui/AnimatedServiceCard.tsx');
   const about = read('src/app/(public)/about/page.tsx');
-  assert.match(css, /\.sv-card-illustration img \{[\s\S]*?object-fit: contain/);
+  assert.match(css, /\.sv-card-illustration img \{[\s\S]*?object-fit: cover/);
+  assert.match(css, /\.sv-card-illustration \{[\s\S]*?aspect-ratio: 4 \/ 3/);
   assert.match(detail, /SERVICE_IMAGE_DIMENSIONS\[service.key\]/);
   assert.match(booking, /object-contain/);
   assert.match(about, /\.ab-svc-photo img\{object-fit:contain/);
