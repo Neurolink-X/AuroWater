@@ -44,7 +44,7 @@ export default function OrderHealthPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const envelope = await response.json();
-        if (!response.ok || !envelope.success) throw new Error(envelope.error || 'Could not load order health.');
+        if (!response.ok || !envelope?.data || !Array.isArray(envelope.data.orders)) throw new Error(envelope?.error || 'Could not load order health.');
         if (active) setPayload(envelope.data as Payload);
       } catch (cause) {
         if (active && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load the report.');
