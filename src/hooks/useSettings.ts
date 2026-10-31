@@ -48,7 +48,9 @@ export interface PricingConfig {
   bulk_threshold:         number;  // minimum qty for bulk pricing
   market_can_price:       number;  // admin-configured illustrative reference for savings display
   service_base_prices:    Record<string, number>;
-  convenience_fee:        number;  // flat ₹ per order
+  convenience_fee:        number;  // flat ₹ per non-water order
+  delivery_fee:           number;  // flat ₹ per delivery (all services)
+  surge_charge:           number;  // flat ₹ for emergency orders
   emergency_surcharge:    number;  // flat ₹ for emergency orders
   gst_rate:               number;  // 0–1, e.g. 0.18 = 18%
   commissions:            CommissionRates;
@@ -137,9 +139,11 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     water_tanker_2000: 120,
     water_tanker_custom: 80,
   },
-  convenience_fee:     10,
-  emergency_surcharge: 30,
-  gst_rate:            0.18,
+  convenience_fee:     0,
+  delivery_fee:        0,
+  surge_charge:        0,
+  emergency_surcharge: 0,
+  gst_rate:            0,
   commissions: {
     bulk:       0.08,
     technician: 0.50,
@@ -460,8 +464,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       const base        = Math.round(Math.max(0, basePrice));
       // The server order API intentionally applies no separate convenience fee
       // to water-can orders. Keep the client breakdown aligned with that rule.
-      const convenience = serviceKey === 'water_can' ? 0 : Math.round(settings.convenience_fee);
-      const emergency   = isEmergency ? Math.round(settings.emergency_surcharge) : 0;
+      const convenience = (serviceKey === 'water_can' ? 0 : Math.round(settings.convenience_fee)) + Math.round(settings.delivery_fee ?? 0);
+      const emergency   = isEmergency ? Math.round(settings.emergency_surcharge + (settings.surge_charge ?? 0)) : 0;
       const subtotal    = base + convenience + emergency;
       const gst         = Math.round(subtotal * settings.gst_rate);
       const total       = subtotal + gst;
@@ -469,7 +473,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       const platform_net    = total - supplier_payout;
       return { base, convenience, emergency, subtotal, gst, total, supplier_payout, platform_net };
     },
-    [settings.convenience_fee, settings.emergency_surcharge, settings.gst_rate, settings.commissions.supplier]
+    [settings.convenience_fee, settings.delivery_fee, settings.emergency_surcharge, settings.surge_charge, settings.gst_rate, settings.commissions.supplier]
   );
 
   /* ── Illustrative difference vs configured reference price ── */
