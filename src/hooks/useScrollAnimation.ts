@@ -52,10 +52,10 @@ export function useScrollAnimation({
     const register = () => {
       // Stagger: <ul data-reveal-stagger="80"> sets a delay on each direct [data-reveal] child.
       document.querySelectorAll<HTMLElement>('[data-reveal-stagger]').forEach((parent) => {
-        const step = Number(parent.dataset.revealStagger) || 70;
+        const step = Math.min(120, Math.max(0, Number(parent.dataset.revealStagger) || 70));
         parent
           .querySelectorAll<HTMLElement>(':scope > [data-reveal], :scope > .fade-up')
-          .forEach((child, i) => child.style.setProperty('--reveal-delay', `${i * step}ms`));
+          .forEach((child, i) => child.style.setProperty('--reveal-delay', `${Math.min(i * step, 420)}ms`));
       });
 
       document.querySelectorAll(selector).forEach((el) => {
