@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
       verified_suppliers: ids.length,
       online_stocked_suppliers: readySuppliers,
       available_pilot_zones: readyZones.map((z) => z.slug),
+      pilot_zone_count: (zones ?? []).length,
+      pilot_zones_without_pincodes: (zones ?? []).filter((z) => !Array.isArray(z.pincodes) || z.pincodes.length === 0).map((z) => z.slug),
       missing: [
         ...(readyZones.length ? [] : ['An available pilot service zone with configured delivery PIN codes']),
         ...(readySuppliers ? [] : ['At least one approved online Noida supplier with free stock']),
