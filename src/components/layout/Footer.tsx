@@ -199,6 +199,7 @@ const NAV_LINKS = [
   { label: 'Pricing', href: '/pricing' },
   { label: 'Book', href: '/book' },
   { label: 'Technicians', href: '/technicians' },
+  { label: 'Blog & Guides', href: '/blog' },
   { label: 'Privacy', href: '/privacy' },
   { label: 'Terms', href: '/terms' },
   { label: 'Cookies', href: '/cookies' },
