@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
   const key =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Pricing credentials unavailable.' }, { status: 503, headers: CACHE });
   }
 
   const controller = new AbortController();
@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
       .order('effective_from', { ascending: false })
       .order('version', { ascending: false })
       .limit(1)
+      .abortSignal(controller.signal)
       .maybeSingle();
 
     if (versionError) {
