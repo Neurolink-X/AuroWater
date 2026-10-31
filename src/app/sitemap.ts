@@ -33,6 +33,7 @@ const publicPages = [
   '/cookies',
   '/security',
   '/careers',
+  '/become-a-supplier',
 ] as const;
 
 export const revalidate = 3600;

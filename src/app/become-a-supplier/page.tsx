@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 
 /**
  * src/app/become-a-supplier/page.tsx: public, indexable recruitment page.
@@ -120,6 +121,72 @@ export default function BecomeSupplierPage() {
             <a href="#how-it-works" className={`${cta} border border-slate-300 bg-white text-slate-800 hover:bg-slate-50`}>See how it works</a>
           </div>
         </div>
+      </section>
+
+      {/* Real locally hosted service imagery; no remote stock photo request,
+          custom image proxy, or layout shift. All images come from the
+          existing service asset pipeline and use responsive Next.js sizes. */}
+      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16"
+        aria-labelledby="supplier-operations-title">
+        <div className="mb-7 max-w-3xl">
+          <p className="text-sm font-bold uppercase tracking-widest text-emerald-700">
+            Built around daily operations
+          </p>
+          <h2 id="supplier-operations-title"
+            className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+            Clear orders. Reliable stock information. Better dispatch control.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+            Use the supplier portal to receive eligible orders, manage water-can
+            inventory and update availability. Coverage and account approval are
+            verified before you start receiving assignments.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            {
+              src: '/images/water_can.webp',
+              alt: '20 litre drinking water cans prepared for customer delivery',
+              title: '20L water can delivery',
+              detail: 'Manage quantities and stock availability for water-can orders.',
+            },
+            {
+              src: '/images/water_tanker.webp',
+              alt: 'Water tanker used for bulk water delivery services',
+              title: 'Bulk water requests',
+              detail: 'Understand coverage and keep your service offerings accurate.',
+            },
+            {
+              src: '/images/ro_service.webp',
+              alt: 'Water purifier maintenance and RO service equipment',
+              title: 'Service coordination',
+              detail: 'Separate available services from unsupported requests.',
+            },
+          ].map((service) => (
+            <article key={service.title}
+              className="group min-w-0 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm
+                transition-shadow hover:shadow-md">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-emerald-50">
+                <Image src={service.src} alt={service.alt} fill
+                  sizes="(max-width: 639px) calc(100vw - 32px), (max-width: 1023px) 48vw, 310px"
+                  quality={82} loading="lazy"
+                  className="object-cover transition-transform duration-300 motion-safe:group-hover:scale-[1.025]" />
+              </div>
+              <div className="p-5">
+                <h3 className="text-base font-bold leading-6 text-slate-950">
+                  {service.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {service.detail}
+                </p>
+              </div>
+            </article>
+          ))}
+        </div>
+        <p className="mt-4 text-xs leading-5 text-slate-500">
+          Service images are illustrative; available work depends on your
+          registration, service coverage and operational approval.
+        </p>
       </section>
 
       <section className="mx-auto max-w-5xl px-4 py-14 sm:px-6" aria-labelledby="features-title">

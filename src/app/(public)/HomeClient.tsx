@@ -294,7 +294,7 @@ export default function HomeClient() {
       <style>{`
         :root{--navy:#020c18;--font-display:'Bricolage Grotesque','Syne',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--fd:var(--font-display);--glass:rgba(7,30,52,.65);--glass-b:rgba(14,165,233,.16)}
         *,*::before,*::after{box-sizing:border-box}
-        body{font-family:var(--font-body);background:var(--navy);overflow-x:hidden}
+        body{font-family:var(--font-body);background:var(--navy)}
         .font-display{font-family:var(--font-display)}
         .hero-h{font-family:var(--font-display);font-weight:800;font-size:clamp(2.1rem,5.2vw,4.4rem);line-height:1.07;letter-spacing:-.5px;color:#fff;padding-block:.04em}
         .hero-hi{font-family:'Noto Sans Devanagari',system-ui,sans-serif;font-weight:700;font-size:clamp(1.8rem,5vw,3.4rem);line-height:1.35;color:#fff}
@@ -313,7 +313,15 @@ export default function HomeClient() {
         .aw-btn:focus-visible,.aw-btn-ol:focus-visible,.aw-tab:focus-visible{outline:2px solid #7dd3fc;outline-offset:3px}
         .aw-glass{background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--glass-b);border-radius:20px}
         /* Cut continuous paint work on touch devices; keep desktop motion. */
+        /* Native vertical scrolling must remain on the document, not a nested
+           overflow-x:hidden element. Slow phones should not paint continuous
+           decorative animations while handling touch or momentum scroll. */
         @media (hover:none) and (pointer:coarse) {
+          .aw-hero-accent { animation:none!important }
+          .aw-campaign-rail { scroll-snap-type:x proximity }
+          .aw-campaign-card { contain:layout paint }
+          .aw-hero-bg { background-attachment:scroll }
+
           .aw-btn,.aw-mql,.aw-mqr,.aw-live {animation:none!important}
           .aw-glass {backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
           .aw-mql,.aw-mqr {transform:none!important}
@@ -341,7 +349,7 @@ export default function HomeClient() {
         @media (prefers-reduced-motion:reduce){.aw-hero-accent{animation:none}}
         .aw-season-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:700;color:#bae6fd}
         @media (max-width:639px){.aw-hero-bg .hero-h{font-size:clamp(1.9rem,8vw,2.7rem)}.aw-hero-bg .hero-hi{font-size:clamp(1.75rem,7vw,2.6rem)}}
-        .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;padding:5px 2px 14px}
+        .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:5px 2px 14px}
         .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
         .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
         @keyframes aw-campaign-float{0%,100%{transform:translateY(0);opacity:.65}50%{transform:translateY(-7px);opacity:1}}
@@ -351,10 +359,10 @@ export default function HomeClient() {
         @media(prefers-reduced-motion:reduce){.aw-mql,.aw-mqr,.aw-btn,.aw-live{animation:none}}
       `}</style>
 
-      <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--navy)' }}>
+      <div className="min-h-screen overflow-x-clip" style={{ background: 'var(--navy)' }}>
 
         {/* ═══ HERO ═══ */}
-        <section className="aw-hero-bg relative min-h-screen flex flex-col overflow-x-hidden">
+        <section className="aw-hero-bg relative min-h-screen flex flex-col overflow-x-clip">
           <div className="absolute inset-0 pointer-events-none aw-dots" style={{ opacity: 0.028 }} aria-hidden="true" />
           <div className="relative z-10 flex-1 flex items-center">
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 w-full">

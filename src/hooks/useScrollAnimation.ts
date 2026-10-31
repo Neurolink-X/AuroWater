@@ -1,114 +1,148 @@
 'use client';
 
-import { useEffect, useLayoutEffect } from 'react';
-
-// useLayoutEffect on the client avoids a flash of visible content before hiding;
-// useEffect on the server avoids the SSR warning.
-const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+import { useEffect } from 'react';
 
 export type ScrollRevealOptions = {
-  /** Fraction of the element that must be visible. 0 is safest for tall elements. */
+  /** The fraction of an element visible before revealing it. */
   threshold?: number;
-  /** Trigger slightly before the element is fully in view. */
+  /** Begin observing just before an element enters the viewport. */
   rootMargin?: string;
-  /** true = animate once. false = replay when scrolling back past. */
+  /** Reveal only once, or replay the animation on re-entry. */
   once?: boolean;
-  /** Elements to animate. `.fade-up` is kept so existing markup keeps working. */
+  /** Compatible with existing data-reveal and fade-up markup. */
   selector?: string;
 };
 
+/**
+ * Lightweight, progressive scroll reveals.
+ *
+ * Do not create a document-wide MutationObserver on coarse-pointer or
+ * reduced-motion devices. Both groups get visible content immediately.
+ *
+ * Reveal animations must never block reading, native scrolling, keyboard
+ * navigation, or clicks. The root data attribute is only added when
+ * IntersectionObserver is operational, so unobserved content stays visible.
+ */
 export function useScrollAnimation({
   threshold = 0,
   rootMargin = '0px 0px -10% 0px',
   once = true,
   selector = '[data-reveal], .fade-up',
 }: ScrollRevealOptions = {}) {
-  useIsoLayoutEffect(() => {
-    const html = document.documentElement;
+  useEffect(() => {
+    const root = document.documentElement;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
-    // Respect reduced motion and old browsers: never hide anything.
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // On touch devices, prefer immediate content over decorative observers.\n    // This also avoids MutationObserver scans while scrolling long home pages.\n    const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;\n    if (reduceMotion || coarsePointer || !('IntersectionObserver' in window)) return;
+    // A literal "\\n" in the previous comment accidentally commented out
+    // this guard. Keeping the condition executable avoids mobile scroll jank.
+    if (reducedMotion || coarsePointer ||
+        !('IntersectionObserver' in window)) {
+      root.removeAttribute('data-reveal-ready');
+      return;
+    }
 
     const registered = new WeakSet<Element>();
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          const el = entry.target as HTMLElement;
-          if (entry.isIntersecting) {
-            el.setAttribute('data-revealed', '');
-            el.classList.add('visible'); // backwards compatible with old CSS
-            if (once) io.unobserve(el);
-          } else if (!once) {
-            el.removeAttribute('data-revealed');
-            el.classList.remove('visible');
-          }
-        }
-      },
-      { threshold, rootMargin }
-    );
-
-    const register = () => {
-      // Stagger: <ul data-reveal-stagger="80"> sets a delay on each direct [data-reveal] child.
-      document.querySelectorAll<HTMLElement>('[data-reveal-stagger]').forEach((parent) => {
-        const step = Math.min(120, Math.max(0, Number(parent.dataset.revealStagger) || 70));
-        parent
-          .querySelectorAll<HTMLElement>(':scope > [data-reveal], :scope > .fade-up')
-          .forEach((child, i) => child.style.setProperty('--reveal-delay', `${Math.min(i * step, 420)}ms`));
-      });
-
-      document.querySelectorAll(selector).forEach((el) => {
-        if (registered.has(el)) return;
-        registered.add(el);
-        io.observe(el);
-      });
-    };
-
-    register();
-    html.setAttribute('data-reveal-ready', '');
-
-    // Register only newly mounted branches. Scanning the entire document on
-    // every React DOM update caused jank on long dashboard/order lists.
+    const observed = new Set<Element>();
     let frame = 0;
-    const pending = new Set<HTMLElement>();
-    const observeAdded = (node: Node) => {
-      if (!(node instanceof HTMLElement)) return;
-      pending.add(node);
-    };
-    const mo = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        mutation.addedNodes.forEach(observeAdded);
-      }
-      if (pending.size === 0 || frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        for (const root of pending) {
-          if (!root.isConnected) continue;
-          if (root.matches(selector) && !registered.has(root)) {
-            registered.add(root);
-            io.observe(root);
-          }
-          root.querySelectorAll(selector).forEach((el) => {
-            if (registered.has(el)) return;
-            registered.add(el);
-            io.observe(el);
-          });
-        }
-        pending.clear();
-      });
-    });
-    mo.observe(document.body, { childList: true, subtree: true });
+    let disconnected = false;
+    const pending = new Set<Element>();
 
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        const element = entry.target as HTMLElement;
+        if (entry.isIntersecting) {
+          element.dataset.revealed = 'true';
+          element.classList.add('visible');
+          if (once) {
+            observer.unobserve(element);
+            observed.delete(element);
+          }
+        } else if (!once) {
+          delete element.dataset.revealed;
+          element.classList.remove('visible');
+        }
+      }
+    }, { threshold, rootMargin });
+
+    const register = (element: Element) => {
+      if (!element.isConnected || registered.has(element)) return;
+      registered.add(element);
+      observed.add(element);
+      observer.observe(element);
+    };
+
+    const observeIn = (container: ParentNode) => {
+      if (container instanceof Element && container.matches(selector)) {
+        register(container);
+      }
+      container.querySelectorAll(selector).forEach(register);
+    };
+
+    const staggerWithin = (container: ParentNode) => {
+      const parents: HTMLElement[] = [];
+      if (container instanceof HTMLElement && container.matches('[data-reveal-stagger]')) {
+        parents.push(container);
+      }
+      container.querySelectorAll<HTMLElement>('[data-reveal-stagger]').forEach((parent) => {
+        parents.push(parent);
+      });
+      for (const parent of parents) {
+        const requested = Number(parent.dataset.revealStagger);
+        const stagger = Number.isFinite(requested) ? Math.max(0, Math.min(120, requested)) : 70;
+        parent.querySelectorAll<HTMLElement>(':scope > [data-reveal], :scope > .fade-up')
+          .forEach((element, index) => {
+            element.style.setProperty('--reveal-delay', `${Math.min(index * stagger, 420)}ms`);
+          });
+      }
+    };
+
+    // Initial scan happens once, not during scroll.
+    staggerWithin(document);
+    observeIn(document);
+    root.setAttribute('data-reveal-ready', '');
+
+    const flush = () => {
+      frame = 0;
+      if (disconnected) return;
+      for (const node of pending) {
+        if (!node.isConnected) continue;
+        staggerWithin(node);
+        observeIn(node);
+      }
+      pending.clear();
+    };
+
+    const mutationObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof Element) pending.add(node);
+        }
+        // Removed elements must not stay retained by the observer Set.
+        for (const node of record.removedNodes) {
+          if (!(node instanceof Element)) continue;
+          for (const element of observed) {
+            if (element === node || node.contains(element)) {
+              observer.unobserve(element);
+              observed.delete(element);
+            }
+          }
+        }
+      }
+      if (pending.size && !frame) frame = requestAnimationFrame(flush);
+    });
+
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
     return () => {
+      disconnected = true;
       cancelAnimationFrame(frame);
       pending.clear();
-      mo.disconnect();
-      io.disconnect();
-      html.removeAttribute('data-reveal-ready');
+      mutationObserver.disconnect();
+      observer.disconnect();
+      observed.clear();
+      root.removeAttribute('data-reveal-ready');
     };
   }, [threshold, rootMargin, once, selector]);
 }
 
-/** Alias for the newer name. */
 export const useScrollReveal = useScrollAnimation;
