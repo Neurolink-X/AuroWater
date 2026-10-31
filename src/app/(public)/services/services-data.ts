@@ -170,6 +170,20 @@ export const ILLUSTRATIONS: Record<ServiceKey, string> = {
   borewell: '/images/borewell.webp',
 };
 
+/** Source pixel dimensions; measured from the uploaded assets, not requested display sizes.
+ * Keep this updated when publishing new photography.
+ * Do not enlarge these 400-557px originals to full-screen hero dimensions.
+ */
+export const SERVICE_IMAGE_DIMENSIONS: Record<ServiceKey, { width: number; height: number }> = {
+  water_can: { width: 400, height: 442 },
+  water_tanker: { width: 399, height: 442 },
+  ro_service: { width: 402, height: 442 },
+  plumbing: { width: 419, height: 442 },
+  borewell: { width: 549, height: 456 },
+  motor_pump: { width: 518, height: 456 },
+  tank_cleaning: { width: 557, height: 456 },
+};
+
 export const ILLUSTRATION_ALT: Record<ServiceKey, string> = {
   water_can: '20 litre reusable water jars for home delivery in India',
   water_tanker: 'Water tanker delivering bulk water to a home',

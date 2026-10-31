@@ -9,6 +9,7 @@ import {
   CATEGORY_ICONS,
   CITY_LINE,
   ILLUSTRATIONS,
+  SERVICE_IMAGE_DIMENSIONS,
   ILLUSTRATION_ALT,
   SERVICES,
   type Service,
@@ -68,16 +69,17 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
 
   return (
     <article className="sv-card" style={vars} aria-labelledby={`sv-${s.key}-title`}>
-      {/* Lightweight original local SVG sitting in a pressed-in well; no third-party image request. */}
+      {/* Local optimized service photograph, displayed within its native resolution. */}
       <div className="sv-card-illustration">
         <Image
           src={ILLUSTRATIONS[s.key]}
           alt={ILLUSTRATION_ALT[s.key]}
-          width={640}
-          height={420}
+          width={SERVICE_IMAGE_DIMENSIONS[s.key].width}
+          height={SERVICE_IMAGE_DIMENSIONS[s.key].height}
+          quality={90}
           loading={aboveFold ? 'eager' : 'lazy'}
           fetchPriority={index === 0 ? 'high' : 'auto'}
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          sizes="(max-width: 640px) 300px, (max-width: 1024px) 320px, 360px"
         />
       </div>
 

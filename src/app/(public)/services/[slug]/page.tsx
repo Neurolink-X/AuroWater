@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
 import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
-import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
+import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, SERVICE_IMAGE_DIMENSIONS, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
 
 /* ─────────────────────────────────────────────
    Speed: every service page is built once, served from the CDN,
@@ -208,12 +208,13 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               <Image
                 src={illustration}
                 alt={illustrationAlt}
-                width={640}
-                height={420}
+                width={SERVICE_IMAGE_DIMENSIONS[service.key].width}
+                height={SERVICE_IMAGE_DIMENSIONS[service.key].height}
+                quality={90}
                 loading="eager"
                 fetchPriority="high"
-                className="block h-auto w-full"
-                sizes="(max-width: 768px) 100vw, 40vw"
+                className="mx-auto block h-auto max-h-[350px] w-auto max-w-full object-contain"
+                sizes="(max-width: 768px) 320px, 400px"
               />
               <div className="p-7">
                 <p className="text-sm font-semibold text-slate-300">Current configured price</p>
