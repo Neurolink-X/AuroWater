@@ -315,6 +315,11 @@ export default function CustomerSubscriptionsPage() {
           </span>
         </nav>
 
+        <section aria-label="Membership benefits" className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-sky-100 bg-white p-4"><p className="text-sm font-bold text-slate-900">Predictable delivery</p><p className="mt-1 text-xs leading-5 text-slate-600">Manage recurring dates without placing every order again.</p></div>
+          <div className="rounded-2xl border border-sky-100 bg-white p-4"><p className="text-sm font-bold text-slate-900">Pause or resume</p><p className="mt-1 text-xs leading-5 text-slate-600">Plan around travel and schedule changes.</p></div>
+          <Link href="/customer/loyalty" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition hover:bg-emerald-100"><p className="text-sm font-bold text-emerald-900">Earn renewal rewards →</p><p className="mt-1 text-xs leading-5 text-emerald-800">Eligible completed and paid renewals earn points. View your real balance.</p></Link>
+        </section>
         <header className="mt-6 overflow-hidden rounded-[2rem] border border-white bg-slate-950 shadow-[0_26px_80px_rgba(15,23,42,0.12)]">
           <div className="relative px-6 py-8 sm:px-10 sm:py-11">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500" />
