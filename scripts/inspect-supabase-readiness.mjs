@@ -135,6 +135,51 @@ try {
     'release_technician_assignment',
   ]]);
 
+  // Keep security visibility independent of Supabase Dashboard access.
+  // This is read-only: no impersonation, row data, or authorization mutations.
+  const criticalRpcNames = [
+    'try_assign_supplier_with_stock', 'try_assign_technician',
+    'accept_technician_job', 'adjust_supplier_stock', 'set_supplier_stock',
+    'get_customer_stats', 'create_service_otp', 'verify_service_otp',
+    'start_technician_job', 'release_technician_assignment',
+  ];
+  const privilegedRpcs = await client.query(`
+    SELECT p.proname AS function_name,
+           pg_get_function_identity_arguments(p.oid) AS arguments,
+           has_function_privilege('anon', p.oid, 'EXECUTE') AS anonymous_allowed,
+           has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_allowed,
+           has_function_privilege('service_role', p.oid, 'EXECUTE') AS service_role_allowed,
+           p.prosecdef AS security_definer
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = ANY($1::text[])
+    ORDER BY p.proname
+  `, [criticalRpcNames]);
+  const viewSecurity = await client.query(`
+    SELECT c.relname AS view_name,
+           COALESCE(c.reloptions @> ARRAY['security_invoker=true'], false) AS security_invoker,
+           COALESCE(c.reloptions @> ARRAY['security_barrier=true'], false) AS security_barrier
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname='public' AND c.relkind='v'
+      AND c.relname IN ('supplier_orders_masked','technician_orders_masked')
+    ORDER BY c.relname
+  `);
+  const failures = [
+    ...criticalRpcNames.filter((name) =>
+      !privilegedRpcs.rows.some((row) => row.function_name === name)
+    ).map((name) => `missing privileged RPC: ${name}`),
+    ...privilegedRpcs.rows.filter((row) => row.anonymous_allowed)
+      .map((row) => `anonymous EXECUTE: ${row.function_name}`),
+    ...['try_assign_supplier_with_stock','try_assign_technician']
+      .filter((name) => privilegedRpcs.rows.some((row) =>
+        row.function_name === name && row.authenticated_allowed
+      )).map((name) => `signed-in user can assign arbitrary order: ${name}`),
+    ...['supplier_orders_masked','technician_orders_masked']
+      .filter((name) => !viewSecurity.rows.some((row) =>
+        row.view_name === name && row.security_invoker && row.security_barrier
+      )).map((name) => `masked view missing security_invoker/barrier: ${name}`),
+  ];
+
   await client.query('COMMIT');
   console.log(JSON.stringify({
     audit: 'read-only',
@@ -148,9 +193,16 @@ try {
     indexes: indexes.rows,
     migration_tracking_candidates: migrationTables.rows,
     dispatch_rpc_privileges: rpcFunctions.rows,
+    hardened_security: {
+      status: failures.length ? 'FAIL' : 'PASS',
+      findings: failures,
+      privileged_rpcs: privilegedRpcs.rows,
+      masked_views: viewSecurity.rows,
+    },
     pg_stat_statements_enabled: pgStatExtension.rows[0]?.enabled ?? false,
     slow_query_samples: slowQueries,
     notes: [
+      'Security PASS checks metadata permissions, not application end-to-end authorization. Test customer contact after acceptance separately.',
       'No application migration ledger is assumed; inspect the returned candidates.',
       'RLS enabled does not by itself prove policies are correct; review each policy and grants.',
       'A missing RPC or table must be reconciled with the deployed migration history before applying SQL.',
