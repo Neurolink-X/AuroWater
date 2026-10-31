@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+
+const rates = read('src/lib/booking-pricing.ts');
+const panel = read('src/app/admin/pricing/page.tsx');
+const legacy = read('src/app/admin/settings/page.tsx');
+const endpoint = read('src/app/api/admin/pricing/route.ts');
+const guard = read('sql/pricing_version_floor_guard_20261031.sql');
+assert.match(rates, /subscription: 20/);
+assert.match(rates, /SHOW_MARKET_COMPARISON = false/);
+assert.match(panel, /Chilled RO · ₹\/can'.*?,25,500/);
+assert.match(panel, /Discard draft/);
+assert.match(panel, /Remove city override from draft/);
+assert.match(legacy, /ENFORCE_LAUNCH_PRICING = false/);
+assert.match(legacy, /if \(LOCKED_KEYS\.has\(key\)\) continue/);
+assert.match(legacy, /href="\/admin\/pricing"/);
+assert.match(endpoint, /seenCities\.has\(city\)/);
+assert.match(guard, /pricing_version_floor_guard/);
+assert.match(guard, /water_chilled'\)::numeric, -1\) < 25/);
+assert.match(guard, /NEW\.config -> 'city_overrides'/);
+console.log('Centralized pricing policy and admin control regression checks passed.');
