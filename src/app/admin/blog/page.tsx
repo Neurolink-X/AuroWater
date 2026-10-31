@@ -20,6 +20,7 @@ export default function AdminBlogPage() {
   const [selected,setSelected] = useState<string|null>(null);
   const [editor,setEditor] = useState<Editor>(blank);
   const [busy,setBusy] = useState(false);
+  const [uploading,setUploading] = useState(false);
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
@@ -52,6 +53,24 @@ export default function AdminBlogPage() {
   const updateSection=(index:number,update:Section)=>{
     setEditor(current=>({...current,sections:current.sections.map((s,i)=>i===index?update:s)}));
   };
+  async function uploadCover(file: File) {
+    setUploading(true); setError(''); setNotice('');
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Admin sign-in required.');
+      const body = new FormData();
+      body.append('file', file);
+      const response = await fetch('/api/admin/blog/upload', {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` }, body,
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.data?.url) throw new Error(json?.error ?? 'Image upload failed.');
+      setEditor(current => ({ ...current, cover_image: json.data.url }));
+      setNotice('Cover image uploaded.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Image upload failed.');
+    } finally { setUploading(false); }
+  }
   async function save(publish:boolean) {
     setBusy(true);setError('');setNotice('');
     const status = publish?'published':'draft';
@@ -128,11 +147,19 @@ export default function AdminBlogPage() {
               className="mt-1 w-full rounded-lg border p-3 font-normal"/>
           </label>
         </div>
-        <label className="block text-sm font-semibold">Cover image (optional, existing /public/images file)
-          <input value={editor.cover_image??''} onChange={e=>setEditor(p=>({...p,cover_image:e.target.value.trim()||null}))}
-            placeholder="/images/water-delivery-checklist.svg" className="mt-1 w-full rounded-lg border p-3 font-normal"/>
-          <span className="mt-1 block text-xs font-normal text-slate-500">Upload approved artwork into public/images via repository before entering its path. No external URLs or HTML.</span>
-        </label>
+        <div className="space-y-2">
+          <label htmlFor="blog-cover-upload" className="block text-sm font-semibold">Cover image (JPEG, PNG or WebP, max 5 MB)</label>
+          <input id="blog-cover-upload" type="file" accept="image/jpeg,image/png,image/webp"
+            disabled={uploading || busy} className="block w-full rounded-lg border p-3 text-sm"
+            onChange={e=>{const file=e.target.files?.[0];if(file)void uploadCover(file);e.target.value='';}}/>
+          {uploading && <p role="status" className="text-sm text-blue-700">Uploading image…</p>}
+          {editor.cover_image && <div className="space-y-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={editor.cover_image} alt="Blog cover preview" className="max-h-64 w-full rounded-xl border object-contain"/>
+            <button type="button" className="text-sm font-semibold text-red-700"
+              onClick={()=>setEditor(p=>({...p,cover_image:null}))}>Remove cover image</button>
+          </div>}
+        </div>
         <h3 className="pt-2 text-base font-bold">Article sections</h3>
         {editor.sections.map((section,i)=><div key={i} className="space-y-3 rounded-xl border border-slate-200 p-4">
           <div className="flex justify-between"><span className="text-sm font-semibold">Section {i+1}</span>
@@ -149,7 +176,7 @@ export default function AdminBlogPage() {
         <button type="button" onClick={()=>setEditor(p=>({...p,sections:[...p.sections,{heading:'',paragraphs:['']}]}))}
           className="rounded-lg border border-cyan-300 px-4 py-2 text-sm font-semibold text-cyan-900">+ Add section</button>
         <div className="flex flex-wrap gap-3 border-t pt-5">
-          <button type="button" disabled={busy} onClick={()=>void save(false)} className="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Save draft / Unpublish</button>
+          <button type="button" disabled={busy || uploading} onClick={()=>void save(false)} className="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Save draft / Unpublish</button>
           <button type="button" disabled={busy} onClick={()=>void save(true)} className="rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Publish article</button>
         </div>
         <p className="text-xs text-slate-500">Publishing requires editorial review. Future publication dates remain hidden until scheduled. Existing file-based guides remain available.</p>
