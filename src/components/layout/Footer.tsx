@@ -2,17 +2,15 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  ArrowRight, Mail, MapPin, MessageCircle, Phone,
+  ArrowRight, Mail, MapPin, MessageCircle,
 } from 'lucide-react';
 
 import type { City } from '@/lib/cities';
 import { FALLBACK_CITIES } from '@/lib/cities';
 import {
-  cityAvailabilityLabel,
   mergePublicCityDirectory,
-  selectFooterCities,
 } from '@/lib/public-city-directory';
 import {
   getFooterSocialProfiles,
@@ -62,7 +60,7 @@ const LEGAL = [
 const SOCIALS = getFooterSocialProfiles();
 
 const linkClass = [
-  'inline-flex min-h-9 items-center rounded-lg py-1 text-[13px] leading-5',
+  'inline-flex min-h-8 items-center rounded-lg py-0.5 text-[13px] leading-5',
   'text-slate-300 transition-colors hover:text-white',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
   'focus-visible:outline-sky-300',
@@ -76,7 +74,7 @@ const iconLinkClass = [
   'focus-visible:outline-sky-300',
 ].join(' ');
 
-type GroupedCities = ReturnType<typeof selectFooterCities>;
+
 
 /**
  * Social brand marks are intentionally implemented with tiny native SVG.
@@ -151,45 +149,24 @@ function SocialChannels() {
   );
 }
 
-function CompactCityList({ groups }: { groups: GroupedCities }) {
+function CompactRegionList({ cities }: { cities: City[] }) {
+  const upLive = cities.some((city) => city.status === 'active' &&
+    ['gorakhpur', 'kanpur', 'lucknow', 'varanasi', 'agra', 'prayagraj', 'meerut', 'mathura', 'bareilly', 'aligarh', 'noida'].includes(city.slug));
+  const delhiLive = cities.some((city) => city.slug === 'delhi' && city.status === 'active');
   return (
-    <div aria-label="Service city directory" className="space-y-3">
+    <div className="space-y-2.5">
       <div className="flex flex-wrap gap-2">
-        {groups.active.map((city) => (
-          <Link key={city.slug} href="/service-areas"
-            title={`Check serviceability for your address in ${city.name}`}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-full
-              border border-emerald-400/30 bg-emerald-400/10 px-3 py-1
-              text-xs font-semibold text-emerald-100 transition-colors
-              hover:border-emerald-300/70 hover:bg-emerald-400/20
-              focus-visible:outline focus-visible:outline-2
-              focus-visible:outline-offset-2 focus-visible:outline-sky-300">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-400" />
-            {city.name}
-          </Link>
-        ))}
-        {groups.upcoming.map((city) => (
-          <Link key={city.slug} href="/service-areas#upcoming-areas"
-            title={`${city.name}: ${cityAvailabilityLabel(city)}`}
-            className="inline-flex min-h-9 items-center rounded-full border border-slate-600/80
-              bg-white/[0.055] px-3 py-1 text-xs font-medium text-slate-200
-              hover:border-slate-400 hover:text-white
-              focus-visible:outline focus-visible:outline-2
-              focus-visible:outline-offset-2 focus-visible:outline-sky-300">
-            {city.name} · Soon
+        {[{ name: 'Uttar Pradesh', live: upLive }, { name: 'Delhi', live: delhiLive }].map((region) => (
+          <Link key={region.name} href="/service-areas"
+            className="inline-flex min-h-9 items-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-3 text-xs font-semibold text-slate-100 transition-colors hover:border-sky-300/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300">
+            <span aria-hidden="true" className={`size-1.5 rounded-full ${region.live ? 'bg-emerald-400' : 'bg-amber-300'}`} />
+            {region.name}{region.live ? '' : ' · Coming soon'}
           </Link>
         ))}
       </div>
-      <p className="text-xs leading-5 text-slate-400">
-        Coverage is checked by address, service and available partner.
-        {groups.remaining > 0 ? ` ${groups.remaining} more areas listed online.` : ''}
-      </p>
-      <Link href="/service-areas"
-        className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold
-          text-sky-300 hover:text-white focus-visible:outline
-          focus-visible:outline-2 focus-visible:outline-offset-2">
-        <MapPin size={15} aria-hidden="true" />
-        Explore all cities <ArrowRight size={15} aria-hidden="true" />
+      <p className="text-xs leading-5 text-slate-400">Availability varies by city, address, service and partner. Check your address before booking.</p>
+      <Link href="/service-areas" className="inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-sky-300 hover:text-white">
+        <MapPin size={15} aria-hidden="true" /> Check coverage <ArrowRight size={15} aria-hidden="true" />
       </Link>
     </div>
   );
@@ -241,7 +218,6 @@ export default function Footer() {
     };
   }, []);
 
-  const groupedCities = useMemo(() => selectFooterCities(cities, 6, 2), [cities]);
 
   return (
     <>
@@ -257,9 +233,9 @@ export default function Footer() {
         <div aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-px
             bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
-        <div className="relative mx-auto w-full max-w-7xl px-4 pb-6 pt-8
-          sm:px-6 sm:pb-7 sm:pt-10 lg:px-8">
-          <div className="grid min-w-0 gap-x-6 gap-y-7
+        <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-6
+          sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
+          <div className="grid min-w-0 gap-x-6 gap-y-5
             sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-9">
             <div className="min-w-0 sm:col-span-2 lg:col-span-1">
               <Link href="/" aria-label="AuroTap home"
@@ -304,7 +280,7 @@ export default function Footer() {
               <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
                 Services
               </h2>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
                 {SERVICES.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -330,7 +306,7 @@ export default function Footer() {
               <h2 className="mb-3 text-sm font-bold tracking-wide text-white">
                 Where we operate
               </h2>
-              <CompactCityList groups={groupedCities} />
+              <CompactRegionList cities={cities} />
               <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <Link href="/become-a-supplier" className={linkClass}>
                   Become a supplier
@@ -342,14 +318,8 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-1.5
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5
             border-t border-white/10 pt-3.5 text-sm text-slate-300">
-            <a href="tel:+919889305803"
-              className="inline-flex min-h-9 items-center gap-1.5 hover:text-white
-                focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
-              <Phone size={15} aria-hidden="true" />
-              +91 98893 05803
-            </a>
             <a href="mailto:support.aurotap@gmail.com"
               className="inline-flex min-h-9 max-w-full items-center gap-1.5
                 break-all hover:text-white focus-visible:outline focus-visible:outline-2
