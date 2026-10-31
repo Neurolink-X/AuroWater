@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
-import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, memberCanPrice, upcomingIncrease, planForQty } from '@/lib/marketing-pricing';
+import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
@@ -86,7 +86,7 @@ const ReviewCard = React.memo(function ReviewCard({ r }: { r: (typeof TRUST_REVI
 });
 
 /* ───────── PRICING + SAVINGS CALCULATOR ───────── */
-function PricingSection() {
+function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: { normal: number; chilled: number; deliveryFee: number; plumberFee: number; tankFee: number }) {
   const [type, setType] = useState<'normal' | 'chilled'>('normal');
   const [current, setCurrent] = useState('');
   const [qtyStr, setQtyStr] = useState('30');
@@ -96,10 +96,10 @@ function PricingSection() {
   const qtyOk = Number.isFinite(qty) && qty >= 1 && qty <= 1000;
   const curOk = current.trim() !== '' && Number.isFinite(cur) && cur > 0;
   const plan = planForQty(qtyOk ? qty : 1);
-  const mp = memberCanPrice(type, plan); // never below the price floor
-  const canPrice = mp.price;
-  const increase = upcomingIncrease();
-  const feeMonthly = ORDER_FEES.perDelivery * ORDER_FEES.assumedDeliveriesPerMonth;
+  // Quotes are indicative, not a separate discounts engine: use admin-published
+  // active prices and disclose the four-delivery estimate explicitly.
+  const canPrice = type === 'normal' ? normal : chilled;
+  const feeMonthly = Math.max(0, deliveryFee) * ORDER_FEES.assumedDeliveriesPerMonth;
   const monthly = canPrice * (qtyOk ? qty : 0) + (qtyOk ? feeMonthly : 0);
   const eff = qtyOk ? monthly / qty : canPrice; // per-can price INCLUDING order fees, so savings are never overstated
   const diff = curOk && qtyOk ? (cur - eff) * qty : 0;
@@ -110,15 +110,9 @@ function PricingSection() {
       <div className="max-w-6xl mx-auto px-5 sm:px-8">
         <div className="text-center mb-10">
           <span className="aw-badge aw-badge-dk">Simple, honest pricing</span>
-          <h2 className="mx-auto max-w-3xl font-display text-3xl leading-tight sm:text-4xl font-extrabold text-slate-900">Water from ₹{W.normal} per 20L can. Lock your price with a monthly plan.</h2>
+          <h2 className="mx-auto max-w-3xl font-display text-3xl leading-tight sm:text-4xl font-extrabold text-slate-900">Water from ₹{normal} per 20L can. Check recurring delivery options.</h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">Order RO water at a clear per-can price, book a plumber or schedule water tank cleaning. Monthly plans can lock your water price while the plan is active.</p>
         </div>
-
-        {increase && (
-          <p className="mb-6 mx-auto max-w-2xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
-            ⏳ List prices move to ₹{increase.next.normal} / ₹{increase.next.chilled} per can from {new Date(increase.from).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' })}. Start a plan before then to lock today&apos;s price.
-          </p>
-        )}
 
         {/* Plans */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-8">
@@ -126,13 +120,12 @@ function PricingSection() {
             const best = p.id === 'family';
             return (
               <div key={p.id} className={`min-w-0 rounded-3xl bg-white p-4 sm:p-6 border ${best ? 'border-sky-400 shadow-lg ring-2 ring-sky-100' : 'border-slate-100 shadow-sm'}`}>
-                {best && <span className="mb-3 inline-flex max-w-full items-center rounded-full bg-sky-600 px-3 py-1 text-[11px] font-bold leading-tight text-white">Most popular · Best for families</span>}
                 <h3 className="font-display text-base sm:text-lg leading-snug font-extrabold text-slate-900">{p.name}</h3>
                 <p className="mt-1 text-xs sm:text-sm leading-snug text-slate-500">{p.note}</p>
-                <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(memberCanPrice('normal', p).price)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
-                <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(memberCanPrice('chilled', p).price)} / can</p>
+                <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
+                <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(chilled)} / can</p>
                 <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Price locked ${p.lockMonths} months` : 'Standard price'}</p>
-                {p.off > 0 && <p className="mt-1 text-sm leading-snug text-slate-500">+{p.off}% off future list prices</p>}
+                <p className="mt-1 text-xs text-slate-500">Actual plan eligibility and price lock are confirmed when booking.</p>
               </div>
             );
           })}
@@ -163,7 +156,7 @@ function PricingSection() {
           </div>
 
           <div aria-live="polite" className="rounded-2xl bg-white/[0.05] border border-white/10 p-5 flex flex-col justify-center">
-            <p className="text-xs text-slate-400">Your plan: <strong className="text-white">{plan.name}</strong>{mp.locked ? ` · ₹${fmt(mp.price)} locked for ${mp.lockMonths} months` : ''}</p>
+            <p className="text-xs text-slate-400">Illustrative quantity: <strong className="text-white">{plan.name}</strong></p>
             <p className="mt-1 text-3xl font-extrabold">₹{fmt(eff)} <span className="text-sm font-medium text-slate-400">per can</span></p>
             <p className="text-sm text-slate-300">≈ ₹{fmt(monthly)} / month for {qtyOk ? qty : 0} cans</p>
             {feeMonthly > 0 && <p className="text-xs text-slate-400">Includes about ₹{fmt(feeMonthly)} / month in delivery fees ({ORDER_FEES.assumedDeliveriesPerMonth} deliveries).</p>}
@@ -190,17 +183,15 @@ function PricingSection() {
           <div className="rounded-3xl bg-white border border-slate-100 p-6 shadow-sm">
             <h3 className="font-display font-extrabold text-slate-900">🧽 Tank cleaning</h3>
             <ul className="mt-3 divide-y divide-slate-100">
-              {PRICING.tank.map(t => (
-                <li key={t.size} className="flex justify-between py-2.5 text-sm"><span className="text-slate-600">{t.size}</span><span className="font-bold text-slate-900">from ₹{fmt(t.from)}</span></li>
-              ))}
+              <li className="flex justify-between py-2.5 text-sm"><span className="text-slate-600">Base service estimate</span><span className="font-bold text-slate-900">from ₹{fmt(tankFee)}</span></li>
             </ul>
             <p className="mt-2 text-xs text-slate-500">Larger or heavily soiled tanks are quoted before work starts.</p>
             <Link href="/book?service=tank_cleaning" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book tank cleaning →</Link>
           </div>
           <div className="rounded-3xl bg-white border border-slate-100 p-6 shadow-sm">
             <h3 className="font-display font-extrabold text-slate-900">🔧 Plumber</h3>
-            <p className="mt-3 text-3xl font-extrabold text-slate-900">₹{PRICING.plumber.visitFee}<span className="text-sm font-medium text-slate-400"> visit charge</span></p>
-            <p className="mt-2 text-sm text-slate-600">{PRICING.plumber.adjustedAgainstJob ? 'Adjusted against the repair bill if you go ahead.' : ''} You see the price before you confirm.</p>
+            <p className="mt-3 text-3xl font-extrabold text-slate-900">₹{plumberFee}<span className="text-sm font-medium text-slate-400"> visit charge</span></p>
+            <p className="mt-2 text-sm text-slate-600">See actual service and visit charges before confirming your booking.</p>
             <Link href="/book?service=plumbing" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book a plumber →</Link>
           </div>
         </div>
@@ -411,7 +402,7 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <PricingSection />
+        <PricingSection normal={currentNormal} chilled={currentChilled} deliveryFee={currentDeliveryFee} plumberFee={currentPlumbing} tankFee={currentTank} />
 
         {/* ═══ SERVICES ═══ */}
         <div className="bg-slate-50"><Wave flip color="var(--navy)" /></div>
