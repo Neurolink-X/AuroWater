@@ -35,5 +35,7 @@ test('settings refresh when returning to an existing tab', () => {
 });
 test('city pricing retains global service rates when city overrides are partial', () => {
   const source = read('src/app/api/settings/route.ts');
-  assert.match(source, /\.\.\.globalServices, \.\.\.overrideServices/);
+  assert.match(source, /resolveEffectivePriceBook\(activeVersion\.config/);
+  const resolver = read('src/lib/pricing/resolve-effective.ts');
+  assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
 });
