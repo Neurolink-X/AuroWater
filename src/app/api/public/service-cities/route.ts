@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServiceClient } from '@/utils/supabase/server';
 import { CITIES } from '@/lib/marketing-pricing';
+import { summarizePublicCities } from '@/lib/public-city-status';
 
 export const revalidate = 300;
 
@@ -10,10 +11,6 @@ const FALLBACK: PublicCity[] = CITIES.map((city) => ({
   name: city.name,
   status: city.status === 'live' ? 'available' : 'coming-soon',
 }));
-
-function normalizeCity(value: string): string {
-  return value.trim().replace(/\s+/g, ' ');
-}
 
 /**
  * Public discovery only; not an authorization or serviceability decision.
@@ -29,27 +26,7 @@ export async function GET() {
 
     if (error) throw error;
 
-    const byCity = new Map<string, { name: string; statuses: Set<string> }>();
-    for (const row of data ?? []) {
-      if (typeof row.city !== 'string' || typeof row.status !== 'string') continue;
-      const name = normalizeCity(row.city);
-      if (!name || name.length > 100) continue;
-      const key = name.toLocaleLowerCase('en-IN');
-      const existing = byCity.get(key) ?? { name, statuses: new Set<string>() };
-      existing.statuses.add(row.status);
-      byCity.set(key, existing);
-    }
-
-    const cities: PublicCity[] = [...byCity.values()]
-      .map(({ name, statuses }) => ({
-        name,
-        status: statuses.has('AVAILABLE')
-          ? 'available' as const
-          : statuses.has('LIMITED')
-            ? 'limited' as const
-            : 'coming-soon' as const,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'en-IN'));
+    const cities = summarizePublicCities(data ?? []);
 
     return NextResponse.json(
       { cities: cities.length ? cities : FALLBACK, source: cities.length ? 'zones' : 'fallback' },
