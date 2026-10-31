@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { createServiceClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,7 +40,9 @@ export async function GET(req: NextRequest) {
   const limit = 40;
   const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
-  let query = auth.ctx.supabase.from('orders')
+  // Authorization is checked above; service-role reads prevent customer-scoped RLS from hiding admin triage.
+  // Never return the service client or its credentials to the browser.
+  let query = createServiceClient().from('orders')
     .select('id,order_number,status,service_type,payment_status,payment_method,total_amount,created_at,scheduled_at,supplier_id', { count: 'exact' });
 
   if (mode === 'overdue') {
