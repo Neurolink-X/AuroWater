@@ -79,7 +79,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
           quality={90}
           loading={aboveFold ? 'eager' : 'lazy'}
           fetchPriority={index === 0 ? 'high' : 'auto'}
-          sizes="(max-width: 640px) calc(100vw - 52px), (max-width: 1024px) 45vw, 31vw"
+          sizes="(max-width: 640px) 300px, (max-width: 1024px) 320px, 360px"
         />
       </div>
 
