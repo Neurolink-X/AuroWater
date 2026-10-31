@@ -333,6 +333,12 @@ export default function HomeClient() {
         .aw-mql{animation:aw-mql 42s linear infinite}.aw-mqr{animation:aw-mqr 48s linear infinite}
         .aw-mql:hover,.aw-mqr:hover{animation-play-state:paused}
         .aw-prog{background:linear-gradient(90deg,#0284c7,#22d3ee,#10b981)}
+        .aw-hero-accent{height:4px;max-width:190px;border-radius:999px;background:linear-gradient(90deg,#38bdf8,#a5f3fc,#60a5fa);background-size:200% 100%;margin-bottom:18px}
+        @keyframes aw-hero-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}
+        @media (prefers-reduced-motion:no-preference){.aw-hero-accent{animation:aw-hero-shimmer 8s linear infinite}}
+        @media (prefers-reduced-motion:reduce){.aw-hero-accent{animation:none}}
+        .aw-season-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:700;color:#bae6fd}
+        @media (max-width:639px){.aw-hero-bg .hero-h{font-size:clamp(1.9rem,8vw,2.7rem)}.aw-hero-bg .hero-hi{font-size:clamp(1.75rem,7vw,2.6rem)}}
         .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin;padding:5px 2px 14px}
         .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
         .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
@@ -346,13 +352,15 @@ export default function HomeClient() {
       <div className="min-h-screen overflow-x-hidden" style={{ background: 'var(--navy)' }}>
 
         {/* ═══ HERO ═══ */}
-        <section className="aw-hero-bg relative min-h-screen flex flex-col overflow-x-hidden">
+        <section className="aw-hero-bg relative flex flex-col overflow-x-clip">
           <div className="absolute inset-0 pointer-events-none aw-dots" style={{ opacity: 0.028 }} aria-hidden="true" />
           <div className="relative z-10 flex-1 flex items-center">
-            <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 w-full">
-              <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
+            <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 pt-8 pb-12 sm:py-16 lg:py-20 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-8 lg:gap-12 items-center">
 
-                <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
+                  <div className="aw-hero-accent" aria-hidden="true" />
+                  <div className="aw-season-label" aria-live="off">{season === 'festive' ? '✨ Festive home essentials' : season === 'summer' ? '☀️ Summer water essentials' : season === 'winter' ? '❄️ Seasonal home care' : '💧 Water & home care made simple'}</div>
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in {LIVE_CITY_NAMES.replace(' and ', ' & ')} · {PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
@@ -383,7 +391,7 @@ export default function HomeClient() {
                   <p className="mt-4 text-xs text-slate-400">Cash + UPI where available · Hindi &amp; English support</p>
                 </motion.div>
 
-                <motion.div className="flex flex-col gap-4" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
+                <motion.div className="flex flex-col gap-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { src: 'https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1000&q=80', alt: 'Clean 20 litre RO drinking water dispenser for home delivery', tag: '20L RO cans', priority: true },
