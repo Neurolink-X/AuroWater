@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const CACHE_HEADERS = {
   'Cache-Control':
-    'public, s-maxage=30, stale-while-revalidate=60',
+    'no-store, max-age=0',
 };
 
 const CITY_SELECT =
@@ -29,13 +29,8 @@ function mergeWithFallback(data: City[]): City[] {
       merged.set(key, city);
     }
   }
-  for (const city of FALLBACK_CITIES) {
-    const key = city.slug.toLowerCase();
-    // A missing DB record must never silently become a live expansion city.
-    // Preserve legacy core cities during partial migrations; discovery-only
-    // fallback entries remain non-bookable.
-    if (!merged.has(key)) merged.set(key, city.status === 'active' ? city : { ...city, status: city.status });
-  }
+  // Never append fallback active cities to an authoritative DB response.
+  // An administrator may have deliberately removed or deactivated a city.
   return [...merged.values()].sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 }
 
@@ -109,14 +104,8 @@ export async function GET() {
         controller.signal,
       );
 
-    if (
-      error ||
-      !data ||
-      data.length === 0
-    ) {
-      return ok(
-        FALLBACK_CITIES,
-      );
+    if (error || !data) {
+      return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
     }
 
     return ok(mergeWithFallback(data as City[]));
@@ -126,9 +115,7 @@ export async function GET() {
      * available even if Supabase is temporarily
      * unavailable.
      */
-    return ok(
-      FALLBACK_CITIES,
-    );
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   } finally {
     clearTimeout(timeout);
   }
