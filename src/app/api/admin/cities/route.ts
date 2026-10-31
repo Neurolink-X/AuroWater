@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
@@ -52,6 +53,8 @@ export async function POST(req:NextRequest) {
     entity_id:data.id,meta:{name,state,slug,status:'waitlist'},
   });
   if(audit.error)console.error('[admin/cities] audit failed',{code:audit.error.code});
+  revalidatePath('/service-areas');
+  revalidatePath('/');
   return jsonOk(data,201);
 }
 
@@ -101,5 +104,10 @@ export async function PATCH(req:NextRequest) {
     entity_id:data.id,meta:{name:data.name,from:city.status,to:data.status},
   });
   if(audit.error) console.error('[admin/cities] audit logging failed',{code:audit.error.code});
+  // Public service area and home pages must not keep the pre-activation RSC snapshot.
+  revalidatePath('/service-areas');
+  revalidatePath('/');
+  revalidatePath('/services');
+  revalidatePath('/book');
   return jsonOk(data);
 }
