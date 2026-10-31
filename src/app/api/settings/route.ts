@@ -1,3 +1,4 @@
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rowsToSettingsPayload } from '@/lib/api/settings-map';
@@ -106,19 +107,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No active published pricing version.' }, { status: 503, headers: CACHE });
     }
     if (activeVersion?.config && typeof activeVersion.config === 'object') {
-      const publishedConfig = activeVersion.config as Record<string, unknown>;
-      const requestedCity = req.nextUrl.searchParams.get('city');
-      const cityKey = normalizePricingCity(requestedCity);
-      const cityOverrides = publishedConfig.city_overrides && typeof publishedConfig.city_overrides === 'object'
-        ? publishedConfig.city_overrides as Record<string, unknown> : {};
-      const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
-        ? cityOverrides[cityKey] as Record<string, unknown> : null;
-      const config = { ...publishedConfig, ...(cityOverride ?? {}) };
-      const globalServices = publishedConfig.services && typeof publishedConfig.services === 'object'
-        ? publishedConfig.services as Record<string, number> : {};
-      const overrideServices = cityOverride?.services && typeof cityOverride.services === 'object'
-        ? cityOverride.services as Record<string, number> : {};
-      const servicePrices = { ...globalServices, ...overrideServices };
+      const config = resolveEffectivePriceBook(activeVersion.config, req.nextUrl.searchParams.get('city'));
+      if (!config || validateEffectivePriceBook(config).length) {
+        return NextResponse.json({ success: false, error: 'Published pricing configuration invalid.' }, { status: 503, headers: CACHE });
+      }
+      const servicePrices = config.services;
       payload.pricing_version = activeVersion.version;
       payload.pricing_effective_from = activeVersion.effective_from;
       if (typeof config.water_normal === 'number') payload.default_can_price = config.water_normal;
