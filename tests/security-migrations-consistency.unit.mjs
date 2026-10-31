@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const root = new URL('../', import.meta.url);
+const read = (path) => readFileSync(new URL(path, root), 'utf8');
+const rpc = read('sql/security_restrict_anonymous_dispatch_rpc_20261030.sql');
+const more = read('sql/security_remaining_rpcs_20261030.sql');
+const invoker = read('sql/security_masked_views_invoker_20261030.sql');
+const path = read('sql/security_pin_function_search_path_20261031.sql');
+assert.doesNotMatch(rpc, /\\nREVOKE/);
+assert.match(rpc, /^REVOKE EXECUTE ON FUNCTION public.try_assign_supplier_with_stock\(uuid, uuid, numeric\) FROM PUBLIC, anon, authenticated;/m);
+assert.match(more, /ALTER FUNCTION public.get_customer_stats\(uuid\) SECURITY INVOKER;/);
+assert.match(more, /REVOKE EXECUTE ON FUNCTION public.try_assign_technician\(uuid,uuid,numeric,numeric\)/);
+assert.match(invoker, /security_invoker=true/g);
+assert.match(invoker, /AND auth.uid\(\) IS NOT NULL/);
+assert.match(invoker, /o.accepted_at IS NOT NULL/);
+assert.match(path, /ALTER FUNCTION public.is_admin\(\) SET search_path = pg_catalog, public, extensions;/);
+console.log('Security migration consistency checks passed.');
