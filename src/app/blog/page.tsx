@@ -24,7 +24,7 @@ export default function BlogIndex() {
       <div className="grid gap-5 md:grid-cols-2">
         {posts.map((post) => (
           <article key={post.slug} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-            {post.coverImage && <Image src={post.coverImage} alt="Illustrated checklist for 20-litre water can delivery" width={1200} height={630} className="h-auto w-full" loading="lazy" />}
+            {post.coverImage && <Image src={post.coverImage} alt={`${post.title} — editorial illustration`} width={1200} height={630} className="h-auto w-full" loading="lazy" />}
             <div className="p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{post.category}</p>
             <h2 className="mt-3 text-xl font-semibold text-slate-900">
