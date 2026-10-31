@@ -32,7 +32,7 @@ export default async function BlogArticle({ params }: Props) {
     description: post.description,
     datePublished: post.publishAt,
     dateModified: post.updatedAt,
-    ...(post.coverImage ? { image: `${getSiteUrl().replace(/\\/+$/, '')}${post.coverImage}` } : {}),
+    ...(post.coverImage ? { image: `${getSiteUrl().replace(/\/+$/, '')}${post.coverImage}` } : {}),
     author: { '@type': 'Organization', name: 'AuroTap' },
     publisher: { '@type': 'Organization', name: 'AuroTap' },
     mainEntityOfPage: `${getSiteUrl().replace(/\/+$/, '')}/blog/${post.slug}`,
