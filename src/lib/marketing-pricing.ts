@@ -43,7 +43,7 @@ export const ORDER_FEES = { perDelivery: 0, assumedDeliveriesPerMonth: 4 } as co
  *  'pin-approved'  = served only on approved PIN codes (availability checked at booking)
  * Add or remove areas here; the homepage, SEO schema and FAQ all update together.
  */
-export type CityStatus = 'live' | 'pin-approved';
+export type CityStatus = 'live' | 'pin-approved' | 'pilot';
 export const CITIES = [
   { slug: 'kanpur',    name: 'Kanpur',    state: 'Uttar Pradesh', status: 'live' as CityStatus,
     areas: ['Kidwai Nagar', 'Swaroop Nagar', 'Kakadeo', 'Arya Nagar', 'Civil Lines', 'Govind Nagar', 'Barra', 'Kalyanpur', 'Panki', 'Shyam Nagar', 'Vikas Nagar', 'Juhi'] },
@@ -53,8 +53,8 @@ export const CITIES = [
     areas: ['Golghar', 'Rapti Nagar', 'Betiahata', 'Medical College Rd', 'Taramandal', 'Shahpur', 'Civil Lines', 'Asuran Chowk'] },
   { slug: 'delhi',     name: 'Delhi',     state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['Dwarka', 'Rohini', 'Saket', 'Laxmi Nagar', 'Janakpuri', 'Pitampura', 'Mayur Vihar', 'Vasant Kunj'] },
-  { slug: 'noida',     name: 'Noida',     state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
-    // Current launch is limited to the verified Sector 73 pilot zone.
+  { slug: 'noida',     name: 'Noida',     state: 'Delhi NCR', status: 'pilot' as CityStatus,
+    // Postal/zone configuration exists, but pilot requires verified online stock-backed suppliers.
     areas: ['Sector 73'] },
   { slug: 'gurugram',  name: 'Gurugram',  state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['DLF Phases', 'Golf Course Road', 'Sohna Road', 'Sector 56', 'Udyog Vihar'] },
@@ -64,6 +64,7 @@ export const CITIES = [
 
 export const LIVE_CITIES = CITIES.filter(c => c.status === 'live');
 export const PIN_CITIES = CITIES.filter(c => c.status === 'pin-approved');
+export const PILOT_CITIES = CITIES.filter(c => c.status === 'pilot');
 const names = (list: readonly { name: string }[]) =>
   list.length > 1 ? `${list.slice(0, -1).map(c => c.name).join(', ')} and ${list[list.length - 1].name}` : list[0]?.name ?? '';
 /** e.g. "Kanpur, Lucknow and Gorakhpur" */
