@@ -12,7 +12,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -112,33 +112,45 @@ export default function CustomerSubscriptionsPage() {
   const [notice, setNotice] =
     useState('');
 
-  async function load(
-    silent = false
-  ) {
-    if (!silent) {
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+  // Coalesce duplicate initial/background refreshes. An action-triggered
+  // refresh remains authoritative, so stale background responses cannot
+  // overwrite the just-updated subscription state.
+  const requestSeq = useRef(0);
+  const loadInFlight = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; requestSeq.current++; };
+  }, []);
 
+  async function load(
+    silent = false,
+    force = false,
+  ) {
+    if (loadInFlight.current && !force) return;
+    const requestId = ++requestSeq.current;
+    loadInFlight.current = true;
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
     setError('');
 
     try {
-      const data =
-        await customerSubscriptionsList();
-
-      setItems(
-        Array.isArray(data)
-          ? data
-          : []
-      );
+      const data = await customerSubscriptionsList();
+      if (mounted.current && requestId === requestSeq.current) {
+        setItems(Array.isArray(data) ? data : []);
+      }
     } catch {
-      setError(
-        'We could not load your subscriptions right now. Please try again.'
-      );
+      if (mounted.current && requestId === requestSeq.current) {
+        setError('We could not load your subscriptions right now. Please try again.');
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestSeq.current) {
+        loadInFlight.current = false;
+        if (mounted.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
     }
   }
 
@@ -190,6 +202,11 @@ export default function CustomerSubscriptionsPage() {
       return;
     }
 
+    // Invalidate any earlier subscription GET before the mutation.
+    // Otherwise a slow response can revert a successful pause/resume in UI.
+    requestSeq.current++;
+    loadInFlight.current = false;
+    setRefreshing(false);
     setBusyId(id);
     setError('');
     setNotice('');
