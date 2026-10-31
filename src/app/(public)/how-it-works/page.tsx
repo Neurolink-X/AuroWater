@@ -64,14 +64,14 @@ const STEPS = [
   {
     step: '01', icon: <IconPin />, color: '#2563EB', light: '#EFF6FF',
     title: 'Share your address',
-    desc: 'Enter your location or pick a saved address. We use it for scheduling, technician matching, and accurate pricing.',
-    detail: 'Works for homes, offices, apartments & events',
+    desc: 'Enter your address to check serviceability. Your location helps determine available services, scheduling options and the price shown at checkout.',
+    detail: 'Availability depends on your exact address',
   },
   {
     step: '02', icon: <IconGrid />, color: '#0891B2', light: '#ECFEFF',
     title: 'Choose your service',
     desc: 'Browse 7 categories. Tap the one you need — RO service, water cans, plumbing, borewell, motor pump, or tank cleaning.',
-    detail: 'Upfront pricing shown before you confirm',
+    detail: 'Review the current checkout total before confirming',
   },
   {
     step: '03', icon: <IconCalendar />, color: '#7C3AED', light: '#F5F3FF',
@@ -83,7 +83,7 @@ const STEPS = [
     step: '04', icon: <IconShield />, color: '#059669', light: '#ECFDF5',
     title: 'We handle everything',
     desc: 'Follow partner assignment and status updates in your dashboard. Check available payment options and charges before confirming.',
-    detail: 'Ratings appear when verified customer reviews are available',
+    detail: 'Partner assignment depends on availability',
   },
 ];
 
