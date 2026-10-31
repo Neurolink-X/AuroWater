@@ -1067,8 +1067,8 @@ export default function AdminShell({
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4">
           <Link
-            href="/admin/dashboard"
-            onClick={() => handleNavigate('/admin/dashboard')}
+            href="/"
+            onClick={() => handleNavigate('/')}
             className="flex min-w-0 items-center gap-3"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-xl shadow-lg shadow-cyan-500/20">
@@ -1159,8 +1159,8 @@ export default function AdminShell({
             }`}
           >
             <Link
-              href="/admin/dashboard"
-              onClick={() => handleNavigate('/admin/dashboard')}
+              href="/"
+              onClick={() => handleNavigate('/')}
               className={`flex min-w-0 items-center gap-3 ${
                 collapsed ? 'justify-center' : ''
               }`}
