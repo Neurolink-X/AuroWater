@@ -315,6 +315,9 @@ export default function CustomerSubscriptionsPage() {
           </span>
         </nav>
 
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+          <strong>No hidden subscription debit.</strong> Each scheduled delivery creates an individual order. Payment is handled per delivery; pause or cancel future deliveries from this page.
+        </div>
         <section aria-label="Membership benefits" className="mt-6 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-sky-100 bg-white p-4"><p className="text-sm font-bold text-slate-900">Predictable delivery</p><p className="mt-1 text-xs leading-5 text-slate-600">Manage recurring dates without placing every order again.</p></div>
           <div className="rounded-2xl border border-sky-100 bg-white p-4"><p className="text-sm font-bold text-slate-900">Pause or resume</p><p className="mt-1 text-xs leading-5 text-slate-600">Plan around travel and schedule changes.</p></div>
