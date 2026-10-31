@@ -677,3 +677,49 @@
     overflow-wrap: anywhere;
   }
 }
+
+
+/* Typography guardrails: keep long labels legible without clipping glyphs.
+   These rules use normal flow and never alter server-rendered content. */
+@layer base {
+  body { font-synthesis: none; }
+  :is(h1, h2, h3, h4, h5, h6) {
+    overflow-wrap: break-word;
+    hyphens: manual;
+  }
+  :is(p, label, button, a) {
+    overflow-wrap: break-word;
+  }
+  :is(input, textarea, select) {
+    color: inherit;
+    letter-spacing: normal;
+  }
+  :is(input, textarea) {
+    text-overflow: ellipsis;
+  }
+  :is(button, input, select, textarea) {
+    font-family: var(--font-body);
+  }
+  :is(button, a) {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  :is(button, a):focus-visible {
+    outline-offset: 3px;
+  }
+}
+@media (max-width: 640px) {
+  .aw-admin-zones > section > h2 {
+    flex-wrap: wrap;
+    line-height: 1.35;
+  }
+  .aw-admin-zones :is(form, article) {
+    max-width: 100%;
+  }
+  .aw-admin-zones input {
+    max-width: 100%;
+  }
+  .aw-admin-zones select {
+    max-width: min(100%, 22rem);
+  }
+}
