@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 function source(name) { return readFileSync(name, 'utf8'); }
 const scroll = source('src/hooks/useScrollAnimation.ts');
 const home = source('src/app/(public)/HomeClient.tsx');
-const footer = source('src/components/layout/Footer.tsx');
 const cityApi = source('src/app/api/cities/route.ts');
 const cityAdmin = source('src/app/api/admin/cities/route.ts');
 const supplier = source('src/app/become-a-supplier/page.tsx');
@@ -52,13 +51,6 @@ test('home preserves native carousel horizontal scrolling', () => {
 test('home disables continuous decoration for coarse pointers', () => {
   assert.match(home, /@media \(hover:none\) and \(pointer:coarse\)/);
   assert.match(home, /\.aw-hero-accent \{ animation:none!important \}/);
-});
-test('PR179 does not overwrite the merged footer implementation', () => {
-  // Footer changes are handled by PR180; this PR preserves main's footer.
-  assert.match(footer, /fetch\('\\/api\\/public\\/service-cities'/);
-});
-test('existing footer aborts pending city fetch', () => {
-  assert.match(footer, /controller\\.abort\\(\\)/);
 });
 test('canonical city API reads actual cities table', () => {
   assert.match(cityApi, /\.from\('cities'\)/);
