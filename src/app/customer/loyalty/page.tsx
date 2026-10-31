@@ -291,6 +291,15 @@ export default function CustomerLoyaltyPage() {
             Referral benefits <span aria-hidden="true">→</span>
           </Link>
         </div>
+        <section className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5" aria-label="How loyalty rewards work">
+          <h2 className="font-extrabold text-emerald-950">Your rewards, clearly explained</h2>
+          <div className="mt-3 grid gap-3 text-sm leading-6 text-emerald-950 sm:grid-cols-3">
+            <p><strong>Earn:</strong> Eligible subscription renewals earn points after the related order is completed and paid.</p>
+            <p><strong>Track:</strong> Your balance, next milestone and earning history come from your account—not promotional estimates.</p>
+            <p><strong>Use:</strong> Available rewards are checked against eligibility at checkout. Points are not a cash balance.</p>
+          </div>
+          <Link href="/customer/subscriptions" className="mt-3 inline-flex min-h-11 items-center font-bold text-emerald-900 underline-offset-2 hover:underline">Manage qualifying subscriptions →</Link>
+        </section>
         {/* Hero */}
         <header className="mt-2 overflow-hidden rounded-3xl bg-[#0B2B3A] text-white">
           <div className="flex flex-col-reverse items-center gap-6 p-6 sm:flex-row sm:justify-between sm:p-10">
