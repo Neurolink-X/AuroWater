@@ -23,7 +23,9 @@ export default function BlogIndex() {
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         {posts.map((post) => (
-          <article key={post.slug} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">\n            {post.coverImage && <Image src={post.coverImage} alt="Illustrated checklist for 20-litre water can delivery" width={1200} height={630} className="h-auto w-full" loading="lazy" />}\n            <div className="p-6">
+          <article key={post.slug} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {post.coverImage && <Image src={post.coverImage} alt="Illustrated checklist for 20-litre water can delivery" width={1200} height={630} className="h-auto w-full" loading="lazy" />}
+            <div className="p-6">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{post.category}</p>
             <h2 className="mt-3 text-xl font-semibold text-slate-900">
               <Link className="hover:text-emerald-700 focus-visible:underline" href={`/blog/${post.slug}`}>{post.title}</Link>
