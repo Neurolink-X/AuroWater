@@ -26,6 +26,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 import Image from 'next/image';
+import { getLocationGuidance, type LocationFailure } from '@/lib/location-guidance';
 import { ILLUSTRATIONS, ILLUSTRATION_ALT } from '@/app/(public)/services/services-data';
 import BookingProgress from '@/components/booking/BookingProgress';
 import TimeSlotPicker from '@/components/booking/TimeSlotPicker';
@@ -162,10 +163,8 @@ const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
   ],
 };
 
-const MSG_DENIED =
-  'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, or just enter your area and 6-digit pincode below. लोकेशन बंद है, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
-const MSG_TIMEOUT =
-  'GPS could not find you (it often fails indoors). Please enter your area and 6-digit pincode below. GPS डिटेक्ट नहीं हो पाया, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+const MSG_DENIED = getLocationGuidance('permission-denied').summary;
+const MSG_TIMEOUT = getLocationGuidance('timeout').summary;
 /** Longest we keep listening for a better GPS fix. */
 const GEO_MAX_WAIT_MS = 12_000;
 /** Above this (metres) the browser only gave a Wi-Fi/IP guess, so street-level fields are not trusted. */
@@ -173,8 +172,7 @@ const GEO_TRUST_M = 1_500;
 /** Above this we still fill the form but ask the customer to double-check. */
 const GEO_CHECK_M = 150;
 
-const MSG_UNAVAILABLE =
-  'Your device could not detect its location. Please enter your area and 6-digit pincode below. कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+const MSG_UNAVAILABLE = getLocationGuidance('position-unavailable').summary;
 
 type PostHit = { key: string; name: string; pincode: string; district: string };
 
@@ -1339,6 +1337,9 @@ export default function BookingWizard() {
     }
   }, [session?.loggedIn, locating, lookupPincode]);
 
+  const locationFailureType: LocationFailure = locationError === MSG_DENIED ? 'permission-denied' : locationError === MSG_TIMEOUT ? 'timeout' : 'unknown';
+  const locationHelp = getLocationGuidance(locationFailureType);
+
   const locationButtonLabel = () => {
     if (locationStep === 'network')   return 'Checking network…';
     if (locationStep === 'gps')       return 'Getting GPS…';
@@ -2131,21 +2132,16 @@ export default function BookingWizard() {
                           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-lg" aria-hidden="true">📍</span>
                           <div className="min-w-0 flex-1 space-y-2">
                             <p className="text-base font-bold leading-snug">
-                              {locationError === MSG_DENIED ? 'Location permission is off' : locationError === MSG_TIMEOUT ? 'Location request timed out' : 'We could not fill your address automatically'}
+                              {locationHelp.title}
                             </p>
                             <p className="leading-relaxed text-amber-900">
-                              {locationError === MSG_DENIED
-                                ? 'Your browser is not allowing location access. You can still book by entering your address.'
-                                : locationError === MSG_TIMEOUT
-                                  ? 'GPS may be slow indoors or when the signal is weak. You can retry or enter your address.'
-                                  : 'Automatic location is unavailable right now. You can continue by entering your address.'}
+                              {locationHelp.summary}
                             </p>
                             <div className="rounded-xl bg-white/80 p-3 text-slate-800">
                               <p className="font-semibold">What to do next</p>
                               <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
-                                <li>Enter your house number, area, city and 6-digit PIN code below.</li>
-                                <li>First check that Location is ON in your phone settings (Settings → Location). Then open this site's permissions in your browser and select Allow location. If location is still unavailable, enter the address manually.</li>
-                                <li>Tap “Try again” after updating permission, if you prefer automatic detection.</li>
+                                {locationHelp.steps.map((step) => <li key={step}>{step}</li>)}
+                                <li>{locationHelp.fallback}</li>
                               </ol>
                             </div>
                             <p className="text-xs leading-relaxed text-amber-900" lang="hi">
