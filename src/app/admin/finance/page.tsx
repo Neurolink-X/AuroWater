@@ -81,13 +81,13 @@ const EMPTY_METRICS = [
   },
   {
     key: 'collected_revenue',
-    label: 'Collected payments',
-    description: 'Amount reported as paid',
+    label: 'Recorded paid orders',
+    description: 'Marked paid in the app; external bank settlement is not verified here',
     format: 'currency',
   },
   {
     key: 'pending_payments',
-    label: 'Uncollected balance',
+    label: 'Recorded unpaid balance',
     description: 'Gross revenue minus collected payments',
     format: 'currency',
   },
@@ -167,7 +167,7 @@ export default function AdminFinancePage() {
             Finance
           </h1>
           <p className="mt-1 text-sm text-slate-300">
-            Financial summary from the existing admin finance API.
+            Completed-order financial summary from recorded application statuses. Not a verified bank settlement report.
           </p>
         </div>
 
@@ -209,6 +209,12 @@ export default function AdminFinancePage() {
           </button>
         </div>
       </header>
+
+      <div className="rounded-xl border border-amber-400/20 bg-amber-300/10 p-4 text-sm leading-6 text-amber-100">
+        <strong>Reconciliation required:</strong> A status marked paid is an application record, not proof of UPI/bank settlement.
+        Verify cash collection, payment-provider references and supplier payouts separately before closing a discrepancy.
+        <a href="/admin/order-health" className="ml-2 font-bold underline underline-offset-2">Review payment and order exceptions →</a>
+      </div>
 
       {loading && (
         <div
