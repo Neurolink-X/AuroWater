@@ -314,12 +314,18 @@ export async function POST(req: NextRequest) {
 
   // Keep GST at the currently approved zero-rate behavior unless an administrator
   // publishes a version with an explicitly configured decimal rate.
-  const gstCandidate = Number(activePricingConfig?.gst_rate ?? 0);
-  const gstRate = Number.isFinite(gstCandidate) && gstCandidate >= 0 && gstCandidate <= 1 ? gstCandidate : 0;
+  const gstCandidate = Number(activePricingConfig?.gst_rate);
+  if (!Number.isFinite(gstCandidate) || gstCandidate < 0 || gstCandidate > 1) {
+    return jsonErr('Published tax rate is invalid.', 503);
+  }
+  const gstRate = gstCandidate;
   const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 0);
   const deliveryFee = Number(activePricingConfig?.delivery_fee ?? 0);
   const convenience = handlingFee + deliveryFee;
-  const emergencyFee = Number(activePricingConfig?.emergency_surcharge ?? flat.emergency_surcharge ?? 0) + Number(activePricingConfig?.surge_charge ?? 0);
+  const emergencyFee = Number(activePricingConfig?.emergency_surcharge) + Number(activePricingConfig?.surge_charge);
+  if (![handlingFee, deliveryFee, emergencyFee].every((amount) => Number.isFinite(amount) && amount >= 0)) {
+    return jsonErr('Published booking fees are invalid.', 503);
+  }
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
