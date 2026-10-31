@@ -16,14 +16,15 @@ export async function GET(req: NextRequest) {
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
   try {
     const db = createServiceClient();
-    const [zoneResult, supplierResult] = await Promise.all([
+    const [zoneResult, supplierResult, directoryResult] = await Promise.all([
       db.from('service_zones').select('id,city,name,status,pincodes').order('city').limit(2000),
       db.from('profiles').select('id,city').eq('role', 'supplier').eq('is_active', true)
         .eq('verification_status', 'approved').limit(2000),
+      db.from('cities').select('name,status').order('sort_order').limit(500),
     ]);
-    if (zoneResult.error || supplierResult.error) {
+    if (zoneResult.error || supplierResult.error || directoryResult.error) {
       console.error('[admin/city-readiness] core read failed', {
-        zones: zoneResult.error?.code, suppliers: supplierResult.error?.code,
+        zones: zoneResult.error?.code, suppliers: supplierResult.error?.code, cities: directoryResult.error?.code,
       });
       return jsonErr('City readiness temporarily unavailable. Please retry.', 503);
     }
@@ -56,9 +57,14 @@ export async function GET(req: NextRequest) {
     const readySupplierIds = new Set(ids.filter(id => onlineIds.has(id) && stockedIds.has(id)));
     const assignments = assignmentsResult.data ?? [];
     const normalize = (value: string | null) => (value ?? '').trim().toLocaleLowerCase('en-IN');
-    const cityNames = [...new Set(zones.map(z => z.city?.trim()).filter((v): v is string => !!v))];
+    const directory = directoryResult.data ?? [];
+    const cityNames = [...new Set([
+      ...directory.map(c => c.name?.trim()),
+      ...zones.map(z => z.city?.trim()),
+    ].filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b));
     const cities = cityNames.map(city => {
       const cityZones = zones.filter(z => normalize(z.city) === normalize(city));
+      const cityRecord = directory.find(c => normalize(c.name) === normalize(city));
       const citySuppliers = suppliers.filter(s => normalize(s.city) === normalize(city));
       const eligibleZones = cityZones.filter(z =>
         z.status === 'AVAILABLE' && Array.isArray(z.pincodes) && z.pincodes.length > 0);
@@ -68,6 +74,7 @@ export async function GET(req: NextRequest) {
         readySupplierIds.has(s.id) && linkedSupplierIds.has(s.id)).length;
       return {
         city,
+        platform_status: cityRecord?.status ?? 'not_in_city_directory',
         zones: cityZones.length,
         available_zones: eligibleZones.length,
         approved_suppliers: citySuppliers.length,
@@ -81,7 +88,7 @@ export async function GET(req: NextRequest) {
     return jsonOk({
       cities,
       checked_at: new Date().toISOString(),
-      note: 'A positive operational signal is not citywide launch approval. Confirm service-specific coverage, supplier assignments and exact address at checkout.',
+      note: 'City status and operational signal are separate. Even an active city requires confirmed zone and address coverage, service-specific eligibility and dispatch capacity.',
     });
   } catch (error) {
     console.error('[admin/city-readiness] unexpected', error instanceof Error ? error.name : 'unknown');
