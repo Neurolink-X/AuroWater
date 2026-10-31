@@ -185,6 +185,12 @@ try {
   // a paid payout without an audited reconciliation.
   const financeIntegrity = await client.query(`
     SELECT count(*) FILTER (WHERE o.status='COMPLETED' AND lower(o.payment_status)='paid') AS completed_paid,
+           count(*) FILTER (WHERE o.status='COMPLETED' AND lower(o.payment_status)='paid'
+             AND o.supplier_id IS NOT NULL AND o.created_at >= now()-interval '14 days') AS recent_paid_orders,
+           count(*) FILTER (WHERE o.status='COMPLETED' AND lower(o.payment_status)='paid'
+             AND o.supplier_id IS NOT NULL AND o.created_at >= now()-interval '14 days'
+             AND NOT EXISTS (SELECT 1 FROM public.wallet_ledger l
+               WHERE l.order_id=o.id AND l.entry_type='ORDER_EARNING')) AS recent_missing_earning,
            count(*) FILTER (WHERE o.status='COMPLETED'
              AND lower(o.payment_status)='paid'
              AND o.supplier_id IS NOT NULL
