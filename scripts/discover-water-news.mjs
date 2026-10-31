@@ -13,6 +13,7 @@ const feedUrl = 'https://news.google.com/rss/search?q=' +
 const MAX_BYTES = 450_000;
 const MAX_ITEMS = 50;
 const MAX_STORED = 80;
+const MAX_QUEUE_BYTES = 120_000;
 const MAX_AGE_MS = 14 * 86400000;
 const esc = (s) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
   .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&#(\d+);/g,
@@ -56,18 +57,39 @@ async function main() {
     });
     if (!response.ok || Number(response.headers.get('content-length') || 0) > MAX_BYTES)
       throw new Error('Feed inaccessible or oversized');
-    const xml = await response.text();
-    if (xml.length > MAX_BYTES) throw new Error('Feed exceeded memory budget');
+    // Stream with a hard input limit: content-length is not trustworthy.
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('Feed response has no readable stream');
+    const chunks = [];
+    let bytes = 0;
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > MAX_BYTES) {
+        await reader.cancel().catch(() => {});
+        throw new Error('Feed exceeded memory budget');
+      }
+      chunks.push(part.value);
+    }
+    const xml = new TextDecoder().decode(Buffer.concat(chunks, bytes));
     const incoming = parseFeed(xml);
     if (!incoming.length) {
       console.log('No eligible recent articles. No changes.');
       return;
     }
     let old = [];
-    try { old = JSON.parse(await readFile(output, 'utf8')); } catch {}
+    try {
+      const { stat } = await import('node:fs/promises');
+      if ((await stat(output)).size <= MAX_QUEUE_BYTES) old = JSON.parse(await readFile(output, 'utf8'));
+    } catch {}
     const merged = new Map();
-    for (const item of [...incoming, ...(Array.isArray(old) ? old : [])]) {
-      if (typeof item?.key === 'string' && !merged.has(item.key)) merged.set(item.key, item);
+    // Preserve editorial status/notes on existing candidates; expire stale leads.
+    for (const item of [...(Array.isArray(old) ? old : []), ...incoming]) {
+      if (typeof item?.key !== 'string' || merged.has(item.key) ||
+          !Number.isFinite(Date.parse(item.source_published_at)) ||
+          Date.now() - Date.parse(item.source_published_at) > MAX_AGE_MS) continue;
+      merged.set(item.key, item);
       if (merged.size >= MAX_STORED) break;
     }
     const next = JSON.stringify([...merged.values()], null, 2) + '\n';
