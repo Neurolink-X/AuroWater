@@ -172,7 +172,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
 
 const CACHE_KEY        = 'aw_settings_v3';
 const CACHE_TS_KEY     = 'aw_settings_v3_ts';
-const DEFAULT_STALE_MS = 60 * 1000; // 60s — settings rarely change
+const DEFAULT_STALE_MS = 0; // Pricing always revalidates against the published version
 
 /* ═══════════════════════════════════════════════════════════════
    PURE HELPERS  (no React deps — independently testable)
@@ -382,8 +382,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
         setSettings(next);
         if (!city) writeCache(next);
       }
-    } catch {
-      /* keep defaults */
+    } catch (cause: unknown) {
+      if (!ctrl.signal.aborted) setError(cause instanceof Error ? cause.message : 'Live pricing unavailable');
     } finally {
       window.clearTimeout(kill);
       setLoading(false);
@@ -395,15 +395,23 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     const { settings: cached, ts } = city ? { settings: null, ts: 0 } : readCache();
     const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
 
-    if (fresh) {
-      setSettings(mergeSettings(cached));
-      setLoading(false);
-      return;
-    }
-    refresh();
+    if (fresh) setSettings(mergeSettings(cached));
+    void refresh();
 
     return () => { abortRef.current?.abort(); };
   }, [refresh, staleMs, city]);
+
+  /* Refresh when a customer returns to an open tab after admin changes. */
+  React.useEffect(() => {
+    const onFocus = () => { void refresh(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh]);
 
   /* ── Cross-tab sync: global settings only ── */
   React.useEffect(() => {
