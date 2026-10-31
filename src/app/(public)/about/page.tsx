@@ -100,7 +100,7 @@ background:var(--bg);color:var(--ink);font-family:var(--font-sans),system-ui,san
 .ab-ico{width:50px;height:50px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:var(--inset);background:var(--bg);margin-bottom:14px}
 .ab-svc{display:flex;flex-direction:column;text-decoration:none;transition:box-shadow .18s,transform .18s;content-visibility:auto;contain-intrinsic-size:auto 230px}
 .ab-svc-photo{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border-radius:14px;margin-bottom:16px;background:#e7f1f3}
-.ab-svc-photo img{object-fit:cover;transition:transform .25s ease}
+.ab-svc-photo img{object-fit:contain;transition:transform .25s ease}
 @media (hover:hover) and (prefers-reduced-motion:no-preference){.ab-svc:hover .ab-svc-photo img{transform:scale(1.035)}}
 .ab-svc h3{font-size:17px;font-weight:800}
 .ab-svc p{margin-top:8px;font-size:13.5px;color:var(--ink2);flex:1}
@@ -268,7 +268,7 @@ export default function AboutPage() {
           <div className="ab-grid ab-g3">
             {SERVICES.map((s) => (
               <Link key={s.key} href={`/services/${s.key}`} className="ab-card ab-svc" aria-label={`${s.title}: learn more`}>
-                <div className="ab-svc-photo"><Image src={ILLUSTRATIONS[s.key]} alt={ILLUSTRATION_ALT[s.key]} fill sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 350px" loading="lazy" /></div>
+                <div className="ab-svc-photo"><Image src={ILLUSTRATIONS[s.key]} alt={ILLUSTRATION_ALT[s.key]} fill quality={90} sizes="(max-width: 640px) 300px, (max-width: 1024px) 320px, 350px" loading="lazy" /></div>
                 <div className="ab-ico" aria-hidden="true">{s.icon}</div>
                 <h3>{s.title}</h3>
                 <p>{s.desc}</p>
