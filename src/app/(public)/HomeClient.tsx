@@ -276,7 +276,7 @@ export default function HomeClient() {
     finally { setBusy(false); }
   }, [name, phone]);
 
-  const s = SERVICES[svc];
+  const s = liveServices[svc];
 
   return (
     <>
