@@ -24,6 +24,9 @@ test('SEO checks never advertise private routes or alter indexing remotely', () 
   assert.match(audit, /robots\.txt/);
   assert.match(audit, /sitemap\.xml/);
   assert.match(audit, /\/blog/);
-  assert.match(audit, /Private role URL found in sitemap/);
+  // Match the diagnostic emitted by the actual read-only sitemap audit.
+  // Private account routes must be rejected rather than published as SEO URLs.
+  assert.match(audit, /checks\.push\('Private account URLs found in public sitemap'\)/);
+  assert.match(audit, /admin\|auth\|customer\|supplier\|technician/);
   assert.doesNotMatch(audit, /POST|PUT|PATCH|DELETE|submit.*index/i);
 });
