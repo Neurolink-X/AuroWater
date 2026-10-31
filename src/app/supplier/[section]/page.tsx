@@ -23,7 +23,7 @@ const SECTIONS: Record<Section, { nav: string; title: string; subtitle: string; 
 };
 const ORDER = Object.keys(SECTIONS) as Section[];
 
-const POLL_MS = 10_000;
+const POLL_MS = 30_000; // Realtime is primary; polling is a lightweight safety net.
 const UPI_RE = /^[a-z0-9._-]{2,256}@[a-z][a-z0-9]{1,63}$/i;
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const ACCOUNT_RE = /^\d{9,18}$/;
@@ -63,6 +63,7 @@ export default function SupplierSectionPage() {
   const [radius, setRadius] = useState('5');
   const latest = useRef(0);
   const hasData = useRef(false);
+  const backgroundFetchInFlight = useRef(false);
 
   const authedFetch = useCallback(
     async (path: string, init: RequestInit = {}) => {
@@ -83,7 +84,8 @@ export default function SupplierSectionPage() {
 
   const load = useCallback(
     async (silent = false) => {
-      if (!meta) return;
+      if (!meta || (silent && backgroundFetchInFlight.current)) return;
+      if (silent) backgroundFetchInFlight.current = true;
       const id = ++latest.current;
       // First load may use a skeleton; refreshes keep the current section visible.
       if (!silent && !hasData.current) setLoading(true);
@@ -102,6 +104,7 @@ export default function SupplierSectionPage() {
         // Background polling is intentionally silent; retain data and avoid flashing errors.
         if (id === latest.current && !silent) setError(errMsg(e, 'Unable to load this page.'));
       } finally {
+        if (silent) backgroundFetchInFlight.current = false;
         if (id === latest.current) setLoading(false);
       }
     },
@@ -113,7 +116,7 @@ export default function SupplierSectionPage() {
   // Keep the orders list fresh while the tab is visible.
   useEffect(() => {
     if (section !== 'orders') return;
-    const t = setInterval(() => { if (document.visibilityState === 'visible') void load(true); }, POLL_MS);
+    const t = setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) void load(true); }, POLL_MS);
     return () => clearInterval(t);
   }, [section, load]);
 
