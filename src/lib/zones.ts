@@ -211,7 +211,7 @@ export function parseZoneInput(body: Record<string, unknown>, partial: boolean):
     if (!Array.isArray(body.pincodes) || body.pincodes.some((p) => !/^[0-9]{6}$/.test(String(p)))) {
       return { ok: false, error: 'pincodes must be a list of 6-digit pincodes' };
     }
-    out.pincodes = (body.pincodes as unknown[]).map(String);
+    out.pincodes = [...new Set((body.pincodes as unknown[]).map(String))];
   }
   if (body.services !== undefined) {
     if (body.services !== null && (!Array.isArray(body.services) || body.services.some((x) => typeof x !== 'string'))) {
@@ -225,6 +225,9 @@ export function parseZoneInput(body: Record<string, unknown>, partial: boolean):
       else {
         const n = Number(body[k]);
         if (!Number.isFinite(n)) return { ok: false, error: `${k} must be a number` };
+        if (k === 'center_lat' && (n < -90 || n > 90)) return { ok: false, error: 'center_lat must be between -90 and 90' };
+        if (k === 'center_lng' && (n < -180 || n > 180)) return { ok: false, error: 'center_lng must be between -180 and 180' };
+        if (k === 'radius_km' && n <= 0) return { ok: false, error: 'radius_km must be positive' };
         out[k] = n;
       }
     }
