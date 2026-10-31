@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
@@ -180,6 +181,8 @@ export default function SupplierSectionPage() {
           {loading && !hasData.current ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
         </button>
       </div>
+
+      {section === 'settings' && <div className="mt-4"><PartnerPostalLookup label={isHindi ? 'पिन कोड डायरेक्टरी' : 'Delivery area PIN directory'} /></div>}
 
       <div aria-live="polite">
         {error && <div role="alert" className="sp-msg sp-msg--err">{error}</div>}
