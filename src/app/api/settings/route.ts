@@ -110,9 +110,11 @@ export async function GET(req: NextRequest) {
       const cityOverride = cityKey && cityOverrides[cityKey] && typeof cityOverrides[cityKey] === 'object'
         ? cityOverrides[cityKey] as Record<string, unknown> : null;
       const config = { ...publishedConfig, ...(cityOverride ?? {}) };
-      const servicePrices = config.services && typeof config.services === 'object'
-        ? config.services as Record<string, number>
-        : {};
+      const globalServices = publishedConfig.services && typeof publishedConfig.services === 'object'
+        ? publishedConfig.services as Record<string, number> : {};
+      const overrideServices = cityOverride?.services && typeof cityOverride.services === 'object'
+        ? cityOverride.services as Record<string, number> : {};
+      const servicePrices = { ...globalServices, ...overrideServices };
       payload.pricing_version = activeVersion.version;
       payload.pricing_effective_from = activeVersion.effective_from;
       if (typeof config.water_normal === 'number') payload.default_can_price = config.water_normal;
