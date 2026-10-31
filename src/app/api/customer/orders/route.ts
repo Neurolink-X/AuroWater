@@ -1,3 +1,4 @@
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
@@ -293,23 +294,17 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const publishedPricingConfig = activePricingRow?.config && typeof activePricingRow.config === 'object'
     ? activePricingRow.config as Record<string, unknown> : null;
-  const pricingCityKey = normalizePricingCity(a.city);
-  const cityOverrides = publishedPricingConfig?.city_overrides && typeof publishedPricingConfig.city_overrides === 'object'
-    ? publishedPricingConfig.city_overrides as Record<string, unknown> : {};
-  const cityOverride = cityOverrides[pricingCityKey] && typeof cityOverrides[pricingCityKey] === 'object'
-    ? cityOverrides[pricingCityKey] as Record<string, unknown> : null;
-  // Inherit global rates when a city override omits individual services.
-  const activePricingConfig: Record<string, unknown> | null = publishedPricingConfig
-    ? { ...publishedPricingConfig, ...(cityOverride ?? {}), city_key: cityOverride ? pricingCityKey : 'global' }
-    : null;
-  const globalServicePrices = publishedPricingConfig?.services && typeof publishedPricingConfig.services === 'object'
-    ? publishedPricingConfig.services as Record<string, unknown> : {};
-  const cityServicePrices = cityOverride?.services && typeof cityOverride.services === 'object'
-    ? cityOverride.services as Record<string, unknown> : {};
-  const activeServicePrices: Record<string, unknown> = { ...globalServicePrices, ...cityServicePrices };
-  if (activePricingError || !publishedPricingConfig) {
+  const activePricingConfig = resolveEffectivePriceBook(publishedPricingConfig, a.city);
+  const activeServicePrices: Record<string, unknown> = activePricingConfig?.services ?? {};
+  if (activePricingError || !activePricingConfig) {
     console.error('[orders] active pricing lookup failed', activePricingError);
     return jsonErr('Pricing is temporarily unavailable. Please retry shortly.', 503);
+  }
+
+  const pricingIssues = validateEffectivePriceBook(activePricingConfig);
+  if (pricingIssues.length > 0) {
+    console.error('[orders] published pricing validation failed', pricingIssues.map(issue => issue.field));
+    return jsonErr('Published pricing configuration is incomplete. Please contact support.', 503);
   }
 
   // Keep GST at the currently approved zero-rate behavior unless an administrator
