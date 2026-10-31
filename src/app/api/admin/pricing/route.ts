@@ -32,6 +32,10 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     serviceEntries.push([key, Math.round(value * 100) / 100]);
   }
   const services = Object.fromEntries(serviceEntries) as Record<string, number>;
+  const requiredPositiveServices = ['water_tanker', 'ro_service', 'plumbing', 'plumbing_mistri', 'borewell', 'motor_pump', 'tank_cleaning'];
+  for (const key of requiredPositiveServices) {
+    if (!money(services[key], 1, 100000)) return { error: 'A positive base price is required for ' + key };
+  }
   if (!serviceEntries.length) return { error: 'At least one service price is required.' };
   const cityOverrideEntries: Array<[string, PriceBook]> = [];
   if (v.city_overrides !== undefined) {
