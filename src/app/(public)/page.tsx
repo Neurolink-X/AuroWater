@@ -5,9 +5,9 @@ import { SITE, PRICING, FAQS, CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_
 
 export const revalidate = 3600; // re-render hourly so a scheduled price change appears without a redeploy
 
-const title = `RO Water ₹${PRICING.water.normal}/Can, Plumber & Tank Cleaning | ${SITE.name}`;
+const title = `RO Water Delivery, Plumber & Tank Cleaning | ${SITE.name}`;
 const description =
-  `Order 20L RO water cans from ₹${PRICING.water.normal}, book a plumber or schedule water tank cleaning in ${LIVE_CITY_NAMES.replace(' and ', ' & ')}, plus ${PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes. ` +
+  `Check current 20L RO water prices, plumber and water tank cleaning availability in ${LIVE_CITY_NAMES.replace(' and ', ' & ')} and selected PIN-code areas. ` +
   `Monthly plans lock your price for up to ${MAX_LOCK_MONTHS} months. Clear prices before you confirm. Cash + UPI.`;
 
 export const viewport: Viewport = { themeColor: '#020c18', width: 'device-width', initialScale: 1 };
@@ -60,11 +60,12 @@ const jsonLd = {
       paymentAccepted: 'Cash, UPI',
       currenciesAccepted: 'INR',
       areaServed: CITIES.map(c => ({ '@type': 'City', name: c.name, url: `${SITE.url}/cities/${c.slug}` })),
-      makesOffer: [
-        { '@type': 'Offer', name: 'Normal RO 20L can', price: PRICING.water.normal, priceCurrency: 'INR' },
-        { '@type': 'Offer', name: 'Chilled RO 20L can', price: PRICING.water.chilled, priceCurrency: 'INR' },
-        { '@type': 'Offer', name: 'Water tank cleaning (up to 500 L, from)', price: PRICING.tank[0].from, priceCurrency: 'INR' },
-        { '@type': 'Offer', name: 'Plumber visit', price: PRICING.plumber.visitFee, priceCurrency: 'INR' },
+      // No static Offer.price: admin can publish a new price without redeploy.
+      // The live checkout, not old JSON-LD, is authoritative.
+      serviceType: [
+        { '@type': 'Service', name: 'RO water delivery' },
+        { '@type': 'Service', name: 'Plumber service' },
+        { '@type': 'Service', name: 'Water tank cleaning' },
       ],
     },
     {
