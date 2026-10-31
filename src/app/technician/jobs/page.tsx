@@ -199,9 +199,12 @@ export default function TechnicianJobs() {
     let mounted = true;
     let inFlight = false;
     let refreshDebounce: number | undefined;
+    let lastBackgroundRefresh = 0;
 
     const run = async (showLoader: boolean) => {
-      if (inFlight) return;
+      if (inFlight || !mounted) return;
+      if (!showLoader && Date.now() - lastBackgroundRefresh < 8_000) return;
+      if (!showLoader) lastBackgroundRefresh = Date.now();
       inFlight = true;
       if (showLoader) setLoading(true);
       try {
@@ -238,7 +241,7 @@ export default function TechnicianJobs() {
     // Safety net for missed websocket events, background-tab resume and reconnect.
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
-    }, 10000);
+    }, 30000);
     const onVisible = () => {
       if (document.visibilityState === 'visible' && navigator.onLine) void run(false);
     };
