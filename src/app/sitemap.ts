@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 import { getSiteUrl } from '@/lib/env';
 import { canIndexDeployment } from '@/lib/seo-policy';
-import { publishedGuides } from '@/lib/blog/posts';
+import { allPublishedGuides } from '@/lib/blog/managed-posts';
 import { publishedNews } from '@/lib/blog/reviewed-news';
 
 const BASE_URL = getSiteUrl().replace(/\/+$/, '');
@@ -56,7 +56,7 @@ function page(
   };
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // A preview/staging sitemap must not advertise URLs to search engines.
   if (!canIndexDeployment({
     vercelEnv: process.env.VERCEL_ENV,
@@ -94,7 +94,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const guideEntries = [
     page('/blog', { changeFrequency: 'weekly', priority: 0.65 }),
-    ...publishedGuides().map((post) => page(`/blog/${post.slug}`, {
+    ...(await allPublishedGuides()).map((post) => page(`/blog/${post.slug}`, {
       lastModified: new Date(post.updatedAt), changeFrequency: 'monthly', priority: 0.65,
     })),
   ];
