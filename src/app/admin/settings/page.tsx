@@ -1075,10 +1075,10 @@ export default function AdminSettingsPage() {
         {loading && !ready && <LoadingSkeleton />}
 
         {ready && (
-          <div className="grid gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
+          <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[210px_minmax(0,1fr)]">
             <nav
               aria-label="Settings sections"
-              className="sticky top-0 z-20 -mx-3 flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-100/90 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:top-4 lg:z-auto lg:mx-0 lg:flex-col lg:self-start lg:overflow-visible lg:rounded-2xl lg:border lg:bg-white lg:p-2 lg:shadow-sm"
+              className="sticky top-0 z-20 -mx-3 flex min-w-0 max-w-[calc(100vw-1.5rem)] gap-2 overflow-x-auto overscroll-x-contain border-b border-slate-200 bg-slate-100/90 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:top-4 lg:z-auto lg:mx-0 lg:flex-col lg:max-w-none lg:self-start lg:overflow-visible lg:rounded-2xl lg:border lg:bg-white lg:p-2 lg:shadow-sm"
             >
               {SECTIONS.map((s) => {
                 const stat = sectionStats[s.id];
@@ -1089,7 +1089,7 @@ export default function AdminSettingsPage() {
                     type="button"
                     onClick={() => jumpTo(s.id)}
                     aria-current={active ? 'true' : undefined}
-                    className={`flex items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors ${ringFocus} ${
+                    className={`flex shrink-0 items-center justify-between gap-3 whitespace-nowrap rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors ${ringFocus} ${
                       active ? 'bg-cyan-100 text-cyan-900' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >

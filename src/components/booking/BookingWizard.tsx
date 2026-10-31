@@ -25,6 +25,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
+import Image from 'next/image';
+import { ILLUSTRATIONS, ILLUSTRATION_ALT } from '@/app/(public)/services/services-data';
 import BookingProgress from '@/components/booking/BookingProgress';
 import TimeSlotPicker from '@/components/booking/TimeSlotPicker';
 import type { TimeSlotPickerValue } from '@/components/booking/TimeSlotPicker';
@@ -1655,7 +1657,7 @@ export default function BookingWizard() {
                 <button key={s.key} type="button" aria-pressed={draft.serviceKey === s.key}
                   onClick={() => { setDraft((d) => ({ ...d, serviceKey: s.key })); revealOptions(); }}
                   className={[
-                    'relative rounded-2xl border p-4 text-left transition-all hover:shadow-md',
+                    'relative min-w-0 overflow-hidden rounded-2xl border p-3 text-left transition-all hover:shadow-md sm:p-4',
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
                     draft.serviceKey === s.key
                       ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
@@ -1666,7 +1668,17 @@ export default function BookingWizard() {
                       {pctOff(MARKET_CAN_PRICES.normal, settings.default_can_price)}% OFF
                     </span>
                   )}
-                  <div className="text-2xl" aria-hidden>{s.emoji}</div>
+                  <div className="relative mb-3 aspect-[4/3] w-full overflow-hidden rounded-xl bg-slate-100">
+                    <Image
+                      src={ILLUSTRATIONS[s.key as keyof typeof ILLUSTRATIONS]}
+                      alt={ILLUSTRATION_ALT[s.key as keyof typeof ILLUSTRATION_ALT]}
+                      fill
+                      sizes="(max-width: 640px) 42vw, (max-width: 1024px) 28vw, 200px"
+                      quality={80}
+                      className="object-cover"
+                      loading="lazy"
+                    />
+                  </div>
                   <div className="mt-2 font-semibold text-slate-900 text-sm leading-tight">{s.title}</div>
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
                     From ₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
