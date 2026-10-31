@@ -31,7 +31,9 @@ function mergeWithFallback(data: City[]): City[] {
   }
   for (const city of FALLBACK_CITIES) {
     const key = city.slug.toLowerCase();
-    if (!merged.has(key)) merged.set(key, city);
+    // A configured database is authoritative: do not resurrect absent cities.
+    // Missing legacy cities can remain discoverable, but never bookable.
+    if (!merged.has(key) && city.status !== 'active') merged.set(key, city);
   }
   return [...merged.values()].sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999));
 }
@@ -47,7 +49,7 @@ function ok(data: unknown) {
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return ok(FALLBACK_CITIES);
+    return ok(FALLBACK_CITIES.map(city => ({ ...city, status: city.status === 'active' ? 'coming_soon' as const : city.status })));
   }
 
   const url =
@@ -112,7 +114,7 @@ export async function GET() {
       data.length === 0
     ) {
       return ok(
-        FALLBACK_CITIES,
+        FALLBACK_CITIES.map(city => ({ ...city, status: city.status === 'active' ? 'coming_soon' as const : city.status })),
       );
     }
 
@@ -124,7 +126,7 @@ export async function GET() {
      * unavailable.
      */
     return ok(
-      FALLBACK_CITIES,
+      FALLBACK_CITIES.map(city => ({ ...city, status: city.status === 'active' ? 'coming_soon' as const : city.status })),
     );
   } finally {
     clearTimeout(timeout);
