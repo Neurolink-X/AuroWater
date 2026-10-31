@@ -279,6 +279,15 @@ export default function HomeClient() {
         .aw-btn-ol:hover{background:rgba(14,165,233,.16)}
         .aw-btn:focus-visible,.aw-btn-ol:focus-visible,.aw-tab:focus-visible{outline:2px solid #7dd3fc;outline-offset:3px}
         .aw-glass{background:var(--glass);backdrop-filter:blur(24px);border:1px solid var(--glass-b);border-radius:20px}
+        /* Cut continuous paint work on touch devices; keep desktop motion. */
+        @media (hover:none) and (pointer:coarse) {
+          .aw-btn,.aw-mql,.aw-mqr,.aw-live {animation:none!important}
+          .aw-glass {backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+          .aw-mql,.aw-mqr {transform:none!important}
+        }
+        @media (prefers-reduced-motion:reduce) {
+          .aw-btn,.aw-mql,.aw-mqr,.aw-live {animation:none!important}
+        }
         .aw-glass-light{background:rgba(255,255,255,.93);border:1px solid rgba(14,165,233,.18)}
         .aw-badge{display:inline-block;font-family:var(--fd);font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#38bdf8;background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.28);border-radius:999px;padding:4px 14px;margin-bottom:14px}
         .aw-badge-dk{color:#0369a1;background:rgba(14,165,233,.08);border-color:rgba(14,165,233,.22)}
@@ -524,6 +533,26 @@ export default function HomeClient() {
             </ol>
           </div>
           <div className="mt-16"><Wave color="#f8fafc" /></div>
+        </section>
+
+        {/* Discoverable editorial guidance. Keep articles independent of promotions. */}
+        <section aria-labelledby="home-guides-heading" className="bg-white py-12 sm:py-16">
+          <div className="mx-auto max-w-6xl px-5 sm:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">AuroTap guides</p>
+                <h2 id="home-guides-heading" className="mt-2 font-display text-2xl font-extrabold text-slate-900 sm:text-3xl">Water delivery & home care tips</h2>
+                <p className="mt-2 max-w-2xl text-sm text-slate-600">Practical information, no exaggerated claims or fake offers.</p>
+              </div>
+              <Link href="/blog" className="inline-flex min-h-11 items-center rounded-xl border border-cyan-700 px-4 text-sm font-bold text-cyan-800 hover:bg-cyan-50">Read all guides →</Link>
+            </div>
+            <article className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Water delivery</p>
+              <h3 className="mt-2 text-xl font-bold text-slate-900"><Link href="/blog/how-to-check-20-litre-water-can-delivery" className="hover:underline">How to check 20-litre drinking water delivery near you</Link></h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Check PIN code coverage, delivery availability and the final order total before confirming.</p>
+              <Link href="/blog/how-to-check-20-litre-water-can-delivery" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-cyan-800 hover:underline">Read the guide →</Link>
+            </article>
+          </div>
         </section>
 
         {/* ═══ FAQ (matches FAQPage JSON-LD) ═══ */}

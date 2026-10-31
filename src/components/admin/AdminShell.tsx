@@ -157,6 +157,16 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/noida-readiness',
+    label: 'Noida Pilot',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M12 22s8-6 8-12a8 8 0 1 0-16 0c0 6 8 12 8 12Z" strokeWidth="1.8" />
+        <circle cx="12" cy="10" r="2.5" strokeWidth="1.8" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/pricing',
     label: 'Pricing & Fees',
     icon: (

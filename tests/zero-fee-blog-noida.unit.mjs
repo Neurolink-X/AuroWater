@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const get = (p) => readFileSync(new URL('../'+p, import.meta.url), 'utf8');
+const migration = get('sql/launch_zero_order_fees_20261031.sql');
+const customer = get('src/app/api/customer/orders/route.ts');
+const admin = get('src/app/api/admin/orders/route.ts');
+const settings = get('src/app/api/settings/route.ts');
+const pricing = get('src/app/api/admin/pricing/route.ts');
+const hook = get('src/hooks/useSettings.ts');
+const home = get('src/app/(public)/HomeClient.tsx');
+const cities = get('src/app/api/cities/route.ts');
+const readiness = get('src/app/api/admin/noida-readiness/route.ts');
+const readinessPage = get('src/app/admin/noida-readiness/page.tsx');
+assert.match(migration, /'convenience_fee',0,'emergency_surcharge',0,'delivery_fee',0,'surge_charge',0/);
+assert.match(migration, /UPDATE public.settings SET value='0'/);
+assert.match(migration, /pricing.zero_fee_launch/);
+for (const source of [customer, admin]) {
+  assert.match(source, /const handlingFee = service_type_key === 'water_can' \? 0/);
+  assert.match(source, /const deliveryFee = Number\(activePricingConfig\?\.delivery_fee \?\? 0\)/);
+  assert.match(source, /const convenience = handlingFee \+ deliveryFee/);
+  assert.match(source, /activePricingConfig\?\.surge_charge \?\? 0/);
+  assert.match(source, /totalsMatch\(/);
+}
+assert.match(settings, /payload\.delivery_fee = config\.delivery_fee/);
+assert.match(settings, /payload\.surge_charge = config\.surge_charge/);
+assert.match(pricing, /delivery_fee: Math.round/);
+assert.match(pricing, /surge_charge: Math.round/);
+assert.match(hook, /delivery_fee:\s+safePositive\(raw.delivery_fee/);
+assert.match(hook, /surge_charge:\s+safePositive\(raw.surge_charge/);
+assert.match(home, /href="\/blog"/);
+assert.match(home, /home-guides-heading/);
+assert.match(home, /@media \(hover:none\) and \(pointer:coarse\)/);
+assert.doesNotMatch(cities, /status: 'active' as const, is_featured: true/);
+assert.match(readiness, /requireAdmin\(auth.ctx\)/);
+assert.match(readiness, /online_stocked_suppliers/);
+assert.match(readiness, /launch_ready: ready/);
+assert.match(readinessPage, /Not operationally ready/);
+console.log('Zero fees, future admin control, blog discovery and Noida non-overclaim regression passed.');

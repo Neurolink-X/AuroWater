@@ -25,8 +25,10 @@ function defaultPayload(): Record<string, unknown> {
     bulk_can_price: 20,
     bulk_threshold: 50,
     market_can_price: 20,
-    convenience_fee: 10,
-    gst_rate: 0.18,
+    convenience_fee: 0,
+    emergency_surcharge: 0,
+    surge_charge: 0,
+    gst_rate: 0,
     service_base_prices: { water_tanker: 299, ro_service: 349, plumbing: 149, plumbing_mistri: 700, borewell: 499, motor_pump: 299, tank_cleaning: 599, ro_service_filter_change: 49, ro_service_amc: 149, ro_service_new_installation: 599, plumbing_drainage: 49, plumbing_new_fitting: 99, water_tanker_1000: 50, water_tanker_2000: 120, water_tanker_custom: 80 },
     can_price_small: 1000,
     can_price_large: 1200,
@@ -113,6 +115,8 @@ export async function GET(req: NextRequest) {
       if (typeof config.bulk_can_price === 'number') payload.bulk_can_price = config.bulk_can_price;
       if (typeof config.bulk_threshold === 'number') payload.bulk_threshold = config.bulk_threshold;
       if (typeof config.convenience_fee === 'number') payload.convenience_fee = config.convenience_fee;
+      if (typeof config.delivery_fee === 'number') payload.delivery_fee = config.delivery_fee;
+      if (typeof config.surge_charge === 'number') payload.surge_charge = config.surge_charge;
       if (typeof config.emergency_surcharge === 'number') payload.emergency_surcharge = config.emergency_surcharge;
       if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
       if (Object.keys(servicePrices).length) payload.service_base_prices = servicePrices;

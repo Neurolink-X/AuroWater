@@ -24,13 +24,9 @@ function mergeWithFallback(data: City[]): City[] {
     if (!city || typeof city.name !== 'string' || !['active', 'coming_soon', 'waitlist'].includes(city.status)) continue;
     const key = String(city.slug || city.name).trim().toLowerCase();
     if (key) {
-      // The database city row can lag behind a zone-level pilot activation.
-      // Keep Noida discoverable, but the booking API remains the authority for
-      // exact Sector 73 coverage and supplier capacity.
-      const normalized = key === 'noida'
-        ? { ...city, status: 'active' as const, is_featured: true }
-        : city;
-      merged.set(key, normalized);
+      // Database status is authoritative. Do not mark Noida active merely
+      // because a pilot zone exists; operational supplier readiness is separate.
+      merged.set(key, city);
     }
   }
   for (const city of FALLBACK_CITIES) {

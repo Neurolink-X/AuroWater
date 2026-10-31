@@ -25,8 +25,8 @@ export const FALLBACK_CITIES: City[] = [
   { id: 'aligarh', name: 'Aligarh', slug: 'aligarh', status: 'waitlist', is_featured: false, sort_order: 11 },
   // Visible for expansion discovery; these cities remain non-bookable until operations enable them.
   { id: 'delhi', name: 'Delhi', slug: 'delhi', status: 'coming_soon', is_featured: false, sort_order: 13 },
-  // Noida is a restricted Sector 73 pilot; order APIs still enforce the exact service zone.
-  { id: 'noida', name: 'Noida', slug: 'noida', status: 'active', is_featured: true, sort_order: 4 },
+  // Noida remains discoverable; promote it to live only when verified suppliers, stock and coverage are ready.
+  { id: 'noida', name: 'Noida', slug: 'noida', status: 'coming_soon', is_featured: true, sort_order: 4 },
 ];
 
 // Core cities only; the Noida pilot must not be presented as citywide live coverage.

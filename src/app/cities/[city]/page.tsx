@@ -24,9 +24,11 @@ function faqsFor(city: City) {
   const { water, tank, plumber } = PRICING;
   return [
     { q: `How much does RO water delivery cost in ${city.name}?`,
-      a: `Normal RO is ${inr(water.normal)} per 20L can and Chilled RO is ${inr(water.chilled)} per 20L can in ${city.name}. You see the order total before you confirm.` },
+      a: `Normal RO starts at ${inr(water.normal)} and chilled RO at ${inr(water.chilled)} per 20L can where a verified supplier is available. See the final checkout total and serviceability first.` },
     { q: `Do you deliver water in ${city.areas[0]} and nearby areas?`,
-      a: live
+      a: city.slug === 'noida'
+        ? 'Noida Sector 73 is a limited pilot. Availability depends on approved online suppliers, stock and exact address coverage; the city is not available for guaranteed delivery everywhere.'
+        : live
         ? `Yes. We serve ${city.areas.join(', ')} and nearby areas in ${city.name}. Enter your address at booking and we confirm availability.`
         : `We serve selected PIN codes in ${city.name}, including areas such as ${city.areas.slice(0, 4).join(', ')}. Enter your PIN code at booking and we confirm availability before you pay.` },
     { q: `How much does water tank cleaning cost in ${city.name}?`,
@@ -45,10 +47,12 @@ export async function generateMetadata({ params }: CityPageProps): Promise<Metad
   const city = findCity(raw);
   if (!city) return { title: `City not found | ${SITE.name}`, robots: { index: false, follow: false } };
 
-  const title = `RO Water, Plumber & Tank Cleaning in ${city.name} | ${SITE.name}`;
+  const title = city.slug === 'noida'
+    ? `Noida Sector 73 Pilot: Water Delivery Updates | ${SITE.name}`
+    : `RO Water, Plumber & Tank Cleaning in ${city.name} | ${SITE.name}`;
   const description =
     `20L RO water cans from ${inr(PRICING.water.normal)} in ${city.name} (${city.areas.slice(0, 3).join(', ')} & more). ` +
-    `Book a plumber or tank cleaning. ${city.status === 'live' ? 'Clear prices before you confirm.' : 'Available on approved PIN codes.'} Cash + UPI.`;
+    `Check water and home-service availability. ${city.slug === 'noida' ? 'Sector 73 pilot, subject to verified supplier readiness.' : city.status === 'live' ? 'Clear prices before you confirm.' : 'Subject to approved PIN-code coverage.'} Cash + UPI.`;
   const url = `/cities/${city.slug}`;
 
   return {
@@ -91,7 +95,7 @@ export default async function CityPage({ params }: CityPageProps) {
           { '@type': 'City', name: city.name, containedInPlace: { '@type': 'AdministrativeArea', name: city.state } },
           ...city.areas.map(a => ({ '@type': 'Place', name: `${a}, ${city.name}` })),
         ],
-        makesOffer: [
+        makesOffer: city.slug === 'noida' ? [] : [
           { '@type': 'Offer', name: 'Normal RO 20L can', price: PRICING.water.normal, priceCurrency: 'INR' },
           { '@type': 'Offer', name: 'Chilled RO 20L can', price: PRICING.water.chilled, priceCurrency: 'INR' },
           { '@type': 'Offer', name: 'Water tank cleaning (up to 500 L, from)', price: PRICING.tank[0].from, priceCurrency: 'INR' },

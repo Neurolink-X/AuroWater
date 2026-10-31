@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
 
-type PriceBook = { water_normal:number; water_chilled:number; water_subscription:number; bulk_can_price:number; bulk_threshold:number; services:Record<string,number>; convenience_fee:number; emergency_surcharge:number; gst_rate:number };
+type PriceBook = { water_normal:number; water_chilled:number; water_subscription:number; bulk_can_price:number; bulk_threshold:number; services:Record<string,number>; convenience_fee:number; emergency_surcharge:number; delivery_fee?:number; surge_charge?:number; gst_rate:number };
 type Config = PriceBook & { city_overrides?:Record<string,PriceBook> };
 type Version = { id:number; version:number; effective_from:string; reason:string; config:Config; created_at:string; currently_effective?:boolean };
 const labels:Record<string,string> = { water_tanker:'Water tanker', ro_service:'RO service', plumbing:'Plumbing labour', plumbing_mistri:'Plumbing mistri', borewell:'Borewell', motor_pump:'Motor & pump', tank_cleaning:'Tank cleaning', ro_service_filter_change:'RO filter change add-on', ro_service_amc:'RO AMC add-on', ro_service_new_installation:'RO new installation add-on', plumbing_drainage:'Plumbing drainage add-on', plumbing_new_fitting:'Plumbing new fitting add-on', water_tanker_1000:'Water tanker 1000L add-on', water_tanker_2000:'Water tanker 2000L add-on', water_tanker_custom:'Water tanker custom add-on' };
@@ -31,7 +31,7 @@ async function call<T>(method:'GET'|'POST', body?:unknown):Promise<T> {
 export default function AdminPricingPage() {
  const [versions,setVersions]=useState<Version[]>([]);
  const [current,setCurrent]=useState<Version|null>(null);
- const [config,setConfig]=useState<Config>({water_normal:20,water_chilled:25,water_subscription:20,bulk_can_price:20,bulk_threshold:50,services:{water_tanker:299,ro_service:349,plumbing:149,plumbing_mistri:700,borewell:499,motor_pump:299,tank_cleaning:599,ro_service_filter_change:49,ro_service_amc:149,ro_service_new_installation:599,plumbing_drainage:49,plumbing_new_fitting:99,water_tanker_1000:50,water_tanker_2000:120,water_tanker_custom:80},convenience_fee:10,emergency_surcharge:30,gst_rate:0});
+ const [config,setConfig]=useState<Config>({water_normal:20,water_chilled:25,water_subscription:20,bulk_can_price:20,bulk_threshold:50,services:{water_tanker:299,ro_service:349,plumbing:149,plumbing_mistri:700,borewell:499,motor_pump:299,tank_cleaning:599,ro_service_filter_change:49,ro_service_amc:149,ro_service_new_installation:599,plumbing_drainage:49,plumbing_new_fitting:99,water_tanker_1000:50,water_tanker_2000:120,water_tanker_custom:80},convenience_fee:0,emergency_surcharge:0,delivery_fee:0,surge_charge:0,gst_rate:0});
  const [reason,setReason]=useState(''); const [effective,setEffective]=useState(''); const [mode,setMode]=useState<'global'|'city'>('global'); const [city,setCity]=useState('Kanpur'); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await call<{versions:Version[];current:Version|null}>('GET');setVersions(r.versions);setCurrent(r.current);if(r.current?.config)setConfig({...r.current.config,services:{water_tanker:299,ro_service:349,plumbing:149,plumbing_mistri:700,borewell:499,motor_pump:299,tank_cleaning:599,ro_service_filter_change:49,ro_service_amc:149,ro_service_new_installation:599,plumbing_drainage:49,plumbing_new_fitting:99,water_tanker_1000:50,water_tanker_2000:120,water_tanker_custom:80,...r.current.config.services}});}catch(e){setError(e instanceof Error?e.message:'Could not load pricing.');}finally{setLoading(false);}},[]);
  useEffect(()=>{void load();},[load]);
@@ -74,6 +74,8 @@ export default function AdminPricingPage() {
  {field('Bulk threshold · cans',editConfig.bulk_threshold,v=>update('bulk_threshold',v),2,200,'1')}
  {field('Convenience fee · ₹',editConfig.convenience_fee,v=>update('convenience_fee',v),0,500)}
  {field('Emergency surcharge · ₹',editConfig.emergency_surcharge,v=>update('emergency_surcharge',v),0,5000)}
+ {field('Delivery fee · ₹',editConfig.delivery_fee??0,v=>patchConfig({delivery_fee:v===''?0:Number(v)}),0,500)}
+ {field('Surge fee · ₹ (emergency orders only)',editConfig.surge_charge??0,v=>patchConfig({surge_charge:v===''?0:Number(v)}),0,5000)}
  {field('GST rate · decimal',editConfig.gst_rate,v=>update('gst_rate',v),0,1,'0.01')}
  {Object.keys(editConfig.services).sort().map(k=>field((labels[k]??k.replace(/_/g,' '))+' · ₹ base',editConfig.services[k],v=>updateService(k,v),1,100000))}
  </div>
