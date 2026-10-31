@@ -264,37 +264,7 @@
 //   useDismiss(moreOpen, closeMore, moreRef);
 //   useDismiss(menuOpen, closeMenu, menuRef);
 
-//   // Warm service routes only when the user signals intent. Prefetching every
-  // service on initial paint wastes bandwidth on slow mobile connections.
-  const warmedRoutes = useRef<Set<string>>(new Set());
-  const warmService = useCallback((key: string) => {
-    const href = serviceHref(key);
-    if (warmedRoutes.current.has(href)) return;
-    warmedRoutes.current.add(href);
-    router.prefetch(href);
-  }, [router]);
-
-  // Navigation feedback is shown immediately, even if the route's server
-  // payload is still loading. Clear it on successful pathname change.
-  const [, setOpeningService] = useState<string | null>(null);
-  const openService = useCallback((key: string) => {
-    setOpeningService(key);
-    setMobileOpen(false);
-    setServicesOpen(false);
-    setMenuOpen(false);
-    router.push(serviceHref(key));
-  }, [router]);
-
-  useEffect(() => {
-    // This is a post-navigation reset, not an extra network request.
-    // Avoid timers that can leave the loading state stuck.
-    if (pathname) {
-      const frame = requestAnimationFrame(() => setOpeningService(null));
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [pathname]);
-
-  const isCustomer = isLoggedIn && role === 'customer';
+//   const isCustomer = isLoggedIn && role === 'customer';
 //   const activeOrder = useActiveOrder(Boolean(hydrated && isCustomer));
 
 //   const dashboardHref = useMemo(() => {
@@ -1672,6 +1642,36 @@ export default function Header() {
   useDismiss(servicesOpen, closeServices, servicesRef);
   useDismiss(moreOpen, closeMore, moreRef);
   useDismiss(menuOpen, closeMenu, menuRef);
+
+  // Warm service routes only when the user signals intent. Prefetching every
+  // service on initial paint wastes bandwidth on slow mobile connections.
+  const warmedRoutes = useRef<Set<string>>(new Set());
+  const warmService = useCallback((key: string) => {
+    const href = serviceHref(key);
+    if (warmedRoutes.current.has(href)) return;
+    warmedRoutes.current.add(href);
+    router.prefetch(href);
+  }, [router]);
+
+  // Navigation feedback is shown immediately, even if the route's server
+  // payload is still loading. Clear it on successful pathname change.
+  const [, setOpeningService] = useState<string | null>(null);
+  const openService = useCallback((key: string) => {
+    setOpeningService(key);
+    setMobileOpen(false);
+    setServicesOpen(false);
+    setMenuOpen(false);
+    router.push(serviceHref(key));
+  }, [router]);
+
+  useEffect(() => {
+    // This is a post-navigation reset, not an extra network request.
+    // Avoid timers that can leave the loading state stuck.
+    if (pathname) {
+      const frame = requestAnimationFrame(() => setOpeningService(null));
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [pathname]);
 
   const isCustomer = isLoggedIn && role === 'customer';
   const activeOrder = useActiveOrder(Boolean(hydrated && isCustomer));
