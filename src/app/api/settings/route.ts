@@ -119,12 +119,13 @@ export async function GET(req: NextRequest) {
       if (typeof config.emergency_surcharge === 'number') payload.emergency_surcharge = config.emergency_surcharge;
       if (typeof config.gst_rate === 'number') payload.gst_rate = config.gst_rate;
       payload.service_base_prices = servicePrices;
+      payload.pricing_city_key = config.city_key;
     }
     return ok(payload);
   } catch (err: unknown) {
     const name = err instanceof Error ? err.name : '';
     if (name === 'AbortError') {
-      /* timed out — serve defaults */
+      console.warn('[settings] authoritative pricing lookup timed out');
     }
     return NextResponse.json({ success: false, error: 'Live settings temporarily unavailable.' }, { status: 503, headers: CACHE });
   } finally {
