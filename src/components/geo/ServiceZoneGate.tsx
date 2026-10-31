@@ -56,7 +56,7 @@ export default function ServiceZoneGate({ onInZone }: Props) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
       <p className="font-semibold text-slate-800">Delivery area</p>
-      <p className="mt-1 text-slate-600">We currently serve {SERVICE_ZONES.map((z) => z.city).join(', ')}.</p>
+      <p className="mt-1 text-slate-600">We currently check availability around {SERVICE_ZONES.map((z) => z.city).join(', ')}. Your exact address and an available provider must be confirmed at checkout.</p>
       <button
         type="button"
         onClick={locate}
