@@ -16,7 +16,7 @@ const postInput = z.object({
   title: z.string().trim().min(12).max(180),
   description: z.string().trim().min(30).max(400),
   category: z.string().trim().min(2).max(80),
-  cover_image: z.string().max(500).refine(v => /^\\/images\\/[A-Za-z0-9_/-]+\\.(?:webp|png|jpg|jpeg|svg)$/.test(v) || /^https:\\/\\/[a-z0-9.-]+\\.supabase\\.co\\/storage\\/v1\\/object\\/public\\/blog-images\\/covers\\/\\d{4}\\/[a-f0-9-]+\\.(?:jpg|png|webp)$/.test(v)).nullable(),
+  cover_image: z.string().max(500).refine(v => v.startsWith('/images/') || (v.startsWith('https://') && v.includes('.supabase.co/storage/v1/object/public/blog-images/covers/') && /\.(jpg|jpeg|png|webp)$/.test(v)), 'Invalid cover image path').nullable(),
   sections: z.array(section).min(1).max(24),
   status: z.enum(['draft','published']),
   publish_at: z.string().datetime({ offset: true }).nullable(),
