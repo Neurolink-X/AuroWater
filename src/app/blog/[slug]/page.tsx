@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
-import { GUIDE_POSTS, publishedGuide, publishedGuides } from '@/lib/blog/posts';
+import { GUIDE_POSTS } from '@/lib/blog/posts';
+import { findPublishedGuide, allPublishedGuides } from '@/lib/blog/managed-posts';
 import { getSiteUrl } from '@/lib/env';
 
 export const revalidate = 3600;
@@ -11,7 +12,7 @@ export function generateStaticParams() { return GUIDE_POSTS.map(post => ({ slug:
 const date = (value: string) => new Date(value).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const post = publishedGuide(slug);
+  const post = await findPublishedGuide(slug);
   if (!post) return { robots: { index: false, follow: false } };
   return { title: `${post.title} | AuroTap`, description: post.description,
     alternates: { canonical: `/blog/${post.slug}` },
@@ -20,9 +21,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 export default async function BlogArticle({ params }: Props) {
   const { slug } = await params;
-  const post = publishedGuide(slug);
+  const post = await findPublishedGuide(slug);
   if (!post) notFound();
-  const related = publishedGuides().filter(item => item.slug !== slug).slice(0, 2);
+  const related = (await allPublishedGuides()).filter(item => item.slug !== slug).slice(0, 2);
   const words = post.sections.reduce((n, section) => n + section.paragraphs.join(' ').split(/\s+/).length, 0);
   const jsonLd = { '@context': 'https://schema.org', '@type': 'Article', headline: post.title, description: post.description,
     datePublished: post.publishAt, dateModified: post.updatedAt,
