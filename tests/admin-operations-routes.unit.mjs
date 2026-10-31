@@ -18,6 +18,12 @@ test('admin zone UI and mutation endpoints live in App Router', () => {
   ]) assert.ok(existsSync(join(root, path)), `Missing Next.js route: ${path}`);
 });
 
+test('zone operation routes register the intended authenticated handlers', () => {
+  assert.match(read('src/app/api/admin/zones/[id]/route.ts'), /export \{ PUT \} from '@\/admin\/zones\/route'/);
+  assert.match(read('src/app/api/admin/zones/[id]/suppliers/route.ts'), /export \{ GET, PUT \} from '@\/admin\/zones\/\[id\]\/route'/);
+  assert.match(read('src/app/api/admin/zones/metrics/route.ts'), /export \{ GET \} from '@\/admin\/zones\/\[id\]\/suppliers\/route'/);
+});
+
 test('admin health report handles the real API envelope', () => {
   const api = read('src/lib/api/json-response.ts');
   assert.match(api, /NextResponse\.json\(\{ data, message: 'Success' \}/);
@@ -34,6 +40,8 @@ test('city readiness remains admin-only and never approves citywide launch', () 
   assert.match(api, /requireSupabaseAuth\(req\)/);
   assert.match(api, /requireAdmin\(auth\.ctx\)/);
   assert.match(api, /supplier_zones/);
+  assert.match(api, /\.from\('cities'\)/);
+  assert.match(api, /\.from\('service_zones'\)/);
   assert.match(api, /stockedIds/);
   assert.match(api, /not citywide launch approval/);
   const shell = read('src/components/admin/AdminShell.tsx');
