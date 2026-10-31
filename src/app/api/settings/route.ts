@@ -101,6 +101,9 @@ export async function GET(req: NextRequest) {
       console.error('[settings] active pricing lookup failed', { code: versionError.code });
       return NextResponse.json({ success: false, error: 'Live pricing temporarily unavailable.' }, { status: 503, headers: CACHE });
     }
+    if (!activeVersion?.config || typeof activeVersion.config !== 'object') {
+      return NextResponse.json({ success: false, error: 'No active published pricing version.' }, { status: 503, headers: CACHE });
+    }
     if (activeVersion?.config && typeof activeVersion.config === 'object') {
       const publishedConfig = activeVersion.config as Record<string, unknown>;
       const requestedCity = req.nextUrl.searchParams.get('city');
