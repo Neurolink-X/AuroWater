@@ -22,6 +22,24 @@ export default function ExpansionCenterPage(){
   const [saving,setSaving]=useState<string|null>(null);
   const [drafts,setDrafts]=useState<Record<string,string>>({});
   const [revision,setRevision]=useState(0);
+  const [newCity,setNewCity]=useState({name:'',state:'Uttar Pradesh',lat:'',lng:'',radius_km:'25'});
+  const [creating,setCreating]=useState(false);
+  async function createCity(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!window.confirm(`Add ${newCity.name} to the directory as WAITLIST (not live)?`))return;
+    setCreating(true);setError('');setNotice('');
+    try{
+      await request('/api/admin/cities',{method:'POST',body:JSON.stringify({
+        name:newCity.name,state:newCity.state,
+        lat:Number(newCity.lat),lng:Number(newCity.lng),radius_km:Number(newCity.radius_km),
+      })});
+      setNotice(`${newCity.name} created as waitlist. Configure its zones and supplier readiness separately.`);
+      setNewCity({name:'',state:'Uttar Pradesh',lat:'',lng:'',radius_km:'25'});
+      setLoading(true);setRevision(v=>v+1);
+    }catch(cause){setError(cause instanceof Error?cause.message:'Could not create city.');}
+    finally{setCreating(false);}
+  }
+
   async function request<T>(url:string,init?:RequestInit):Promise<T>{
     const token=await getToken();
     if(!token) throw new Error('Admin sign-in required.');
@@ -109,6 +127,28 @@ export default function ExpansionCenterPage(){
         <p className="mt-3 text-xs text-slate-500">Activation requires verified service PINs and an eligible supplier with assigned zones and free stock. Detailed address eligibility remains a separate checkout gate.</p>
       </section>;
     })}</div>}
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-lg font-bold">Add a new expansion city</h2>
+      <p className="mt-1 text-sm text-slate-600">New entries always start on the waitlist. Coordinates are used for city discovery, not permission to accept delivery bookings.</p>
+      <form onSubmit={e=>void createCity(e)} className="mt-4 grid gap-3 sm:grid-cols-3">
+        <label className="text-sm font-semibold">City name
+          <input required minLength={2} maxLength={80} value={newCity.name} onChange={e=>setNewCity(c=>({...c,name:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+        </label>
+        <label className="text-sm font-semibold">State
+          <input required minLength={2} maxLength={80} value={newCity.state} onChange={e=>setNewCity(c=>({...c,state:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+        </label>
+        <label className="text-sm font-semibold">Discovery radius (km)
+          <input required type="number" min={1} max={100} value={newCity.radius_km} onChange={e=>setNewCity(c=>({...c,radius_km:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+        </label>
+        <label className="text-sm font-semibold">Latitude
+          <input required type="number" step="any" min={-90} max={90} value={newCity.lat} onChange={e=>setNewCity(c=>({...c,lat:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+        </label>
+        <label className="text-sm font-semibold">Longitude
+          <input required type="number" step="any" min={-180} max={180} value={newCity.lng} onChange={e=>setNewCity(c=>({...c,lng:e.target.value}))} className="mt-1 w-full rounded-lg border p-3 font-normal"/>
+        </label>
+        <button type="submit" disabled={creating||!newCity.lat||!newCity.lng} className="self-end rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Add city to waitlist</button>
+      </form>
+    </section>
     {!loading&&report&&<p className="rounded-xl border bg-white p-4 text-sm text-slate-600">{report.note}</p>}
   </main>;
 }
