@@ -329,6 +329,42 @@ export default function CustomerLoyaltyPage() {
           </div>
         </header>
 
+        {data?.enabled && <section aria-label="Reward redemption readiness" className="mt-5 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-cyan-700">Your next reward</p>
+              <h2 className="mt-1 text-xl font-extrabold text-slate-900">
+                {data.rewards_available > 0 ? `${numberFormat.format(data.rewards_available)} available reward${data.rewards_available === 1 ? '' : 's'}` : 'Keep earning with eligible renewals'}
+              </h2>
+            </div>
+            <p className="rounded-lg bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-800">
+              {numberFormat.format(data.points_balance)} points
+            </p>
+          </div>
+          {data.offers.points_per_reward > 0 && <div className="mt-4">
+            <div role="progressbar" aria-label="Progress toward the next reward"
+              aria-valuemin={0} aria-valuemax={100} aria-valuenow={data.progress_percent}
+              className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-emerald-600 transition-[width] duration-200"
+                style={{ width: `${Math.min(100, Math.max(0, data.progress_percent))}%` }} />
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-600">
+              {data.rewards_available > 0
+                ? 'Your points may qualify for the currently enabled offers. Final eligibility is checked at checkout.'
+                : `${numberFormat.format(Math.max(0, data.points_to_next_reward))} more points until the next possible reward.`}
+            </p>
+          </div>}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link href="/book" className="inline-flex min-h-11 items-center rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white hover:bg-emerald-800">
+              {data.rewards_available > 0 ? 'Check eligible rewards at booking →' : 'Explore eligible services →'}
+            </Link>
+            <Link href="/customer/subscriptions" className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 px-4 text-sm font-bold text-slate-800 hover:bg-slate-50">
+              Manage subscriptions
+            </Link>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">Opening this page does not redeem points, transfer money or reserve a reward.</p>
+        </section>}
+
         {/* Status banners */}
         {error && !data && (
           <section role="alert" className="mt-5 flex flex-col gap-3 rounded-2xl border border-[#E4C27A] bg-[#FFF8E6] p-4 sm:flex-row sm:items-center sm:justify-between">

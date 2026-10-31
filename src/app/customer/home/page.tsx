@@ -555,6 +555,9 @@ export default function CustomerHomePage() {
   const rootRef = useRef<HTMLElement | null>(null);
   const bellWrapRef = useRef<HTMLDivElement | null>(null);
   const shareTimerRef = useRef<number | null>(null);
+  const notificationInFlight = useRef(false);
+  const notificationRefreshQueued = useRef(false);
+  const notificationDebounce = useRef<number | null>(null);
 
   const ready = hydrated && isLoggedIn && isCustomer;
 
@@ -621,7 +624,9 @@ export default function CustomerHomePage() {
 
     let cancelled = false;
 
-    void (async () => {
+    // Realtime order bursts should create one stats request rather than
+    // a waterfall of overlapping customer aggregate queries.
+    const timer = window.setTimeout(() => void (async () => {
       try {
         const result = (await customerStats()) as unknown as Partial<Stats>;
 
@@ -643,22 +648,34 @@ export default function CustomerHomePage() {
       } finally {
         if (!cancelled) setStatsLoading(false);
       }
-    })();
+    })(), 400);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [ready, version]);
 
   /* ── Notifications ──────────────────────────────────────────────────── */
-  const loadNotifs = useCallback(async () => {
+  const loadNotifs = useCallback(async function refreshNotifications() {
+    if (notificationInFlight.current) {
+      notificationRefreshQueued.current = true;
+      return;
+    }
+    notificationInFlight.current = true;
     try {
       const rows = await customerNotificationsList(6);
       setNotifs(Array.isArray(rows) ? rows : []);
     } catch {
-      setNotifs([]);
+      // Preserve last known notifications on a transient connection failure.
     } finally {
+      notificationInFlight.current = false;
       setNotifsLoading(false);
+      if (notificationRefreshQueued.current) {
+        notificationRefreshQueued.current = false;
+        if (notificationDebounce.current !== null) window.clearTimeout(notificationDebounce.current);
+        notificationDebounce.current = window.setTimeout(() => void refreshNotifications(), 400);
+      }
     }
   }, []);
 
@@ -691,6 +708,9 @@ export default function CustomerHomePage() {
 
     return () => {
       void sb.removeChannel(channel);
+      if (notificationDebounce.current !== null) window.clearTimeout(notificationDebounce.current);
+      notificationDebounce.current = null;
+      notificationRefreshQueued.current = false;
     };
   }, [ready, session?.accessToken, session?.userId, loadNotifs]);
 
