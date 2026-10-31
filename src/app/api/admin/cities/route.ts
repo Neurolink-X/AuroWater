@@ -20,6 +20,41 @@ export async function GET(req:NextRequest) {
   return jsonOk(data??[]);
 }
 
+const newCitySchema=z.object({
+  name:z.string().trim().min(2).max(80),
+  state:z.string().trim().min(2).max(80),
+  lat:z.number().finite().min(-90).max(90),
+  lng:z.number().finite().min(-180).max(180),
+  radius_km:z.number().int().min(1).max(100),
+}).strict();
+
+export async function POST(req:NextRequest) {
+  const auth=await requireSupabaseAuth(req);
+  if(!auth.ok) return auth.response;
+  if(!requireAdmin(auth.ctx)) return jsonErr('Forbidden',403);
+  const parsed=newCitySchema.safeParse(await req.json().catch(()=>null));
+  if(!parsed.success) return jsonErr('Valid city, state, latitude, longitude and radius are required.',422);
+  const {name,state,lat,lng,radius_km}=parsed.data;
+  const slug=name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+  if(!slug) return jsonErr('City name cannot produce a valid URL slug.',422);
+  // New cities never become bookable automatically.
+  const db=createServiceClient();
+  const {data,error}=await db.from('cities').insert({
+    name,state,slug,lat,lng,radius_km,status:'waitlist',is_featured:false,sort_order:99,
+  }).select('id,name,status').single();
+  if(error){
+    if(error.code==='23505')return jsonErr('City or URL slug already exists.',409);
+    console.error('[admin/cities] create failed',{code:error.code});
+    return jsonErr('Could not add city.',503);
+  }
+  const audit=await db.from('audit_logs').insert({
+    actor_id:auth.ctx.user.id,action:'city.create',entity:'cities',
+    entity_id:data.id,meta:{name,state,slug,status:'waitlist'},
+  });
+  if(audit.error)console.error('[admin/cities] audit failed',{code:audit.error.code});
+  return jsonOk(data,201);
+}
+
 /** City-status mutations are reviewed, audited and fail closed for activation. */
 export async function PATCH(req:NextRequest) {
   const auth=await requireSupabaseAuth(req);
