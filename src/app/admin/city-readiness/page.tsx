@@ -6,6 +6,7 @@ import { getToken } from '@/lib/api-client';
 
 type City = {
   city: string;
+  platform_status: string;
   zones: number;
   available_zones: number;
   approved_suppliers: number;
@@ -78,7 +79,7 @@ export default function CityReadinessPage() {
           <div className="grid gap-4 md:grid-cols-2">
             {report.cities.map(city => <section key={city.city} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <h2 className="text-xl font-bold">{city.city}</h2>
+                <div><h2 className="text-xl font-bold">{city.city}</h2><p className="mt-1 text-xs text-slate-500">City directory: {city.platform_status.replaceAll('_', ' ')}</p></div>
                 <span className={city.operational_signal ? 'rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900' : 'rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-950'}>
                   {city.operational_signal ? 'Capacity signal detected' : 'Needs readiness review'}
                 </span>
@@ -89,6 +90,7 @@ export default function CityReadinessPage() {
                 <div><dt className="text-slate-500">Approved suppliers</dt><dd className="text-lg font-bold">{city.approved_suppliers}</dd></div>
                 <div><dt className="text-slate-500">Online, stocked, zone-assigned</dt><dd className="text-lg font-bold">{city.online_stocked_assigned_suppliers}</dd></div>
               </dl>
+              {city.zones === 0 && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">No service zones configured for this city. Review operational coverage before advertising availability.</p>}
               {!!city.zones_missing_pincodes.length && <div className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-950">
                 <strong>Available zones missing PIN codes:</strong> {city.zones_missing_pincodes.map(z => z.name).join(', ')}.
               </div>}
