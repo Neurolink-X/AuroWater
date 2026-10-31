@@ -2813,7 +2813,9 @@ function OrderCard({
 
 export default function SupplierDashboardPage() {
   const router = useRouter();
-  const supabase = createClient();
+  // A stable browser client avoids recreating auth listeners and invalidating
+  // effects on every dashboard state change.
+  const supabase = useMemo(() => createClient(), []);
 
   const [profile, setProfile] = useState<SupplierProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
