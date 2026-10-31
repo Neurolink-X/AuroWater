@@ -75,7 +75,8 @@ test('directory distinguishes active and upcoming for footer', () => {
   assert.match(directory, /city\.status !== 'active'/);
 });
 test('service areas page fetches cities from canonical database', () => {
-  assert.match(areas, /\.from\('cities'\)/);
+  assert.match(areas, /getPublicServiceCities\(\)/);
+  assert.match(read('src/lib/public-city-directory.server.ts'), /\.from\('cities'\)/);
 });
 test('service areas page has no hardcoded Kanpur/Noida-only grid', () => {
   assert.match(areas, /cities\.filter\(city => city\.status === 'active'\)/);
@@ -118,4 +119,25 @@ test('canonical city API remains public without privileged role keys', () => {
 });
 test('admin city activation requires verified operational capacity', () => {
   assert.match(admin, /approved, online supplier with available stock/);
+});
+
+test('water delivery city index uses shared admin-driven directory', () => {
+  const page = read('src/app/(public)/water-delivery/page.tsx');
+  assert.match(page, /getPublicServiceCities\(\)/);
+  assert.match(page, /cities\.filter\(\(city\) => city\.status === 'active'\)/);
+});
+test('new active cities lead to booking rather than a nonexistent SEO slug', () => {
+  const page = read('src/app/(public)/water-delivery/page.tsx');
+  assert.match(page, /DETAILED_CITY_PAGES\.has\(city\.slug\)/);
+  assert.match(page, /'\/book\?service=water_can'/);
+});
+test('public server directory reads only safe city columns', () => {
+  const helper = read('src/lib/public-city-directory.server.ts');
+  assert.match(helper, /select\('id,name,slug,status,is_featured,sort_order'\)/);
+  assert.match(helper, /from\('cities'\)/);
+  assert.doesNotMatch(helper, /supplier_stock|profiles|wallet_ledger/);
+});
+test('water delivery city index sends unlisted visitors to the expansion waitlist', () => {
+  const page = read('src/app/(public)/water-delivery/page.tsx');
+  assert.match(page, /href="\/service-areas#join-waitlist"/);
 });
