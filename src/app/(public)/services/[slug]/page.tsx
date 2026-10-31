@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import Image from 'next/image';
+import ServiceMedia from '@/components/services/ServiceMedia';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
 import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
-import { BRAND, CITY_LINE, ILLUSTRATIONS, ILLUSTRATION_ALT, SERVICE_IMAGE_DIMENSIONS, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
+import { BRAND, CITY_LINE, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
 
 /* ─────────────────────────────────────────────
    Speed: every service page is built once, served from the CDN,
@@ -76,8 +76,6 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   const path = `/services/${service.key}`;
   const pageUrl = SITE_URL + path;
   const bookingHref = `/book?service=${encodeURIComponent(service.key)}`;
-  const illustration = ILLUSTRATIONS[service.key];
-  const illustrationAlt = ILLUSTRATION_ALT[service.key];
   const waLink = WHATSAPP ? `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(`Hi ${BRAND}, I want to book: ${service.title}`)}` : '';
 
   const allFaqs = [...service.faqs, ...SHARED_FAQS];
@@ -192,7 +190,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                 {PHONE && (
                   <a href={`tel:${PHONE}`} className={BTN_GHOST}>Call us</a>
                 )}
-                <Link href="/pricing" prefetch={false} className={BTN_GHOST}>View pricing</Link>
+                <Link href="/pricing" className={BTN_GHOST}>View pricing</Link>
               </div>
 
               {/* Trust points: all true to how booking works today */}
@@ -204,18 +202,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             </div>
 
             <aside className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.07] shadow-2xl">
-              {/* Local SVG: no external image host, nothing to block rendering. The first image loads at top priority. */}
-              <Image
-                src={illustration}
-                alt={illustrationAlt}
-                width={SERVICE_IMAGE_DIMENSIONS[service.key].width}
-                height={SERVICE_IMAGE_DIMENSIONS[service.key].height}
-                quality={90}
-                loading="eager"
-                fetchPriority="high"
-                className="mx-auto block h-auto max-h-[350px] w-auto max-w-full object-contain"
-                sizes="(max-width: 768px) 320px, 400px"
-              />
+              <ServiceMedia serviceKey={service.key} variant="detail" priority />
               <div className="p-7">
                 <p className="text-sm font-semibold text-slate-300">Current configured price</p>
                 {service.key === 'water_can' ? (
@@ -293,7 +280,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <ul className="mt-8 grid gap-7 md:grid-cols-3">
           {related.map((r) => (
             <li key={r.key}>
-              <Link href={`/services/${r.key}`} prefetch={false} className={`flex h-full flex-col gap-3 p-6 ${RAISED} ${PRESS} ${FOCUS}`}>
+              <Link href={`/services/${r.key}`} className={`flex h-full flex-col gap-3 p-6 ${RAISED} ${PRESS} ${FOCUS}`}>
                 <span aria-hidden className={`${INSET} flex h-12 w-12 items-center justify-center text-2xl`}>{r.icon}</span>
                 <span className="text-lg font-extrabold leading-6">{r.title}</span>
                 <span className="text-sm leading-6 text-slate-600">{r.eyebrow}</span>

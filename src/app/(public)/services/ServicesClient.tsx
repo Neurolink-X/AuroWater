@@ -2,15 +2,13 @@
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
+import ServiceMedia from '@/components/services/ServiceMedia';
 import Link from 'next/link';
 import { useSettings } from '@/hooks/useSettings';
 import {
   CATEGORIES,
   CATEGORY_ICONS,
   CITY_LINE,
-  ILLUSTRATIONS,
-  SERVICE_IMAGE_DIMENSIONS,
-  ILLUSTRATION_ALT,
   SERVICES,
   type Service,
   type ServiceCategory,
@@ -64,24 +62,10 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
     '--a-shadow': `${s.accent}40`,
   } as React.CSSProperties;
 
-  // First row loads straight away; everything else waits until it is near the screen.
-  const aboveFold = index < 3;
-
   return (
     <article className="sv-card" style={vars} aria-labelledby={`sv-${s.key}-title`}>
       {/* Local optimized service photograph, displayed within its native resolution. */}
-      <div className="sv-card-illustration">
-        <Image
-          src={ILLUSTRATIONS[s.key]}
-          alt={ILLUSTRATION_ALT[s.key]}
-          width={SERVICE_IMAGE_DIMENSIONS[s.key].width}
-          height={SERVICE_IMAGE_DIMENSIONS[s.key].height}
-          quality={90}
-          loading={aboveFold ? 'eager' : 'lazy'}
-          fetchPriority={index === 0 ? 'high' : 'auto'}
-          sizes="(max-width: 640px) 300px, (max-width: 1024px) 320px, 360px"
-        />
-      </div>
+      <ServiceMedia serviceKey={s.key} variant="card" priority={index === 0} />
 
       <div className="sv-card-tag">{s.tag}</div>
 
@@ -127,7 +111,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
         </div>
 
         {/* Real links: crawlable, middle-click and long-press work, and Next can prefetch them. */}
-        <Link href={`/services/${s.key}`} prefetch={false} className="sv-cta sv-cta-details">
+        <Link href={`/services/${s.key}`} className="sv-cta sv-cta-details">
           <span>View details</span>
           <IconArrow />
         </Link>

@@ -350,3 +350,13 @@
 @media (prefers-reduced-motion: reduce) {
   .sv-card, .sv-card-icon, .sv-cta, .sv-pill, .sv-banner-btn, .sv-faq details { transition: none; }
 }
+
+/* Mobile interaction budget: eliminate hover transforms on touch, keep native momentum scrolling. */
+@media (hover:none) and (pointer:coarse) {
+  .sv-card, .sv-card-icon, .sv-cta { transition: none !important; }
+  .sv-card:hover { transform: none !important; }
+  .sv-page { overscroll-behavior-x: none; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .sv-page *, .sv-page *::before, .sv-page *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}
