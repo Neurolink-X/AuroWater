@@ -345,7 +345,11 @@ export async function POST(req: NextRequest) {
     const maxOneTime = Math.max(1, Math.floor(Number(flat.max_cans_per_order)) || 50);
     const maxSub = Math.max(maxOneTime, Math.floor(Number(flat.max_cans_subscription)) || 200);
     const cap = isSubscription ? maxSub : maxOneTime;
-    const requested = Math.floor(Number(body.can_count ?? body.can_quantity ?? 1)) || 1;
+    const rawQuantity = Number(body.can_count ?? body.can_quantity ?? 1);
+    if (!Number.isSafeInteger(rawQuantity) || rawQuantity < 1) {
+      return jsonErr('Enter a valid whole-number can quantity.', 400);
+    }
+    const requested = rawQuantity;
 
     if (requested > cap) {
       return jsonErr(
