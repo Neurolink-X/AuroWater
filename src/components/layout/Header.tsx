@@ -1655,23 +1655,13 @@ export default function Header() {
 
   // Navigation feedback is shown immediately, even if the route's server
   // payload is still loading. Clear it on successful pathname change.
-  const [, setOpeningService] = useState<string | null>(null);
+
   const openService = useCallback((key: string) => {
-    setOpeningService(key);
     setMobileOpen(false);
     setServicesOpen(false);
     setMenuOpen(false);
     router.push(serviceHref(key));
   }, [router]);
-
-  useEffect(() => {
-    // This is a post-navigation reset, not an extra network request.
-    // Avoid timers that can leave the loading state stuck.
-    if (pathname) {
-      const frame = requestAnimationFrame(() => setOpeningService(null));
-      return () => cancelAnimationFrame(frame);
-    }
-  }, [pathname]);
 
   const isCustomer = isLoggedIn && role === 'customer';
   const activeOrder = useActiveOrder(Boolean(hydrated && isCustomer));
