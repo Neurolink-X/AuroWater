@@ -723,3 +723,86 @@
     max-width: min(100%, 22rem);
   }
 }
+
+
+/* Responsive containment primitives.
+   Apply to content regions without masking genuine layout defects. */
+@layer utilities {
+  .responsive-page {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .responsive-grid {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+  }
+
+  .responsive-card {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .responsive-heading {
+    font-size: clamp(1.25rem, 1rem + 1.5vw, 2rem);
+    line-height: 1.2;
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+
+  .responsive-tabs {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    gap: 0.5rem;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-tabs > button,
+  .responsive-tabs > a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .responsive-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .responsive-table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  .responsive-table-scroll > table {
+    width: 100%;
+    min-width: max-content;
+  }
+}
+
+@media (max-width: 639px) {
+  .responsive-page {
+    padding-inline: clamp(0.75rem, 3.5vw, 1rem);
+  }
+
+  .responsive-card {
+    border-radius: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .responsive-tabs {
+    scroll-behavior: auto;
+  }
+}
