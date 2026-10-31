@@ -53,7 +53,7 @@ function ok(data: Record<string, unknown>, status = 200) {
  */
 export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
-    return ok(defaultPayload());
+    return NextResponse.json({ success: false, error: 'Pricing configuration unavailable.' }, { status: 503, headers: CACHE });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
