@@ -425,9 +425,10 @@ export async function POST(req: NextRequest) {
     };
     const optionRateKey = optionRateKeys[service_type_key]?.[optionKey];
     const configuredOptionFee = optionRateKey ? Number(activeServicePrices[optionRateKey]) : Number.NaN;
-    const optionFee = Number.isFinite(configuredOptionFee) && configuredOptionFee >= 0
-      ? configuredOptionFee
-      : (allowedOptions?.[optionKey] ?? 0);
+    if (optionRateKey && (!Number.isFinite(configuredOptionFee) || configuredOptionFee < 0)) {
+      return jsonErr('Published service option pricing is missing or invalid.', 503);
+    }
+    const optionFee = optionRateKey ? configuredOptionFee : (allowedOptions?.[optionKey] ?? 0);
     base_amount = round2(serviceBase + optionFee);
   }
 
