@@ -18,7 +18,6 @@ export function normalizePricingCity(value: unknown): string {
   const aliases: Record<string, string> = {
     gurgaon: 'gurugram',
     'new-delhi': 'delhi',
-    'greater-noida': 'greater-noida',
   };
   const normalized = raw.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   return aliases[normalized] ?? normalized;
@@ -37,7 +36,7 @@ export function resolveEffectivePriceBook(
   const overrides = isPlainRecord(published.city_overrides)
     ? published.city_overrides
     : {};
-  const override = cityKey && isPlainRecord(overrides[cityKey])
+  const override = cityKey && Object.hasOwn(overrides, cityKey) && isPlainRecord(overrides[cityKey])
     ? overrides[cityKey]
     : null;
   const globalServices = isPlainRecord(published.services)
