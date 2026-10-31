@@ -388,7 +388,7 @@ export async function POST(req: NextRequest) {
   } else {
     // Never trust a client-supplied base amount. Resolve the canonical service
     // rate from server settings, then apply only known option adjustments.
-    const configuredPrice = Number(activeServicePrices[service_type_key] ?? flat[service_type_key + '_price']);
+    const configuredPrice = Number(activeServicePrices[service_type_key]);
     const plumberType = str(body.plumber_type) ?? 'labour';
     if (service_type_key === 'plumbing' && !['labour', 'mistri'].includes(plumberType)) {
       return jsonErr('Choose a valid plumber charge type.', 400);
@@ -397,7 +397,10 @@ export async function POST(req: NextRequest) {
       ? (plumberType === 'mistri' ? Number(activeServicePrices.plumbing_mistri ?? 700) : Number(activeServicePrices.plumbing ?? 149))
       : Number.isFinite(configuredPrice) && configuredPrice > 0
         ? configuredPrice
-        : Number(st.base_price) || 0;
+        : Number.NaN;
+    if (!Number.isFinite(serviceBase) || serviceBase <= 0) {
+      return jsonErr('Published service pricing is missing or invalid. Please retry later.', 503);
+    }
     const optionKey = str(body.sub_option_key) ?? '';
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
