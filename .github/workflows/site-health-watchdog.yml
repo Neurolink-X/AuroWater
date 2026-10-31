@@ -1,7 +1,7 @@
 name: AuroTap self-healing incident watchdog (free)
 on:
   schedule:
-    - cron: '17,47 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
