@@ -315,8 +315,10 @@ export async function POST(req: NextRequest) {
   // publishes a version with an explicitly configured decimal rate.
   const gstCandidate = Number(activePricingConfig?.gst_rate ?? 0);
   const gstRate = Number.isFinite(gstCandidate) && gstCandidate >= 0 && gstCandidate <= 1 ? gstCandidate : 0;
-  const convenience = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 10);
-  const emergencyFee = Number(activePricingConfig?.emergency_surcharge ?? flat.emergency_surcharge ?? 30);
+  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee ?? flat.convenience_fee ?? 0);
+  const deliveryFee = Number(activePricingConfig?.delivery_fee ?? 0);
+  const convenience = handlingFee + deliveryFee;
+  const emergencyFee = Number(activePricingConfig?.emergency_surcharge ?? flat.emergency_surcharge ?? 0) + Number(activePricingConfig?.surge_charge ?? 0);
   const is_emergency = Boolean(body.is_emergency);
   const emergency_charge = is_emergency ? emergencyFee : 0;
 
@@ -701,6 +703,9 @@ export async function POST(req: NextRequest) {
           loyalty_discount_amount: loyaltyDiscountAmount,
           loyalty_redemption_id: loyaltyRedemptionId,
           convenience_fee: convenience,
+          handling_fee: handlingFee,
+          delivery_fee: deliveryFee,
+          surge_fee: is_emergency ? Number(activePricingConfig?.surge_charge ?? 0) : 0,
           emergency_charge,
           gst_rate: gstRate,
           gst_amount,
