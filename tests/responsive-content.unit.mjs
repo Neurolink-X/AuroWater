@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 const root = process.cwd();
 const read = (path) => readFileSync(resolve(root, path), 'utf8');
 const booking = read('src/components/booking/BookingWizard.tsx');
+const locationGuidance = read('src/lib/location-guidance.ts');
 const settings = read('src/app/admin/settings/page.tsx');
 const globalStyles = read('src/app/globals.css');
 const seo = read('src/lib/seo.ts');
@@ -59,27 +60,27 @@ test('booking retains quantity upper bound', () => {
 });
 
 test('booking has location permission recovery', () => {
-  assert.match(booking, /Location permission is off/);
+  assert.match(booking, /getLocationGuidance\('permission-denied'\)/);
 });
 
 test('booking explains device location settings', () => {
-  assert.match(booking, /Settings → Location/);
+  assert.match(locationGuidance, /phone settings/);
 });
 
 test('booking explains browser site permission', () => {
-  assert.match(booking, /Allow location/);
+  assert.match(locationGuidance, /allow Location access/);
 });
 
 test('booking allows manual address fallback', () => {
-  assert.match(booking, /enter the address manually/);
+  assert.match(locationGuidance, /Enter your house or flat number/);
 });
 
 test('booking distinguishes timeout from denial', () => {
-  assert.match(booking, /Location request timed out/);
+  assert.match(booking, /getLocationGuidance\('timeout'\)/);
 });
 
 test('booking does not require GPS to enter address', () => {
-  assert.match(booking, /6-digit PIN code below/);
+  assert.match(locationGuidance, /6-digit PIN code/);
 });
 
 test('booking has bilingual guidance', () => {
