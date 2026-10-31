@@ -5,7 +5,7 @@ import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 type PriceBook = {
   water_normal: number; water_chilled: number; water_subscription: number;
   bulk_can_price: number; bulk_threshold: number; services: Record<string, number>;
-  convenience_fee: number; emergency_surcharge: number; gst_rate: number;
+  convenience_fee: number; emergency_surcharge: number; delivery_fee?: number; surge_charge?: number; gst_rate: number;
 };
 type Config = PriceBook & { city_overrides?: Record<string, PriceBook> };
 const money = (v: unknown, min: number, max: number): v is number =>
@@ -19,6 +19,8 @@ function validate(raw: unknown): { config?: Config; error?: string } {
   }
   if (!Number.isInteger(v.bulk_threshold) || !money(v.bulk_threshold, 2, 200)) return { error: 'Bulk threshold must be a whole number from 2 to 200.' };
   if (!money(v.convenience_fee, 0, 500) || !money(v.emergency_surcharge, 0, 5000)) return { error: 'Fees are outside the allowed range.' };
+  if (v.delivery_fee !== undefined && !money(v.delivery_fee, 0, 500)) return { error: 'Delivery fee must be between ₹0 and ₹500.' };
+  if (v.surge_charge !== undefined && !money(v.surge_charge, 0, 5000)) return { error: 'Surge charge must be between ₹0 and ₹5000.' };
   if (!money(v.gst_rate, 0, 1)) return { error: 'GST must be decimal-based (for example, 0.18).' };
   if (Number(v.bulk_can_price) > Number(v.water_normal)) return { error: 'Bulk price cannot exceed normal water price.' };
   if (!v.services || typeof v.services !== 'object' || Array.isArray(v.services)) return { error: 'Service prices are required.' };
@@ -53,6 +55,8 @@ function validate(raw: unknown): { config?: Config; error?: string } {
     bulk_threshold: Number(v.bulk_threshold), services,
     convenience_fee: Math.round(Number(v.convenience_fee) * 100) / 100,
     emergency_surcharge: Math.round(Number(v.emergency_surcharge) * 100) / 100,
+    delivery_fee: Math.round(Number(v.delivery_fee ?? 0) * 100) / 100,
+    surge_charge: Math.round(Number(v.surge_charge ?? 0) * 100) / 100,
     gst_rate: Number(v.gst_rate),
     ...(cityOverrideEntries.length ? { city_overrides: Object.fromEntries(cityOverrideEntries) as Record<string, PriceBook> } : {}),
   } };
