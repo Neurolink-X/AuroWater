@@ -248,6 +248,7 @@ export default function TrackOrderPage() {
 
   const status = String(order?.status ?? '');
   const supplierId = String((order as Record<string, unknown> | null)?.supplier_id ?? '').trim();
+  const supplierProfile = (order as Record<string, unknown> | null)?.supplier_profile;
   const technicianId = String((order as Record<string, unknown> | null)?.technician_id ?? '').trim();
   const isActive = ACTIVE.includes(status);
 
@@ -311,7 +312,7 @@ export default function TrackOrderPage() {
 
   /* Supplier profile + rating (re-runs only when the supplier changes) */
   useEffect(() => {
-    const provider = (order as Record<string, unknown> | null)?.supplier_profile;
+    const provider = supplierProfile;
     if (!supplierId || !provider || typeof provider !== 'object') {
       setSupplier(null);
       setSupplierRating(null);
@@ -354,7 +355,7 @@ export default function TrackOrderPage() {
         if (!cancelled) setSupplierRating(averageRating);
       });
     return () => { cancelled = true; };
-  }, [supplierId, session?.accessToken, order]);
+  }, [supplierId, session?.accessToken, supplierProfile]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
   const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);
