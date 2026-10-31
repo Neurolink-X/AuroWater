@@ -299,6 +299,7 @@ export default function JobDetail() {
                   {actionInfo.action === 'complete' ? (
                     <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                       <label className="block text-sm font-semibold text-gray-800" htmlFor="service-otp">6-digit customer service code</label>
+                      <p className="text-xs leading-5 text-amber-900">No paid SMS required. The customer receives a private service code inside their AuroTap notification centre after the job starts. Ask for it only after completing the work; never request login passwords or payment OTPs.</p>
                       <input id="service-otp" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={serviceOtp} onChange={(event) => setServiceOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-base tracking-[0.3em]" placeholder="••••••" />
                       <label className="flex items-start gap-2 text-sm text-gray-700">
                         <input type="checkbox" checked={paymentConfirmed} onChange={(event) => setPaymentConfirmed(event.target.checked)} className="mt-1" />

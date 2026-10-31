@@ -320,6 +320,15 @@ export default function CustomerSubscriptionsPage() {
           <div className="rounded-2xl border border-sky-100 bg-white p-4"><p className="text-sm font-bold text-slate-900">Pause or resume</p><p className="mt-1 text-xs leading-5 text-slate-600">Plan around travel and schedule changes.</p></div>
           <Link href="/customer/loyalty" className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 transition hover:bg-emerald-100"><p className="text-sm font-bold text-emerald-900">Earn renewal rewards →</p><p className="mt-1 text-xs leading-5 text-emerald-800">Eligible completed and paid renewals earn points. View your real balance.</p></Link>
         </section>
+        <section className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5" aria-label="Subscription payment and rewards explained">
+          <h2 className="text-base font-extrabold text-emerald-950">How your plan, payments and points work</h2>
+          <ol className="mt-3 grid gap-3 text-sm leading-6 text-emerald-950 sm:grid-cols-3">
+            <li><span className="font-bold">1. Schedule:</span> Set the recurrence, pause or resume future deliveries.</li>
+            <li><span className="font-bold">2. Pay:</span> Each eligible delivery creates its own order; no automatic bank debit is enabled.</li>
+            <li><span className="font-bold">3. Earn:</span> Loyalty points are awarded only after eligible recurring orders are completed and paid.</li>
+          </ol>
+          <Link href="/customer/loyalty" className="mt-4 inline-flex min-h-11 items-center font-bold text-emerald-800 underline-offset-2 hover:underline">View current points and available rewards →</Link>
+        </section>
         <header className="mt-6 overflow-hidden rounded-[2rem] border border-white bg-slate-950 shadow-[0_26px_80px_rgba(15,23,42,0.12)]">
           <div className="relative px-6 py-8 sm:px-10 sm:py-11">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-400 via-sky-500 to-indigo-500" />
