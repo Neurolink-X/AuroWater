@@ -17,7 +17,7 @@ test('blog is discoverable in active mobile drawer and footer navigation', () =>
 
 test('blog index renders editorial cards, safe article links and reviewed updates', () => {
   const page = read('src/app/blog/page.tsx');
-  assert.match(page, /publishedGuides\(\)/);
+  assert.match(page, /await allPublishedGuides\(\)/);
   assert.match(page, /publishedNews\(\)/);
   assert.match(page, /featured\.coverImage/);
   assert.match(page, /href=\{\`\/blog\/\$\{featured\.slug\}\`\}/);
@@ -27,7 +27,7 @@ test('blog index renders editorial cards, safe article links and reviewed update
 
 test('article has metadata, readable navigation, image and schema', () => {
   const page = read('src/app/blog/[slug]/page.tsx');
-  for (const token of ['generateMetadata', 'publishedGuide(slug)', 'notFound()', 'application/ld+json', 'In this guide', 'Keep reading', 'datePublished', 'dateModified']) {
+  for (const token of ['generateMetadata', 'findPublishedGuide(slug)', 'notFound()', 'application/ld+json', 'In this guide', 'Keep reading', 'datePublished', 'dateModified']) {
     assert.ok(page.includes(token), token);
   }
   assert.match(page, /post\.coverImage &&/);
