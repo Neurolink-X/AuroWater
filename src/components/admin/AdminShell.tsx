@@ -175,6 +175,25 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/blog',
+    label: 'Blog Publishing',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    href: '/admin/expansion',
+    label: 'Expansion Center',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="9" strokeWidth="1.8" />
+        <path d="M3 12h18M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18" strokeWidth="1.8" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/zones',
     label: 'Service Zones',
     icon: (
