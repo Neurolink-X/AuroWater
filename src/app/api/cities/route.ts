@@ -45,7 +45,7 @@ function ok(data: unknown) {
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return ok(FALLBACK_CITIES);
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   }
 
   const url =
@@ -63,7 +63,7 @@ export async function GET() {
    * the Supabase service-role key.
    */
   if (!url || !key) {
-    return ok(FALLBACK_CITIES);
+    return NextResponse.json({ error: 'Live city directory unavailable' }, { status: 503, headers: CACHE_HEADERS });
   }
 
   const controller =
