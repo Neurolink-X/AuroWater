@@ -2,10 +2,11 @@ import type { Metadata, Viewport } from 'next';
 
 /* ================== ONE PLACE TO CHANGE BRAND SETTINGS ================== */
 
-export const BRAND = 'AuroWater'; // change to 'AuroTap' here and it updates everywhere
+export const BRAND = 'AuroTap'; // Public-facing product brand; keep consistent across metadata and schema.
 export const APP_ORIGIN = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://aurotap.in').replace(/\/$/, '');
 export const SITE_URL = APP_ORIGIN; // alias used by sitemap.ts and robots.ts
-export const TWITTER_HANDLE = '@AuroWater';
+// No verified AuroTap social handle: avoid claiming an unrelated account.
+export const TWITTER_HANDLE = '';
 
 /**
  * Share image.
@@ -33,7 +34,7 @@ export const BASE_META = {
 
   metadataBase: new URL(APP_ORIGIN),
   openGraph: { siteName: BRAND, locale: 'en_IN', type: 'website' as const },
-  twitter: { card: 'summary_large_image' as const, site: TWITTER_HANDLE },
+  twitter: { card: 'summary_large_image' as const, ...(TWITTER_HANDLE ? { site: TWITTER_HANDLE } : {}) },
 };
 
 /**
