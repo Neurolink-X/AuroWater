@@ -20,7 +20,7 @@ const WaitlistSchema = z.object({
   message: z.string().max(500).optional().nullable(),
   lat: z.number().optional().nullable(),
   lng: z.number().optional().nullable(),
-  source: z.enum(['register', 'homepage', 'book', 'book-zone', 'ncr']).optional(),
+  source: z.enum(['register', 'homepage', 'book', 'book-zone', 'ncr', 'service-areas']).optional(),
   website: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
 });
