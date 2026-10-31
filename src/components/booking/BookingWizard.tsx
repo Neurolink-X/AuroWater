@@ -26,6 +26,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 import Image from 'next/image';
+import { getLocationGuidance, type LocationFailure } from '@/lib/location-guidance';
 import { ILLUSTRATIONS, ILLUSTRATION_ALT } from '@/app/(public)/services/services-data';
 import BookingProgress from '@/components/booking/BookingProgress';
 import TimeSlotPicker from '@/components/booking/TimeSlotPicker';
@@ -162,10 +163,8 @@ const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
   ],
 };
 
-const MSG_DENIED =
-  'Location is blocked. Tap the 🔒 icon in your browser bar → Permissions → Location → Allow, or just enter your area and 6-digit pincode below. लोकेशन बंद है, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
-const MSG_TIMEOUT =
-  'GPS could not find you (it often fails indoors). Please enter your area and 6-digit pincode below. GPS डिटेक्ट नहीं हो पाया, कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+const MSG_DENIED = getLocationGuidance('permission-denied').summary;
+const MSG_TIMEOUT = getLocationGuidance('timeout').summary;
 /** Longest we keep listening for a better GPS fix. */
 const GEO_MAX_WAIT_MS = 12_000;
 /** Above this (metres) the browser only gave a Wi-Fi/IP guess, so street-level fields are not trusted. */
@@ -173,8 +172,7 @@ const GEO_TRUST_M = 1_500;
 /** Above this we still fill the form but ask the customer to double-check. */
 const GEO_CHECK_M = 150;
 
-const MSG_UNAVAILABLE =
-  'Your device could not detect its location. Please enter your area and 6-digit pincode below. कृपया नीचे अपना पिनकोड और पता दर्ज करें।';
+const MSG_UNAVAILABLE = getLocationGuidance('position-unavailable').summary;
 
 type PostHit = { key: string; name: string; pincode: string; district: string };
 
@@ -1339,6 +1337,9 @@ export default function BookingWizard() {
     }
   }, [session?.loggedIn, locating, lookupPincode]);
 
+  const locationFailureType: LocationFailure = locationError === MSG_DENIED ? 'permission-denied' : locationError === MSG_TIMEOUT ? 'timeout' : 'unknown';
+  const locationHelp = getLocationGuidance(locationFailureType);
+
   const locationButtonLabel = () => {
     if (locationStep === 'network')   return 'Checking network…';
     if (locationStep === 'gps')       return 'Getting GPS…';
@@ -2126,9 +2127,28 @@ export default function BookingWizard() {
                     </div>
 
                     {locationError && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
-                        <p className="font-semibold">⚠ {locationError}</p>
-                        <p className="text-xs mt-1">You can always type the address in the fields below.</p>
+                      <div className="min-w-0 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 shadow-sm" role="alert" aria-live="polite">
+                        <div className="flex items-start gap-3">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-lg" aria-hidden="true">📍</span>
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <p className="text-base font-bold leading-snug">
+                              {locationHelp.title}
+                            </p>
+                            <p className="leading-relaxed text-amber-900">
+                              {locationHelp.summary}
+                            </p>
+                            <div className="rounded-xl bg-white/80 p-3 text-slate-800">
+                              <p className="font-semibold">What to do next</p>
+                              <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm leading-relaxed">
+                                {locationHelp.steps.map((step) => <li key={step}>{step}</li>)}
+                                <li>{locationHelp.fallback}</li>
+                              </ol>
+                            </div>
+                            <p className="text-xs leading-relaxed text-amber-900" lang="hi">
+                              आप नीचे अपना पता और 6 अंकों का पिनकोड भरकर बुकिंग जारी रख सकते हैं।
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     )}
 

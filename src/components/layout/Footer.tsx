@@ -353,7 +353,7 @@ export default function Footer() {
           font-size: 1.35rem; color: #fff; letter-spacing: -0.5px;
         }
         .ft-brand-desc {
-          font-size: 13.5px; color: rgba(255,255,255,0.45);
+          font-size: 13.5px; color: rgba(255,255,255,0.78);
           line-height: 1.7; margin-bottom: 20px; max-width: 260px;
         }
 
@@ -372,7 +372,7 @@ export default function Footer() {
           font-size: 14px; color: #60A5FA; letter-spacing: -0.3px; line-height: 1;
         }
         .ft-trust-badge-lbl {
-          font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.35);
+          font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.72);
           text-transform: uppercase; letter-spacing: 0.07em; margin-top: 2px;
         }
 
@@ -444,14 +444,14 @@ export default function Footer() {
           gap: 16px; flex-wrap: wrap;
         }
         .ft-bottom-copy {
-          font-size: 12px; color: rgba(255,255,255,0.3); font-weight: 500;
+          font-size: 12px; color: rgba(255,255,255,0.76); font-weight: 500;
         }
         .ft-bottom-links { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
         .ft-bottom-link {
           font-size: 12px; color: rgba(255,255,255,0.3); font-weight: 500;
           text-decoration: none; transition: color 0.15s;
         }
-        .ft-bottom-link:hover { color: rgba(255,255,255,0.65); }
+        .ft-bottom-link:hover { color: rgba(255,255,255,0.95); }
         .ft-bottom-sep {
           width: 3px; height: 3px; border-radius: 50%;
           background: rgba(255,255,255,0.15);
@@ -553,10 +553,10 @@ export default function Footer() {
                   className="shrink-0 rounded-2xl shadow-lg"
                   decoding="async"
                 />
-                <span className="ft-brand-wordmark">AuroWater</span>
+                <span className="ft-brand-wordmark">AuroTap</span>
               </div>
               <p className="ft-brand-desc">
-                Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Follow AuroTap for Delhi NCR expansion updates.
+                Order 20L water cans and book home water services in Kanpur, Lucknow and Gorakhpur. Check availability for your address before booking.
               </p>
               <div className="ft-trust-badges" aria-label="Cities we serve">
                 {CITIES.map((city) => (
@@ -675,7 +675,7 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="ft-bottom">
           <div className="ft-bottom-copy">
-            <span suppressHydrationWarning>© {new Date().getFullYear()} AuroWater. All rights reserved.</span>
+            <span suppressHydrationWarning>© {new Date().getFullYear()} AuroTap. All rights reserved.</span>
           </div>
 
           <div className="ft-bottom-links">

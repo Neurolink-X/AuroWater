@@ -24,7 +24,7 @@ test('illustrative imagery is not represented as real AuroTap delivery proof', (
 test('pricing and plan copy uses conditional, accurately scoped statements', () => {
   const home = read('src/app/(public)/HomeClient.tsx');
   assert.match(home, /Review the checkout total, including applicable charges/);
-  assert.match(home, /Actual plan eligibility and price lock are confirmed when booking/);
+  assert.match(home, /Plan availability and any price-lock terms are shown before you confirm your booking/);
   assert.match(home, /No business verification for customer registration/);
   assert.doesNotMatch(home, /No surprise add-ons|30-second signup|Price locked \$\{p\.lockMonths\} months/);
 });
