@@ -21,11 +21,11 @@ test('public cities use database statuses, never merge missing fallback active c
   assert.match(source, /no-store/);
   assert.doesNotMatch(source, /if \(!merged\.has\(key\)\)/);
 });
-test('city activation checks coverage and supplier capacity', () => {
+test('city activation requires admin authority and invalidates public coverage', () => {
   const source = read('src/app/api/admin/cities/route.ts');
-  assert.match(source, /service_zones/);
-  assert.match(source, /supplier_zones/);
-  assert.match(source, /supplier_stock/);
+  assert.match(source, /requireAdmin\(auth.ctx\)/);
+  assert.match(source, /city.status_change/);
+  assert.doesNotMatch(source, /Cannot activate city:/);
   assert.match(source, /revalidatePath\('\/service-areas'\)/);
 });
 test('settings refresh when returning to an existing tab', () => {
@@ -71,9 +71,11 @@ test('launch migration creates citywide available catch-all zones for all reques
   assert.match(migration, /services = NULL/);
   assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
 });
-test('serviceability keeps listed full cities available through legacy fallback', () => {
+test('serviceability follows canonical city status without geofence reactivation', () => {
   const zones = read('src/lib/zones.ts');
-  assert.match(zones, /isCityServed\(city\) \|\| \(hasCoords && getServiceZone\(lat, lng\) !== null\)/);
+  assert.match(zones, /canonicalCityActive = cityRow.status === 'active'/);
+  assert.match(zones, /if \(!cityRow\) return legacy\(\)/);
+  assert.doesNotMatch(zones, /isCityServed\(city\)|getServiceZone\(lat, lng\)/);
 });
 
 test('Noida is active for citywide service requests across customer and SEO surfaces', () => {
