@@ -752,6 +752,22 @@ export async function PUT(
     }
   }
 
+  // Monetary settings are versioned through /api/admin/pricing. A successful
+  // legacy write would otherwise be shadowed by the published checkout price.
+  const versionedPriceKeys = new Set([
+    'default_can_price', 'chilled_can_price', 'subscription_can_price',
+    'bulk_can_price', 'bulk_threshold', 'convenience_fee',
+    'emergency_surcharge', 'delivery_fee', 'surge_charge', 'gst_rate',
+    'service_base_prices',
+  ]);
+  const conflicting = entries.map(([key]) => key).filter(key => versionedPriceKeys.has(key));
+  if (conflicting.length) {
+    return jsonErr(
+      'These prices or fees must be published through Admin → Pricing to update all customer surfaces: ' + conflicting.join(', '),
+      409,
+    );
+  }
+
   const validRows: SettingRow[] =
     [];
 
