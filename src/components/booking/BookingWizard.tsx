@@ -1954,21 +1954,32 @@ export default function BookingWizard() {
             )}
 
             {draft.serviceKey === 'water_tanker' && (
-              <div
-                role="group"
-                aria-label="Tanker size"
-                className="grid grid-cols-2 gap-3"
-              >
-                {SCOPE_OPTIONS.water_tanker.map((o) => (
-                  <ScopeCard
-                    key={o.key}
-                    option={o}
-                    priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
-                    active={draft.subOptionKey === o.key}
-                    onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
-                  />
-                ))}
-              </div>
+              <section className="space-y-4" aria-label="Choose tanker capacity">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                  <p className="font-bold text-sky-950">Choose your water tanker capacity</p>
+                  <p className="mt-1 text-sm leading-6 text-sky-900">
+                    Select the quantity you need. Rates are per delivery, not per litre.
+                    Availability, water quality, access and delivery distance vary by area.
+                    Confirm drinking-water suitability with the supplier before use.
+                  </p>
+                </div>
+                <div role="group" aria-label="Tanker size" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {SCOPE_OPTIONS.water_tanker.map((o) => (
+                    <ScopeCard
+                      key={o.key}
+                      option={o}
+                      priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
+                      active={draft.subOptionKey === o.key}
+                      onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs leading-5 text-slate-600">
+                  Displayed prices are estimates based on published service pricing.
+                  Any additional delivery or emergency charges must be shown before confirmation.
+                  Custom-capacity requests require a supplier quote.
+                </p>
+              </section>
             )}
 
             {draft.serviceKey === 'borewell' && (
