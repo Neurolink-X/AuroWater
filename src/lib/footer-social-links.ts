@@ -14,7 +14,7 @@
  * These are public URLs, never access tokens. Leave unset until an official
  * account is ready. WhatsApp remains available from the existing footer CTA.
  */
-export type FooterSocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'youtube';
+export type FooterSocialPlatform = 'instagram' | 'facebook' | 'linkedin' | 'youtube' | 'google';
 
 export type FooterSocialProfile = {
   platform: FooterSocialPlatform;
@@ -27,6 +27,7 @@ const HOSTS: Record<FooterSocialPlatform, readonly string[]> = {
   facebook: ['facebook.com', 'www.facebook.com', 'm.facebook.com'],
   linkedin: ['linkedin.com', 'www.linkedin.com'],
   youtube: ['youtube.com', 'www.youtube.com'],
+  google: ['google.com', 'www.google.com', 'maps.google.com', 'g.page'],
 };
 
 const NON_PROFILE_PATHS = new Set([
@@ -64,6 +65,11 @@ export function normalizeFooterSocialUrl(
     if (!['company', 'showcase'].includes(segments[0] ?? '') || segments.length !== 2) return null;
   } else if (platform === 'youtube') {
     if (segments.length !== 1 || !segments[0]?.startsWith('@')) return null;
+  } else if (platform === 'google') {
+    // Only official business listings; never a generic search or Maps homepage.
+    const isBusiness = (url.hostname === 'g.page' && segments.length >= 1) ||
+      (segments[0] === 'maps' && segments[1] === 'place' && segments.length >= 3);
+    if (!isBusiness) return null;
   } else if (platform === 'instagram') {
     if (segments.length !== 1 || !/^[a-z0-9._]{2,30}$/i.test(segments[0])) return null;
   } else if (platform === 'facebook') {
@@ -88,6 +94,7 @@ export function getFooterSocialProfiles(): FooterSocialProfile[] {
     { platform: 'facebook', label: 'Facebook', url: process.env.NEXT_PUBLIC_AUROTAP_FACEBOOK_URL },
     { platform: 'linkedin', label: 'LinkedIn', url: process.env.NEXT_PUBLIC_AUROTAP_LINKEDIN_URL },
     { platform: 'youtube', label: 'YouTube', url: process.env.NEXT_PUBLIC_AUROTAP_YOUTUBE_URL },
+    { platform: 'google', label: 'Google Business', url: process.env.NEXT_PUBLIC_AUROTAP_GOOGLE_BUSINESS_URL },
   ];
   return entries.flatMap(({ platform, label, url }) => {
     const href = normalizeFooterSocialUrl(platform, url);
