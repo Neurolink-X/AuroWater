@@ -30,7 +30,7 @@ test('footer has full service navigation', () => {
 });
 
 test('footer keeps contact methods and verified operational CTA', () => {
-  assert.match(footer, /tel:\+919889305803/);
+  assert.doesNotMatch(footer, /tel:\+919889305803/);
   assert.match(footer, /mailto:support\.aurotap@gmail\.com/);
   assert.match(footer, /https:\/\/wa\.me\/919889305803/);
   assert.match(footer, /noopener noreferrer/);
@@ -79,9 +79,9 @@ test('RootChrome controls page-to-footer transition without additional API reque
 
 test('footer is accessible and preserves dynamic city expansion', () => {
   assert.match(footer, /fetch\('\/api\/cities'/);
-  assert.match(footer, /selectFooterCities\(cities, 6, 2\)/);
-  assert.match(footer, /groups\.active\.map/);
-  assert.match(footer, /groups\.upcoming\.map/);
+  assert.match(footer, /CompactRegionList/);
+  assert.match(footer, /Uttar Pradesh/);
+  assert.match(footer, /Delhi/);
   assert.match(footer, /controller\.abort\(\)/);
 });
 

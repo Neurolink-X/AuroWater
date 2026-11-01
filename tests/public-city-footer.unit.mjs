@@ -48,10 +48,11 @@ test('footer uses canonical city directory rather than a zone status guess', () 
 test('footer fetch is cancelled after navigation', () => {
   assert.match(footer, /controller\.abort\(\)/);
 });
-test('footer displays bounded active and upcoming cities', () => {
-  assert.match(footer, /selectFooterCities\(cities, 6, 2\)/);
-  assert.match(footer, /groups\.active\.map/);
-  assert.match(footer, /groups\.upcoming\.map/);
+test('footer displays two regions using canonical city status', () => {
+  assert.match(footer, /CompactRegionList cities=\{cities\}/);
+  assert.match(footer, /Uttar Pradesh/);
+  assert.match(footer, /Delhi/);
+  assert.match(footer, /city\.status === 'active'/);
 });
 test('footer has conservative offline city fallback', () => {
   assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
@@ -69,7 +70,7 @@ test('footer text contrast uses readable Tailwind tokens', () => {
   assert.match(footer, /text-white/);
 });
 test('footer links to the complete service areas page', () => {
-  assert.match(footer, /Explore all cities/);
+  assert.match(footer, /Check coverage/);
   assert.match(footer, /href="\/service-areas"/);
 });
 test('footer has no old inflated trust badge layout', () => {
