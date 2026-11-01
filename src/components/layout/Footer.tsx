@@ -60,7 +60,7 @@ const LEGAL = [
 const SOCIALS = getFooterSocialProfiles();
 
 const linkClass = [
-  'inline-flex min-h-8 items-center rounded-lg py-0.5 text-[13px] leading-5',
+  'inline-flex min-h-8 items-center rounded-md py-0 text-[13px] leading-[1.15rem]',
   'text-slate-300 transition-colors hover:text-white',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
   'focus-visible:outline-sky-300',
@@ -235,8 +235,8 @@ export default function Footer() {
             bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
         <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-6
           sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
-          <div className="grid min-w-0 gap-x-6 gap-y-5
-            sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-9">
+          <div className="grid min-w-0 gap-x-5 gap-y-4
+            sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-6">
             <div className="min-w-0 sm:col-span-2 lg:col-span-1">
               <Link href="/" aria-label="AuroTap home"
                 className="inline-flex min-h-11 items-center gap-2.5 rounded-lg
@@ -280,7 +280,7 @@ export default function Footer() {
               <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
                 Services
               </h2>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0 sm:grid-cols-1">
                 {SERVICES.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -293,7 +293,7 @@ export default function Footer() {
               <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
                 Explore AuroTap
               </h2>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0 sm:grid-cols-1">
                 {QUICK_LINKS.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -318,8 +318,8 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5
-            border-t border-white/10 pt-3.5 text-sm text-slate-300">
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1
+            border-t border-white/10 pt-3 text-sm text-slate-300">
             <a href="mailto:support.aurotap@gmail.com"
               className="inline-flex min-h-9 max-w-full items-center gap-1.5
                 break-all hover:text-white focus-visible:outline focus-visible:outline-2
