@@ -91,7 +91,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!requireRole(auth.ctx, 'customer')) {
-    return jsonErr('Forbidden', 403);
+    return jsonErr(
+      'This account cannot save customer addresses. Please use a customer account.',
+      403,
+      'CUSTOMER_ROLE_REQUIRED'
+    );
   }
 
   let body: Record<string, unknown>;
