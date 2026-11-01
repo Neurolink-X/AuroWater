@@ -26,10 +26,8 @@ function faqsFor(city: City) {
     { q: `How much does RO water delivery cost in ${city.name}?`,
       a: `Normal RO starts at ${inr(water.normal)} and chilled RO at ${inr(water.chilled)} per 20L can where a verified supplier is available. See the final checkout total and serviceability first.` },
     { q: `Do you deliver water in ${city.areas[0]} and nearby areas?`,
-      a: city.slug === 'noida'
-        ? 'Noida Sector 73 is a limited pilot. Availability depends on approved online suppliers, stock and exact address coverage; the city is not available for guaranteed delivery everywhere.'
-        : live
-        ? `Yes. We serve ${city.areas.join(', ')} and nearby areas in ${city.name}. Enter your address at booking and we confirm availability.`
+      a: live
+        ? `Yes. We accept service requests throughout all areas of ${city.name}, including ${city.areas.join(', ')}. The listed neighborhoods are examples, not coverage limits. Supplier matching continues after you place the request.`
         : `We serve selected PIN codes in ${city.name}, including areas such as ${city.areas.slice(0, 4).join(', ')}. Enter your PIN code at booking and we confirm availability before you pay.` },
     { q: `How much does water tank cleaning cost in ${city.name}?`,
       a: `Tank cleaning starts from ${inr(tank[0].from)} for tanks up to 500 litres, ${inr(tank[1].from)} up to 1,000 litres and ${inr(tank[2].from)} up to 2,000 litres. Larger or heavily soiled tanks are quoted before work begins.` },
@@ -47,12 +45,9 @@ export async function generateMetadata({ params }: CityPageProps): Promise<Metad
   const city = findCity(raw);
   if (!city) return { title: `City not found | ${SITE.name}`, robots: { index: false, follow: false } };
 
-  const title = city.slug === 'noida'
-    ? `Noida Sector 73 Pilot: Water Delivery Updates | ${SITE.name}`
-    : `RO Water, Plumber & Tank Cleaning in ${city.name} | ${SITE.name}`;
+  const title = `RO Water, Plumber & Tank Cleaning in ${city.name} | ${SITE.name}`;
   const description =
-    `20L RO water cans from ${inr(PRICING.water.normal)} in ${city.name} (${city.areas.slice(0, 3).join(', ')} & more). ` +
-    `Check water and home-service availability. ${city.slug === 'noida' ? 'Sector 73 pilot, subject to verified supplier readiness.' : city.status === 'live' ? 'Clear prices before you confirm.' : 'Subject to approved PIN-code coverage.'} Cash + UPI.`;
+    `20L RO water cans from ${inr(PRICING.water.normal)} in ${city.name}. Citywide service requests are accepted; supplier matching continues after order placement. Check final prices before you confirm. Cash + UPI.`;
   const url = `/cities/${city.slug}`;
 
   return {
@@ -95,7 +90,7 @@ export default async function CityPage({ params }: CityPageProps) {
           { '@type': 'City', name: city.name, containedInPlace: { '@type': 'AdministrativeArea', name: city.state } },
           ...city.areas.map(a => ({ '@type': 'Place', name: `${a}, ${city.name}` })),
         ],
-        makesOffer: city.slug === 'noida' ? [] : [
+        makesOffer: [
           { '@type': 'Offer', name: 'Normal RO 20L can', price: PRICING.water.normal, priceCurrency: 'INR' },
           { '@type': 'Offer', name: 'Chilled RO 20L can', price: PRICING.water.chilled, priceCurrency: 'INR' },
           { '@type': 'Offer', name: 'Water tank cleaning (up to 500 L, from)', price: PRICING.tank[0].from, priceCurrency: 'INR' },
