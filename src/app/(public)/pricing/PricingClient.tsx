@@ -18,7 +18,7 @@ type BillingCycle = 'weekly' | 'monthly';
 // already saved elsewhere on the site, then the default.
 const DEFAULT_CITY = 'Kanpur';
 const CITY_STORAGE_KEY = 'auro_city';
-const SUPPORTED_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida', 'Delhi', 'Ghaziabad', 'Gurugram'];
+// City names are not an eligibility gate: new admin-enabled cities must not require a frontend release.
 
 function useVisitorCity(): string {
   const [city] = useState(() => {
@@ -29,7 +29,7 @@ function useVisitorCity(): string {
       const fromUrl = new URLSearchParams(window.location.search).get('city');
       const fromStore = window.localStorage.getItem(CITY_STORAGE_KEY);
       const match = [fromUrl, fromStore]
-        .map((v) => SUPPORTED_CITIES.find((c) => v && c.toLowerCase() === v.trim().toLowerCase()))
+        .map((v) => typeof v === 'string' && /^[a-z][a-z .-]{1,59}$/i.test(v.trim()) ? v.trim() : null)
         .find(Boolean);
       if (match) {
         window.localStorage.setItem(CITY_STORAGE_KEY, match);
