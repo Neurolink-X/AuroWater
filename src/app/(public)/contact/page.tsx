@@ -149,7 +149,7 @@ export default async function ContactPage() {
               <h2 id="form-title" className="text-2xl font-black tracking-tight text-emerald-950">Send us a message</h2>
               <p className="mt-1 text-sm text-slate-500">Tell us what you need. Your message goes to our support inbox, where our team can follow up during working hours.</p>
             </div>
-            <div className="px-5 pb-8 pt-6 sm:px-8"><ContactForm phone={s.supportPhone} /></div>
+            <div className="px-5 pb-8 pt-6 sm:px-8"><ContactForm whatsappNumber={s.whatsappNumber} /></div>
           </section>
 
           {/* ───────── Sidebar ───────── */}
