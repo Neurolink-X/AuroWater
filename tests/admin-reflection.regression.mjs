@@ -78,9 +78,9 @@ test('serviceability keeps listed full cities available through legacy fallback'
 
 test('Noida is active for citywide service requests across customer and SEO surfaces', () => {
   const marketing = read('src/lib/marketing-pricing.ts');
-  assert.match(marketing, /slug: 'noida',[\\s\\S]*?status: 'live'/);
+  assert.ok(marketing.includes("slug: 'noida',     name: 'Noida',     state: 'Uttar Pradesh', status: 'live' as CityStatus,"));
   const fallback = read('src/lib/cities.ts');
-  assert.match(fallback, /id: 'noida',[^\\n]*status: 'active'/);
+  assert.ok(fallback.includes("id: 'noida', name: 'Noida', slug: 'noida', status: 'active'"));
   const home = read('src/app/(public)/HomeClient.tsx');
   assert.match(home, /Citywide service throughout/);
   assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot/);
