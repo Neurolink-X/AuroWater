@@ -161,9 +161,9 @@ const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
   ],
   water_tanker: [
     { key: '500', label: '500L', extra: 0 },
-    { key: '1000', label: '1000L', extra: 50 },
-    { key: '2000', label: '2000L', extra: 120 },
-    { key: 'custom', label: 'Custom', desc: 'Custom quantity', extra: 80, quoteAfterVisit: true },
+    { key: '1000', label: '1000L', extra: 300 },
+    { key: '2000', label: '2000L', extra: 800 },
+    { key: 'custom', label: 'Custom', desc: 'Price confirmed after supplier quote', extra: 0, quoteAfterVisit: true },
   ],
 };
 
