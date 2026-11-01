@@ -74,7 +74,7 @@ export async function resolveServiceability(
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
   const legacy = (): Serviceability => {
-    const ok = hasCoords ? getServiceZone(lat, lng) !== null : isCityServed(city);
+    const ok = isCityServed(city) || (hasCoords && getServiceZone(lat, lng) !== null);
     return {
       serviceable: ok,
       status: 'NO_ZONES',

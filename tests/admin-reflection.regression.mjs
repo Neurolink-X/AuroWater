@@ -39,3 +39,39 @@ test('city pricing retains global service rates when city overrides are partial'
   const resolver = read('src/lib/pricing/resolve-effective.ts');
   assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
 });
+
+test('sparse published pricing stays bookable using approved defaults while city patches win', () => {
+  const resolver = read('src/lib/pricing/resolve-effective.ts');
+  assert.match(resolver, /water_normal: 20/);
+  assert.match(resolver, /water_chilled: 25/);
+  assert.match(resolver, /water_tanker_1000: 300/);
+  assert.match(resolver, /water_tanker_custom: 0/);
+  assert.match(resolver, /\.\.\.baseline\.services, \.\.\.published\.services/);
+  assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
+  assert.match(resolver, /Object\.hasOwn\(published, 'services'\)/);
+});
+
+test('Noida legacy coverage matches the production launch radius', () => {
+  const geo = read('src/lib/geo.ts');
+  assert.match(geo, /city: 'Noida'.*radiusKm: 25/);
+  const migration = read('sql/launch_booking_city_catalog_20261101.sql');
+  assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
+  assert.match(migration, /is_active = true/);
+  assert.match(migration, /services = NULL/);
+  assert.match(migration, /WHEN 'noida' THEN 25/);
+});
+
+test('launch migration creates citywide available catch-all zones for all requested cities', () => {
+  const migration = read('sql/launch_booking_city_catalog_20261101.sql');
+  for (const city of ['kanpur', 'lucknow', 'noida', 'gorakhpur']) {
+    assert.match(migration, new RegExp(city));
+  }
+  assert.match(migration, /is_catch_all, notes/);
+  assert.match(migration, /'AVAILABLE'/);
+  assert.match(migration, /services = NULL/);
+  assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
+});
+test('serviceability keeps listed full cities available through legacy fallback', () => {
+  const zones = read('src/lib/zones.ts');
+  assert.match(zones, /isCityServed\(city\) \|\| \(hasCoords && getServiceZone\(lat, lng\) !== null\)/);
+});
