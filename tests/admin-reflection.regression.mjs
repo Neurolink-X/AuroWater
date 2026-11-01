@@ -89,7 +89,7 @@ test('Noida is active for citywide service requests across customer and SEO surf
   const selector = read('src/components/ui/CitySelector.tsx');
   assert.doesNotMatch(selector, /Pilot · Sector 73/);
   const serviceCities = read('src/app/(public)/services/services-data.ts');
-  assert.match(serviceCities, /LIVE_CITIES = \\['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida'\\]/);
+  assert.ok(serviceCities.includes("export const LIVE_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida'] as const;"));
   const readiness = read('src/app/api/admin/noida-readiness/route.ts');
   assert.match(readiness, /citywide_coverage_active/);
   assert.match(readiness, /does not gate order creation/);
