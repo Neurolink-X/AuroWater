@@ -84,7 +84,9 @@ export async function GET(req: NextRequest) {
   const versions = (data ?? []).map((row) => ({ ...row, currently_effective: Date.parse(row.effective_from) <= Date.now() }));
   const current = versions.filter((row) => row.currently_effective)
     .sort((a, b) => Date.parse(b.effective_from) - Date.parse(a.effective_from) || b.version - a.version)[0] ?? null;
-  return jsonOk({ versions, current });
+  const activeBook = current ? resolveEffectivePriceBook(current.config, '') : null;
+  const activeIssues = activeBook ? validateEffectivePriceBook(activeBook) : [{ field: 'pricing_version', reason: 'No active version' }];
+  return jsonOk({ versions, current, active_pricing_issues: activeIssues });
 }
 
 export async function POST(req: NextRequest) {
