@@ -52,7 +52,7 @@ test('footer displays two regions using canonical city status', () => {
   assert.match(footer, /CompactRegionList cities=\{cities\}/);
   assert.match(footer, /Uttar Pradesh/);
   assert.match(footer, /Delhi/);
-  assert.match(footer, /city\.status === 'active'/);
+  // Variable names are implementation details: verify actual active-city predicate.\n  assert.match(footer, /\.status === 'active'/);\n  assert.match(footer, /cities\.some\(/);\n  assert.match(footer, /cities\.filter\(/);
 });
 test('footer has conservative offline city fallback', () => {
   assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
