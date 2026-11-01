@@ -119,8 +119,6 @@ function SocialIcon({ platform }: { platform: FooterSocialPlatform }) {
   );
 }
 
-const NEW_TAB = <span className="sr-only"> (opens in a new tab)</span>;
-
 function SocialChannels() {
   const missing = GENERIC_PLATFORMS.filter((g) => !SOCIALS.some((s) => s.platform === g.platform));
   return (
