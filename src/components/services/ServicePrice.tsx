@@ -9,6 +9,7 @@ type ServicePriceProps = {
   fallback?: string;
   unit: string;
   className?: string;
+  city?: string;
 };
 
 /**
@@ -33,8 +34,9 @@ export default function ServicePrice({
   serviceKey,
   unit,
   className = '',
+  city,
 }: ServicePriceProps) {
-  const { settings, loading } = useSettings();
+  const { settings, loading } = useSettings(undefined, city);
 
   const amount = useMemo(() => {
     let configured: unknown;
