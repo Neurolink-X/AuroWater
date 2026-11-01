@@ -38,7 +38,7 @@ export function getServiceZone(lat: number, lng: number): ServiceZone | null {
 }
 
 export const OUT_OF_ZONE_MESSAGE =
-  "Sorry, we don't deliver to this area yet. We currently serve Gorakhpur, Kanpur, Lucknow & Noida within their configured service areas.";
+  "Sorry, we don't deliver to this city yet. We currently serve all areas of Gorakhpur, Kanpur, Lucknow and Noida.";
 
 export const SUPPLIER_MAX_KM = 15;
 
