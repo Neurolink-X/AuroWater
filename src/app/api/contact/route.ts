@@ -1,253 +1,84 @@
+// PATH: src/app/api/contact/route.ts
 import { NextRequest } from 'next/server';
+import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import { consumeRateLimit } from '@/lib/api/rate-limit';
+import { createServiceClient } from '@/utils/supabase/server';
+import { contactSchema, firstIssue } from '@/lib/contact-shared';
 
-import {
-  jsonErr,
-  jsonOk,
-} from '@/lib/api/json-response';
+export const dynamic = 'force-dynamic';
 
-import {
-  isSupabaseConfigured,
-} from '@/lib/db/supabase';
+const MAX_BODY_BYTES = 12_000;
+const PER_IP = { max: 6, windowSeconds: 3600 };
+const PER_EMAIL = { max: 3, windowSeconds: 3600 };
 
-import { createClient } from '@supabase/supabase-js';
-
-import {
-  checkRateLimit,
-} from '@/lib/rate-limit';
-
-const EMAIL_PATTERN =
-  /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-function getClientIp(
-  req: NextRequest,
-): string {
-  const forwarded =
-    req.headers.get(
-      'x-forwarded-for',
-    );
-
-  if (forwarded) {
-    return (
-      forwarded
-        .split(',')[0]
-        ?.trim() || 'unknown'
-    );
-  }
-
-  return (
-    req.headers.get(
-      'x-real-ip',
-    ) ?? 'unknown'
-  );
+/** Prefer headers set by the platform (hard to spoof) over client-supplied X-Forwarded-For. */
+function clientIp(req: NextRequest) {
+  const h = req.headers;
+  return h.get('cf-connecting-ip') || h.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+    || h.get('x-real-ip') || h.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
 }
 
-function text(
-  value: unknown,
-  maxLength: number,
-): string {
-  return typeof value ===
-    'string'
-    ? value.trim().slice(0, maxLength)
-    : '';
-}
-
-export async function POST(
-  req: NextRequest,
-) {
-  /*
-   * Public endpoint protection.
-   */
+/** Browser POSTs always send Origin. Compare hosts (not full origins) so reverse proxies and www/apex setups don't break. */
+function isSameSite(req: NextRequest) {
   const origin = req.headers.get('origin');
-  if (origin && origin !== req.nextUrl.origin) return jsonErr('Invalid request origin', 403);
-  if (Number(req.headers.get('content-length') ?? 0) > 12000) return jsonErr('Message too large', 413);
-  const ip =
-    getClientIp(req);
+  if (!origin) return true; // non-browser client (curl, server-to-server): rate limits still apply
+  let host: string;
+  try { host = new URL(origin).host; } catch { return false; }
+  const allowed = new Set([req.headers.get('x-forwarded-host'), req.headers.get('host'), req.nextUrl.host].filter(Boolean) as string[]);
+  try { if (process.env.NEXT_PUBLIC_SITE_URL) allowed.add(new URL(process.env.NEXT_PUBLIC_SITE_URL).host); } catch { /* ignore bad env */ }
+  return allowed.has(host);
+}
 
-  const rateCheck =
-    checkRateLimit(
-      `contact:${ip}`,
-    );
+function limited(retryAfter: number) {
+  const res = jsonErr('Too many requests. Please try again later or call us.', 429, 'RATE_LIMITED');
+  res.headers.set('Retry-After', String(Math.max(1, retryAfter)));
+  return res;
+}
 
-  if (!rateCheck.allowed) {
-    return jsonErr(
-      `Too many requests — please wait ${rateCheck.retryAfter} seconds`,
-      429,
-      'RATE_LIMITED',
-    );
-  }
+export async function POST(req: NextRequest) {
+  if (!isSameSite(req)) return jsonErr('Invalid request origin.', 403);
+  if (Number(req.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return jsonErr('Message too large.', 413);
 
-  if (!isSupabaseConfigured()) {
-    return jsonErr(
-      'Contact form is temporarily unavailable',
-      503,
-      'MISCONFIG_ENV',
-    );
-  }
-
-  let body: Record<
-    string,
-    unknown
-  >;
-
+  // Cheap rejections first: they never touch the database or burn anyone's quota.
+  let raw: unknown;
   try {
-    body =
-      (await req.json()) as Record<
-        string,
-        unknown
-      >;
-  } catch {
-    return jsonErr(
-      'Invalid JSON body',
-      400,
-    );
+    const text = await req.text();
+    if (text.length > MAX_BODY_BYTES) return jsonErr('Message too large.', 413);
+    raw = JSON.parse(text);
+  } catch { return jsonErr('Invalid request.', 400); }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return jsonErr('Invalid request.', 400);
+
+  const parsed = contactSchema.safeParse(raw);
+  if (!parsed.success) return jsonErr(firstIssue(parsed.error), 422);
+  const { name, email, phone, subject, message, website } = parsed.data;
+
+  // Honeypot tripped: pretend success so bots learn nothing, store nothing.
+  if (website) return jsonOk({ received: true as const, message: 'Thank you. Your message has been received.' }, 201);
+
+  let db;
+  try { db = createServiceClient(); } catch (e) {
+    console.error('[contact] service client unavailable', e);
+    return jsonErr('Contact form is temporarily unavailable. Please call or WhatsApp us.', 503, 'UNAVAILABLE');
   }
 
-  if (
-    !body ||
-    typeof body !== 'object' ||
-    Array.isArray(body)
-  ) {
-    return jsonErr(
-      'Invalid JSON body',
-      400,
-    );
+  // Durable (database-backed) limits per network address and per email. A limiter outage never blocks genuine users.
+  for (const [scope, id, cfg] of [['contact-ip', clientIp(req), PER_IP], ['contact-email', email, PER_EMAIL]] as const) {
+    const rate = await consumeRateLimit(db, scope, id, cfg.max, cfg.windowSeconds);
+    if (rate.unavailable) console.error('[contact] rate limiter unavailable', scope);
+    if (!rate.allowed) return limited(rate.retryAfter);
   }
 
-  const name =
-    text(
-      body.name,
-      100,
-    );
-
-  const email =
-    text(
-      body.email,
-      254,
-    ).toLowerCase();
-
-  const message =
-    text(
-      body.message,
-      5000,
-    );
-
-  const phone =
-    text(
-      body.phone,
-      20,
-    );
-
-  /*
-   * Required fields.
-   */
-  if (!name) {
-    return jsonErr(
-      'Name is required',
-      400,
-    );
-  }
-
-  if (
-    name.length < 2
-  ) {
-    return jsonErr(
-      'Name must contain at least 2 characters',
-      422,
-    );
-  }
-
-  if (!email) {
-    return jsonErr(
-      'Email is required',
-      400,
-    );
-  }
-
-  if (
-    !EMAIL_PATTERN.test(email)
-  ) {
-    return jsonErr(
-      'Enter a valid email address',
-      422,
-    );
-  }
-
-  if (!message) {
-    return jsonErr(
-      'Message is required',
-      400,
-    );
-  }
-
-  if (
-    message.length < 10
-  ) {
-    return jsonErr(
-      'Message must contain at least 10 characters',
-      422,
-    );
-  }
-
-  /*
-   * Optional phone.
-   *
-   * We don't require it because a contact
-   * enquiry should not depend on phone number.
-   */
-  if (
-    phone &&
-    !/^[0-9+\-()\s]{7,20}$/.test(
-      phone,
-    )
-  ) {
-    return jsonErr(
-      'Enter a valid phone number',
-      422,
-    );
-  }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return jsonErr('Contact form temporarily unavailable', 503);
-  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  const {
-    error,
-  } = await supabase
-    .from(
-      'contact_requests',
-    )
-    .insert({
-      name,
-      email,
-      message: message.slice(0, 3000),
-      subject: ['General','Booking Help','Technician Registration','Supplier Partnership','Complaint','Other'].includes(String(body.subject)) ? body.subject : 'General',
-      phone: phone || '0000000000',
-    });
-
+  const { data, error } = await db.from('contact_requests')
+    .insert({ name, email, phone, subject, message })
+    .select('id').maybeSingle();
   if (error) {
-    console.error(
-      '[contact] submission failed:',
-      error,
-    );
-
-    /*
-     * Don't expose the database error
-     * to a public client.
-     */
-    return jsonErr(
-      'We could not submit your message. Please try again.',
-      500,
-      'CONTACT_SUBMISSION_FAILED',
-    );
+    console.error('[contact] submission failed', error); // never leak database errors to a public client
+    return jsonErr('We could not submit your message. Please try again, or call us.', 500, 'CONTACT_SUBMISSION_FAILED');
   }
 
-  return jsonOk(
-    {
-      received: true as const,
-      message:
-        'Thank you. Your message has been received.',
-    },
-    201,
-  );
+  // Short human-friendly reference the customer can quote on a call.
+  const reference = data?.id ? String(data.id).replace(/-/g, '').slice(0, 8).toUpperCase() : undefined;
+  const res = jsonOk({ received: true as const, reference, message: 'Thank you. Your message has been received.' }, 201);
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
 }
