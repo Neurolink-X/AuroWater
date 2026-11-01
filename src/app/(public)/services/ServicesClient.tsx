@@ -129,7 +129,17 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
    MAIN PAGE CONTENT
 ───────────────────────────────────────────── */
 export default function ServicesClient() {
-  const { settings } = useSettings();
+  // Display city is a visitor preference only; checkout re-resolves the saved address city.
+  const [pricingCity] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const urlCity = new URLSearchParams(window.location.search).get('city');
+      const savedCity = window.localStorage.getItem('auro_city');
+      const city = (urlCity || savedCity || '').trim();
+      return /^[a-z][a-z .-]{1,59}$/i.test(city) ? city : '';
+    } catch { return ''; }
+  });
+  const { settings } = useSettings(undefined, pricingCity);
   const [filter, setFilter] = useState<ServiceCategory>('All');
   const [scrolled, setScrolled] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
