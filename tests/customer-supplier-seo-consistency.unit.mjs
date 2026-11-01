@@ -41,6 +41,8 @@ test('customer tracking API authenticates ownership before privileged provider e
   assert.match(customerApi, /Promise\.all\(\[/);
   assert.match(customerApi, /technician_profile: technicianProfile/);
   assert.match(customerApi, /supplier_profile: supplierProfile/);
+  assert.match(customerApi, /Cache-Control', 'private, no-store/);
+  assert.match(customerApi, /force-dynamic/);
   assert.match(customerApi, /service_type_key: row\.service_type/);
 });
 
@@ -71,6 +73,7 @@ test('local service SEO uses supported cities and avoids unsupported coverage cl
   const services = read('src/app/(public)/services/services-data.ts');
   const sitemap = read('src/app/sitemap.ts');
   const robots = read('src/app/robots.ts');
+  const waterDelivery = read('src/app/(public)/water-delivery/page.tsx');
   for (const term of ['20 litre drinking water jar home delivery', 'water purifier filter replacement', 'water storage tank cleaning service']) {
     assert.ok(services.includes(term), term);
   }
@@ -78,4 +81,7 @@ test('local service SEO uses supported cities and avoids unsupported coverage cl
   assert.match(sitemap, /canIndexDeployment/);
   assert.match(robots, /canIndexDeployment/);
   assert.doesNotMatch(sitemap, /\/customer\/track/);
+  assert.match(waterDelivery, /cities\.filter\(\(city\) => city\.status === 'active'\)/);
+  assert.match(waterDelivery, /'@type': 'Service'/);
+  assert.match(waterDelivery, /areaServed: active\.map/);
 });
