@@ -25,7 +25,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!Object.keys(parsed.value).length) return jsonErr('Nothing to update', 422);
 
   const db: any = createServiceClient();
-  const { data: before } = await db.from('service_zones').select('id, name, city, status').eq('id', id).maybeSingle();
+  const { data: before } = await db.from('service_zones').select('id, name, city, status, services, customer_message').eq('id', id).maybeSingle();
   if (!before) return jsonErr('Zone not found', 404);
 
   // Preserve canonical city relationship when an administrator edits a zone's city.
@@ -54,7 +54,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     action: before.status !== data.status ? 'zone.status_change' : 'zone.update',
     entity: 'service_zones',
     entity_id: id,
-    meta: { name: data.name, city: data.city, from: before.status, to: data.status, changed: Object.keys(parsed.value) },
+    meta: { name: data.name, city: data.city, from: before.status, to: data.status, changed: Object.keys(parsed.value), services: data.services, customer_message: data.customer_message },
   });
 
   return jsonOk(data);

@@ -31,6 +31,7 @@ export type ZoneRow = {
   radius_km: number | null;
   services: string[] | null;
   is_catch_all: boolean;
+  customer_message?: string | null;
 };
 
 export type Serviceability = {
@@ -146,22 +147,24 @@ export async function resolveServiceability(
 
   const ref = { id: zone.id, name: zone.name, city: zone.city };
 
+  const customerMessage = typeof zone.customer_message === 'string' ? zone.customer_message.trim() : '';
+
   if (!BOOKABLE.includes(zone.status)) {
     return {
       serviceable: false,
       status: zone.status,
       zone: ref,
-      message: STATUS_MESSAGE[zone.status](zone.name),
+      message: customerMessage || STATUS_MESSAGE[zone.status](zone.name),
       services: zone.services,
     };
   }
 
-  if (serviceKey && zone.services && zone.services.length && !zone.services.includes(serviceKey)) {
+  if (serviceKey && zone.services && !zone.services.includes(serviceKey)) {
     return {
       serviceable: false,
       status: zone.status,
       zone: ref,
-      message: `This service is not offered in ${zone.name} yet.`,
+      message: customerMessage || `This service is not offered in ${zone.name} yet.`,
       services: zone.services,
     };
   }
@@ -170,7 +173,7 @@ export async function resolveServiceability(
     serviceable: true,
     status: zone.status,
     zone: ref,
-    message: STATUS_MESSAGE[zone.status](zone.name),
+    message: customerMessage || STATUS_MESSAGE[zone.status](zone.name),
     services: zone.services,
   };
 }
@@ -214,10 +217,16 @@ export function parseZoneInput(body: Record<string, unknown>, partial: boolean):
     out.pincodes = [...new Set((body.pincodes as unknown[]).map(String))];
   }
   if (body.services !== undefined) {
-    if (body.services !== null && (!Array.isArray(body.services) || body.services.some((x) => typeof x !== 'string'))) {
-      return { ok: false, error: 'services must be null or a list of service keys' };
+    if (body.services !== null && (!Array.isArray(body.services) || body.services.length > 50 || body.services.some((x) => typeof x !== 'string' || x.length > 80))) {
+      return { ok: false, error: 'services must be null or a list of at most 50 service keys' };
     }
     out.services = body.services;
+  }
+  if (body.customer_message !== undefined) {
+    if (body.customer_message !== null && (typeof body.customer_message !== 'string' || body.customer_message.length > 500)) {
+      return { ok: false, error: 'customer_message must be null or up to 500 characters' };
+    }
+    out.customer_message = typeof body.customer_message === 'string' ? body.customer_message.trim() || null : null;
   }
   for (const k of ['center_lat', 'center_lng', 'radius_km'] as const) {
     if (body[k] !== undefined) {
