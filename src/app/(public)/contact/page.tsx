@@ -109,19 +109,23 @@ export default function ContactPage() {
     }
   }, [setValue]);
 
-  const onSubmit = async (values: FormValues) => {
+  const onSubmit = (values: FormValues) => {
     if (loading) return;
     setLoading(true);
-    try {
-      await new Promise((r) => setTimeout(r, 1500));
-      setSubmitted(true);
-      toast.success("Message sent! We\u2019ll reply within 24 hours.");
-      reset();
-    } catch {
-      toast.error('Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    const message = [
+      'Hello AuroTap Support,',
+      'Name: ' + values.name,
+      'Email: ' + values.email,
+      'Phone: ' + values.phone,
+      'Subject: ' + values.subject,
+      'Message: ' + values.message,
+    ].join('\\n');
+    const url = 'https://wa.me/919889305803?text=' + encodeURIComponent(message);
+    const opened = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!opened) window.location.assign(url);
+    setSubmitted(true);
+    toast.info('Press Send in WhatsApp to submit your message.');
+    setLoading(false);
   };
 
   const info = FALLBACK;
@@ -762,19 +766,19 @@ export default function ContactPage() {
                       {loading ? (
                         <>
                           <div className="ct-submit-spinner" />
-                          Sending your message...
+                          Opening WhatsApp...
                         </>
                       ) : (
                         <>
                           <IconSend />
-                          Send Message
+                          Continue on WhatsApp
                           <span style={{ background: 'rgba(255,255,255,0.18)', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>→</span>
                         </>
                       )}
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', margin: 0 }}>
-                      We typically respond within 24 hours · Your data is safe with us
+                      Your message is only sent when you press Send in WhatsApp. Never share OTPs or passwords.
                     </p>
 
                   </form>
