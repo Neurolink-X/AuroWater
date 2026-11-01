@@ -34,6 +34,7 @@ assert.match(booking, /useSettings\(undefined, pricingCity\)/);
 assert.match(booking, /settings\.service_base_prices\[`water_tanker_\$\{o\.key\}`\]/);
 assert.match(settingsHook, /aw_pricing_published_at/);
 assert.match(servicePrice, /useSettings\(undefined, city\)/);
+assert.doesNotMatch(read('src/app/(public)/pricing/PricingClient.tsx'), /const SUPPORTED_CITIES =/);
 assert.match(resolver, /services: \{ \.\.\.globalServices, \.\.\.cityServices \}/);
 assert.match(orderApi, /TANKER_QUOTE_REQUIRED/);
 // Pricing changes are versioned; never silently reprice completed orders.
