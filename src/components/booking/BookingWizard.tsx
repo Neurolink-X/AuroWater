@@ -1696,7 +1696,7 @@ export default function BookingWizard() {
                   </div>
                   <div className="mt-2 font-semibold text-slate-900 text-sm leading-tight">{s.title}</div>
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
-                    {s.key === 'borewell' ? 'Inspection from ' : 'From '}₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
+                    {s.key === 'borewell' ? 'Drilling: rate per foot · Get estimate' : `From ₹${Math.round(fromPrice(s.key)).toLocaleString('en-IN')}`}
                     {s.key === 'water_can' && showCompareHome && (
                       <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_CAN_PRICES.normal)}</s>
                     )}
