@@ -242,14 +242,14 @@ const SOCIAL_PROOF: { value: string; label: string }[] = [];
 
 const TRUST_POINTS = [
   { icon: '🛡', text: 'Genuine RO water' },
-  { icon: '🚚', text: 'Delivery included' },
+  { icon: '🚚', text: 'Fees shown upfront' },
   { icon: '💵', text: 'Pay on delivery' },
   { icon: '🧾', text: 'Transparent pricing' },
 ];
 
 const WHY_US = [
   { icon: '💧', title: 'Genuine RO water', body: 'Fresh 20L RO cans for daily home and office use, or chilled for events.' },
-  { icon: '🏷️', title: 'Affordable, fair pricing', body: 'Simple per-can pricing with delivery included. The full total is shown before you confirm.' },
+  { icon: '🏷️', title: 'Affordable, fair pricing', body: 'Simple per-can pricing with fees shown at checkout. The full total is shown before you confirm.' },
   { icon: '⚡', title: 'Fast, flexible booking', body: 'Pick a 3-hour window, or choose Emergency for ASAP delivery.' },
 ];
 
@@ -1653,7 +1653,7 @@ export default function BookingWizard() {
           </h2>
           {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-              Genuine 20L RO cans from {inr(settings.default_can_price)} · delivery included · pay when it arrives.
+              Genuine 20L RO cans from {inr(settings.default_can_price)} · fees shown at checkout · pay when it arrives.
             </p>
           )}
           {view > 1 && view < 4 && (
@@ -1678,7 +1678,7 @@ export default function BookingWizard() {
                   </span>
                 </p>
                 <p className="mt-1 text-xs text-emerald-100">
-                  Subscribe and pay just {inr(settings.subscription_can_price)} per can · delivery included
+                  Subscribe and pay just {inr(settings.subscription_can_price)} per can · fees shown at checkout
                 </p>
               </div>
               <button
@@ -1751,7 +1751,7 @@ export default function BookingWizard() {
                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
                     <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(settings.default_can_price)} / 20L</span>
                     <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
-                    <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
+                    <span className="mt-1 block text-[11px] text-slate-500">Fees shown upfront</span>
                   </button>
                   <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
                     <span className="block text-sm font-extrabold">Chilled RO Water</span>
@@ -2999,14 +2999,14 @@ export default function BookingWizard() {
 
 // const TRUST_POINTS = [
 //   { icon: '🛡', text: 'Genuine RO water' },
-//   { icon: '🚚', text: 'Delivery included' },
+//   { icon: '🚚', text: 'Fees shown upfront' },
 //   { icon: '💵', text: 'Pay on delivery' },
 //   { icon: '🧾', text: 'Transparent pricing' },
 // ];
 
 // const WHY_US = [
 //   { icon: '💧', title: 'Genuine RO water', body: 'Fresh 20L RO cans for daily home and office use, or chilled for events.' },
-//   { icon: '🏷️', title: 'Affordable, fair pricing', body: 'Simple per-can pricing with delivery included. The full total is shown before you confirm.' },
+//   { icon: '🏷️', title: 'Affordable, fair pricing', body: 'Simple per-can pricing with fees shown at checkout. The full total is shown before you confirm.' },
 //   { icon: '⚡', title: 'Fast, flexible booking', body: 'Pick a 3-hour window, or choose Emergency for ASAP delivery.' },
 // ];
 
@@ -4271,7 +4271,7 @@ export default function BookingWizard() {
 //           </h2>
 //           {view < 6 && (
 //             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-//               Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · delivery included · pay when it arrives.
+//               Genuine 20L RO cans from {inr(CAN_PRICES.normal)} · fees shown at checkout · pay when it arrives.
 //             </p>
 //           )}
 //           {view > 1 && view < 6 && (
@@ -4296,7 +4296,7 @@ export default function BookingWizard() {
 //                   </span>
 //                 </p>
 //                 <p className="mt-1 text-xs text-emerald-100">
-//                   Subscribe and pay just {inr(CAN_PRICES.subscription)} per can · delivery included
+//                   Subscribe and pay just {inr(CAN_PRICES.subscription)} per can · fees shown at checkout
 //                 </p>
 //               </div>
 //               <button
@@ -4380,7 +4380,7 @@ export default function BookingWizard() {
 //                     <span className="block text-sm font-extrabold">Everyday Normal RO</span>
 //                     <span className="mt-1 block text-lg font-extrabold text-emerald-700">{inr(settings.default_can_price)} / 20L</span>
 //                     <span className="mt-1 block text-xs text-slate-500">For daily home &amp; office use</span>
-//                     <span className="mt-1 block text-[11px] text-slate-500">Delivery included</span>
+//                     <span className="mt-1 block text-[11px] text-slate-500">Fees shown upfront</span>
 //                   </button>
 //                   <button type="button" aria-pressed={draft.subOptionKey === 'chilled_ro'} onClick={() => setDraft((d) => ({ ...d, subOptionKey: 'chilled_ro', canOrderType: 'one_time' }))} className={optionBtn(draft.subOptionKey === 'chilled_ro')}>
 //                     <span className="block text-sm font-extrabold">Chilled RO Water</span>

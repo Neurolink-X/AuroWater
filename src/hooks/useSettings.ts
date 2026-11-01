@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { computeExpectedTotal } from '@/lib/api/order-pricing-server';
 import { safeGet, safeSet } from '@/lib/storage';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -48,7 +49,7 @@ export interface PricingConfig {
   bulk_threshold:         number;  // minimum qty for bulk pricing
   market_can_price:       number;  // admin-configured illustrative reference for savings display
   service_base_prices:    Record<string, number>;
-  convenience_fee:        number;  // flat ₹ per non-water order
+  convenience_fee:        number;  // admin-published flat ₹ per new order
   delivery_fee:           number;  // flat ₹ per delivery (all services)
   surge_charge:           number;  // flat ₹ for emergency orders
   emergency_surcharge:    number;  // flat ₹ for emergency orders
@@ -494,14 +495,15 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   /* ── Price calculator ── */
   const calcOrderTotal = React.useCallback(
     (basePrice: number, isEmergency = false, serviceKey?: string): OrderBreakdown => {
-      const base        = Math.round(Math.max(0, basePrice));
-      // The server order API intentionally applies no separate convenience fee
-      // to water-can orders. Keep the client breakdown aligned with that rule.
-      const convenience = (serviceKey === 'water_can' ? 0 : Math.round(settings.convenience_fee)) + Math.round(settings.delivery_fee ?? 0);
-      const emergency   = isEmergency ? Math.round(settings.emergency_surcharge + (settings.surge_charge ?? 0)) : 0;
-      const subtotal    = base + convenience + emergency;
-      const gst         = Math.round(subtotal * settings.gst_rate);
-      const total       = subtotal + gst;
+      // Keep the compatibility argument; published fees apply to every service.
+      void serviceKey;
+      const roundMoney = (value: number) => Math.round(value * 100) / 100;
+      const base = roundMoney(Math.max(0, basePrice));
+      const convenience = roundMoney(settings.convenience_fee + settings.delivery_fee);
+      const emergency = isEmergency
+        ? roundMoney(settings.emergency_surcharge + settings.surge_charge) : 0;
+      const subtotal = roundMoney(base + convenience + emergency);
+      const { gst, total } = computeExpectedTotal(base, convenience, emergency, settings.gst_rate);
       const supplier_payout = Math.round(total * settings.commissions.supplier);
       const platform_net    = total - supplier_payout;
       return { base, convenience, emergency, subtotal, gst, total, supplier_payout, platform_net };
