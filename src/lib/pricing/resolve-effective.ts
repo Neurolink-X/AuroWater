@@ -3,8 +3,8 @@
  *
  * Published price books are immutable. A city override is a partial patch,
  * not a replacement for global service prices. This resolver deliberately
- * never inserts legacy defaults: missing or invalid published fields must be
- * detected before a new order is accepted.
+ * fills missing fields from the reviewed baseline while preserving invalid
+ * explicit values so validation can reject them before a new order is accepted.
  */
 export type PublishedPriceBook = Record<string, unknown>;
 export type EffectivePriceBook = PublishedPriceBook & {
