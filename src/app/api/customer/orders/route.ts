@@ -418,7 +418,7 @@ export async function POST(req: NextRequest) {
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
       plumbing: { pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 },
-      water_tanker: { '500': 0, '1000': 50, '2000': 120, custom: 80 },
+      water_tanker: { '500': 0, '1000': 300, '2000': 800, custom: 0 },
     };
     const allowedOptions = optionDeltas[service_type_key];
     if (allowedOptions && optionKey && !(optionKey in allowedOptions)) {
