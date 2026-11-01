@@ -897,7 +897,7 @@ export default function CustomerHomePage() {
   }, [stats?.member_since, version]);
 
   const supportHref = `${WHATSAPP_SUPPORT}?text=${encodeURIComponent(
-    primary ? `Hi AuroTap, I need help with order #${primary.shortId}` : 'Hi AuroTap, I need help'
+    primary ? `Hi AuroTap, I need help with order #${primary.orderReference}` : 'Hi AuroTap, I need help'
   )}`;
 
   const estimates = settings.service_base_prices as Record<string, number>;
@@ -1667,7 +1667,7 @@ export default function CustomerHomePage() {
                   icon="💬"
                   label="Get support"
                   description={
-                    primary ? `Ask about order #${primary.shortId}` : 'Talk to the AuroTap support team'
+                    primary ? `Ask about order #${primary.orderReference}` : 'Talk to the AuroTap support team'
                   }
                   external
                   prominent
@@ -2493,7 +2493,7 @@ export default function CustomerHomePage() {
 //   }, [stats?.member_since, version]);
 
 //   const supportHref = `${WHATSAPP_SUPPORT}?text=${encodeURIComponent(
-//     primary ? `Hi AuroTap, I need help with order #${primary.shortId}` : 'Hi AuroTap, I need help'
+//     primary ? `Hi AuroTap, I need help with order #${primary.orderReference}` : 'Hi AuroTap, I need help'
 //   )}`;
 
 //   const handleRefresh = useCallback(async () => {
@@ -3084,7 +3084,7 @@ export default function CustomerHomePage() {
 //                   icon="💬"
 //                   label="Get support"
 //                   description={
-//                     primary ? `Ask about order #${primary.shortId}` : 'Talk to the AuroTap support team'
+//                     primary ? `Ask about order #${primary.orderReference}` : 'Talk to the AuroTap support team'
 //                   }
 //                   external
 //                   prominent

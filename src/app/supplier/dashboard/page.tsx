@@ -70,7 +70,7 @@
 
 // type EarningRow = {
 //   id: string;
-//   order_id: string;
+//   order_reference: string;
 //   amount: number;
 //   status: 'pending' | 'paid' | 'review';
 //   paid_at: string | null;
@@ -194,8 +194,8 @@
 //   if (!rows.length) return false;
 //   const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 //   const lines = [
-//     ['Order ID', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
-//     ...rows.map((row) => [row.order_id, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
+//     ['Order reference', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
+//     ...rows.map((row) => [row.order_reference, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
 //   ];
 //   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
 //   const url = URL.createObjectURL(blob);
@@ -1049,7 +1049,7 @@
 //       const isSettled = payoutStatus === 'paid' && !needsReview;
 //       return {
 //         id: String(row.id),
-//         order_id: String(row.id),
+//         order_reference: String(row.order_number ?? '—'),
 //         amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
 //         status: needsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
 //         paid_at: isSettled ? paidAt : null,
@@ -2039,7 +2039,7 @@
 //                 </div>
 //                 {earnings.slice(0, 10).map((e) => (
 //                   <div key={e.id} className="sd-earn">
-//                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>#{e.order_id.slice(0, 8).toUpperCase()}</div>
+//                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>#{e.order_reference}</div>
 //                     <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#B91C1C' : 'var(--brand2)' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
 //                     <div>
 //                       <span className={`sd-chip ${e.status === 'paid' ? 'sd-chip--ok' : e.status === 'review' ? 'sd-chip--bad' : 'sd-chip--warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
@@ -2143,7 +2143,7 @@ type Order = {
 
 type EarningRow = {
   id: string;
-  order_id: string;
+  order_reference: string;
   amount: number;
   status: 'pending' | 'paid' | 'review';
   paid_at: string | null;
@@ -2260,8 +2260,8 @@ const exportEarningsCsv = (rows: EarningRow[]) => {
   if (!rows.length) return false;
   const cell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
   const lines = [
-    ['Order ID', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
-    ...rows.map((row) => [row.order_id, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
+    ['Order reference', 'Amount INR', 'Payout status', 'Created at', 'Paid at'].map(cell).join(','),
+    ...rows.map((row) => [row.order_reference, Number.isFinite(row.amount) ? row.amount.toFixed(2) : '0.00', row.status, row.created_at, row.paid_at ?? ''].map(cell).join(',')),
   ];
   const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -3149,7 +3149,7 @@ export default function SupplierDashboardPage() {
       const isSettled = payoutStatus === 'paid' && !needsReview;
       return {
         id: String(row.id),
-        order_id: String(row.id),
+        order_reference: String(row.order_number ?? '—'),
         amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
         status: needsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
         paid_at: isSettled ? paidAt : null,
@@ -4188,7 +4188,7 @@ export default function SupplierDashboardPage() {
                 </div>
                 {earnings.slice(0, 10).map((e) => (
                   <div key={e.id} className="sd-earn">
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>#{e.order_id.slice(0, 8).toUpperCase()}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink2)' }}>#{e.order_reference}</div>
                     <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#B91C1C' : 'var(--brand2)' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
                     <div>
                       <span className={`sd-chip ${e.status === 'paid' ? 'sd-chip--ok' : e.status === 'review' ? 'sd-chip--bad' : 'sd-chip--warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
