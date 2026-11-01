@@ -121,8 +121,10 @@ test('canonical city API remains public without privileged role keys', () => {
   assert.match(cityApi, /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
   assert.doesNotMatch(cityApi, /SUPABASE_SERVICE_ROLE_KEY/);
 });
-test('admin city activation requires verified operational capacity', () => {
-  assert.match(admin, /approved, online supplier with available stock/);
+test('admin city activation stays authorized and audited without blocking on stock', () => {
+  assert.match(admin, /requireAdmin\(auth.ctx\)/);
+  assert.match(admin, /city.status_change/);
+  assert.doesNotMatch(admin, /Cannot activate city:/);
 });
 
 test('water delivery city index uses shared admin-driven directory', () => {

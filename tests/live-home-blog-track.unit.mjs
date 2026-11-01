@@ -5,7 +5,7 @@ const read = (p) => readFileSync(new URL('../'+p, import.meta.url), 'utf8');
 test('homepage prices are from versioned live settings, not immutable marketing constants', () => {
   const home = read('src/app/(public)/HomeClient.tsx');
   const meta = read('src/app/(public)/page.tsx');
-  assert.match(home, /const \{ settings \} = useSettings\(undefined, pricingCity\)/);
+  assert.match(home, /const \{ settings, pricingReady, error: pricingError, refresh: refreshSettings \} = useSettings\(undefined, pricingCity\)/);
   assert.match(home, /currentNormal = Math.max\(20/);
   assert.match(home, /currentChilled = Math.max\(25/);
   assert.match(home, /liveServices\[svc\]/);
