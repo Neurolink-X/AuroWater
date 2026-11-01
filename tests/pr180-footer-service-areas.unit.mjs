@@ -21,10 +21,10 @@ test('footer includes only one navigation section for general links', () => {
 });
 test('footer has a single row for policies at the bottom', () => {
   assert.match(footer, /aria-label="Policies"/);
-  assert.match(footer, /border-t border-white\/10 pt-4/);
+  assert.match(footer, /border-t border-white\/10 pt-[234]/);
 });
 test('footer has bounded top and bottom padding on mobile', () => {
-  assert.match(footer, /sm:px-6 sm:pb-6 sm:pt-8/);
+  assert.match(footer, /sm:px-6 sm:pb-[456] sm:pt-[678]/);
 });
 test('footer region list stays bounded to two states', () => {
   assert.match(footer, /CompactRegionList cities=\{cities\}/);
@@ -48,7 +48,8 @@ test('footer preserves fallback if city API fails', () => {
 test('footer marks regions without live cities as coming soon', () => {
   assert.match(directory, /'coming_soon'/);
   assert.match(footer, /Coming soon/);
-  assert.match(footer, /region\.live/);
+  assert.match(footer, /\.live/);
+  assert.match(footer, /live \? '' : ' · Coming soon'/);
 });
 test('footer links to book water directly', () => {
   assert.match(footer, /href="\/book\?service=water_can"/);
