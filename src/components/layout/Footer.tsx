@@ -142,6 +142,7 @@ function SocialChannels() {
           target="_blank" rel="noopener noreferrer">
           <MessageCircle size={19} strokeWidth={1.8} aria-hidden="true" />
         </a>
+        {/* Generic platforms are navigation shortcuts, not claimed official AuroTap accounts. */}
         {SOCIALS.map((profile) => (
           <a key={profile.platform} className={iconLinkClass} href={profile.href}
             aria-label={`AuroTap on ${profile.label}`}
@@ -150,6 +151,16 @@ function SocialChannels() {
             <SocialIcon platform={profile.platform} />
           </a>
         ))}
+        {!SOCIALS.some((profile) => profile.platform === 'instagram') && (
+          <a className={iconLinkClass} href="https://www.instagram.com/" aria-label="Open Instagram website (not an official AuroTap profile)" title="Instagram website" target="_blank" rel="noopener noreferrer">
+            <SocialIcon platform="instagram" />
+          </a>
+        )}
+        {!SOCIALS.some((profile) => profile.platform === 'facebook') && (
+          <a className={iconLinkClass} href="https://www.facebook.com/" aria-label="Open Facebook website (not an official AuroTap profile)" title="Facebook website" target="_blank" rel="noopener noreferrer">
+            <SocialIcon platform="facebook" />
+          </a>
+        )}
         <a className={iconLinkClass} href="mailto:support.aurotap@gmail.com"
           aria-label="Email AuroTap support" title="Email support">
           <Mail size={18} strokeWidth={1.8} aria-hidden="true" />
