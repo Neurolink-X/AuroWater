@@ -24,14 +24,16 @@ test('footer has a single row for policies at the bottom', () => {
   assert.match(footer, /border-t border-white\/10 pt-4/);
 });
 test('footer has bounded top and bottom padding on mobile', () => {
-  assert.match(footer, /sm:px-6 sm:pb-7 sm:pt-10/);
+  assert.match(footer, /sm:px-6 sm:pb-6 sm:pt-8/);
 });
-test('footer city list is capped to prevent future uncontrolled growth', () => {
-  assert.match(footer, /selectFooterCities\(cities, 6, 2\)/);
+test('footer region list stays bounded to two states', () => {
+  assert.match(footer, /CompactRegionList cities=\{cities\}/);
+  assert.match(footer, /Uttar Pradesh/);
+  assert.match(footer, /Delhi/);
 });
-test('overflow city list provides a link to the whole directory', () => {
-  assert.match(footer, /Explore all cities/);
-  assert.match(footer, /groups\.remaining > 0/);
+test('state-level footer links to complete service areas directory', () => {
+  assert.match(footer, /Check coverage/);
+  assert.match(footer, /href="\/service-areas"/);
 });
 test('footer city activation is based on existing canonical city directory', () => {
   assert.match(footer, /fetch\('\/api\/cities'/);
@@ -43,10 +45,10 @@ test('footer cleans up its fetch after navigation', () => {
 test('footer preserves fallback if city API fails', () => {
   assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
 });
-test('footer supports upcoming cities without implying availability', () => {
+test('footer marks regions without live cities as coming soon', () => {
   assert.match(directory, /'coming_soon'/);
-  assert.match(footer, /groups\.upcoming\.map/);
-  assert.match(footer, /Soon/);
+  assert.match(footer, /Coming soon/);
+  assert.match(footer, /region\.live/);
 });
 test('footer links to book water directly', () => {
   assert.match(footer, /href="\/book\?service=water_can"/);
