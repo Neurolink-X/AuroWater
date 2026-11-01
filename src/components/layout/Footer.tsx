@@ -60,7 +60,7 @@ const LEGAL = [
 const SOCIALS = getFooterSocialProfiles();
 
 const linkClass = [
-  'inline-flex min-h-8 items-center rounded-md py-0 text-[13px] leading-[1.15rem]',
+  'inline-flex min-h-9 items-center rounded-md py-0 text-[13px] leading-5',
   'text-slate-300 transition-colors hover:text-white',
   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
   'focus-visible:outline-sky-300',
@@ -235,7 +235,7 @@ export default function Footer() {
             bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
         <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-6
           sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
-          <div className="grid min-w-0 gap-x-5 gap-y-4
+          <div className="grid min-w-0 gap-x-4 gap-y-5
             sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-6">
             <div className="min-w-0 sm:col-span-2 lg:col-span-1">
               <Link href="/" aria-label="AuroTap home"
@@ -277,10 +277,10 @@ export default function Footer() {
             </div>
 
             <nav aria-label="Our services" className="min-w-0">
-              <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
+              <h2 className="mb-1 text-sm font-bold tracking-wide text-white">
                 Services
               </h2>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-0 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
                 {SERVICES.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -290,10 +290,10 @@ export default function Footer() {
             </nav>
 
             <nav aria-label="Footer navigation" className="min-w-0">
-              <h2 className="mb-2 text-sm font-bold tracking-wide text-white">
+              <h2 className="mb-1 text-sm font-bold tracking-wide text-white">
                 Explore AuroTap
               </h2>
-              <div className="grid grid-cols-2 gap-x-2 gap-y-0 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
                 {QUICK_LINKS.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
