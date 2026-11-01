@@ -3,6 +3,9 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
 
+// Each authenticated tracking read must reflect the latest server order state.
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -97,7 +100,7 @@ export async function GET(
 
   // Orders store the service key directly in `service_type`.
   // Old field names are added so existing frontend code keeps working.
-  return jsonOk({
+  const response = jsonOk({
     ...row,
     technician_profile: technicianProfile,
     technician_acceptance_status: technicianAcceptanceStatus,
@@ -113,4 +116,6 @@ export async function GET(
     address_snapshot:
       row.address_snapshot ?? (row.address ? { house_flat: row.address } : null),
   });
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+  return response;
 }
