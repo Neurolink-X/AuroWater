@@ -112,6 +112,16 @@ function SocialIcon({ platform }: { platform: FooterSocialPlatform }) {
       </svg>
     );
   }
+  if (platform === 'google') {
+    return (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <path d="M21.35 12.25c0-.75-.07-1.47-.19-2.16H12v4.08h5.23a4.47 4.47 0 0 1-1.94 2.93v2.44h3.15c1.84-1.69 2.91-4.19 2.91-7.29Z" fill="#4285F4" />
+        <path d="M12 21.75c2.63 0 4.83-.87 6.44-2.21l-3.15-2.44c-.87.58-1.99.93-3.29.93-2.53 0-4.68-1.71-5.45-4.01H3.3v2.52A9.75 9.75 0 0 0 12 21.75Z" fill="#34A853" />
+        <path d="M6.55 14.02a5.86 5.86 0 0 1 0-3.74V7.76H3.3a9.75 9.75 0 0 0 0 8.78l3.25-2.52Z" fill="#FBBC05" />
+        <path d="M12 6.27c1.43 0 2.71.49 3.72 1.46l2.79-2.79A9.32 9.32 0 0 0 12 2.25a9.75 9.75 0 0 0-8.7 5.51l3.25 2.52c.77-2.3 2.92-4.01 5.45-4.01Z" fill="#EA4335" />
+      </svg>
+    );
+  }
   return (
     <svg width="20" height="19" viewBox="0 0 24 24"
       fill="currentColor" aria-hidden="true" focusable="false">
@@ -122,7 +132,7 @@ function SocialIcon({ platform }: { platform: FooterSocialPlatform }) {
 
 function SocialChannels() {
   return (
-    <div className="mt-4">
+    <div className="mt-3">
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
         Connect with AuroTap
       </h2>
@@ -233,11 +243,11 @@ export default function Footer() {
         <div aria-hidden="true"
           className="pointer-events-none absolute inset-x-0 top-0 h-px
             bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
-        <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-6
+        <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-5
           sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
-          <div className="grid min-w-0 gap-x-4 gap-y-5
+          <div className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-5
             sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-6">
-            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+            <div className="col-span-2 min-w-0 lg:col-span-1">
               <Link href="/" aria-label="AuroTap home"
                 className="inline-flex min-h-11 items-center gap-2.5 rounded-lg
                   focus-visible:outline focus-visible:outline-2
@@ -280,7 +290,7 @@ export default function Footer() {
               <h2 className="mb-1 text-sm font-bold tracking-wide text-white">
                 Services
               </h2>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
+              <div className="grid grid-cols-1 gap-y-0">
                 {SERVICES.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href}>
                     {item.title}
@@ -302,7 +312,7 @@ export default function Footer() {
               </div>
             </nav>
 
-            <div className="min-w-0 sm:col-span-2 lg:col-span-1">
+            <div className="col-span-2 min-w-0 lg:col-span-1">
               <h2 className="mb-3 text-sm font-bold tracking-wide text-white">
                 Where we operate
               </h2>
