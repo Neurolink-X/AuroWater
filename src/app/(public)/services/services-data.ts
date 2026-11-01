@@ -28,6 +28,22 @@ export const PAGE_KEYWORDS: string[] = Array.from(
     'book plumber online',
     'borewell service Uttar Pradesh',
     'motor pump repair',
+    'RO purifier servicing near me',
+    'water purifier filter replacement',
+    '20 litre drinking water jar home delivery',
+    'RO drinking water for home and office',
+    'water can delivery for events',
+    'water storage tank cleaning service',
+    'leaking tap and pipe repair',
+    'water motor pump installation and repair',
+    'water tanker booking for construction',
+    'online borewell service enquiry',
+    ...LIVE_CITIES.flatMap((city) => [
+      `20 litre RO water delivery in ${city}`,
+      `water purifier repair in ${city}`,
+      `plumbing service in ${city}`,
+      `water tank cleaning in ${city}`,
+    ]),
   ]),
 );
 
