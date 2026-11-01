@@ -415,6 +415,9 @@ export async function POST(req: NextRequest) {
     if (service_type_key === 'borewell' && (body.depth_feet != null || body.rate_per_foot != null || body.casing_feet != null)) {
       return jsonErr('Borewell drilling requires a verified site quotation. Do not submit estimator values as a fixed-price booking.', 400);
     }
+    if (service_type_key === 'water_tanker' && optionKey === 'custom') {
+      return jsonErr('Custom water tanker capacity requires an approved supplier quote. Fixed-price checkout is unavailable.', 400, 'TANKER_QUOTE_REQUIRED');
+    }
     const optionDeltas: Record<string, Record<string, number>> = {
       ro_service: { service: 0, filter_change: 49, amc: 149, new_installation: 599 },
       plumbing: { pipe_leak: 0, tap: 0, drainage: 49, new_fitting: 99, other: 0 },
