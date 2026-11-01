@@ -68,7 +68,7 @@ const GENERIC_PLATFORMS: { platform: FooterSocialPlatform; href: string; label: 
 const SOCIALS = getFooterSocialProfiles();
 
 const FOCUS = 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300';
-const linkClass = `inline-flex min-h-9 items-center rounded-md py-0 text-[13px] leading-5 text-slate-300 transition-colors hover:text-white ${FOCUS}`;
+const linkClass = `inline-flex min-h-8 items-center rounded-md py-0 text-[13px] leading-[1.15] text-slate-300 transition-colors hover:text-white ${FOCUS}`;
 const iconLinkClass = `inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-white/[0.055] text-slate-200 transition-colors hover:border-sky-300/60 hover:bg-sky-400/15 hover:text-white ${FOCUS}`;
 
 /**
@@ -274,8 +274,8 @@ export default function Footer() {
       <footer className="relative isolate w-full min-w-0 overflow-hidden bg-[#081321] text-slate-100" aria-label="AuroTap site footer"
         style={{ backgroundImage: 'radial-gradient(ellipse 55% 80% at 6% 8%, rgba(14,165,233,0.10), transparent 75%), radial-gradient(ellipse 55% 80% at 95% 90%, rgba(16,185,129,0.045), transparent 70%)' }}>
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
-        <div className="relative mx-auto w-full max-w-7xl px-4 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-8 lg:px-8">
-          <div className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-6">
+        <div className="relative mx-auto w-full max-w-7xl px-4 pb-4 pt-4 sm:px-6 sm:pb-5 sm:pt-6 lg:px-8">
+          <div className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-[1.2fr_0.82fr_0.82fr_1.08fr] lg:gap-x-5">
             <div className="col-span-2 min-w-0 lg:col-span-1">
               <Link href="/" aria-label="AuroTap home" className={`inline-flex min-h-11 items-center gap-2.5 rounded-lg ${FOCUS}`}>
                 <Image src="/aurotap-mark.svg" width={40} height={40} alt="" className="size-10 shrink-0 rounded-xl bg-white/10 p-0.5" />
@@ -306,7 +306,7 @@ export default function Footer() {
 
             <nav aria-label="Footer navigation" className="min-w-0">
               <h2 className="mb-1 text-sm font-bold tracking-wide text-white">Explore AuroTap</h2>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0 sm:grid-cols-1">
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0 sm:grid-cols-1">
                 {QUICK_LINKS.map((item) => (
                   <Link key={item.href} className={linkClass} href={item.href} aria-current={pathname === item.href ? 'page' : undefined}>
                     {item.title}
@@ -325,7 +325,7 @@ export default function Footer() {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/10 pt-3 text-sm text-slate-300">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/10 pt-2 text-sm text-slate-300">
             <a href={`mailto:${SUPPORT_EMAIL}`} className={`inline-flex min-h-9 max-w-full items-center gap-1.5 break-all rounded-md hover:text-white ${FOCUS}`}>
               <Mail size={15} className="shrink-0" aria-hidden="true" /> {SUPPORT_EMAIL}
             </a>
@@ -333,7 +333,7 @@ export default function Footer() {
             <Link href="/account-help" className={linkClass}>Can’t sign in?</Link>
           </div>
 
-          <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-4 text-xs leading-5 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-2 flex flex-col gap-2 border-t border-white/10 pt-3 text-xs leading-5 text-slate-400 sm:flex-row sm:items-center sm:justify-between">
             <p suppressHydrationWarning>© {new Date().getFullYear()} AuroTap. All rights reserved.</p>
             <nav aria-label="Policies" className="flex flex-wrap items-center gap-x-5 gap-y-1">
               {LEGAL.map((item) => (
