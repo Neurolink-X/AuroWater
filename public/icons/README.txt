@@ -1,0 +1,1 @@
+Upload PNG files into GitHub public/icons/ folder, overwrite matching names. Do not delete icon-monochrome, shortcuts, splash-logo or aurotap-icon. No favicon is included because root public/favicon.ico should be handled separately. Check layout.tsx favicon metadata and sw.js cache version after icon update.
