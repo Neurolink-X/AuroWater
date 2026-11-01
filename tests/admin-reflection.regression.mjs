@@ -50,3 +50,13 @@ test('sparse published pricing stays bookable using approved defaults while city
   assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
   assert.match(resolver, /Object\.hasOwn\(published, 'services'\)/);
 });
+
+test('Noida legacy coverage matches the production launch radius', () => {
+  const geo = read('src/lib/geo.ts');
+  assert.match(geo, /city: 'Noida'.*radiusKm: 25/);
+  const migration = read('sql/launch_booking_city_catalog_20261101.sql');
+  assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
+  assert.match(migration, /is_active = true/);
+  assert.match(migration, /services = NULL/);
+  assert.match(migration, /radius_km = CASE WHEN lower\(city\) = 'noida' THEN 25/);
+});
