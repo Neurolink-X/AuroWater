@@ -44,6 +44,8 @@ assert.match(orderApi, /TANKER_QUOTE_REQUIRED/);
 assert.match(endpoint, /publish_pricing_version/);
 assert.match(endpoint, /active_pricing_issues/);
 assert.match(panel, /Published pricing needs repair/);
+assert.match(panel, /services:\{\[key\]:v===''\?0:Number\(v\)\}/);
+assert.match(panel, /const publishConfig = config/);
 console.log('Published price, city override, booking total, and quote guards verified.');
 
 console.log('Centralized pricing policy and admin control regression checks passed.');
