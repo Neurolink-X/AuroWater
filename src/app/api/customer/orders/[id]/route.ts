@@ -25,7 +25,7 @@ export async function GET(
   // Latency-sensitive tracking read: dispatch maintenance runs independently.
   const query = auth.ctx.supabase
     .from('orders')
-    .select(`id, order_number, status, created_at, updated_at, service_type,
+    .select(`id, order_number, pricing_version, pricing_snapshot, status, created_at, updated_at, service_type,
       address_snapshot, address, scheduled_at, note, total_amount, base_amount,
       platform_fee, convenience_fee, gst_amount, emergency_charge,
       payment_method, payment_status, technician_id, supplier_id,

@@ -295,10 +295,10 @@ function WhyChooseUs() {
   );
 }
 
-function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number }) {
+function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice, convenience, delivery, gstRate }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number; convenience: number; delivery: number; gstRate: number }) {
   const items: [string, string][] = [
     ['What does a 20L RO can cost?',
-      `Normal RO is ${inr(normalPrice)} per can, chilled RO is ${inr(chilledPrice)} per can, and subscriptions are ${inr(subscriptionPrice)} per can. Delivery is included.`],
+      `Normal RO is ${inr(normalPrice)} per can, chilled RO is ${inr(chilledPrice)} per can, and subscriptions are ${inr(subscriptionPrice)} per can. Convenience ${inr(convenience)}, delivery ${inr(delivery)} and GST ${gstRate * 100}% are shown before confirmation.`],
     ['How do I pay?',
       'Pay cash or UPI when your order is delivered. Online card and netbanking payment is coming soon.'],
     ['Can I pause or cancel a subscription?',
@@ -593,6 +593,8 @@ function ScopeCard({
 function ServicePriceBox({
   lines,
   convenience,
+  delivery,
+  gst,
   emergency,
   total,
   note,
@@ -600,6 +602,8 @@ function ServicePriceBox({
 }: {
   lines: PriceLine[];
   convenience: number;
+  delivery: number;
+  gst: number;
   emergency: number;
   total: number;
   note: string;
@@ -631,6 +635,8 @@ function ServicePriceBox({
         </div>
       )}
 
+      {delivery > 0 && <div className="flex justify-between text-slate-600"><span>Delivery fee</span><span>{inr(delivery)}</span></div>}
+      {gst > 0 && <div className="flex justify-between text-slate-600"><span>GST</span><span>{inr(gst)}</span></div>}
       {emergency > 0 && (
         <div className="flex justify-between gap-3 text-amber-700">
           <span>Emergency surcharge</span>
@@ -2060,7 +2066,7 @@ export default function BookingWizard() {
             ) : (
               <ServicePriceBox
                 lines={priceLines}
-                convenience={breakdown.convenience}
+                convenience={settings.convenience_fee} delivery={settings.delivery_fee} gst={breakdown.gst}
                 emergency={breakdown.emergency}
                 total={breakdown.total}
                 note={priceNote(draft)}
@@ -2075,7 +2081,7 @@ export default function BookingWizard() {
         {view === 1 && (
           <>
             <WhyChooseUs />
-            <FaqList emergencySurcharge={settings.emergency_surcharge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
+            <FaqList convenience={settings.convenience_fee} delivery={settings.delivery_fee} gstRate={settings.gst_rate} emergencySurcharge={settings.emergency_surcharge + settings.surge_charge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
           </>
         )}
 
@@ -2513,8 +2519,10 @@ export default function BookingWizard() {
 
               <div className="flex justify-between text-slate-900">
                 <span className="text-slate-600">Convenience</span>
-                <span>{inr(breakdown.convenience)}</span>
+                <span>{inr(settings.convenience_fee)}</span>
               </div>
+              <div className="flex justify-between text-slate-900"><span>Delivery fee</span><span>{inr(settings.delivery_fee)}</span></div>
+              <p className="text-xs text-slate-500">Pricing version {settings.pricing_version ?? 'loading'} · Fees for the selected address, saved with your order.</p>
               {loyaltyDiscountAmount > 0 && (
                 <div className="flex justify-between font-bold text-sky-800">
                   <span>{selectedLoyaltyReward === 'free_can' ? 'Loyalty free-can reward' : 'Loyalty service discount'}</span>
@@ -2535,7 +2543,7 @@ export default function BookingWizard() {
               )}
               {draft.isEmergency && (
                 <div className="flex justify-between text-amber-700">
-                  <span>Emergency</span>
+                  <span>Emergency surcharge + surge fee</span>
                   <span>{inr(breakdown.emergency)}</span>
                 </div>
               )}

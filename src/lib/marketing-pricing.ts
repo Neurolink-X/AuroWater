@@ -74,16 +74,10 @@ export const PIN_CITY_NAMES = names(PIN_CITIES);
 export const MAX_LOCK_MONTHS = Math.max(...VOLUME_PLANS.map(p => p.lockMonths));
 
 export const FAQS = [
-  { q: `How much does 20L RO water delivery cost?`,
-    a: `Normal RO is ₹${PRICING.water.normal} per 20L can and Chilled RO is ₹${PRICING.water.chilled} per 20L can. Monthly plans lock that price for up to ${MAX_LOCK_MONTHS} months.` },
-  { q: 'How do monthly water plans work?',
-    a: `Plans lock your per-can price (₹${CAN_FLOOR.normal} normal, ₹${CAN_FLOOR.chilled} chilled) even if list prices change: ${PRICING.plans[1].lockMonths} months from ${PRICING.plans[1].minCans} cans a month, ${PRICING.plans[2].lockMonths} months from ${PRICING.plans[2].minCans} cans and ${PRICING.plans[3].lockMonths} months from ${PRICING.plans[3].minCans} cans. Members also get an extra discount on future list prices, and the price never goes below ₹${CAN_FLOOR.normal}. Use the savings calculator to compare with what you pay today.` },
-  { q: 'How much does water tank cleaning cost?',
-    a: `Tank cleaning starts from ₹${PRICING.tank[0].from} for tanks up to 500 litres, ₹${PRICING.tank[1].from} up to 1,000 litres and ₹${PRICING.tank[2].from} up to 2,000 litres. Larger or heavily soiled tanks are quoted before work begins.` },
-  { q: 'What is the plumber visit charge?',
-    a: `The visit charge is ₹${PRICING.plumber.visitFee} and is adjusted against the repair bill if you go ahead with the job. You see the price before you confirm.` },
-  { q: 'Which cities do you serve?',
-    a: `AuroTap is live in ${LIVE_CITY_NAMES}. We also serve ${PIN_CITY_NAMES} on approved PIN codes. Enter your address at booking and we confirm availability before you pay.` },
-  { q: 'Which payment methods are accepted?',
-    a: 'Cash and UPI are supported where available. The payment methods for your booking are shown before you confirm.' },
+  {q:'How much does 20L RO water delivery cost?',a:'Current normal and chilled RO rates, applicable city prices, fees and taxes are shown before you confirm a booking.'},
+  {q:'How do monthly water plans work?',a:'Each recurring delivery is paid separately under its saved pricing contract. New plans use the currently published rates. You can pause or cancel future deliveries.'},
+  {q:'How much does water tank cleaning cost?',a:'Current base rates are shown at booking. Tank size, scope and any additional work are quoted before confirmation.'},
+  {q:'What is the plumber visit charge?',a:'Current labour base rates and applicable fees are shown at booking. Additional work and materials need an agreed quote.'},
+  {q:'Which cities do you serve?',a:'Check the live service-area directory or enter your address at booking for current city and area availability.'},
+  {q:'Which payment methods are accepted?',a:'Cash and UPI are supported where available. Review the payment methods shown before confirming your booking.'},
 ] as const;
