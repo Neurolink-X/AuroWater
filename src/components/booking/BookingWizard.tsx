@@ -1968,7 +1968,7 @@ export default function BookingWizard() {
                     <ScopeCard
                       key={o.key}
                       option={o}
-                      priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
+                      priceOverride={settings.service_base_prices[`water_tanker_${o.key}`] ?? o.extra}
                       active={draft.subOptionKey === o.key}
                       onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                     />
