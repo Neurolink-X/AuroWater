@@ -376,7 +376,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     if (abortRef.current && !abortRef.current.signal.aborted) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const kill = window.setTimeout(() => ctrl.abort(), 5000);
+    let timedOut = false;
+    const kill = window.setTimeout(() => { timedOut = true; ctrl.abort(); }, 5000);
 
     setLoading(true);
     setError(null);
@@ -390,7 +391,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
         if (!city) writeCache(next);
       }
     } catch (cause: unknown) {
-      if (!ctrl.signal.aborted) setError(cause instanceof Error ? cause.message : 'Live pricing unavailable');
+      if (timedOut || !ctrl.signal.aborted) setError(timedOut ? 'Current prices took too long to load. Please retry.' : cause instanceof Error ? cause.message : 'Live pricing unavailable');
     } finally {
       window.clearTimeout(kill);
       if (abortRef.current === ctrl) abortRef.current = null;
