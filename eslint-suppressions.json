@@ -9,6 +9,14 @@
       "count": 1
     }
   },
+  "src/app/(public)/how-it-works/page.tsx": {
+    "react-hooks/refs": {
+      "count": 3
+    },
+    "react/no-unescaped-entities": {
+      "count": 3
+    }
+  },
   "src/app/admin/dashboard/page.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -44,14 +52,6 @@
       "count": 1
     }
   },
-  "src/app/technician/dashboard/page.tsx": {
-    "react/no-unescaped-entities": {
-      "count": 3
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
   "src/app/technician/job/[id]/page.tsx": {
     "@typescript-eslint/no-explicit-any": {
       "count": 3
@@ -64,7 +64,7 @@
   },
   "src/components/layout/Header.tsx": {
     "react-hooks/set-state-in-effect": {
-      "count": 5
+      "count": 3
     }
   },
   "src/components/layout/SiteNav.tsx": {
@@ -130,37 +130,6 @@
   },
   "src/types/index.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    }
-  },
-  "src/app/(public)/about/page.tsx": {
-    "react/no-unescaped-entities": {
-      "count": 3
-    }
-  },
-  "src/app/(public)/contact/page.tsx": {
-    "react/no-unescaped-entities": {
-      "count": 6
-    }
-  },
-  "src/app/(public)/how-it-works/page.tsx": {
-    "react-hooks/refs": {
-      "count": 3
-    },
-    "react/no-unescaped-entities": {
-      "count": 3
-    }
-  },
-  "src/app/(public)/page.tsx": {
-    "react/no-unescaped-entities": {
-      "count": 2
-    }
-  },
-  "src/app/(public)/technicians/page.tsx": {
-    "react/no-unescaped-entities": {
-      "count": 4
-    },
-    "react-hooks/set-state-in-effect": {
       "count": 1
     }
   }
