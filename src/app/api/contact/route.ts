@@ -61,10 +61,17 @@ export async function POST(req: NextRequest) {
     return jsonErr('Contact form is temporarily unavailable. Please call or WhatsApp us.', 503, 'UNAVAILABLE');
   }
 
-  // Durable (database-backed) limits per network address and per email. A limiter outage never blocks genuine users.
+  // Durable per-network and per-email limits. A limiter outage must not silently
+  // remove abuse protection on this unauthenticated public write endpoint.
   for (const [scope, id, cfg] of [['contact-ip', clientIp(req), PER_IP], ['contact-email', email, PER_EMAIL]] as const) {
     const rate = await consumeRateLimit(db, scope, id, cfg.max, cfg.windowSeconds);
-    if (rate.unavailable) console.error('[contact] rate limiter unavailable', scope);
+    if (rate.unavailable) {
+      console.error('[contact] rate limiter unavailable', scope);
+      const response = jsonErr('Messaging is temporarily unavailable. Please try again later.', 503, 'RATE_LIMIT_UNAVAILABLE');
+      response.headers.set('Retry-After', '60');
+      response.headers.set('Cache-Control', 'no-store');
+      return response;
+    }
     if (!rate.allowed) return limited(rate.retryAfter);
   }
 
