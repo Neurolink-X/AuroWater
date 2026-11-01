@@ -39,3 +39,14 @@ test('city pricing retains global service rates when city overrides are partial'
   const resolver = read('src/lib/pricing/resolve-effective.ts');
   assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
 });
+
+test('sparse published pricing stays bookable using approved defaults while city patches win', () => {
+  const resolver = read('src/lib/pricing/resolve-effective.ts');
+  assert.match(resolver, /water_normal: 20/);
+  assert.match(resolver, /water_chilled: 25/);
+  assert.match(resolver, /water_tanker_1000: 300/);
+  assert.match(resolver, /water_tanker_custom: 0/);
+  assert.match(resolver, /\.\.\.baseline\.services, \.\.\.published\.services/);
+  assert.match(resolver, /\.\.\.globalServices, \.\.\.cityServices/);
+  assert.match(resolver, /Object\.hasOwn\(published, 'services'\)/);
+});
