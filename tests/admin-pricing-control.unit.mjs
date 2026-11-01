@@ -5,6 +5,7 @@ const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf
 const rates = read('src/lib/booking-pricing.ts');
 const panel = read('src/app/admin/pricing/page.tsx');
 const legacy = read('src/app/admin/settings/page.tsx');
+const legacyApi = read('src/app/api/admin/settings/route.ts');
 const endpoint = read('src/app/api/admin/pricing/route.ts');
 const guard = read('sql/pricing_version_floor_guard_20261031.sql');
 assert.match(rates, /subscription: 20/);
@@ -15,6 +16,8 @@ assert.match(panel, /Remove city override from draft/);
 assert.match(legacy, /ENFORCE_LAUNCH_PRICING = false/);
 assert.match(legacy, /if \(LOCKED_KEYS\.has\(key\)\) continue/);
 assert.match(legacy, /href="\/admin\/pricing"/);
+assert.match(legacyApi, /versionedPriceKeys/);
+assert.match(legacyApi, /return jsonErr\([\s\S]*?Admin → Pricing[\s\S]*?409/);
 assert.match(endpoint, /seenCities\.has\(city\)/);
 assert.match(guard, /pricing_version_floor_guard/);
 assert.match(guard, /water_chilled'\)::numeric, -1\) < 25/);
