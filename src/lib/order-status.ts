@@ -1,4 +1,4 @@
-import { formatOrderReference } from '@/lib/order-reference';
+import { formatOrderReference } from './order-reference.ts';
 /**
  * Single source of truth for how an order looks to a customer.
  * Home, History and Track must all use this so every page agrees.
