@@ -1447,6 +1447,16 @@ export default function BookingWizard() {
 
   const saveInlineAddress = async () => {
     if (savingAddress) return;
+    // Do not submit customer-only mutations for supplier, technician or admin sessions.
+    // A role mismatch must never be "fixed" by elevating the profile on the client.
+    if (!session?.loggedIn) {
+      toast.error('Sign in with a customer account to save a delivery address.');
+      return;
+    }
+    if (session.role !== 'customer') {
+      toast.error('This account is registered for a different role. Sign in with a customer account to save an address.');
+      return;
+    }
     const na = draft.newAddress ?? {};
     if (!na.house_flat?.trim() || !na.area?.trim() || !na.city?.trim() || !na.pincode?.trim()) {
       toast.error('Fill flat/house, area, city, and pincode (6 digits).'); return;
@@ -1507,7 +1517,11 @@ export default function BookingWizard() {
       setLocationStep('idle'); setDetectedLocation(null); setLocationError(null);
       toast.success('Address saved and selected ✓');
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : 'Could not save address.');
+      if (e instanceof ApiError && e.code === 'CUSTOMER_ROLE_REQUIRED') {
+        toast.error('Your account does not have customer access. Please sign in with a customer account.');
+      } else {
+        toast.error(e instanceof ApiError ? e.message : 'Could not save address.');
+      }
     } finally { setSavingAddress(false); }
   };
 
