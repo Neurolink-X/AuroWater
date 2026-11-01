@@ -384,6 +384,7 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   const out: Partial<BookingDraft> = {};
   if (typeof r.serviceKey === 'string' && SERVICE_LIST.some((s) => s.key === r.serviceKey)) out.serviceKey = r.serviceKey;
   if (typeof r.subOptionKey === 'string') out.subOptionKey = r.subOptionKey;
+  if (out.serviceKey === 'borewell' && !['inspection', 'repair'].includes(out.subOptionKey ?? '')) out.subOptionKey = 'inspection';
   if (r.plumberType === 'labour' || r.plumberType === 'mistri') out.plumberType = r.plumberType;
   const q = Number(r.canQuantity);
   if (Number.isFinite(q) && q >= 1) out.canQuantity = Math.min(MAX_CANS_SUBSCRIPTION, Math.floor(q));
@@ -433,7 +434,7 @@ function getPriceLines(draft: BookingDraft, settings: PlatformSettings): PriceLi
   const baseLabel =
     draft.serviceKey === 'plumbing'
       ? `Base fee · ${PLUMBER_LABELS[draft.plumberType ?? 'labour']}`
-      : 'Base service fee';
+      : draft.serviceKey === 'borewell' ? 'Inspection / diagnosis fee' : 'Base service fee';
 
   const lines: PriceLine[] = [
     { label: baseLabel, amount: serviceBaseFee(draft, settings), isAddon: false },
@@ -801,6 +802,7 @@ export default function BookingWizard() {
       const h = parseInt(hm[1], 10);
       if (h >= 1 && h <= MAX_FORM_STEP) start = Math.min(h, restored ? restoredStep : 1);
     }
+    if (base.serviceKey === 'borewell' && !['inspection', 'repair'].includes(base.subOptionKey)) base.subOptionKey = 'inspection';
     // A service chosen via the URL stays on page 1: its options now sit right under the service picker.
 
     /* Re-validate the schedule: a draft from earlier today/yesterday may be stale */
