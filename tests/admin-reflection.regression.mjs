@@ -60,3 +60,18 @@ test('Noida legacy coverage matches the production launch radius', () => {
   assert.match(migration, /services = NULL/);
   assert.match(migration, /radius_km = CASE WHEN lower\(city\) = 'noida' THEN 25/);
 });
+
+test('launch migration creates citywide available catch-all zones for all requested cities', () => {
+  const migration = read('sql/launch_booking_city_catalog_20261101.sql');
+  for (const city of ['kanpur', 'lucknow', 'noida', 'gorakhpur']) {
+    assert.match(migration, new RegExp(city));
+  }
+  assert.match(migration, /is_catch_all, notes/);
+  assert.match(migration, /'AVAILABLE'/);
+  assert.match(migration, /services = NULL/);
+  assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
+});
+test('serviceability keeps listed full cities available through legacy fallback', () => {
+  const zones = read('src/lib/zones.ts');
+  assert.match(zones, /isCityServed\(city\) \|\| \(hasCoords && getServiceZone\(lat, lng\) !== null\)/);
+});
