@@ -10,7 +10,7 @@ import React, {
 } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { getToken, getUser, logout, verifyToken } from '@/lib/api-client';
+import { logout, verifyToken } from '@/lib/api-client';
 import type { User } from '@/types';
 
 /* =============================================================
@@ -572,9 +572,14 @@ function NavLink({
   collapsed: boolean;
   onNavigate: (href: string) => void;
 }) {
+  const router = useRouter();
+  const prefetch = () => router.prefetch(item.href);
   return (
     <Link
       href={item.href}
+      prefetch={false}
+      onMouseEnter={prefetch}
+      onFocus={prefetch}
       title={collapsed ? item.label : undefined}
       aria-current={active ? 'page' : undefined}
       onClick={(event) => {
@@ -699,19 +704,7 @@ export default function AdminShell({
       let redirected = false;
 
       try {
-        if (!silent) {
-          const token = await getToken();
-          const localUser = getUser();
-
-          if (!isActive()) return;
-
-          if (!token || !localUser) {
-            redirected = true;
-            router.replace(loginHref());
-            return;
-          }
-        }
-
+        // verifyToken authenticates against the server; avoid serial local token reads.
         let verified = await verifyToken();
         if (!isActive()) return;
 
