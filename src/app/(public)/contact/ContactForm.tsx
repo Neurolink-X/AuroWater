@@ -2,9 +2,9 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, Phone, Send } from 'lucide-react';
+import { CheckCircle2, Loader2, MessageCircle, Send } from 'lucide-react';
 import {
-  LIMITS, SUBJECTS, SUBJECT_ALIASES, contactSchema, formatPhone, telHref, type ContactInput,
+  LIMITS, SUBJECTS, SUBJECT_ALIASES, contactSchema, whatsappHref, type ContactInput,
 } from '@/lib/contact-shared';
 import { trackEvent } from './track';
 
@@ -39,7 +39,7 @@ async function postContact(body: unknown) {
     return json.data ?? {};
   } catch (e) {
     if (e instanceof Error && 'status' in e) throw e;
-    throw new Error(ctrl.signal.aborted ? 'This is taking too long. Check your connection, or call us.' : 'Network problem. Check your connection, or call us.');
+    throw new Error(ctrl.signal.aborted ? 'This is taking too long. Check your connection and try again.' : 'Network problem. Check your connection and try again.');
   } finally { clearTimeout(timer); }
 }
 
@@ -108,11 +108,11 @@ export default function ContactForm({ phone }: { phone: string }) {
         <span className="grid size-16 place-items-center rounded-full bg-gradient-to-br from-emerald-600 to-emerald-300 text-white shadow-lg shadow-emerald-600/30"><CheckCircle2 size={30} aria-hidden="true" /></span>
         <h3 className="text-2xl font-black tracking-tight text-emerald-950">Message sent!</h3>
         <p className="max-w-sm text-sm leading-6 text-slate-600">
-          We’ve received your message and will reply {'within 24 hours'}. {done.reference && <>Your reference is <strong className="font-mono">{done.reference}</strong>.</>}
+          Your message has been received. Our team will review it during support hours. {done.reference && <>Your reference is <strong className="font-mono">{done.reference}</strong>.</>}
         </p>
-        <a href={telHref(phone)} onClick={() => trackEvent('contact_call_click', { placement: 'success' })}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white hover:bg-emerald-700">
-          <Phone size={16} aria-hidden="true" /> Urgent? Call {formatPhone(phone)}
+        <a href={whatsappHref(phone)} onClick={() => trackEvent('contact_whatsapp_click', { placement: 'success' })}
+          target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white hover:bg-emerald-700">
+          <MessageCircle size={16} aria-hidden="true" /> Continue on WhatsApp
         </a>
         <button type="button" onClick={() => setDone(null)} className="text-sm font-bold text-emerald-700 underline">Send another message</button>
       </div>
@@ -130,7 +130,7 @@ export default function ContactForm({ phone }: { phone: string }) {
         </Row>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Row id="c-phone" label="Phone number" error={shown('phone')} hint="So we can call you back quickly.">
+        <Row id="c-phone" label="Phone number" error={shown('phone')} hint="For updates about your enquiry.">
           <input {...bind('phone')} required type="tel" inputMode="tel" autoComplete="tel" maxLength={20} placeholder="98XXXXXXXX" className={input(!!shown('phone'))} />
         </Row>
         <Row id="c-subject" label="Subject" error={shown('subject')}>
@@ -150,7 +150,7 @@ export default function ContactForm({ phone }: { phone: string }) {
 
       {error && (
         <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
-          {error} <a href={telHref(phone)} className="underline">Call {formatPhone(phone)}</a>
+          {error} <a href={whatsappHref(phone)} target="_blank" rel="noopener noreferrer" className="underline">Message us on WhatsApp</a>
         </p>
       )}
 
