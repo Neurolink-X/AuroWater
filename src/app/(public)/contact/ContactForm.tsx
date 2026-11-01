@@ -43,7 +43,7 @@ async function postContact(body: unknown) {
   } finally { clearTimeout(timer); }
 }
 
-export default function ContactForm({ phone }: { phone: string }) {
+export default function ContactForm({ whatsappNumber }: { whatsappNumber: string }) {
   const [form, setForm] = useState<Required<ContactInput>>(EMPTY);
   const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({});
   const [attempted, setAttempted] = useState(false);
@@ -110,7 +110,7 @@ export default function ContactForm({ phone }: { phone: string }) {
         <p className="max-w-sm text-sm leading-6 text-slate-600">
           Your message has been received. Our team will review it during support hours. {done.reference && <>Your reference is <strong className="font-mono">{done.reference}</strong>.</>}
         </p>
-        <a href={whatsappHref(phone)} onClick={() => trackEvent('contact_whatsapp_click', { placement: 'success' })}
+        <a href={whatsappHref(whatsappNumber)} onClick={() => trackEvent('contact_whatsapp_click', { placement: 'success' })}
           target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-bold text-white hover:bg-emerald-700">
           <MessageCircle size={16} aria-hidden="true" /> Continue on WhatsApp
         </a>
@@ -150,7 +150,7 @@ export default function ContactForm({ phone }: { phone: string }) {
 
       {error && (
         <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
-          {error} <a href={whatsappHref(phone)} target="_blank" rel="noopener noreferrer" className="underline">Message us on WhatsApp</a>
+          {error} <a href={whatsappHref(whatsappNumber)} target="_blank" rel="noopener noreferrer" className="underline">Message us on WhatsApp</a>
         </p>
       )}
 
