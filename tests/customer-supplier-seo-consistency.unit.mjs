@@ -85,3 +85,34 @@ test('local service SEO uses supported cities and avoids unsupported coverage cl
   assert.match(waterDelivery, /'@type': 'Service'/);
   assert.match(waterDelivery, /areaServed: active\.map/);
 });
+
+test('concurrent checkout attempts use a database unique key, not only a time-based lookup', () => {
+  const checkout = read('src/app/api/customer/orders/route.ts');
+  const wizard = read('src/components/booking/BookingWizard.tsx');
+  const migration = read('supabase/migrations/202611010001_checkout_request_idempotency.sql');
+  assert.match(migration, /add column if not exists checkout_request_id uuid/i);
+  assert.match(migration, /create unique index if not exists orders_customer_checkout_request_unique_idx/i);
+  assert.match(migration, /\(customer_id, checkout_request_id\)/);
+  assert.match(checkout, /CHECKOUT_IDEMPOTENCY_DB_ENABLED/);
+  assert.match(checkout, /checkout_request_id: checkoutKey/);
+  assert.match(checkout, /oErr\?\.code === '23505'/);
+  assert.match(checkout, /findExistingCheckout\(\)/);
+  assert.match(wizard, /checkoutAttempt = useRef/);
+  assert.match(wizard, /crypto\.randomUUID\(\)/);
+  assert.match(wizard, /checkout_request_id: key/);
+});
+
+test('rate-limit infrastructure failure never silently authorizes public writes or private file uploads', () => {
+  const contact = read('src/app/api/contact/route.ts');
+  const upload = read('src/app/api/files/upload/route.ts');
+  const limiter = read('src/lib/api/rate-limit.ts');
+  const sql = read('supabase/migrations/202610300003_account_recovery_durable_controls.sql');
+  assert.match(contact, /rate\.unavailable/);
+  assert.match(upload, /rate\.unavailable/);
+  assert.match(contact, /RATE_LIMIT_UNAVAILABLE/);
+  assert.match(upload, /RATE_LIMIT_UNAVAILABLE/);
+  assert.match(contact, /Retry-After/);
+  assert.match(upload, /Retry-After/);
+  assert.match(limiter, /createHmac/);
+  assert.match(sql, /on conflict \(key_hash\) do update/);
+});
