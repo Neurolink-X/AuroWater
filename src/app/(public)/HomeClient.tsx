@@ -1,4 +1,5 @@
 'use client';
+import { pricingFaqs } from '@/lib/pricing/presentation';
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -698,7 +699,7 @@ export default function HomeClient() {
           <div className="max-w-3xl mx-auto px-5 sm:px-8">
             <h2 className="font-display text-3xl font-extrabold text-slate-900 text-center mb-8">Frequently asked questions</h2>
             <div className="space-y-3">
-              {FAQS.map((f, i) => (
+              {[...pricingFaqs(settings), ...FAQS.slice(4)].map((f, i) => (
                 <div key={f.q} className="rounded-2xl bg-white border border-slate-100 shadow-sm">
                   <h3>
                     <button type="button" onClick={() => setOpenFaq(openFaq === i ? null : i)} aria-expanded={openFaq === i}
