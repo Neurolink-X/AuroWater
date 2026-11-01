@@ -132,14 +132,14 @@ export async function POST(req: NextRequest) {
     const cityIssues = validateEffectivePriceBook(resolvedCity);
     if (cityIssues.length) return jsonErr('Invalid pricing for ' + city + ': ' + cityIssues[0].field, 400);
   }
-  const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : new Date();
-  if (typeof body.effective_from === 'string' && !/(Z|[+-]\\d{2}:\\d{2})$/.test(body.effective_from)) {
+  const date = typeof body.effective_from === 'string' ? new Date(body.effective_from) : null;
+  if (typeof body.effective_from === 'string' && !/(Z|[+-]\d{2}:\d{2})$/.test(body.effective_from)) {
     return jsonErr('Effective date must include an explicit timezone.', 400);
   }
-  if (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 60_000) return jsonErr('Effective date must be now or in the future.', 400);
+  if (date && (Number.isNaN(date.getTime()) || date.getTime() < Date.now() - 120_000)) return jsonErr('Effective date must be now or in the future.', 400);
 
   const { data, error } = await auth.ctx.supabase.rpc('publish_pricing_version', {
-    p_effective_from: date.toISOString(),
+    p_effective_from: date ? new Date(Math.max(date.getTime(), Date.now())).toISOString() : null,
     p_reason: reason,
     p_config: result.config,
   });
@@ -148,8 +148,9 @@ export async function POST(req: NextRequest) {
     console.error('[admin/pricing] atomic publish failed', error);
     const code = String(error?.code ?? '');
     return jsonErr(code === '42501' ? 'Administrator access required.'
+      : code === '22023' ? (error?.message ?? 'Invalid pricing configuration.')
       : code === '23505' ? 'A concurrent pricing publish occurred. Refresh history and try again.'
-      : 'Pricing could not be published. The database transaction was rolled back.', code === '42501' ? 403 : 409);
+      : 'Pricing could not be published. The database transaction was rolled back.', code === '42501' ? 403 : code === '22023' ? 400 : code === '23505' ? 409 : 503);
   }
   for (const route of ['/', '/pricing', '/services', '/book', '/service-areas']) revalidatePath(route);
   return jsonOk(published, 201);

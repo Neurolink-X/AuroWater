@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
@@ -57,5 +58,6 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     meta: { name: data.name, city: data.city, from: before.status, to: data.status, changed: Object.keys(parsed.value), services: data.services, customer_message: data.customer_message },
   });
 
+  for (const path of ['/', '/service-areas', '/book', '/services']) revalidatePath(path);
   return jsonOk(data);
 }

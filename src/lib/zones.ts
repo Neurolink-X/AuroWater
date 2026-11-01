@@ -96,6 +96,13 @@ export async function resolveServiceability(
   let zones: ZoneRow[] = [];
   try {
     const db: any = createServiceClient();
+    const { data: cityRow, error: cityError } = await db.from('cities')
+      .select('status').ilike('name', city.replace(/[%_]/g, (m) => `\\${m}`)).maybeSingle();
+    if (cityError) return lookupError();
+    if (cityRow && cityRow.status !== 'active') {
+      return { serviceable: false, status: 'COMING_SOON', zone: null,
+        message: `Bookings are currently paused in ${city}. Please check again later.`, services: null };
+    }
     const { data, error } = await db
       .from('service_zones')
       .select('*')

@@ -367,7 +367,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   /* ── Network refresh ── */
   const refresh = React.useCallback(async (): Promise<void> => {
-    abortRef.current?.abort();
+    if (abortRef.current && !abortRef.current.signal.aborted) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     const kill = window.setTimeout(() => ctrl.abort(), 5000);
@@ -386,6 +386,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       if (!ctrl.signal.aborted) setError(cause instanceof Error ? cause.message : 'Live pricing unavailable');
     } finally {
       window.clearTimeout(kill);
+      if (abortRef.current === ctrl) abortRef.current = null;
       setLoading(false);
     }
   }, [city]);
@@ -405,9 +406,13 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   React.useEffect(() => {
     const onFocus = () => { void refresh(); };
     const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && navigator.onLine) void refresh();
+    }, 30_000);
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
+      window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
     };
