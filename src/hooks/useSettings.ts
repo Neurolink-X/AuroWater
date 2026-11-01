@@ -413,6 +413,20 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     };
   }, [refresh]);
 
+  /* Admin publishing invalidates pricing in every active tab. The API remains authoritative. */
+  React.useEffect(() => {
+    const onPublished = () => { void refresh(); };
+    const onStoragePublished = (event: StorageEvent) => {
+      if (event.key === 'aw_pricing_published_at') void refresh();
+    };
+    window.addEventListener('aurotap:pricing-published', onPublished);
+    window.addEventListener('storage', onStoragePublished);
+    return () => {
+      window.removeEventListener('aurotap:pricing-published', onPublished);
+      window.removeEventListener('storage', onStoragePublished);
+    };
+  }, [refresh]);
+
   /* ── Cross-tab sync: global settings only ── */
   React.useEffect(() => {
     if (typeof window === 'undefined' || city) return;
