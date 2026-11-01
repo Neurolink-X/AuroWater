@@ -1,4 +1,5 @@
 'use client';
+import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -230,7 +231,7 @@ export default function AdminOrdersPage() {
         'Date',
       ];
       const csvRows = all.map((o) => [
-        o.id,
+        formatOrderReference(o),
         o.customer_name ?? '',
         (o.service_type ?? '').replace(/_/g, ' '),
         Number(o.total_amount || 0),
@@ -432,7 +433,7 @@ export default function AdminOrdersPage() {
                     onClick={() => void openDrawer(order.id)}
                   >
                     <td className="px-4 sm:px-6 py-4 text-slate-100 font-semibold font-mono text-xs">
-                      {order.id.slice(0, 8)}…
+                      {formatOrderReference(order)}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-slate-200">
                       <div>{order.customer_name ?? '—'}</div>
@@ -523,9 +524,7 @@ export default function AdminOrdersPage() {
             </button>
             <p className="text-xs text-slate-500 font-mono">
               Order #
-              {typeof drawerOrder?.order_number === 'string' && drawerOrder.order_number
-                ? drawerOrder.order_number
-                : drawerOrder?.id?.slice(0, 8) ?? '—'}
+              {formatOrderReference(drawerOrder)}
             </p>
             {drawerOrder?.status ? (
               <span

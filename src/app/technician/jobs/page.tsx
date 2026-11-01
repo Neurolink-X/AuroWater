@@ -1,4 +1,5 @@
 'use client';
+import { formatOrderReference } from '@/lib/order-reference';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,6 +22,7 @@ import type { User } from '@/types';
 interface Job {
   id: string | number;
   order_id?: string | number;
+  order_number?: string | null;
   status: string;
   service_name: string;
   customer_name: string;
@@ -619,9 +621,7 @@ export default function TechnicianJobs() {
 
                         <InfoBlock
                           label="Job ID"
-                          value={String(
-                            job.order_id ?? job.id
-                          )}
+                          value={formatOrderReference(job)}
                         />
 
                       </div>

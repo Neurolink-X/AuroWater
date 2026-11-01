@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
+import { parseOrderIdentifier } from '@/lib/order-reference';
 
 export async function PUT(
   req: NextRequest,
@@ -22,12 +23,15 @@ export async function PUT(
     /* optional body */
   }
 
-  const { data: existing, error: e0 } = await auth.ctx.supabase
+  const identifier = parseOrderIdentifier(id);
+  if (!identifier) return jsonErr('Enter a valid order reference.', 400);
+
+  const lookup = auth.ctx.supabase
     .from('orders')
-    .select('id, status, service_type, supplier_id')
-    .eq('id', id)
-    .eq('customer_id', auth.ctx.profile.id)
-    .maybeSingle();
+    .select('id, status, service_type, supplier_id');
+  const { data: existing, error: e0 } = identifier.kind === 'uuid'
+    ? await lookup.eq('id', identifier.value).eq('customer_id', auth.ctx.profile.id).maybeSingle()
+    : await lookup.ilike('order_number', identifier.value).eq('customer_id', auth.ctx.profile.id).maybeSingle();
 
   if (e0) console.error('[orders/cancel] lookup failed:', e0);
   if (e0 || !existing) {
@@ -47,7 +51,7 @@ export async function PUT(
       cancel_reason: reason || null,
       cancelled_at: new Date().toISOString(),
     })
-    .eq('id', id)
+    .eq('id', existing.id)
     .eq('customer_id', auth.ctx.profile.id)
     .in('status', ['PENDING', 'ASSIGNED'])
     .select('*')
@@ -75,7 +79,7 @@ export async function PUT(
       'Order Cancelled',
       `Your ${serviceName} order has been cancelled.`,
       'booking',
-      id,
+      String(existing.id),
       'cancelled'
     );
     if (existing.supplier_id) {
@@ -84,7 +88,7 @@ export async function PUT(
         'Order cancelled',
         `The customer cancelled a ${serviceName} order.`,
         'system',
-        id,
+        String(existing.id),
         'cancelled'
       );
     }

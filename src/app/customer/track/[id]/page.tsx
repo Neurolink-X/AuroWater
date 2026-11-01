@@ -1,4 +1,5 @@
 'use client';
+import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -583,7 +584,7 @@ export default function TrackOrderPage() {
     : isTechnicianService && status === 'PENDING'
       ? 'हम आपके क्षेत्र में सही प्लंबर/टेक्नीशियन ढूँढ रहे हैं। अपडेट अपने-आप आएगा।'
       : '';
-  const shortId = String(o.order_number ?? id.slice(0, 8));
+  const orderReference = formatOrderReference(o);
 
   const slotMatch = /Slot:\s*([^|]+)/.exec(String(o.note ?? ''));
   const slot = slotMatch ? slotMatch[1].trim() : '';
@@ -635,7 +636,7 @@ export default function TrackOrderPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-                      Order {shortId}
+                      Order {orderReference}
                     </span>
                     {isActive ? (
                       <button
@@ -832,7 +833,7 @@ export default function TrackOrderPage() {
 
               <a
                 href={`${supportWa}?text=${encodeURIComponent(
-                  `Hi — I'm customer for order ${shortId}. Please connect me with the supplier.`
+                  `Hi — I'm customer for order ${orderReference}. Please connect me with the supplier.`
                 )}`}
                 target="_blank"
                 rel="noreferrer"
@@ -860,7 +861,7 @@ export default function TrackOrderPage() {
                 </div>
               </div>
               <a
-                href={`${supportWa}?text=${encodeURIComponent(`Hi — I'm customer for order ${shortId}.`)}`}
+                href={`${supportWa}?text=${encodeURIComponent(`Hi — I'm customer for order ${orderReference}.`)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-extrabold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50"
@@ -964,7 +965,7 @@ export default function TrackOrderPage() {
             ) : null}
 
             <a
-              href={`${supportWa}?text=${encodeURIComponent(`Need help with order ${shortId}`)}`}
+              href={`${supportWa}?text=${encodeURIComponent(`Need help with order ${orderReference}`)}`}
               target="_blank"
               rel="noreferrer"
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[#071a2f] px-5 text-sm font-extrabold text-white transition hover:bg-[#0b2946]"
@@ -1038,7 +1039,7 @@ export default function TrackOrderPage() {
                   Cancel this order?
                 </h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  #{shortId} · {titleForServiceKey(serviceKey)}
+                  #{orderReference} · {titleForServiceKey(serviceKey)}
                   {scheduledText ? ` · ${scheduledText}` : ''}
                 </p>
               </div>
@@ -1535,7 +1536,7 @@ export default function TrackOrderPage() {
 //   const emerg = Number(o.emergency_charge ?? 0);
 //   const canCancel = status === 'PENDING' || status === 'ASSIGNED';
 //   const hero = HERO[status];
-//   const shortId = String(o.order_number ?? id.slice(0, 8));
+//   const orderReference = String(o.order_number ?? id.slice(0, 8));
 
 //   const slotMatch = /Slot:\s*([^|]+)/.exec(String(o.note ?? ''));
 //   const slot = slotMatch ? slotMatch[1].trim() : '';
@@ -1612,7 +1613,7 @@ export default function TrackOrderPage() {
 //               className="text-xs font-semibold uppercase text-emerald-700 tracking-wide hover:underline"
 //               title="Copy order ID"
 //             >
-//               #{shortId} {copied ? '· copied ✓' : '· copy ID'}
+//               #{orderReference} {copied ? '· copied ✓' : '· copy ID'}
 //             </button>
 //             <h1
 //               className="mt-1 text-2xl font-extrabold text-[#0F172A]"
@@ -1726,7 +1727,7 @@ export default function TrackOrderPage() {
 //           <div className="flex gap-3 flex-wrap">
 //             <a
 //               href={`${supportWa}?text=${encodeURIComponent(
-//                 `Hi — I'm customer for order ${shortId}. Please connect me with the supplier.`
+//                 `Hi — I'm customer for order ${orderReference}. Please connect me with the supplier.`
 //               )}`}
 //               target="_blank"
 //               rel="noreferrer"
@@ -1752,7 +1753,7 @@ export default function TrackOrderPage() {
 //           </div>
 //           <div className="flex gap-3 flex-wrap">
 //             <a
-//               href={`${supportWa}?text=${encodeURIComponent(`Hi — I'm customer for order ${shortId}.`)}`}
+//               href={`${supportWa}?text=${encodeURIComponent(`Hi — I'm customer for order ${orderReference}.`)}`}
 //               target="_blank"
 //               rel="noreferrer"
 //               className="rounded-xl border border-slate-200 px-4 py-2 font-semibold"
@@ -1831,7 +1832,7 @@ export default function TrackOrderPage() {
 //           </button>
 //         ) : null}
 //         <a
-//           href={`${supportWa}?text=${encodeURIComponent(`Need help with order ${shortId}`)}`}
+//           href={`${supportWa}?text=${encodeURIComponent(`Need help with order ${orderReference}`)}`}
 //           target="_blank"
 //           rel="noreferrer"
 //           className="rounded-xl bg-slate-900 text-white px-5 py-3 font-semibold text-center"
@@ -1902,7 +1903,7 @@ export default function TrackOrderPage() {
 //               Cancel this order?
 //             </h3>
 //             <p className="text-sm text-slate-600">
-//               #{shortId} · {titleForServiceKey(serviceKey)}
+//               #{orderReference} · {titleForServiceKey(serviceKey)}
 //               {scheduledText ? ` · ${scheduledText}` : ''}
 //             </p>
 //             <fieldset className="space-y-2">

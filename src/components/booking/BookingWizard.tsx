@@ -1,4 +1,5 @@
 'use client';
+import { formatOrderReference } from '@/lib/order-reference';
 /**
  * src/components/booking/BookingWizard.tsx
  *
@@ -1609,7 +1610,7 @@ export default function BookingWizard() {
   };
 
   const waLink   = whatsappHref ?? `https://wa.me/91${(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '9889305803').replace(/\D/g, '')}`;
-  const orderNo  = createdOrder?.order_number ?? createdOrder?.id?.slice(0, 8) ?? '—';
+  const orderNo  = formatOrderReference(createdOrder);
   const waTrackHref = useMemo(() => {
     const msg  = `Hi AuroWater — my order #${orderNo}. Please share live status.`;
     const base = waLink.split('?')[0];
@@ -4238,7 +4239,7 @@ export default function BookingWizard() {
 //   };
 
 //   const waLink   = whatsappHref ?? `https://wa.me/91${(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? '9889305803').replace(/\D/g, '')}`;
-//   const orderNo  = createdOrder?.order_number ?? createdOrder?.id?.slice(0, 8) ?? '—';
+//   const orderNo  = formatOrderReference(createdOrder);
 //   const waTrackHref = useMemo(() => {
 //     const msg  = `Hi AuroWater — my order #${orderNo}. Please share live status.`;
 //     const base = waLink.split('?')[0];

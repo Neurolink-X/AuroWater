@@ -1,3 +1,4 @@
+import { formatOrderReference } from '@/lib/order-reference';
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
     mode, count: count ?? 0, page: pageRaw, page_size: limit, cutoff_at: cutoff,
     orders: rows.map((r) => ({
       id: r.id,
-      order_number: r.order_number ?? r.id.slice(0, 8),
+      order_number: formatOrderReference(r),
       status: r.status,
       service_type: r.service_type,
       payment_status: r.payment_status,
