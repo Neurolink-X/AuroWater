@@ -63,13 +63,13 @@ const HERO: Record<string, { emoji: string; title: string; sub: string; tone: st
   COMPLETED: {
     emoji: '🎉',
     title: 'Delivered',
-    sub: 'Thanks for choosing AuroWater. Hope you loved it!',
+    sub: 'Thanks for choosing AuroTap. We appreciate your trust.',
     tone: 'border-emerald-200 bg-emerald-50 text-emerald-900',
   },
   CANCELLED: {
     emoji: '🚫',
     title: 'Order cancelled',
-    sub: 'No charge was made. You can book again anytime.',
+    sub: 'Your order was cancelled. Check your payment status or contact support if you need help.',
     tone: 'border-rose-200 bg-rose-50 text-rose-900',
   },
 };
