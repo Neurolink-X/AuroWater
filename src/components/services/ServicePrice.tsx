@@ -36,9 +36,10 @@ export default function ServicePrice({
   className = '',
   city,
 }: ServicePriceProps) {
-  const { settings, loading } = useSettings(undefined, city);
+  const { settings, loading, pricingReady } = useSettings(undefined, city);
 
   const amount = useMemo(() => {
+    if (!pricingReady) return null;
     let configured: unknown;
 
     if (serviceKey === 'water_can') {
@@ -53,7 +54,7 @@ export default function ServicePrice({
     }
 
     return toValidAmount(configured);
-  }, [settings, serviceKey]);
+  }, [settings, serviceKey, pricingReady]);
 
   const isWaiting = loading && amount === null;
   const display = amount === null ? (loading ? 'Checking live price…' : 'Price temporarily unavailable') : `₹${INR.format(amount)}`;

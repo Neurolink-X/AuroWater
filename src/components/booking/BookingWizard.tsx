@@ -1,4 +1,5 @@
 'use client';
+import PricingLoading from '@/components/pricing/PricingLoading';
 import { formatOrderReference } from '@/lib/order-reference';
 /**
  * src/components/booking/BookingWizard.tsx
@@ -670,7 +671,7 @@ export default function BookingWizard() {
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const pricingCity = addresses.find((address) => address.id === draft.addressId)?.city ?? draft.newAddress?.city ?? undefined;
-  const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, refresh: refreshSettings } = useSettings(undefined, pricingCity);
+  const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -1641,6 +1642,8 @@ export default function BookingWizard() {
   const windowText = draft.startTime && draft.endTime
     ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
+
+  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
 
   return (
     <div

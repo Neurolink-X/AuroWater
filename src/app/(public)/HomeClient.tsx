@@ -1,4 +1,5 @@
 'use client';
+import PricingLoading from '@/components/pricing/PricingLoading';
 import { pricingFaqs } from '@/lib/pricing/presentation';
 
 import Link from 'next/link';
@@ -217,7 +218,7 @@ export default function HomeClient() {
       return /^[a-z][a-z .-]{1,59}$/i.test(city) ? city : '';
     } catch { return ''; }
   });
-  const { settings } = useSettings(undefined, pricingCity);
+  const { settings, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const currentNormal = Math.max(20, Number(settings.default_can_price) || W.normal);
   const currentChilled = Math.max(25, Number(settings.chilled_can_price) || W.chilled);
   const currentPlumbing = Number(settings.service_base_prices?.plumbing) || PRICING.plumber.visitFee;
@@ -299,6 +300,8 @@ export default function HomeClient() {
   }, [name, phone]);
 
   const s = liveServices[svc];
+
+  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
 
   return (
     <>

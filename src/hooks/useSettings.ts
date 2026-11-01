@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { pricingIsVerified } from '@/lib/pricing/readiness';
 import { computeExpectedTotal } from '@/lib/api/order-pricing-server';
 import { safeGet, safeSet } from '@/lib/storage';
 
@@ -91,6 +92,8 @@ export interface OrderBreakdown {
 /** What the hook returns */
 export interface UseSettingsReturn {
   settings:       PlatformSettings;
+  /** Current city has completed an authoritative pricing read. */
+  pricingReady: boolean;
   loading:        boolean;
   /** null = ok; string = last error message (settings still usable via fallback) */
   error:          string | null;
@@ -365,6 +368,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   const [error,   setError]   = React.useState<string | null>(null);
 
   const abortRef = React.useRef<AbortController | null>(null);
+  const [verifiedCity, setVerifiedCity] = React.useState<string | null>(null);
+  const pricingReady = pricingIsVerified(settings.pricing_version, verifiedCity, city);
 
   /* ── Network refresh ── */
   const refresh = React.useCallback(async (): Promise<void> => {
@@ -381,6 +386,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       const next = mergeSettings(raw);
       if (!ctrl.signal.aborted) {
         setSettings(next);
+        setVerifiedCity(city?.trim().toLowerCase() || 'global');
         if (!city) writeCache(next);
       }
     } catch (cause: unknown) {
@@ -438,12 +444,11 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     if (typeof window === 'undefined' || city) return;
     const onStorage = (e: StorageEvent): void => {
       if (e.key !== CACHE_KEY || !e.newValue) return;
-      const incoming = safeParse<Partial<PlatformSettings>>(e.newValue);
-      if (incoming) setSettings(mergeSettings(incoming));
+      void refresh();
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [city]);
+  }, [city, refresh]);
 
   /* ── Optimistic local patch ── */
   const patchLocal = React.useCallback(
@@ -523,6 +528,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   return {
     settings,
+    pricingReady,
     loading,
     error,
     refresh,

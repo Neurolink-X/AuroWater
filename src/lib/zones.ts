@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
 import { isPostgrestTableUnavailableError } from '@/lib/supabase/postgrest-errors';
-import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
+
 
 /**
  * City -> Zone -> Address -> Serviceability.
@@ -74,13 +74,14 @@ export async function resolveServiceability(
   const lng = coord(addr.lng);
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
+  let canonicalCityActive = false;
   const legacy = (): Serviceability => {
-    const ok = isCityServed(city) || (hasCoords && getServiceZone(lat, lng) !== null);
+    const ok = canonicalCityActive;
     return {
       serviceable: ok,
       status: 'NO_ZONES',
       zone: null,
-      message: ok ? 'AuroWater is available in your area.' : OUT_OF_ZONE_MESSAGE,
+      message: ok ? 'AuroWater is available in your area.' : 'This city is not currently open for bookings.',
       services: null,
     };
   };
@@ -99,6 +100,8 @@ export async function resolveServiceability(
     const { data: cityRow, error: cityError } = await db.from('cities')
       .select('status').ilike('name', city.replace(/[%_]/g, (m) => `\\${m}`)).maybeSingle();
     if (cityError) return lookupError();
+    if (!cityRow) return legacy();
+    canonicalCityActive = cityRow.status === 'active';
     if (cityRow && cityRow.status !== 'active') {
       return { serviceable: false, status: 'COMING_SOON', zone: null,
         message: `Bookings are currently paused in ${city}. Please check again later.`, services: null };
