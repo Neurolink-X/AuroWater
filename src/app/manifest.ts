@@ -43,9 +43,9 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     // Keep this value unchanged: browsers use it to recognise the installed app.
     id: '/?source=pwa',
-    name: `${BRAND} – Fresh Water Delivery in UP`,
+    name: `${BRAND} – Water Delivered. Water Problems Solved.`,
     short_name: BRAND,
-    description: `Order 20L water cans and request plumbing, RO purifier repair, pump service and water tank cleaning in eligible areas of ${CITIES_AND}.`,
+    description: `Water delivered. Water problems solved. Book 20L water delivery and home water services in supported areas of ${CITIES_AND}. Check availability before booking.`,
     lang: 'en-IN',
     dir: 'ltr',
 
