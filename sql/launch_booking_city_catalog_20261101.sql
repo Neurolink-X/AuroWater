@@ -63,8 +63,26 @@ SET status = 'AVAILABLE',
     updated_at = now()
 WHERE lower(city) IN ('kanpur', 'lucknow', 'noida', 'gorakhpur');
 
--- Ensure there is a citywide fallback for pincodes and map points outside listed
--- neighborhood zones. One row per city, safe to rerun by stable unique slug.
+-- Upgrade any existing catch-all row in place. The production schema permits
+-- only one catch-all per city, so do not create a second Kanpur catch-all.
+UPDATE public.service_zones z
+SET city_id = c.id,
+    name = 'All areas',
+    slug = c.slug || '-all-areas',
+    status = 'AVAILABLE',
+    pincodes = ARRAY[]::text[],
+    center_lat = NULL,
+    center_lng = NULL,
+    radius_km = NULL,
+    services = NULL,
+    notes = 'Citywide launch coverage; supplier dispatch may continue after order creation.',
+    updated_at = now()
+FROM public.cities c
+WHERE c.slug IN ('kanpur', 'lucknow', 'noida', 'gorakhpur')
+  AND lower(z.city) = lower(c.name)
+  AND z.is_catch_all;
+
+-- Add a catch-all only where no citywide row already exists.
 INSERT INTO public.service_zones
   (city, city_id, name, slug, status, pincodes, center_lat, center_lng, radius_km, services, is_catch_all, notes)
 SELECT
@@ -82,6 +100,12 @@ SELECT
   'Citywide launch coverage; supplier dispatch may continue after order creation.'
 FROM public.cities c
 WHERE c.slug IN ('kanpur', 'lucknow', 'noida', 'gorakhpur')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM public.service_zones existing
+    WHERE lower(existing.city) = lower(c.name)
+      AND existing.is_catch_all
+  )
 ON CONFLICT (slug) DO UPDATE
 SET city = EXCLUDED.city,
     city_id = EXCLUDED.city_id,
