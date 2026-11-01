@@ -155,6 +155,10 @@ const SCOPE_OPTIONS: Record<string, ScopeOption[]> = {
     { key: 'new_fitting', label: 'New fitting', desc: 'Specialized hardware setup', extra: 99 },
     { key: 'other', label: 'Other', desc: 'Custom scope', extra: 0, quoteAfterVisit: true },
   ],
+  borewell: [
+    { key: 'inspection', label: 'Inspection / diagnosis', desc: 'Technician checks the borewell and explains the next steps', extra: 0, quoteAfterVisit: true },
+    { key: 'repair', label: 'Existing borewell repair', desc: 'Problem assessment first; parts and repairs quoted separately', extra: 0, quoteAfterVisit: true },
+  ],
   water_tanker: [
     { key: '500', label: '500L', extra: 0 },
     { key: '1000', label: '1000L', extra: 50 },
@@ -380,6 +384,7 @@ function sanitizeDraft(raw: unknown): Partial<BookingDraft> {
   const out: Partial<BookingDraft> = {};
   if (typeof r.serviceKey === 'string' && SERVICE_LIST.some((s) => s.key === r.serviceKey)) out.serviceKey = r.serviceKey;
   if (typeof r.subOptionKey === 'string') out.subOptionKey = r.subOptionKey;
+  if (out.serviceKey === 'borewell' && !['inspection', 'repair'].includes(out.subOptionKey ?? '')) out.subOptionKey = 'inspection';
   if (r.plumberType === 'labour' || r.plumberType === 'mistri') out.plumberType = r.plumberType;
   const q = Number(r.canQuantity);
   if (Number.isFinite(q) && q >= 1) out.canQuantity = Math.min(MAX_CANS_SUBSCRIPTION, Math.floor(q));
@@ -429,7 +434,7 @@ function getPriceLines(draft: BookingDraft, settings: PlatformSettings): PriceLi
   const baseLabel =
     draft.serviceKey === 'plumbing'
       ? `Base fee · ${PLUMBER_LABELS[draft.plumberType ?? 'labour']}`
-      : 'Base service fee';
+      : draft.serviceKey === 'borewell' ? 'Inspection / diagnosis fee' : 'Base service fee';
 
   const lines: PriceLine[] = [
     { label: baseLabel, amount: serviceBaseFee(draft, settings), isAddon: false },
@@ -447,6 +452,9 @@ function priceNote(draft: BookingDraft): string {
   const meta = subOptionMeta(draft.serviceKey, draft.subOptionKey);
   if (meta?.quoteAfterVisit) {
     return 'Custom work: the final quote is confirmed after inspection. Materials, if needed, are extra.';
+  }
+  if (draft.serviceKey === 'borewell') {
+    return 'The displayed fee is for inspection or diagnosis only. Drilling, casing, pump, materials and repairs require a separate site-specific quotation and your approval.';
   }
   if (draft.serviceKey === 'plumbing') {
     return 'Starting price. Spare parts and materials, if needed, are extra and shown before work begins.';
@@ -794,6 +802,7 @@ export default function BookingWizard() {
       const h = parseInt(hm[1], 10);
       if (h >= 1 && h <= MAX_FORM_STEP) start = Math.min(h, restored ? restoredStep : 1);
     }
+    if (base.serviceKey === 'borewell' && !['inspection', 'repair'].includes(base.subOptionKey)) base.subOptionKey = 'inspection';
     // A service chosen via the URL stays on page 1: its options now sit right under the service picker.
 
     /* Re-validate the schedule: a draft from earlier today/yesterday may be stale */
@@ -1059,7 +1068,7 @@ export default function BookingWizard() {
   );
 
   const quoteEstimate =
-    draft.serviceKey === 'plumbing' ||
+    draft.serviceKey === 'plumbing' || draft.serviceKey === 'borewell' ||
     !!subOptionMeta(draft.serviceKey, draft.subOptionKey)?.quoteAfterVisit;
 
   const fromPrice = useCallback((key: string) => {
@@ -1496,6 +1505,11 @@ export default function BookingWizard() {
   const confirmOrder = async () => {
     if (submitLock.current || createdOrder) return;
     if (!draft.addressId || !session?.loggedIn) { toast.error('Missing address or session.'); return; }
+    if (draft.serviceKey === 'borewell' && !['inspection', 'repair'].includes(draft.subOptionKey)) {
+      toast.error('Select borewell inspection or repair before booking. Drilling needs a separate site quote.');
+      goTo(1);
+      return;
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       toast.error('You appear to be offline. Check your connection and try again.');
       return;
@@ -1656,7 +1670,7 @@ export default function BookingWizard() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {SERVICE_LIST.map((s) => (
                 <button key={s.key} type="button" aria-pressed={draft.serviceKey === s.key}
-                  onClick={() => { setDraft((d) => ({ ...d, serviceKey: s.key })); revealOptions(); }}
+                  onClick={() => { setDraft((d) => ({ ...d, serviceKey: s.key, subOptionKey: s.key === 'borewell' ? 'inspection' : '' })); revealOptions(); }}
                   className={[
                     'relative min-w-0 overflow-hidden rounded-2xl border p-3 text-left transition-all hover:shadow-md sm:p-4',
                     'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400',
@@ -1682,7 +1696,7 @@ export default function BookingWizard() {
                   </div>
                   <div className="mt-2 font-semibold text-slate-900 text-sm leading-tight">{s.title}</div>
                   <div className="mt-1 text-xs text-emerald-700 font-semibold">
-                    From ₹{Math.round(fromPrice(s.key)).toLocaleString('en-IN')}
+                    {s.key === 'borewell' ? 'Drilling: rate per foot · Get estimate' : `From ₹${Math.round(fromPrice(s.key)).toLocaleString('en-IN')}`}
                     {s.key === 'water_can' && showCompareHome && (
                       <s className="ml-1.5 font-medium text-slate-400">{inr(MARKET_CAN_PRICES.normal)}</s>
                     )}
@@ -1955,6 +1969,32 @@ export default function BookingWizard() {
                   />
                 ))}
               </div>
+            )}
+
+            {draft.serviceKey === 'borewell' && (
+              <section className="space-y-4" aria-label="Choose borewell work">
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                  <p className="font-bold text-sky-950">What do you need help with?</p>
+                  <p className="mt-1 text-sm leading-6 text-sky-900">Book an inspection or request a drilling estimate. Drilling is charged per foot and needs a site survey — it is not included in the inspection fee.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label="Borewell booking options">
+                  {SCOPE_OPTIONS.borewell.map((option) => (
+                    <ScopeCard
+                      key={option.key}
+                      option={option}
+                      active={draft.subOptionKey === option.key}
+                      onSelect={() => setDraft((current) => ({ ...current, subOptionKey: option.key }))}
+                    />
+                  ))}
+                </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="font-bold text-emerald-950">Planning a new borewell?</p>
+                  <p className="mt-1 text-sm leading-6 text-emerald-900">Compare 4.5″, 6″, 6.5″ and 8″ drilling rates, depth and casing in the estimate calculator. Final cost is confirmed after site assessment.</p>
+                  <Link href="/services/borewell#borewell-estimate-heading" className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white hover:bg-emerald-800">
+                    Calculate drilling estimate →
+                  </Link>
+                </div>
+              </section>
             )}
 
             {SCOPE_SERVICES.includes(draft.serviceKey) && (
