@@ -42,6 +42,8 @@ assert.match(resolver, /services: \{ \.\.\.globalServices, \.\.\.cityServices \}
 assert.match(orderApi, /TANKER_QUOTE_REQUIRED/);
 // Pricing changes are versioned; never silently reprice completed orders.
 assert.match(endpoint, /publish_pricing_version/);
+assert.match(endpoint, /active_pricing_issues/);
+assert.match(panel, /Published pricing needs repair/);
 console.log('Published price, city override, booking total, and quote guards verified.');
 
 console.log('Centralized pricing policy and admin control regression checks passed.');
