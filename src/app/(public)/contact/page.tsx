@@ -119,23 +119,26 @@ export default function ContactPage() {
     }
   }, [setValue]);
 
-  const onSubmit = (values: FormValues) => {
+  const onSubmit = async (values: FormValues) => {
     if (loading) return;
     setLoading(true);
-    const message = [
-      'Hello AuroTap Support,',
-      'Name: ' + values.name,
-      'Email: ' + values.email,
-      'Phone: ' + values.phone,
-      'Subject: ' + values.subject,
-      'Message: ' + values.message,
-    ].join('\\n');
-    const url = whatsappHref + '?text=' + encodeURIComponent(message);
-    const opened = window.open(url, '_blank', 'noopener,noreferrer');
-    if (!opened) window.location.assign(url);
-    setSubmitted(true);
-    toast.info('Press Send in WhatsApp to submit your message.');
-    setLoading(false);
+    setSubmitted(false);
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.error || 'Could not submit message');
+      setSubmitted(true);
+      toast.success('Your enquiry has been received.');
+      reset();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Please try again or contact us on WhatsApp.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const info = { ...FALLBACK, phone_primary: contact.support_phone, support_email: contact.support_email };
@@ -776,19 +779,19 @@ export default function ContactPage() {
                       {loading ? (
                         <>
                           <div className="ct-submit-spinner" />
-                          Opening WhatsApp...
+                          Sending enquiry...
                         </>
                       ) : (
                         <>
                           <IconSend />
-                          Continue on WhatsApp
+                          Send Enquiry
                           <span style={{ background: 'rgba(255,255,255,0.18)', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>→</span>
                         </>
                       )}
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', margin: 0 }}>
-                      Your message is only sent when you press Send in WhatsApp. Never share OTPs or passwords.
+                      Your enquiry is saved securely. Never share OTPs or passwords.
                     </p>
 
                   </form>
