@@ -3,6 +3,9 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
 
+// Each authenticated tracking read must reflect the latest server order state.
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
@@ -46,21 +49,33 @@ export async function GET(
   let technicianAcceptanceStatus: string | null = null;
   const admin = createServiceClient();
 
-  if (typeof row.technician_id === 'string' && row.technician_id.trim()) {
-    const [profileResult, dispatchResult] = await Promise.all([
-      admin
-        .from('profiles')
-        .select('id, full_name, avatar_url')
-        .eq('id', row.technician_id)
-        .maybeSingle(),
-      admin
-        .from('technician_job_dispatch')
-        .select('status')
-        .eq('order_id', id)
-        .eq('technician_id', row.technician_id)
-        .maybeSingle(),
-    ]);
+  // The order ownership check above must complete before any service-role lookup.
+  // Provider enrichment is independent: fetch supplier and technician details in
+  // parallel so tracking latency is bounded by the slower query, not their sum.
+  const technicianId = typeof row.technician_id === 'string' ? row.technician_id.trim() : '';
+  const supplierId = typeof row.supplier_id === 'string' ? row.supplier_id.trim() : '';
 
+  const [technicianResult, supplierResult] = await Promise.all([
+    technicianId
+      ? Promise.all([
+          admin.from('profiles')
+            .select('id, full_name, avatar_url')
+            .eq('id', technicianId).maybeSingle(),
+          admin.from('technician_job_dispatch')
+            .select('status')
+            .eq('order_id', id)
+            .eq('technician_id', technicianId).maybeSingle(),
+        ])
+      : Promise.resolve(null),
+    supplierId
+      ? admin.from('profiles')
+          .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
+          .eq('id', supplierId).maybeSingle()
+      : Promise.resolve(null),
+  ]);
+
+  if (technicianResult) {
+    const [profileResult, dispatchResult] = technicianResult;
     if (profileResult.error) {
       console.error('[orders/:id] technician profile lookup failed:', profileResult.error.message);
     } else if (profileResult.data) {
@@ -68,29 +83,24 @@ export async function GET(
     }
 
     if (dispatchResult.error) {
-      // Keep tracking resilient if dispatch metadata is temporarily unavailable.
+      // Dispatch metadata is optional: never block a customer's order status.
       console.error('[orders/:id] technician acceptance lookup failed:', dispatchResult.error.message);
     } else if (dispatchResult.data?.status) {
       technicianAcceptanceStatus = String(dispatchResult.data.status).toUpperCase();
     }
   }
 
-  if (typeof row.supplier_id === 'string' && row.supplier_id.trim()) {
-    const { data: profile, error: profileError } = await admin
-      .from('profiles')
-      .select('id, full_name, avatar_url, milestone_tier, last_seen_at')
-      .eq('id', row.supplier_id)
-      .maybeSingle();
-    if (profileError) {
-      console.error('[orders/:id] supplier profile lookup failed:', profileError.message);
-    } else if (profile) {
-      supplierProfile = profile;
+  if (supplierResult) {
+    if (supplierResult.error) {
+      console.error('[orders/:id] supplier profile lookup failed:', supplierResult.error.message);
+    } else if (supplierResult.data) {
+      supplierProfile = supplierResult.data;
     }
   }
 
   // Orders store the service key directly in `service_type`.
   // Old field names are added so existing frontend code keeps working.
-  return jsonOk({
+  const response = jsonOk({
     ...row,
     technician_profile: technicianProfile,
     technician_acceptance_status: technicianAcceptanceStatus,
@@ -106,60 +116,6 @@ export async function GET(
     address_snapshot:
       row.address_snapshot ?? (row.address ? { house_flat: row.address } : null),
   });
+  response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+  return response;
 }
-
-
-
-
-
-
-// import { NextRequest } from 'next/server';
-// import { jsonErr, jsonOk } from '@/lib/api/json-response';
-// import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
-
-// export async function GET(
-//   req: NextRequest,
-//   ctx: { params: Promise<{ id: string }> }
-// ) {
-//   const auth = await requireSupabaseAuth(req);
-//   if (!auth.ok) return auth.response;
-//   if (!requireRole(auth.ctx, 'customer')) {
-//     return jsonErr('Forbidden', 403);
-//   }
-
-//   const { id } = await ctx.params;
-
-//   const { data, error } = await auth.ctx.supabase
-//     .from('orders')
-//     .select('*')
-//     .eq('id', id)
-//     .eq('customer_id', auth.ctx.profile.id)
-//     .maybeSingle();
-
-//   if (error) {
-//     console.error('[orders/:id] load failed:', error);
-//     return jsonErr(error.message, 500);
-//   }
-//   if (!data) {
-//     return jsonErr('Order not found', 404);
-//   }
-
-//   // Orders store the service key directly in `service_type`.
-//   // Old field names are added so existing frontend code keeps working.
-//   const row = data as Record<string, unknown>;
-//   return jsonOk({
-//     ...row,
-//     service_type_key: row.service_type ?? null,
-//     can_quantity: row.can_count ?? null,
-//     notes: row.note ?? null,
-//     cancellation_reason: row.cancel_reason ?? null,
-//   });
-// }
-
-
-
-
-
-
-
-

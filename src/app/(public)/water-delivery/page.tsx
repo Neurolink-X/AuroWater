@@ -2,13 +2,20 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import type { City } from '@/lib/cities';
+import { getSiteUrl } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: '20L RO Water Can Delivery by City | AuroTap',
   description: 'Find current AuroTap water can delivery cities in India. Check your PIN code, Normal RO or Chilled RO options, and final availability before placing an order.',
-  keywords: ['20 litre RO water delivery', 'water can delivery near me', '20L water can home delivery', 'normal RO water can', 'chilled water can'],
+  keywords: [
+    '20 litre RO water delivery', 'water can delivery near me',
+    '20L water can home delivery', 'normal RO water can', 'chilled water can',
+    '20 litre drinking water jar delivery', 'RO water supply for homes and offices',
+    'online water can booking', 'water can delivery Kanpur',
+    'water can delivery Lucknow', 'water can delivery Gorakhpur',
+  ],
   alternates: { canonical: '/water-delivery' },
   openGraph: {
     title: '20L Water Can Delivery Service Areas | AuroTap',
@@ -67,8 +74,24 @@ export default async function WaterDeliveryIndexPage() {
   const cities = await getPublicServiceCities();
   const active = cities.filter((city) => city.status === 'active');
 
+  // Search data reflects the real admin-controlled active city directory.
+  // Area-level serviceability is still verified only during booking.
+  const base = getSiteUrl().replace(/\/+$/, '');
+  const structuredData = {
+    '@context': 'https://schema.org',
+    '@type': 'Service',
+    '@id': `${base}/water-delivery#service`,
+    name: '20 litre RO drinking water can delivery',
+    serviceType: 'RO water can home delivery',
+    provider: { '@type': 'Organization', '@id': `${base}/#organization`, name: 'AuroTap' },
+    areaServed: active.map((city) => ({ '@type': 'City', name: city.name })),
+    url: `${base}/water-delivery`,
+    description: 'Find eligible areas for normal and chilled 20L RO water can delivery. Final price and availability are confirmed during booking.',
+  };
+
   return (
     <div className="min-w-0 bg-slate-50 text-slate-900">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
       <section className="bg-[#071A2B] text-white">
         <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16 lg:px-12">
           <nav aria-label="Breadcrumb" className="mb-5 text-sm text-sky-200">

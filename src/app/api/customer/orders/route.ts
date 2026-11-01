@@ -201,6 +201,33 @@ export async function POST(req: NextRequest) {
 
   const customerId = auth.ctx.profile.id;
 
+  // Enable only after the per-customer unique index migration is applied.
+  // Identical retries share a key across instances; only one insert can win.
+  const checkoutIdempotencyEnabled = process.env.CHECKOUT_IDEMPOTENCY_DB_ENABLED === 'true';
+  const checkoutRequestId = typeof body.checkout_request_id === 'string'
+    ? body.checkout_request_id.trim() : '';
+  if (checkoutRequestId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(checkoutRequestId)) {
+    return jsonErr('Invalid checkout request identifier.', 400);
+  }
+  const checkoutKey = checkoutIdempotencyEnabled && checkoutRequestId ? checkoutRequestId : null;
+  const findExistingCheckout = async () => {
+    if (!checkoutKey) return null;
+    const { data, error } = await auth.ctx.supabase.from('orders')
+      .select('*').eq('customer_id', customerId)
+      .eq('checkout_request_id', checkoutKey).maybeSingle();
+    if (error) {
+      console.error('[orders] checkout idempotency lookup failed', { code: error.code });
+      return null;
+    }
+    return data;
+  };
+
+  // Check before rewards or loyalty points are reserved.
+  if (checkoutKey) {
+    const existing = await findExistingCheckout();
+    if (existing) return jsonOk(withCompat(existing), 200);
+  }
+
   // service_types has: id, key, label, description, base_price, is_active
   const { data: st, error: stErr } = await auth.ctx.supabase
     .from('service_types')
@@ -679,6 +706,7 @@ export async function POST(req: NextRequest) {
     .from('orders')
     .insert({
       customer_id: customerId,
+      ...(checkoutKey ? { checkout_request_id: checkoutKey } : {}),
       service_type: service_type_key,
       status: 'PENDING',
       zone_id: serviceability.zone?.id ?? null,
@@ -758,6 +786,12 @@ export async function POST(req: NextRequest) {
       await referralAdmin.from('referral_reward_events')
         .update({ reward_status: 'available', reserved_order_id: null })
         .eq('id', referralReward.id).eq('referrer_id', customerId).eq('reward_status', 'reserved');
+    }
+    // Unique-index collision: another concurrent checkout already committed.
+    // Only return an order belonging to this authenticated customer and key.
+    if (oErr?.code === '23505' && checkoutKey) {
+      const existing = await findExistingCheckout();
+      if (existing) return jsonOk(withCompat(existing), 200);
     }
     if (oErr) return dbErr(oErr, 'orders', 'Failed to create order');
     return jsonErr('Failed to create order', 500);

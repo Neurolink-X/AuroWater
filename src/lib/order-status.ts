@@ -195,7 +195,7 @@ export function liveMessage(o: CustomerOrder): { title: string; sub: string; hin
     case 'COMPLETED':
       return technicianService
         ? { title: 'Service completed', sub: 'Your service is complete. Please review your experience.', hindi: 'काम पूरा हो गया है। कृपया अपना अनुभव साझा करें।' }
-        : { title: 'Delivered', sub: 'Thanks for choosing AuroWater.', hindi: 'AuroTap चुनने के लिए धन्यवाद।' };
+        : { title: 'Delivered', sub: 'Thanks for choosing AuroTap.', hindi: 'AuroTap चुनने के लिए धन्यवाद।' };
     case 'CANCELLED':
       return { title: 'Order cancelled', sub: 'You can book again anytime.', hindi: 'ऑर्डर रद्द हो गया है। आप कभी भी दोबारा बुक कर सकते हैं।' };
     default:

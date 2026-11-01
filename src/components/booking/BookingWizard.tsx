@@ -704,6 +704,8 @@ export default function BookingWizard() {
   const [areaHits, setAreaHits] = useState<PostHit[]>([]);
 
   const submitLock     = useRef(false);
+  // Retain the same request UUID across uncertain-network retries of this exact draft.
+  const checkoutAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
   const firstScroll    = useRef(true);
   const geoReq         = useRef(0);
   const stepRef        = useRef<HTMLDivElement | null>(null);
@@ -1534,7 +1536,7 @@ export default function BookingWizard() {
     submitLock.current = true;
     setSubmitting(true); setSubmitError(null);
     try {
-      const order = await customerOrderCreate({
+      const checkoutPayload = {
         service_type_key: draft.serviceKey, address_id: draft.addressId,
         sub_option_key: draft.subOptionKey || 'standard',
         scheduled_date: draft.scheduledDate, time_slot: sv.time_slot,
@@ -1548,10 +1550,21 @@ export default function BookingWizard() {
         can_order_type: draft.serviceKey === 'water_can' ? draft.canOrderType : undefined,
         can_frequency:  draft.serviceKey === 'water_can' && draft.canOrderType === 'subscription' ? draft.canFrequency : undefined,
         plumber_type: draft.serviceKey === 'plumbing' ? (draft.plumberType ?? 'labour') : undefined,
+      };
+      const fingerprint = JSON.stringify(checkoutPayload);
+      const currentAttempt = checkoutAttempt.current;
+      const key = currentAttempt?.fingerprint === fingerprint
+        ? currentAttempt.key
+        : (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : '');
+      if (key) checkoutAttempt.current = { fingerprint, key };
+      const order = await customerOrderCreate({
+        ...checkoutPayload,
+        ...(key ? { checkout_request_id: key } : {}),
       });
       try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
+      checkoutAttempt.current = null;
       toast.success('Booking confirmed! 🎉');
     } catch (e) {
       submitLock.current = false;
