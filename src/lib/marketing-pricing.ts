@@ -53,9 +53,9 @@ export const CITIES = [
     areas: ['Golghar', 'Rapti Nagar', 'Betiahata', 'Medical College Rd', 'Taramandal', 'Shahpur', 'Civil Lines', 'Asuran Chowk'] },
   { slug: 'delhi',     name: 'Delhi',     state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['Dwarka', 'Rohini', 'Saket', 'Laxmi Nagar', 'Janakpuri', 'Pitampura', 'Mayur Vihar', 'Vasant Kunj'] },
-  { slug: 'noida',     name: 'Noida',     state: 'Delhi NCR', status: 'pilot' as CityStatus,
-    // Postal/zone configuration exists, but pilot requires verified online stock-backed suppliers.
-    areas: ['Sector 73'] },
+  { slug: 'noida',     name: 'Noida',     state: 'Uttar Pradesh', status: 'live' as CityStatus,
+    // Citywide booking coverage; listed neighborhoods are examples only.
+    areas: ['Sector 18', 'Sector 62', 'Sector 73', 'Sector 76', 'Sector 137', 'Noida Extension'] },
   { slug: 'gurugram',  name: 'Gurugram',  state: 'Delhi NCR', status: 'pin-approved' as CityStatus,
     areas: ['DLF Phases', 'Golf Course Road', 'Sohna Road', 'Sector 56', 'Udyog Vihar'] },
   { slug: 'agra',      name: 'Agra',      state: 'Uttar Pradesh', status: 'pin-approved' as CityStatus,
