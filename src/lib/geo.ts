@@ -10,6 +10,7 @@ export const SERVICE_ZONES: readonly ServiceZone[] = [
   { city: 'Gorakhpur', state: 'UP', lat: 26.7606, lng: 83.3732, radiusKm: 25 },
   { city: 'Kanpur', state: 'UP', lat: 26.4499, lng: 80.3319, radiusKm: 30 },
   { city: 'Lucknow', state: 'UP', lat: 26.8467, lng: 80.9462, radiusKm: 30 },
+  { city: 'Noida', state: 'UP', lat: 28.5355, lng: 77.3910, radiusKm: 25 },
 ] as const;
 
 const EARTH_RADIUS_KM = 6371;
@@ -37,7 +38,7 @@ export function getServiceZone(lat: number, lng: number): ServiceZone | null {
 }
 
 export const OUT_OF_ZONE_MESSAGE =
-  "Sorry, we don't deliver to this area yet. We currently serve Gorakhpur, Kanpur & Lucknow within 30km of city center.";
+  "Sorry, we don't deliver to this area yet. We currently serve Gorakhpur, Kanpur, Lucknow & Noida within their configured service areas.";
 
 export const SUPPLIER_MAX_KM = 15;
 
