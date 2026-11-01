@@ -3,10 +3,8 @@
 import { useState } from 'react';
 import { ApiError, adminDispatchDiagnose, adminDispatchRetry } from '@/lib/api-client';
 
-const DEFAULT_ORDER_ID = '9dcf98c0-7ff8-42aa-9148-3e139316031e';
-
 export default function AdminDispatchPage() {
-  const [orderId, setOrderId] = useState(DEFAULT_ORDER_ID);
+  const [orderId, setOrderId] = useState('');
   const [report, setReport] = useState<unknown>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'diagnose' | 'retry' | null>(null);
@@ -51,7 +49,7 @@ export default function AdminDispatchPage() {
         </header>
 
         <section className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <label htmlFor="order-id" className="block text-sm font-medium text-slate-200">Order UUID</label>
+          <label htmlFor="order-id" className="block text-sm font-medium text-slate-200">Order reference or UUID</label>
           <input
             id="order-id"
             value={orderId}
@@ -59,13 +57,13 @@ export default function AdminDispatchPage() {
             spellCheck={false}
             autoComplete="off"
             className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 font-mono text-sm text-white outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            placeholder="AW-20261102-000001 or UUID"
           />
           <div className="mt-4 flex flex-wrap gap-3">
             <button
               type="button"
               onClick={runDiagnosis}
-              disabled={busy !== null}
+              disabled={busy !== null || !orderId.trim()}
               className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-slate-950 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === 'diagnose' ? 'Checking…' : 'Diagnose order'}
@@ -73,7 +71,7 @@ export default function AdminDispatchPage() {
             <button
               type="button"
               onClick={retryDispatch}
-              disabled={busy !== null}
+              disabled={busy !== null || !orderId.trim()}
               className="rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-300/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy === 'retry' ? 'Running dispatch…' : 'Retry dispatch'}

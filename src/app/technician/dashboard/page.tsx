@@ -1,4 +1,5 @@
 'use client';
+import { formatOrderReference } from '@/lib/order-reference';
 
 /**
  * AuroWater technician / plumber dashboard (v2)
@@ -109,6 +110,7 @@ type IconType = React.ComponentType<{ size?: number; className?: string; 'aria-h
 
 interface Job {
   id: string;
+  order_number?: string;
   stage: JobStage;
   service: string;
   sub: string;
@@ -302,6 +304,7 @@ function orderToJob(o: ApiOrder): Job {
 
   return {
     id: str(r.id),
+    order_number: str(r.order_number),
     stage: stageFromStatus(str(r.status)),
     service: str(r.service_type_key, 'service').replace(/_/g, ' '),
     sub: str(r.sub_option_key).replace(/_/g, ' '),
@@ -758,7 +761,7 @@ const QueueCard = memo(function QueueCard({ job, canAccept, reason, busy, handle
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-bold capitalize text-slate-900">{job.service}</h2>
-                <Badge>#{job.id.slice(0, 8)}</Badge>
+                <Badge>#{formatOrderReference(job)}</Badge>
               </div>
               {job.sub && <p className="mt-0.5 text-sm capitalize text-slate-500">{job.sub}</p>}
             </div>
@@ -2842,7 +2845,7 @@ export default function TechnicianDashboardPage() {
 //             <div className="min-w-0">
 //               <div className="flex flex-wrap items-center gap-2">
 //                 <h2 className="font-bold capitalize text-slate-900">{job.service}</h2>
-//                 <Badge>#{job.id.slice(0, 8)}</Badge>
+//                 <Badge>#{formatOrderReference(job)}</Badge>
 //               </div>
 //               {job.sub && <p className="mt-0.5 text-sm capitalize text-slate-500">{job.sub}</p>}
 //             </div>

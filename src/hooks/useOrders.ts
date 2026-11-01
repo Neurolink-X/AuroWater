@@ -616,11 +616,6 @@ export function useOrdersContext(): UseOrdersReturn {
    STANDALONE UTILITIES  (no React — import freely anywhere)
 ═══════════════════════════════════════════════════════════════ */
 
-/** Generate a unique order ID in AuroWater format e.g. "AW-10031234" */
-export function generateOrderId(): string {
-  return 'AW-' + (10_000_000 + Math.floor(Math.random() * 9_000_000)).toString();
-}
-
 /** Is a given status an "active" (non-terminal) status? */
 export function isActiveStatus(status: OrderStatus): boolean {
   return ACTIVE_STATUSES.includes(status);

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
+import { parseOrderIdentifier } from '@/lib/order-reference';
 
 // Each authenticated tracking read must reflect the latest server order state.
 export const dynamic = 'force-dynamic';
@@ -18,19 +19,22 @@ export async function GET(
 
   const { id } = await ctx.params;
 
-  // Latency-sensitive tracking read: dispatch maintenance runs independently.
+  const identifier = parseOrderIdentifier(id);
+  if (!identifier) return jsonErr('Enter a valid order reference.', 400);
 
-  const { data, error } = await auth.ctx.supabase
+  // Latency-sensitive tracking read: dispatch maintenance runs independently.
+  const query = auth.ctx.supabase
     .from('orders')
     .select(`id, order_number, status, created_at, updated_at, service_type,
       address_snapshot, address, scheduled_at, note, total_amount, base_amount,
       platform_fee, convenience_fee, gst_amount, emergency_charge,
       payment_method, payment_status, technician_id, supplier_id,
       assigned_at, accepted_at, dispatched_at, completed_at, cancelled_at,
-      cancel_reason, can_count, is_emergency`)
-    .eq('id', id)
-    .eq('customer_id', auth.ctx.profile.id)
-    .maybeSingle();
+      cancel_reason, can_count, is_emergency`);
+
+  const { data, error } = identifier.kind === 'uuid'
+    ? await query.eq('id', identifier.value).eq('customer_id', auth.ctx.profile.id).maybeSingle()
+    : await query.ilike('order_number', identifier.value).eq('customer_id', auth.ctx.profile.id).maybeSingle();
 
   if (error) {
     console.error('[orders/:id] load failed:', error);
@@ -63,7 +67,7 @@ export async function GET(
             .eq('id', technicianId).maybeSingle(),
           admin.from('technician_job_dispatch')
             .select('status')
-            .eq('order_id', id)
+            .eq('order_id', String(row.id))
             .eq('technician_id', technicianId).maybeSingle(),
         ])
       : Promise.resolve(null),

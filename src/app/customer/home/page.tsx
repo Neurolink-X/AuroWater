@@ -366,7 +366,7 @@ const ActiveOrderCard = memo(function ActiveOrderCard({ order, extra }: { order:
               {serviceEmoji(order.serviceKey)} {serviceLine(order)}
             </h2>
 
-            <p className="mt-0.5 text-xs font-semibold text-slate-600">Order #{order.shortId}</p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-600">Order #{order.orderReference}</p>
           </div>
 
           <p className="shrink-0 text-lg font-black text-slate-900 sm:text-xl">
@@ -477,7 +477,7 @@ const RecentOrderRow = memo(function RecentOrderRow({ order }: { order: Customer
         <Link
           href={`/customer/track/${order.id}`}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-          aria-label={`View order ${order.shortId}`}
+          aria-label={`View order ${order.orderReference}`}
         >
           <span
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${NU_IN}`}
@@ -2059,7 +2059,7 @@ export default function CustomerHomePage() {
 //               {serviceEmoji(order.serviceKey)} {serviceLine(order)}
 //             </h2>
 
-//             <p className="mt-0.5 text-xs font-semibold text-slate-500">Order #{order.shortId}</p>
+//             <p className="mt-0.5 text-xs font-semibold text-slate-500">Order #{order.orderReference}</p>
 //           </div>
 
 //           <p className="shrink-0 text-lg font-black text-slate-900 sm:text-xl">
@@ -2171,7 +2171,7 @@ export default function CustomerHomePage() {
 //         <Link
 //           href={`/customer/track/${order.id}`}
 //           className="flex min-w-0 flex-1 items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
-//           aria-label={`View order ${order.shortId}`}
+//           aria-label={`View order ${order.orderReference}`}
 //         >
 //           <span
 //             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-xl"

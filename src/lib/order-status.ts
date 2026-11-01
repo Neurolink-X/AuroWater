@@ -1,3 +1,4 @@
+import { formatOrderReference } from '@/lib/order-reference';
 /**
  * Single source of truth for how an order looks to a customer.
  * Home, History and Track must all use this so every page agrees.
@@ -63,7 +64,7 @@ export function serviceEmoji(key: string | null | undefined): string {
 
 export type CustomerOrder = {
   id: string;
-  shortId: string;
+  orderReference: string;
   status: string;
   totalAmount: number;
   canCount: number | null;
@@ -94,7 +95,7 @@ export function normalizeOrder(raw: Record<string, unknown>): CustomerOrder {
 
   return {
     id,
-    shortId: String(raw.order_number ?? id.slice(0, 8)).toUpperCase(),
+    orderReference: formatOrderReference(raw),
     status: String(raw.status ?? 'PENDING').toUpperCase(),
     totalAmount: Number(raw.total_amount ?? 0) || 0,
     canCount: canRaw == null || canRaw === '' ? null : Number(canRaw),

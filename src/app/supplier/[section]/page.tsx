@@ -264,7 +264,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
         return (
           <article key={id || i} className="sp-card">
             <div className="sp-row">
-              <h2 className="sp-h2">Order #{str(o.order_number ?? o.id).slice(0, 10)}</h2>
+              <h2 className="sp-h2">Order #{str(o.order_number ?? o.booking_id, '—')}</h2>
               <StatusBadge status={status} />
             </div>
             <dl className="sp-dl">

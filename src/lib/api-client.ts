@@ -1,3 +1,4 @@
+import { parseOrderIdentifier } from '@/lib/order-reference';
 import { jsonHeaders, requestJson } from '@/lib/api/transport';
 import type { ProfileRow } from '@/lib/db/types';
 import type { AuthToken, User } from '@/types';
@@ -817,8 +818,8 @@ export async function customerReviewCreate(body: { order_id: string; rating: num
 /** Read-only supplier dispatch diagnosis; uses the normal authenticated admin API client. */
 export async function adminDispatchDiagnose(orderId: string): Promise<unknown> {
   const id = orderId.trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    throw new ApiError('Enter a valid order UUID.', 400, 'INVALID_ORDER_ID');
+  if (!parseOrderIdentifier(id)) {
+    throw new ApiError('Enter a valid order reference or UUID.', 400, 'INVALID_ORDER_ID');
   }
   return apiFetchAuth<unknown>(`/admin/dispatch/diagnose?orderId=${encodeURIComponent(id)}`);
 }
@@ -826,8 +827,8 @@ export async function adminDispatchDiagnose(orderId: string): Promise<unknown> {
 /** Explicitly runs the normal dispatch attempt; this can change order assignment. */
 export async function adminDispatchRetry(orderId: string): Promise<unknown> {
   const id = orderId.trim();
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-    throw new ApiError('Enter a valid order UUID.', 400, 'INVALID_ORDER_ID');
+  if (!parseOrderIdentifier(id)) {
+    throw new ApiError('Enter a valid order reference or UUID.', 400, 'INVALID_ORDER_ID');
   }
   return apiFetchAuth<unknown>('/admin/dispatch/diagnose', {
     method: 'POST',
@@ -903,6 +904,7 @@ async function adminFetchJson<T>(path: string): Promise<T> {
 
 export type AdminOrderRow = {
   id: string;
+  order_number?: string | null;
   status: string;
   total_amount: number | null;
   platform_fee: number | null;

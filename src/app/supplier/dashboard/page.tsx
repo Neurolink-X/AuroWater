@@ -624,7 +624,7 @@
 //         <div className="sd-row sd-between sd-top">
 //           <div style={{ minWidth: 0 }}>
 //             <div className="sd-order-title">{order.service_type}</div>
-//             <div className="sd-order-id">#{order.booking_id.slice(0, 8).toUpperCase()}</div>
+//             <div className="sd-order-id">#{order.booking_id || '—'}</div>
 //           </div>
 //           <div className="sd-col sd-end">
 //             <span className="sd-chip" style={{ color: sm.color, background: sm.bg }}>{sm.label}</span>
@@ -693,7 +693,7 @@
 //             )}
 //             {hasPhone && (
 //               <a
-//                 href={waLink(order.customer_phone, `Hello ${order.customer_name}, this is your AuroTap water supplier about order #${order.booking_id.slice(0, 8).toUpperCase()}${order.scheduled_slot ? ` (${order.scheduled_slot})` : ''}.`)}
+//                 href={waLink(order.customer_phone, `Hello ${order.customer_name}, this is your AuroTap water supplier about order #${order.booking_id || '—'}${order.scheduled_slot ? ` (${order.scheduled_slot})` : ''}.`)}
 //                 target="_blank"
 //                 rel="noopener noreferrer"
 //                 className="sd-quick"
@@ -959,7 +959,7 @@
 
 //         return {
 //           id: String(row.id ?? ''),
-//           booking_id: String(row.order_number ?? row.booking_id ?? row.id ?? ''),
+//           booking_id: String(row.order_number ?? row.booking_id ?? ''),
 //           service_type: String(row.service_type_label ?? row.service_type ?? row.service_type_key ?? row.service_type_id ?? 'Service'),
 //           status: normalizeOrderStatus(row.status),
 //           amount: Number(row.final_amount ?? row.total_amount ?? row.amount ?? 0),
@@ -1921,7 +1921,7 @@
 //                     <div>
 //                       <div style={{ fontSize: 13, fontWeight: 800 }}>{completionOrder.service_type}</div>
 //                       <div className="sd-help" style={{ marginTop: 3 }}>
-//                         #{completionOrder.booking_id.slice(0, 8).toUpperCase()} · {completionOrder.customer_name}
+//                         #{completionOrder.booking_id || '—'} · {completionOrder.customer_name}
 //                       </div>
 //                     </div>
 //                     <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand2)' }}>{INR(completionOrder.amount)}</div>
@@ -2693,7 +2693,7 @@ function OrderCard({
         <div className="sd-row sd-between sd-top">
           <div style={{ minWidth: 0 }}>
             <div className="sd-order-title">{order.service_type}</div>
-            <div className="sd-order-id">#{order.booking_id.slice(0, 8).toUpperCase()}</div>
+            <div className="sd-order-id">#{order.booking_id || '—'}</div>
           </div>
           <div className="sd-col sd-end">
             <span className="sd-chip" style={{ color: sm.color, background: sm.bg }}>{isHindi ? ({ pending: 'लंबित', assigned: 'असाइन हुआ', in_progress: 'जारी', delivered: 'डिलीवर हुआ', cancelled: 'रद्द' } as Record<OrderStatus, string>)[order.status] : sm.label}</span>
@@ -2762,7 +2762,7 @@ function OrderCard({
             )}
             {hasPhone && (
               <a
-                href={waLink(order.customer_phone, `Hello ${order.customer_name}, this is your AuroTap water supplier about order #${order.booking_id.slice(0, 8).toUpperCase()}${order.scheduled_slot ? ` (${order.scheduled_slot})` : ''}.`)}
+                href={waLink(order.customer_phone, `Hello ${order.customer_name}, this is your AuroTap water supplier about order #${order.booking_id || '—'}${order.scheduled_slot ? ` (${order.scheduled_slot})` : ''}.`)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="sd-quick"
@@ -3058,7 +3058,7 @@ export default function SupplierDashboardPage() {
 
         return {
           id: String(row.id ?? ''),
-          booking_id: String(row.order_number ?? row.booking_id ?? row.id ?? ''),
+          booking_id: String(row.order_number ?? row.booking_id ?? ''),
           service_type: String(row.service_type_label ?? row.service_type ?? row.service_type_key ?? row.service_type_id ?? 'Service'),
           status: normalizeOrderStatus(row.status),
           amount: Number(row.final_amount ?? row.total_amount ?? row.amount ?? 0),
@@ -4070,7 +4070,7 @@ export default function SupplierDashboardPage() {
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800 }}>{completionOrder.service_type}</div>
                       <div className="sd-help" style={{ marginTop: 3 }}>
-                        #{completionOrder.booking_id.slice(0, 8).toUpperCase()} · {completionOrder.customer_name}
+                        #{completionOrder.booking_id || '—'} · {completionOrder.customer_name}
                       </div>
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--brand2)' }}>{INR(completionOrder.amount)}</div>

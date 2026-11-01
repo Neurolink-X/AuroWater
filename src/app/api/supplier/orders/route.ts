@@ -401,7 +401,7 @@ export async function GET(req: NextRequest) {
           lat: reveal ? order.lat ?? null : null,
           lng: reveal ? order.lng ?? null : null,
 
-          booking_id: order.order_number ?? order.booking_id ?? order.id,
+          booking_id: order.order_number ?? order.booking_id ?? null,
 
           service_type_label:
             text(order.service_type) ??
