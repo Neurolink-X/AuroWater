@@ -19,4 +19,25 @@ assert.match(endpoint, /seenCities\.has\(city\)/);
 assert.match(guard, /pricing_version_floor_guard/);
 assert.match(guard, /water_chilled'\)::numeric, -1\) < 25/);
 assert.match(guard, /NEW\.config -> 'city_overrides'/);
+
+const publicSettings = read('src/app/api/settings/route.ts');
+const orderApi = read('src/app/api/customer/orders/route.ts');
+const booking = read('src/components/booking/BookingWizard.tsx');
+const settingsHook = read('src/hooks/useSettings.ts');
+const servicePrice = read('src/components/services/ServicePrice.tsx');
+const resolver = read('src/lib/pricing/resolve-effective.ts');
+// Regression gates: all monetary surfaces must resolve the same published version.
+assert.match(publicSettings, /resolveEffectivePriceBook\(activeVersion\.config, req\.nextUrl\.searchParams\.get\('city'\)\)/);
+assert.match(orderApi, /resolveEffectivePriceBook\(publishedPricingConfig, a\.city\)/);
+assert.match(orderApi, /pricing_version: Number\(activePricingRow\.version\)/);
+assert.match(booking, /useSettings\(undefined, pricingCity\)/);
+assert.match(booking, /settings\.service_base_prices\[`water_tanker_\$\{o\.key\}`\]/);
+assert.match(settingsHook, /aw_pricing_published_at/);
+assert.match(servicePrice, /useSettings\(undefined, city\)/);
+assert.match(resolver, /services: \{ \.\.\.globalServices, \.\.\.cityServices \}/);
+assert.match(orderApi, /TANKER_QUOTE_REQUIRED/);
+// Pricing changes are versioned; never silently reprice completed orders.
+assert.match(endpoint, /publish_pricing_version/);
+console.log('Published price, city override, booking total, and quote guards verified.');
+
 console.log('Centralized pricing policy and admin control regression checks passed.');
