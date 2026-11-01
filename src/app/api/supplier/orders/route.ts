@@ -1,3 +1,4 @@
+import { formatOrderReference } from '@/lib/order-reference';
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
@@ -401,7 +402,7 @@ export async function GET(req: NextRequest) {
           lat: reveal ? order.lat ?? null : null,
           lng: reveal ? order.lng ?? null : null,
 
-          booking_id: order.order_number ?? order.booking_id ?? null,
+          booking_id: formatOrderReference({ order_number: order.order_number ?? order.booking_id }),
 
           service_type_label:
             text(order.service_type) ??

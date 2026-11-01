@@ -231,7 +231,7 @@ export default function AdminOrdersPage() {
         'Date',
       ];
       const csvRows = all.map((o) => [
-        o.id,
+        formatOrderReference(o),
         o.customer_name ?? '',
         (o.service_type ?? '').replace(/_/g, ' '),
         Number(o.total_amount || 0),
