@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { MessageCircle, Phone, Send } from 'lucide-react';
+import { ArrowRight, MessageCircle, Send } from 'lucide-react';
 import { supportStatus } from '@/lib/contact-shared';
 import { trackEvent } from './track';
 
@@ -39,32 +39,32 @@ export function OpenNowBadge({ className = '' }: { className?: string }) {
 }
 
 /**
- * Always-visible Call / WhatsApp / Message bar on phones: the fastest path to a human.
- * Hides itself while the site footer is on screen so it never covers footer links.
+ * Booking-first mobile bar: direct service discovery and messaging.
+ * Hide while footer is visible to keep footer links usable.
  */
-export function MobileActionBar({ phoneHref, whatsappLink }: { phoneHref: string; whatsappLink: string }) {
+export function MobileActionBar({ whatsappLink }: { whatsappLink: string }) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     const footer = document.querySelector('footer');
     if (!footer || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(([e]) => setHidden(e.isIntersecting), { threshold: 0.05 });
+    const io = new IntersectionObserver(([entry]) => setHidden(entry.isIntersecting), { threshold: 0.05 });
     io.observe(footer);
     return () => io.disconnect();
   }, []);
 
-  const btn = 'flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
+  const btn = 'flex min-h-12 flex-1 items-center justify-center gap-1.5 rounded-xl text-[13px] font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
   return (
-    <div aria-label="Quick contact" className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur transition-transform duration-200 md:hidden ${hidden ? 'translate-y-full' : ''}`}
+    <div aria-label="Booking and messaging shortcuts" className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-3 pt-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur transition-transform duration-200 md:hidden ${hidden ? 'translate-y-full pointer-events-none' : ''}`}
       style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
       <div className="mx-auto flex max-w-md gap-2">
-        <a href={phoneHref} onClick={() => trackEvent('contact_call_click', { placement: 'mobile_bar' })} className={`${btn} bg-emerald-600 text-white focus-visible:outline-emerald-700`}>
-          <Phone size={18} aria-hidden="true" /> Call now
+        <a href="/book" className={`${btn} bg-emerald-700 text-white focus-visible:outline-emerald-700`}>
+          Book now <ArrowRight size={16} aria-hidden="true" />
         </a>
         <a href={whatsappLink} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent('contact_whatsapp_click', { placement: 'mobile_bar' })} className={`${btn} bg-[#25D366] text-slate-950 focus-visible:outline-emerald-700`}>
-          <MessageCircle size={18} aria-hidden="true" /> WhatsApp
+          <MessageCircle size={17} aria-hidden="true" /> WhatsApp
         </a>
         <a href="#contact-form" className={`${btn} border border-slate-300 text-slate-800 focus-visible:outline-slate-500`}>
-          <Send size={17} aria-hidden="true" /><span className="sr-only">Send a </span>Message
+          <Send size={16} aria-hidden="true" /> Enquiry
         </a>
       </div>
     </div>
