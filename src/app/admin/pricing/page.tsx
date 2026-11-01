@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
 
 type PriceBook = { water_normal:number; water_chilled:number; water_subscription:number; bulk_can_price:number; bulk_threshold:number; services:Record<string,number>; convenience_fee:number; emergency_surcharge:number; delivery_fee?:number; surge_charge?:number; gst_rate:number };
-type Config = PriceBook & { city_overrides?:Record<string,PriceBook> };
+type CityPriceOverride = Partial<Omit<PriceBook, 'services'>> & { services?: Record<string, number> };
+type Config = PriceBook & { city_overrides?:Record<string,CityPriceOverride> };
 type Version = { id:number; version:number; effective_from:string; reason:string; config:Config; created_at:string; currently_effective?:boolean };
 const labels:Record<string,string> = { water_tanker:'Water tanker', ro_service:'RO service', plumbing:'Plumbing labour', plumbing_mistri:'Plumbing mistri', borewell:'Borewell inspection / request', borewell_drilling_4_5:'Borewell 4.5-inch drilling ₹/ft', borewell_drilling_6:'Borewell 6-inch drilling ₹/ft', borewell_drilling_6_5:'Borewell 6.5-inch drilling ₹/ft', borewell_drilling_8:'Borewell 8-inch drilling ₹/ft', motor_pump:'Motor & pump', tank_cleaning:'Tank cleaning', ro_service_filter_change:'RO filter change add-on', ro_service_amc:'RO AMC add-on', ro_service_new_installation:'RO new installation add-on', plumbing_drainage:'Plumbing drainage add-on', plumbing_new_fitting:'Plumbing new fitting add-on', water_tanker_1000:'1,000L tanker capacity surcharge (base 500L)', water_tanker_2000:'2,000L tanker capacity surcharge (base 500L)', water_tanker_custom:'Custom tanker — quote required' };
 type PublicCity = { name: string; slug: string; status: 'active' | 'coming_soon' | 'waitlist' };
