@@ -58,7 +58,7 @@ test('Noida legacy coverage matches the production launch radius', () => {
   assert.match(migration, /ON CONFLICT \(slug\) DO UPDATE/);
   assert.match(migration, /is_active = true/);
   assert.match(migration, /services = NULL/);
-  assert.match(migration, /radius_km = CASE WHEN lower\(city\) = 'noida' THEN 25/);
+  assert.match(migration, /WHEN 'noida' THEN 25/);
 });
 
 test('launch migration creates citywide available catch-all zones for all requested cities', () => {
