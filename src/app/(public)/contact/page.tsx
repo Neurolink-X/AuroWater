@@ -1,285 +1,7 @@
-// 'use client';
-
-// import Link from 'next/link';
-// import React, { useEffect, useMemo, useState } from 'react';
-// import { toast } from 'sonner';
-// import { useForm } from 'react-hook-form';
-// import { z } from 'zod';
-// import { zodResolver } from '@hookform/resolvers/zod';
-
-// const FALLBACK = {
-//   support_email: 'support.aurotap@gmail.com',
-//   secondary_email: 'aurotap@gmail.com',
-//   phone_primary: '9889305803',
-//   phone_secondary: '',
-//   office_address: 'Kanpur, Uttar Pradesh',
-//   working_hours: 'Mon–Sat, 8AM–8PM IST',
-//   brand_name: 'Auro Water',
-// };
-
-// const schema = z.object({
-//   name: z.string().min(2, 'Name is required.'),
-//   email: z.string().email('Enter a valid email.'),
-//   phone: z
-//     .string()
-//     .min(10, 'Enter a valid phone number.')
-//     .max(15, 'Enter a valid phone number.')
-//     .refine((v) => /^[0-9]+$/.test(v.replace(/\D/g, '')), 'Phone must be digits.'),
-//   subject: z.enum([
-//     'General',
-//     'Booking Help',
-//     'Technician Registration',
-//     'Supplier Partnership',
-//     'Complaint',
-//     'Other',
-//   ]),
-//   message: z.string().min(10, 'Message must be at least 10 characters.'),
-// });
-
-// type FormValues = z.infer<typeof schema>;
-
-// export default function ContactPage() {
-//   const whatsappHref = useMemo(() => 'https://wa.me/919889305803', []);
-
-//   const [settings, setSettings] = useState<typeof FALLBACK | null>(null);
-//   const [settingsLoading, setSettingsLoading] = useState(true);
-//   const [submitted, setSubmitted] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const {
-//     register,
-//     handleSubmit,
-//     reset,
-//     formState: { errors },
-//     setValue,
-//   } = useForm<FormValues>({
-//     resolver: zodResolver(schema),
-//     defaultValues: {
-//       name: '',
-//       email: '',
-//       phone: '',
-//       subject: 'General',
-//       message: '',
-//     },
-//   });
-
-//   useEffect(() => {
-//     (async () => {
-//       try {
-//         const res = await fetch('/api/settings', { cache: 'no-store' });
-//         const json = await res.json();
-//         setSettings(json?.data || FALLBACK);
-//       } catch {
-//         setSettings(FALLBACK);
-//       } finally {
-//         setSettingsLoading(false);
-//       }
-//     })();
-//   }, []);
-
-//   // Prefill subject from query param.
-//   useEffect(() => {
-//     if (typeof window === 'undefined') return;
-//     const sp = new URLSearchParams(window.location.search);
-//     const raw = sp.get('subject');
-//     if (!raw) return;
-//     const map: Record<string, FormValues['subject']> = {
-//       technician: 'Technician Registration',
-//       supplier: 'Supplier Partnership',
-//       booking: 'Booking Help',
-//       general: 'General',
-//       complaint: 'Complaint',
-//     };
-//     const next = map[raw.toLowerCase()];
-//     if (!next) return;
-//     setValue('subject', next);
-//     setTimeout(() => {
-//       document.getElementById('contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-//     }, 80);
-//   }, [setValue]);
-
-//   const onSubmit = async (values: FormValues) => {
-//     if (loading) return;
-//     setLoading(true);
-//     setSubmitted(false);
-//     try {
-//       await new Promise((r) => setTimeout(r, 1500));
-//       setSubmitted(true);
-//       toast.success('Message sent! We will reply within 24 hours.');
-//       reset();
-//     } catch {
-//       toast.error('Something went wrong. Please try again.');
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen gradient-section">
-//       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pb-16">
-//         <div className="mb-7">
-//           <h1 className="text-[clamp(1.75rem,5vw,3.5rem)] font-extrabold text-[#0F1C18]">Get in Touch</h1>
-//           <p className="text-base sm:text-lg text-slate-600 mt-3">
-//             Have a question or need support? Send us a message.
-//           </p>
-//         </div>
-
-//         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-//           <div className="lg:col-span-2">
-//             <div id="contact-form" className="rounded-2xl bg-white border border-slate-100 shadow-card p-6 sm:p-8">
-//               <h2 className="text-xl sm:text-2xl font-extrabold text-[#0F1C18]">Contact form</h2>
-//               <p className="text-slate-600 mt-2">We’ll reply within 24 hours.</p>
-
-//               {submitted ? (
-//                 <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700 font-semibold">
-//                   ✅ Message sent! We'll reply within 24 hours.
-//                 </div>
-//               ) : (
-//                 <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
-//                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//                     <div>
-//                       <label className="text-sm font-semibold text-slate-700">Name</label>
-//                       <input
-//                         {...register('name')}
-//                         placeholder="Your name"
-//                         className={[
-//                           'mt-2 w-full rounded-xl border px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]',
-//                           errors.name ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white',
-//                         ].join(' ')}
-//                       />
-//                       {errors.name && <div className="text-xs text-red-700 mt-1">{errors.name.message}</div>}
-//                     </div>
-//                     <div>
-//                       <label className="text-sm font-semibold text-slate-700">Email</label>
-//                       <input
-//                         {...register('email')}
-//                         type="email"
-//                         placeholder="you@example.com"
-//                         className={[
-//                           'mt-2 w-full rounded-xl border px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]',
-//                           errors.email ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white',
-//                         ].join(' ')}
-//                       />
-//                       {errors.email && <div className="text-xs text-red-700 mt-1">{errors.email.message}</div>}
-//                     </div>
-//                   </div>
-
-//                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//                     <div>
-//                       <label className="text-sm font-semibold text-slate-700">Phone</label>
-//                       <input
-//                         {...register('phone')}
-//                         inputMode="numeric"
-//                         placeholder="9XXXXXXXXX"
-//                         className={[
-//                           'mt-2 w-full rounded-xl border px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]',
-//                           errors.phone ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white',
-//                         ].join(' ')}
-//                       />
-//                       {errors.phone && <div className="text-xs text-red-700 mt-1">{errors.phone.message}</div>}
-//                     </div>
-//                     <div>
-//                       <label className="text-sm font-semibold text-slate-700">Subject</label>
-//                       <select
-//                         {...register('subject')}
-//                         className={[
-//                           'mt-2 w-full rounded-xl border px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]',
-//                           errors.subject ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white',
-//                         ].join(' ')}
-//                       >
-//                         <option value="General">General</option>
-//                         <option value="Booking Help">Booking Help</option>
-//                         <option value="Technician Registration">Technician Registration</option>
-//                         <option value="Supplier Partnership">Supplier Partnership</option>
-//                         <option value="Complaint">Complaint</option>
-//                         <option value="Other">Other</option>
-//                       </select>
-//                       {errors.subject && <div className="text-xs text-red-700 mt-1">{errors.subject.message}</div>}
-//                     </div>
-//                   </div>
-
-//                   <div>
-//                     <label className="text-sm font-semibold text-slate-700">Message</label>
-//                     <textarea
-//                       {...register('message')}
-//                       rows={5}
-//                       placeholder="Tell us what you need..."
-//                       className={[
-//                         'mt-2 w-full rounded-xl border px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-[#0D9B6C]',
-//                         errors.message ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white',
-//                       ].join(' ')}
-//                     />
-//                     {errors.message && <div className="text-xs text-red-700 mt-1">{errors.message.message}</div>}
-//                   </div>
-
-//                   <button
-//                     type="submit"
-//                     disabled={loading}
-//                     className="w-full rounded-xl bg-[#0D9B6C] text-white font-extrabold py-3 hover:bg-[#086D4C] active:scale-95 transition-all disabled:opacity-60"
-//                   >
-//                     {loading ? 'Sending...' : 'Send Message'}
-//                   </button>
-//                 </form>
-//               )}
-//             </div>
-//           </div>
-
-//           <div className="space-y-6">
-//             <div className="rounded-2xl bg-gradient-to-r from-[#0D9B6C] to-[#38BDF8] text-white p-6 shadow-card relative overflow-hidden">
-//               <div className="hero-water-bg opacity-70" />
-//               <div className="relative">
-//                 <div className="font-extrabold text-xl flex items-center gap-2">
-//                   <span>📱</span> Chat on WhatsApp
-//                 </div>
-//                 <div className="text-white/90 mt-2 text-sm">Usually replies within 30 minutes.</div>
-//                 <a
-//                   href={whatsappHref}
-//                   target="_blank"
-//                   rel="noopener noreferrer"
-//                   className="mt-5 inline-flex items-center justify-center w-full rounded-xl bg-white text-[#0D9B6C] font-extrabold py-3 hover:bg-white/90 active:scale-95 transition-all"
-//                 >
-//                   Start WhatsApp chat
-//                 </a>
-//                 <Link
-//                   href="/contact?subject=technician"
-//                   className="mt-4 inline-block w-full text-center text-white/90 hover:text-white underline"
-//                 >
-//                   For technician registration
-//                 </Link>
-//               </div>
-//             </div>
-
-//             <div className="rounded-2xl bg-white border border-slate-100 shadow-card p-6">
-//               <h2 className="text-lg font-extrabold text-[#0F1C18]">Contact info</h2>
-//               <div className="mt-4 space-y-3 text-sm text-slate-700">
-//                 <div>📞 Phone: {settingsLoading ? 'Loading...' : settings?.phone_primary || FALLBACK.phone_primary}</div>
-//                 <div>✉️ Email: {settingsLoading ? 'Loading...' : settings?.support_email || FALLBACK.support_email}</div>
-//                 <div>📍 Address: {settingsLoading ? 'Loading...' : settings?.office_address || FALLBACK.office_address}</div>
-//                 <div>🕐 Hours: {settingsLoading ? 'Loading...' : settings?.working_hours || FALLBACK.working_hours}</div>
-//               </div>
-//             </div>
-
-//             <div className="rounded-2xl bg-white border border-slate-100 shadow-card p-6">
-//               <h2 className="text-lg font-extrabold text-[#0F1C18]">Support</h2>
-//               <div className="mt-3 text-sm text-slate-600">
-//                 For booking help, use the Book flow. For onboarding, send a message or WhatsApp us.
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       </section>
-//     </div>
-//   );
-// }
-
-
-
-
-
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -355,9 +77,8 @@ const IconCheck = () => (
    PAGE COMPONENT
 ───────────────────────────────────────────── */
 export default function ContactPage() {
-  const whatsappHref = useMemo(() => 'https://wa.me/919889305803', []);
-  const [settings, setSettings] = useState<typeof FALLBACK | null>(null);
-  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [contact, setContact] = useState({ support_phone: FALLBACK.phone_primary, support_email: FALLBACK.support_email, whatsapp_number: FALLBACK.phone_primary });
+  const whatsappHref = `https://wa.me/91${contact.whatsapp_number}`;
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -367,15 +88,14 @@ export default function ContactPage() {
     defaultValues: { name: '', email: '', phone: '', subject: 'General', message: '' },
   });
 
+
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/settings', { cache: 'no-store' });
-        const json = await res.json();
-        setSettings(json?.data || FALLBACK);
-      } catch { setSettings(FALLBACK); }
-      finally { setSettingsLoading(false); }
-    })();
+    const controller = new AbortController();
+    void fetch('/api/contact-details', { signal: controller.signal })
+      .then(async response => response.ok ? response.json() as Promise<Partial<typeof contact>> : {})
+      .then(values => { if (!controller.signal.aborted) setContact(previous => ({ ...previous, ...values })); })
+      .catch(() => { /* Static contact details remain available when offline. */ });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -402,19 +122,26 @@ export default function ContactPage() {
   const onSubmit = async (values: FormValues) => {
     if (loading) return;
     setLoading(true);
+    setSubmitted(false);
     try {
-      await new Promise((r) => setTimeout(r, 1500));
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+      const result = await response.json();
+      if (!response.ok || result.success === false) throw new Error(result.error || 'Could not submit message');
       setSubmitted(true);
-      toast.success("Message sent! We\u2019ll reply within 24 hours.");
+      toast.success('Your enquiry has been received.');
       reset();
-    } catch {
-      toast.error('Something went wrong. Please try again.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Please try again or contact us on WhatsApp.');
     } finally {
       setLoading(false);
     }
   };
 
-  const info = settings ?? FALLBACK;
+  const info = { ...FALLBACK, phone_primary: contact.support_phone, support_email: contact.support_email };
 
   const fieldClass = (name: string, hasError: boolean) => [
     'ct-input',
@@ -906,19 +633,19 @@ export default function ContactPage() {
             </div>
 
             <h1 className="ct-hero-title">
-              Talk to <span>AuroWater</span><br />
-              We're here for you.
+              Your essentials, <span>one tap away.</span><br />
+              Help when you need it.
             </h1>
 
             <p className="ct-hero-sub">
-              Whether it's a booking issue, partnership query, or you want to join our technician network — we've got you covered.
+              Water delivery and essential home services, with easy booking support and local partner enquiries. Check availability and final prices before booking.
             </p>
 
             <div className="ct-hero-stats">
               {[
                 'WhatsApp support',
                 'Call and email support',
-                '3 live service zones',
+                'Check coverage before booking',
               ].map((s) => (
                 <div key={s} className="ct-stat-chip">
                   <span className="ct-stat-chip-dot" />
@@ -1052,19 +779,19 @@ export default function ContactPage() {
                       {loading ? (
                         <>
                           <div className="ct-submit-spinner" />
-                          Sending your message...
+                          Sending enquiry...
                         </>
                       ) : (
                         <>
                           <IconSend />
-                          Send Message
+                          Send Enquiry
                           <span style={{ background: 'rgba(255,255,255,0.18)', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>→</span>
                         </>
                       )}
                     </button>
 
                     <p style={{ textAlign: 'center', fontSize: 12, color: '#9CA3AF', margin: 0 }}>
-                      We typically respond within 24 hours · Your data is safe with us
+                      Your enquiry is saved securely. Never share OTPs or passwords.
                     </p>
 
                   </form>
@@ -1111,10 +838,10 @@ export default function ContactPage() {
               <div className="ct-info-card">
                 <div className="ct-info-title">Contact Details</div>
                 {[
-                  { icon: <IconPhone />, label: 'Phone', value: settingsLoading ? 'Loading…' : (info.phone_primary || FALLBACK.phone_primary) },
-                  { icon: <IconMail />,  label: 'Email', value: settingsLoading ? 'Loading…' : (info.support_email || FALLBACK.support_email) },
-                  { icon: <IconPin />,   label: 'Address', value: settingsLoading ? 'Loading…' : (info.office_address || FALLBACK.office_address) },
-                  { icon: <IconClock />, label: 'Working Hours', value: settingsLoading ? 'Loading…' : (info.working_hours || FALLBACK.working_hours) },
+                  { icon: <IconPhone />, label: 'Phone', value: (info.phone_primary || FALLBACK.phone_primary) },
+                  { icon: <IconMail />,  label: 'Email', value: (info.support_email || FALLBACK.support_email) },
+                  { icon: <IconPin />,   label: 'Address', value: (info.office_address || FALLBACK.office_address) },
+                  { icon: <IconClock />, label: 'Working Hours', value: (info.working_hours || FALLBACK.working_hours) },
                 ].map((item) => (
                   <div key={item.label} className="ct-info-item">
                     <div className="ct-info-icon">{item.icon}</div>

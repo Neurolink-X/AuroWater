@@ -6,9 +6,10 @@ import {
 } from '@/lib/api/json-response';
 
 import {
-  createSupabaseAnonClient,
   isSupabaseConfigured,
 } from '@/lib/db/supabase';
+
+import { createClient } from '@supabase/supabase-js';
 
 import {
   checkRateLimit,
@@ -56,6 +57,9 @@ export async function POST(
   /*
    * Public endpoint protection.
    */
+  const origin = req.headers.get('origin');
+  if (origin && origin !== req.nextUrl.origin) return jsonErr('Invalid request origin', 403);
+  if (Number(req.headers.get('content-length') ?? 0) > 12000) return jsonErr('Message too large', 413);
   const ip =
     getClientIp(req);
 
@@ -202,21 +206,23 @@ export async function POST(
     );
   }
 
-  const supabase =
-    createSupabaseAnonClient();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return jsonErr('Contact form temporarily unavailable', 503);
+  const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
   const {
     error,
   } = await supabase
     .from(
-      'contact_submissions',
+      'contact_requests',
     )
     .insert({
       name,
       email,
-      message,
-      phone:
-        phone || null,
+      message: message.slice(0, 3000),
+      subject: ['General','Booking Help','Technician Registration','Supplier Partnership','Complaint','Other'].includes(String(body.subject)) ? body.subject : 'General',
+      phone: phone || '0000000000',
     });
 
   if (error) {
