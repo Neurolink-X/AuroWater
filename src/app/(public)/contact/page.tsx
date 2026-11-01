@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { ArrowRight, Clock, Mail, MapPin, MessageCircle, Phone, ShieldCheck, Tag } from 'lucide-react';
 import { getContactSettings } from '@/lib/contact-settings';
 import {
-  SERVICE_PROMISES, SUPPORT_SCHEDULE, formatPhone, isOfferActive, telHref, whatsappHref,
+  SUPPORT_SCHEDULE, formatPhone, isOfferActive, telHref, whatsappHref,
 } from '@/lib/contact-shared';
 import ContactForm from './ContactForm';
-import { MobileActionBar, OpenNowBadge, TrackedLink } from './LiveBits';
+import { MobileActionBar, TrackedLink } from './LiveBits';
 
 /** Server component, statically cached and refreshed every minute: instant first paint, zero client fetch waterfall. */
 export const revalidate = 60;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
-const TITLE = 'Contact AuroTap | Call, WhatsApp or Email Support';
-const DESCRIPTION = 'Need help with water delivery, plumbing or a booking? Call or WhatsApp AuroTap support, or send a message. Check coverage and final price before you book.';
+const TITLE = 'Contact AuroTap | Book Water & Home Services, Message Support';
+const DESCRIPTION = 'Keep water and essential home services within reach. Book with AuroTap, message our team or explore current offers. Check service availability and final pricing before checkout.';
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -32,7 +32,7 @@ const PATHS = [
 ] as const;
 
 const FAQ = [
-  { q: 'How quickly will you reply?', a: `Email and form enquiries get a reply ${SERVICE_PROMISES.emailReply}. WhatsApp replies are ${SERVICE_PROMISES.whatsappReply}. For anything urgent, call us.` },
+  { q: 'How can I get help with an order?', a: 'Send your booking reference through the contact form or WhatsApp. Our team reviews messages during working hours; response times can vary.' },
   { q: 'Is my area covered?', a: 'Availability varies by city, address, service and partner. Use Check coverage, or ask us before you book.' },
   { q: 'What should I never share?', a: 'Never share your password, OTP or reset link with anyone, including AuroTap staff. We will never ask for them.' },
   { q: 'I can’t sign in to my account.', a: 'Use the account help form. Our team verifies ownership before changing any account details.' },
@@ -93,25 +93,24 @@ export default async function ContactPage() {
           </p>
           <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
             Your essentials, <span className="text-emerald-300">one tap away.</span>
-            <span className="mt-1 block text-[0.6em] font-extrabold text-white/90">Prefer to talk? We’re one call away.</span>
+            <span className="mt-2 block text-[0.54em] font-extrabold leading-tight text-white/90">Small essentials. A little more peace of mind.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-white/70">
-            Water delivery and essential home services, with easy booking support and local partner enquiries. Check availability and final prices before booking.
+            A home runs on the little things. From drinking water to a tap that needs fixing, find everyday help in one place. Book a service or send us a message whenever you need guidance.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <TrackedLink href={call} event="contact_call_click" ariaLabel={`Call AuroTap support on ${prettyPhone}`}
-              className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-6 text-[15px] font-extrabold text-emerald-900 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-              <Phone size={18} aria-hidden="true" /> Call {prettyPhone}
-            </TrackedLink>
+            <Link href="/book" className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-white px-6 text-[15px] font-extrabold text-emerald-950 shadow-lg shadow-black/20 transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              Book a service <ArrowRight size={18} aria-hidden="true" />
+            </Link>
             <TrackedLink href={wa} event="contact_whatsapp_click" external
               className="inline-flex min-h-12 items-center gap-2 rounded-2xl bg-[#25D366] px-6 text-[15px] font-extrabold text-slate-950 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-              <MessageCircle size={18} aria-hidden="true" /> WhatsApp us
+              <MessageCircle size={18} aria-hidden="true" /> Message us
             </TrackedLink>
           </div>
-          <div className="mt-5"><OpenNowBadge /></div>
+          <p className="mx-auto mt-5 max-w-xl text-sm font-semibold text-emerald-100">Start with a booking. Stay connected with messages. Support is available when you need guidance.</p>
           <ul className="mt-6 flex flex-wrap justify-center gap-2 text-xs font-semibold text-white/85">
-            {['WhatsApp support', 'Call and email support', 'Check coverage before booking'].map((t) => (
+            {['Simple online booking', 'Message-led support', 'Check offers and coverage'].map((t) => (
               <li key={t} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2"><span aria-hidden="true" className="size-1.5 rounded-full bg-emerald-300" />{t}</li>
             ))}
           </ul>
@@ -148,7 +147,7 @@ export default async function ContactPage() {
           <section id="contact-form" aria-labelledby="form-title" className="scroll-mt-6 overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.04),0_20px_60px_rgba(13,155,108,0.08)]">
             <div className="border-b border-emerald-50 px-5 pb-5 pt-7 sm:px-8">
               <h2 id="form-title" className="text-2xl font-black tracking-tight text-emerald-950">Send us a message</h2>
-              <p className="mt-1 text-sm text-slate-500">Fill in the form and we’ll get back to you {SERVICE_PROMISES.emailReply}. In a hurry? Call us.</p>
+              <p className="mt-1 text-sm text-slate-500">Tell us what you need. Your message goes to our support inbox, where our team can follow up during working hours.</p>
             </div>
             <div className="px-5 pb-8 pt-6 sm:px-8"><ContactForm phone={s.supportPhone} /></div>
           </section>
@@ -158,22 +157,21 @@ export default async function ContactPage() {
             <section aria-labelledby="wa-title" className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-950 via-emerald-800 to-emerald-700 p-6">
               <div className="relative">
                 <h2 id="wa-title" className="text-xl font-black tracking-tight text-white">Chat on WhatsApp</h2>
-                <p className="mt-1 text-sm leading-6 text-white/65">Get instant help from our team. Replies are {SERVICE_PROMISES.whatsappReply}.</p>
+                <p className="mt-1 text-sm leading-6 text-white/75">A question about your order, an offer or joining our network? Send a message and keep the conversation in one place.</p>
                 <TrackedLink href={wa} event="contact_whatsapp_click" external
                   className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-sm font-bold text-slate-950 shadow-lg shadow-black/20 transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
                   <MessageCircle size={19} aria-hidden="true" /> Start WhatsApp chat
                 </TrackedLink>
-                <TrackedLink href={call} event="contact_call_click" className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/25 text-sm font-bold text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-                  <Phone size={16} aria-hidden="true" /> Or call {prettyPhone}
-                </TrackedLink>
+                <Link href="/book" className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/25 text-sm font-bold text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                  Book water or home services <ArrowRight size={16} aria-hidden="true" />
+                </Link>
               </div>
             </section>
 
             <section aria-labelledby="details-title" className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm">
-              <h2 id="details-title" className="mb-3 border-b border-emerald-50 pb-3 text-base font-black text-emerald-950">Contact details</h2>
+              <h2 id="details-title" className="mb-3 border-b border-emerald-50 pb-3 text-base font-black text-emerald-950">Other ways to connect</h2>
               <dl className="divide-y divide-slate-50">
                 {[
-                  { icon: <Phone size={17} aria-hidden="true" />, label: 'Phone', value: <a href={call} className="hover:underline">{prettyPhone}</a> },
                   { icon: <Mail size={17} aria-hidden="true" />, label: 'Email', value: <a href={`mailto:${s.supportEmail}`} className="break-all hover:underline">{s.supportEmail}</a> },
                   { icon: <MapPin size={17} aria-hidden="true" />, label: 'Address', value: s.officeAddress },
                   { icon: <Clock size={17} aria-hidden="true" />, label: 'Working hours', value: s.workingHours },
@@ -184,11 +182,15 @@ export default async function ContactPage() {
                   </div>
                 ))}
               </dl>
+              <details className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                <summary className="cursor-pointer font-semibold text-emerald-900">Need phone support instead?</summary>
+                <a href={call} className="mt-2 inline-flex min-h-10 items-center gap-2 font-semibold text-emerald-800 underline underline-offset-2"><Phone size={15} aria-hidden="true" /> Call {prettyPhone}</a>
+              </details>
             </section>
 
             <p className="flex gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-[13px] leading-6 text-emerald-900">
               <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-              <span><strong>For bookings</strong>, use the Book flow directly. For technician onboarding or supplier partnerships, send a message or WhatsApp and we’ll set up a call.</span>
+              <span><strong>Make the day a little easier.</strong> Book the essentials online, explore any available offers and message us for help. Partner enquiries are welcome too.</span>
             </p>
           </div>
         </div>
@@ -226,7 +228,7 @@ export default async function ContactPage() {
         </section>
       </main>
 
-      <MobileActionBar phoneHref={call} whatsappLink={wa} />
+      <MobileActionBar whatsappLink={wa} />
     </div>
   );
 }
