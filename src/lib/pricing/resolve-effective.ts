@@ -39,18 +39,62 @@ export function resolveEffectivePriceBook(
   const override = cityKey && Object.hasOwn(overrides, cityKey) && isPlainRecord(overrides[cityKey])
     ? overrides[cityKey]
     : null;
+
+  // Keep a complete, reviewed baseline so an older sparse database version
+  // does not take all checkout/settings endpoints offline. Explicit published
+  // values always win; invalid explicit values remain visible to validation.
+  const baseline = {
+    water_normal: 20,
+    water_chilled: 25,
+    water_subscription: 20,
+    bulk_can_price: 20,
+    bulk_threshold: 50,
+    convenience_fee: 0,
+    delivery_fee: 0,
+    emergency_surcharge: 0,
+    surge_charge: 0,
+    gst_rate: 0,
+    services: {
+      water_tanker: 699,
+      ro_service: 349,
+      plumbing: 149,
+      plumbing_mistri: 700,
+      borewell: 499,
+      motor_pump: 299,
+      tank_cleaning: 599,
+      ro_service_filter_change: 49,
+      ro_service_amc: 149,
+      ro_service_new_installation: 599,
+      plumbing_drainage: 49,
+      plumbing_new_fitting: 99,
+      water_tanker_1000: 300,
+      water_tanker_2000: 800,
+      water_tanker_custom: 0,
+      borewell_drilling_4_5: 100,
+      borewell_drilling_6: 180,
+      borewell_drilling_6_5: 180,
+      borewell_drilling_8: 350,
+    },
+  };
   const globalServices = isPlainRecord(published.services)
-    ? published.services
-    : {};
+    ? { ...baseline.services, ...published.services }
+    : Object.hasOwn(published, 'services')
+      ? published.services
+      : baseline.services;
   const cityServices = override && isPlainRecord(override.services)
     ? override.services
     : {};
+  const mergedServices = isPlainRecord(globalServices)
+    ? { ...globalServices, ...cityServices }
+    : globalServices;
+
   return {
+    ...baseline,
     ...published,
     ...(override ?? {}),
-    services: { ...globalServices, ...cityServices },
+    services: mergedServices,
     city_key: override ? cityKey : 'global',
-  };
+  } as EffectivePriceBook;
 }
 
 export type PricingIssue = { field: string; reason: string };
