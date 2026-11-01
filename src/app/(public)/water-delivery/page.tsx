@@ -76,7 +76,7 @@ export default async function WaterDeliveryIndexPage() {
 
   // Search data reflects the real admin-controlled active city directory.
   // Area-level serviceability is still verified only during booking.
-  const base = getSiteUrl().replace(/\\/+$/, '');
+  const base = getSiteUrl().replace(/\/+$/, '');
   const structuredData = {
     '@context': 'https://schema.org',
     '@type': 'Service',
