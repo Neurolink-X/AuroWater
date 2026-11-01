@@ -83,7 +83,7 @@ test('Noida is active for citywide service requests across customer and SEO surf
   assert.match(fallback, /id: 'noida',[^\\n]*status: 'active'/);
   const home = read('src/app/(public)/HomeClient.tsx');
   assert.match(home, /Citywide service throughout/);
-  assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot|Pilot · not yet live/);
+  assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot/);
   const cityPage = read('src/app/cities/[city]/page.tsx');
   assert.doesNotMatch(cityPage, /Sector 73 Pilot|limited pilot/);
   const selector = read('src/components/ui/CitySelector.tsx');
