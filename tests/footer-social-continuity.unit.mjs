@@ -31,7 +31,8 @@ test('footer has full service navigation', () => {
 
 test('footer keeps contact methods and verified operational CTA', () => {
   assert.doesNotMatch(footer, /tel:\+919889305803/);
-  assert.match(footer, /mailto:support\.aurotap@gmail\.com/);
+  assert.match(footer, /const SUPPORT_EMAIL = 'support\.aurotap@gmail\.com'/);
+  assert.match(footer, /href=\{`mailto:\$\{SUPPORT_EMAIL\}`\}/);
   assert.match(footer, /https:\/\/wa\.me\/919889305803/);
   assert.match(footer, /noopener noreferrer/);
 });
@@ -52,14 +53,15 @@ test('social URLs require a platform-matched hostname', () => {
 });
 
 test('social icons are accessible and only rendered for valid profile links', () => {
-  assert.match(footer, /SOCIALS\.map\(\(profile\)/);
-  assert.match(footer, /aria-label=\{\x60AuroTap on/);
+  assert.match(footer, /SOCIALS\.map\(\((?:profile|p)\) =>/);
+  assert.match(footer, /(?:aria-label=\{\x60AuroTap on|className=\{iconLinkClass\} href=\{p\.href\} title=\{p\.label\})/);
+  assert.match(footer, /sr-only">AuroTap on \{p\.label\}/);
   // Brand logos are inline SVG, because lucide-react does not export them.
   // Verify platform branches and accessible SVG markup, not obsolete imports.
   for (const platform of ['instagram', 'facebook', 'linkedin']) {
     assert.ok(footer.includes(`platform === '${platform}'`), `missing ${platform} icon`);
   }
-  assert.match(footer, /<SocialIcon platform=\{profile\.platform\} \/>/);
+  assert.match(footer, /<SocialIcon platform=\{(?:profile|p)\.platform\} \/>/);
   assert.match(footer, /aria-hidden="true" focusable="false"/);
   assert.doesNotMatch(footer, /ArrowRight, Facebook, Instagram, Linkedin/);
 });
