@@ -6,6 +6,16 @@ import { getToken } from '@/lib/api-client';
 
 type ZoneStatus = 'AVAILABLE' | 'LIMITED' | 'TEMPORARILY_UNAVAILABLE' | 'COMING_SOON';
 
+const SERVICE_OPTIONS = [
+  { key: 'water_can', label: '20L water cans' },
+  { key: 'water_tanker', label: 'Water tanker' },
+  { key: 'ro_service', label: 'RO service' },
+  { key: 'plumbing', label: 'Plumbing' },
+  { key: 'borewell', label: 'Borewell' },
+  { key: 'motor_pump', label: 'Motor pump' },
+  { key: 'tank_cleaning', label: 'Tank cleaning' },
+] as const;
+
 type Zone = {
   id: string;
   city: string;
@@ -14,6 +24,9 @@ type Zone = {
   pincodes: string[] | null;
   is_catch_all: boolean;
   supplier_count: number;
+  services: string[] | null;
+  customer_message: string | null;
+  updated_at: string;
 };
 
 type Metric = {
@@ -199,7 +212,10 @@ function ZoneCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [pins, setPins] = useState((zone.pincodes ?? []).join(', '));
+  const [message, setMessage] = useState(zone.customer_message ?? '');
+  const [selectedServices, setSelectedServices] = useState<string[]>(zone.services ?? SERVICE_OPTIONS.map((service) => service.key));
   const st = STATUS[zone.status];
+
 
   const patch = async (body: Record<string, unknown>, okMsg: string) => {
     setBusy(true);
@@ -223,6 +239,7 @@ function ZoneCard({
   };
 
   const pinsChanged = pins.replace(/\s/g, '') !== (zone.pincodes ?? []).join(',');
+  const saveOperations = () => patch({ customer_message: message.trim() || null, services: selectedServices }, 'Area controls saved');
 
   return (
     <article className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
@@ -265,6 +282,26 @@ function ZoneCard({
         <Stat label="Suppliers online" value={`${metric?.suppliers_online ?? 0} / ${metric?.suppliers ?? zone.supplier_count}`} />
       </div>
 
+      <details className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        <summary className="cursor-pointer text-sm font-bold text-slate-800">Customer message and services</summary>
+        <label className="mt-3 block text-xs font-semibold text-slate-600" htmlFor={`message-${zone.id}`}>Customer-facing message (optional, up to 500 characters)
+          <textarea id={`message-${zone.id}`} maxLength={500} value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="Example: Water delivery is paused in this area until 6 PM." className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-normal" />
+        </label>
+        <fieldset className="mt-3">
+          <legend className="text-xs font-semibold text-slate-600">Services customers can book in this area</legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {SERVICE_OPTIONS.map((service) => <label key={service.key} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm">
+              <input type="checkbox" checked={selectedServices.includes(service.key)} onChange={(e) => setSelectedServices((current) => e.target.checked ? [...new Set([...current, service.key])] : current.filter((key) => key !== service.key))} />
+              {service.label}
+            </label>)}
+          </div>
+        </fieldset>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">No message uses the automatic status message. An empty service selection pauses every service here.</p>
+          <button type="button" disabled={busy} onClick={() => void saveOperations()} className="rounded-xl bg-cyan-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Save area controls'}</button>
+        </div>
+      </details>
+
       <div className="mt-3 flex flex-wrap items-end gap-2">
         {!zone.is_catch_all ? (
           <div className="min-w-[220px] flex-1">
@@ -306,6 +343,67 @@ function ZoneCard({
   );
 }
 
+function CitywideControl({ city, onSaved }: { city: string; onSaved: () => void }) {
+  const [status, setStatus] = useState<ZoneStatus>('AVAILABLE');
+  const [message, setMessage] = useState('');
+  const [selectedServices, setSelectedServices] = useState<string[]>(SERVICE_OPTIONS.map((service) => service.key));
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!window.confirm(`Apply this status, service list, and customer message to every mapped area and the fallback zone in ${city}?`)) return;
+    setBusy(true);
+    const result = await call<{ updated_zones: number }>('/api/admin/zones', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        city,
+        status,
+        services: selectedServices,
+        customer_message: message.trim() || null,
+      }),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`${city}: controls applied to ${result.data.updated_zones} areas`);
+    onSaved();
+  };
+
+  return (
+    <section className="mt-4 rounded-2xl border border-cyan-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="font-extrabold text-slate-900">Citywide controls · {city}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Applies to every PIN area and “All areas” fallback. A saved status or message replaces the area-level value.</p>
+        </div>
+        <button type="button" disabled={busy} onClick={() => void save()} className="rounded-xl bg-cyan-800 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+          {busy ? 'Applying…' : 'Apply to city'}
+        </button>
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-semibold text-slate-600">Service status
+          <select value={status} onChange={(e) => setStatus(e.target.value as ZoneStatus)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+            {(Object.keys(STATUS) as ZoneStatus[]).map((key) => <option key={key} value={key}>{STATUS[key].label}</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600">Customer message (blank clears previous messages)
+          <textarea maxLength={500} rows={2} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Example: Service is paused citywide until 6 PM." className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-normal" />
+        </label>
+      </div>
+      <fieldset className="mt-3">
+        <legend className="text-xs font-semibold text-slate-600">Services to allow citywide</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SERVICE_OPTIONS.map((service) => <label key={service.key} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium">
+            <input type="checkbox" checked={selectedServices.includes(service.key)} onChange={(e) => setSelectedServices((current) => e.target.checked ? [...new Set([...current, service.key])] : current.filter((key) => key !== service.key))} />
+            {service.label}
+          </label>)}
+        </div>
+      </fieldset>
+    </section>
+  );
+}
+
 export default function AdminZonesPage() {
   const [zones, setZones] = useState<Zone[] | null>(null);
   const [metrics, setMetrics] = useState<Map<string, Metric>>(new Map());
@@ -313,6 +411,8 @@ export default function AdminZonesPage() {
   const [modalZone, setModalZone] = useState<Zone | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ city: '', name: '', pincodes: '' });
+  const [cityFilter, setCityFilter] = useState('all');
+  const [areaQuery, setAreaQuery] = useState('');
 
   const load = useCallback(async () => {
     // Zone controls should render as soon as their data arrives. Historical
@@ -404,21 +504,39 @@ export default function AdminZonesPage() {
           <div className="h-36 animate-pulse rounded-2xl bg-slate-100" />
         </div>
       ) : (
-        byCity.map(([city, list]) => (
-          <section key={city} className="mt-8">
+        <>
+        <div className="mt-6 grid gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 p-4 sm:grid-cols-[220px_1fr]">
+          <label className="text-sm font-semibold text-slate-800">City
+            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2">
+              <option value="all">All cities</option>
+              {byCity.map(([city]) => <option key={city} value={city}>{city}</option>)}
+            </select>
+          </label>
+          <label className="text-sm font-semibold text-slate-800">Find an area or PIN code
+            <input value={areaQuery} onChange={(e) => setAreaQuery(e.target.value)} placeholder="Search locality, post office, or 6-digit PIN" className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <p className="text-xs leading-5 text-slate-600 sm:col-span-2">PIN areas are mapped from the India Post directory as an approximate locality index. Each city also has an “All areas” fallback so the control surface covers addresses without a mapped PIN.</p>
+        </div>
+        {byCity.filter(([city]) => cityFilter === 'all' || city === cityFilter).map(([city, allZones]) => {
+          const query = areaQuery.trim().toLowerCase();
+          const list = allZones.filter((zone) => !query || `${zone.name} ${zone.city} ${(zone.pincodes ?? []).join(' ')} ${zone.customer_message ?? ''}`.toLowerCase().includes(query));
+          return <section key={city} className="mt-8">
+            <CitywideControl city={city} onSaved={() => void load()} />
             <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold text-slate-900">
               {city}
               <span className="text-sm font-semibold text-slate-400">
                 {list.filter((z) => z.status === 'AVAILABLE').length} of {list.length} available
               </span>
             </h2>
-            <div className="space-y-3">
+            {cityFilter === city || query ? <div className="space-y-3">
               {list.map((z) => (
-                <ZoneCard key={z.id} zone={z} metric={metrics.get(z.id)} onChanged={() => void load()} onSuppliers={() => setModalZone(z)} />
+                <ZoneCard key={`${z.id}-${z.updated_at}`} zone={z} metric={metrics.get(z.id)} onChanged={() => void load()} onSuppliers={() => setModalZone(z)} />
               ))}
-            </div>
-          </section>
-        ))
+              {list.length === 0 && <p className="rounded-xl bg-white p-4 text-sm text-slate-600">No areas match this search.</p>}
+            </div> : <button type="button" onClick={() => setCityFilter(city)} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-cyan-900">Manage {allZones.length} PIN and fallback areas →</button>}
+          </section>;
+        })}
+        </>
       )}
 
       {modalZone ? (

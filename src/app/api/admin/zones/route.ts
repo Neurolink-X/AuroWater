@@ -505,3 +505,62 @@ export async function POST(
 
 //   return jsonOk(data, 201);
 // }
+
+
+/** Apply a citywide operational override to every mapped PIN area and the fallback zone. */
+export async function PATCH(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireRole(auth.ctx, 'admin')) return jsonErr('Forbidden', 403);
+
+  const body = await req.json().catch(() => null);
+  if (!isRecord(body)) return jsonErr('Request body must be an object', 400);
+  const cityName = typeof body.city === 'string' ? body.city.trim() : '';
+  if (!cityName || cityName.length > 80) return jsonErr('A valid city is required.', 422);
+
+  const updates: Record<string, unknown> = {};
+  if (body.status !== undefined) {
+    if (!isValidZoneStatus(body.status)) return jsonErr('Invalid zone status.', 422);
+    updates.status = body.status;
+  }
+  if (body.services !== undefined) {
+    if (body.services !== null && (!Array.isArray(body.services) || body.services.length > 50 || body.services.some((key) => typeof key !== 'string' || key.length > 80))) {
+      return jsonErr('Services must be null or a list of at most 50 service keys.', 422);
+    }
+    updates.services = body.services;
+  }
+  if (body.customer_message !== undefined) {
+    if (body.customer_message !== null && (typeof body.customer_message !== 'string' || body.customer_message.length > 500)) {
+      return jsonErr('Customer message must be up to 500 characters.', 422);
+    }
+    updates.customer_message = typeof body.customer_message === 'string' ? body.customer_message.trim() || null : null;
+  }
+  if (!Object.keys(updates).length) return jsonErr('Provide a status, service scope, or customer message.', 422);
+
+  const db = createServiceClient();
+  const { data: city, error: cityError } = await db.from('cities').select('id,name').ilike('name', cityName).maybeSingle();
+  if (cityError) return jsonErr('Could not verify the city.', 503);
+  if (!city) return jsonErr('City not found in the live city directory.', 404);
+
+  const { data, error } = await db.from('service_zones')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('city_id', city.id)
+    .select('id');
+  if (error) {
+    console.error('[admin/zones] citywide update failed', { code: error.code });
+    return jsonErr('Could not update city service controls.', 503);
+  }
+  const updatedZones = data?.length ?? 0;
+  if (!updatedZones) return jsonErr('No service areas are mapped to this city.', 409);
+
+  const { error: auditError } = await db.from('audit_logs').insert({
+    actor_id: auth.ctx.profile.id,
+    action: 'city.service_controls_update',
+    entity: 'cities',
+    entity_id: city.id,
+    meta: { city: city.name, updated_zones: updatedZones, changed: Object.keys(updates), status: updates.status ?? null, services: updates.services ?? null, customer_message: updates.customer_message ?? null },
+  });
+  if (auditError) console.error('[admin/zones] citywide audit failed', { code: auditError.code });
+
+  return jsonOk({ city: city.name, updated_zones: updatedZones, applied: Object.keys(updates) });
+}
