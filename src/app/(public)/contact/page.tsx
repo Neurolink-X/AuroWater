@@ -77,7 +77,8 @@ const IconCheck = () => (
    PAGE COMPONENT
 ───────────────────────────────────────────── */
 export default function ContactPage() {
-  const whatsappHref = 'https://wa.me/919889305803';
+  const [contact, setContact] = useState({ support_phone: FALLBACK.phone_primary, support_email: FALLBACK.support_email, whatsapp_number: FALLBACK.phone_primary });
+  const whatsappHref = `https://wa.me/91${contact.whatsapp_number}`;
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -87,6 +88,15 @@ export default function ContactPage() {
     defaultValues: { name: '', email: '', phone: '', subject: 'General', message: '' },
   });
 
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/contact-details', { signal: controller.signal })
+      .then(async response => response.ok ? response.json() as Promise<Partial<typeof contact>> : {})
+      .then(values => { if (!controller.signal.aborted) setContact(previous => ({ ...previous, ...values })); })
+      .catch(() => { /* Static contact details remain available when offline. */ });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -120,7 +130,7 @@ export default function ContactPage() {
       'Subject: ' + values.subject,
       'Message: ' + values.message,
     ].join('\\n');
-    const url = 'https://wa.me/919889305803?text=' + encodeURIComponent(message);
+    const url = whatsappHref + '?text=' + encodeURIComponent(message);
     const opened = window.open(url, '_blank', 'noopener,noreferrer');
     if (!opened) window.location.assign(url);
     setSubmitted(true);
@@ -128,7 +138,7 @@ export default function ContactPage() {
     setLoading(false);
   };
 
-  const info = FALLBACK;
+  const info = { ...FALLBACK, phone_primary: contact.support_phone, support_email: contact.support_email };
 
   const fieldClass = (name: string, hasError: boolean) => [
     'ct-input',
