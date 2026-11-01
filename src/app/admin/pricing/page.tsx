@@ -48,7 +48,7 @@ export default function AdminPricingPage() {
  },[]);
  const resetDraft = () => {
    if (!current?.config || saving) return;
-   setConfig({...current.config,services:{...current.config.services}});
+   setConfig(previous=>({...current.config,services:{...previous.services,...current.config.services}}));
    setReason('');
    setEffective('');
    setError('');
