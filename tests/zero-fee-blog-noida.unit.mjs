@@ -16,7 +16,8 @@ assert.match(migration, /'convenience_fee',0,'emergency_surcharge',0,'delivery_f
 assert.match(migration, /UPDATE public.settings SET value='0'/);
 assert.match(migration, /pricing.zero_fee_launch/);
 for (const source of [customer, admin]) {
-  assert.match(source, /const handlingFee = service_type_key === 'water_can' \? 0/);
+  assert.match(source, /const handlingFee = Number\(activePricingConfig\?\.convenience_fee/);
+  assert.doesNotMatch(source, /service_type_key === 'water_can' \? 0/);
   assert.match(source, /const deliveryFee = Number\(activePricingConfig\?\.delivery_fee(?: \?\? 0)?\)/);
   assert.match(source, /const convenience = handlingFee \+ deliveryFee/);
   assert.match(source, /activePricingConfig\?\.surge_charge(?: \?\? 0)?/);

@@ -335,7 +335,7 @@ export async function POST(req: NextRequest) {
     return jsonErr('Published tax rate is invalid.', 503);
   }
   const gstRate = gstCandidate;
-  const handlingFee = service_type_key === 'water_can' ? 0 : Number(activePricingConfig?.convenience_fee);
+  const handlingFee = Number(activePricingConfig?.convenience_fee);
   const deliveryFee = Number(activePricingConfig?.delivery_fee);
   const convenience = handlingFee + deliveryFee;
   const emergencySurcharge = Number(activePricingConfig?.emergency_surcharge);
