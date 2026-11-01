@@ -1,5 +1,5 @@
 import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
-import { NextRequest } from 'next/server';
+import { NextRequest, after } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { computeExpectedTotal, totalsMatch } from '@/lib/api/order-pricing-server';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
@@ -976,44 +976,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Role-aware dispatch ─────────────────────────────────────────────
-  // Water delivery uses the supplier engine. Home-service jobs use the
-  // technician engine with location ranking + atomic fallback.
-  let supplierId: string | null = null;
-  let technicianId: string | null = null;
-
-  if (isWater) {
-   
-    const d = await dispatchOrder(orderId);
-supplierId = d.supplierId;
-
-if (!supplierId) {
-  console.warn('[orders] supplier dispatch did not assign order', {
-    orderId,
-    reason: d.reason,
+  // The committed order can be confirmed before provider assignment finishes.
+  // Next.js keeps this work alive after sending the response; recovery sweeps
+  // continue to handle any pending order if a provider is unavailable.
+  after(async () => {
+    const results = await Promise.allSettled([
+      isWater ? dispatchOrder(orderId) : dispatchTechnicianJob(orderId),
+      safeNotify(customerId, isWater ? 'Order placed successfully' : 'Booking Confirmed',
+        `Your ${label} is booked for ${slotText}.`, 'booking', orderId, 'created'),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') console.error('[orders] post-confirmation task failed', result.reason);
+    }
   });
-}
-    if (supplierId) {
-      (order as Record<string, unknown>).supplier_id = supplierId;
-      (order as Record<string, unknown>).status = 'ASSIGNED';
-    }
-  } else {
-    const d = await dispatchTechnicianJob(orderId);
-    technicianId = d.technicianId;
-    if (technicianId) {
-      (order as Record<string, unknown>).technician_id = technicianId;
-      (order as Record<string, unknown>).status = 'ASSIGNED';
-    }
-  }
-
-  await safeNotify(
-    customerId,
-    isWater ? 'Order placed successfully' : 'Booking Confirmed 🎉',
-    `Your ${label} is booked for ${slotText}.`,
-    'booking',
-    orderId,
-    'created'
-  );
 
   const out = withCompat({
     ...order,
@@ -1024,7 +999,7 @@ if (!supplierId) {
   });
 
   return jsonOk(
-    isWater && !supplierId
+    isWater
       ? { ...out, supplier_status: 'searching' }
       : out,
     201
