@@ -35,9 +35,16 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient();
 
-  // Durable per-user limit. Fails open (with a log) so a limiter outage never blocks genuine users.
+  // Durable per-user limit. Fail closed if unavailable: private uploads are
+  // sensitive writes and must not bypass abuse protection across instances.
   const rate = await consumeRateLimit(db, 'file-upload', userId, UPLOADS_PER_HOUR, 3600);
-  if (rate.unavailable) console.error('[files/upload] rate limiter unavailable', { requestId });
+  if (rate.unavailable) {
+    console.error('[files/upload] rate limiter unavailable', { requestId });
+    const res = fail('Uploads are temporarily unavailable. Please retry later.', 503, 'RATE_LIMIT_UNAVAILABLE');
+    res.headers.set('Retry-After', '60');
+    res.headers.set('Cache-Control', 'no-store');
+    return res;
+  }
   if (!rate.allowed) {
     const res = fail('Too many uploads. Please try again later.', 429, 'RATE_LIMITED');
     res.headers.set('Retry-After', String(Math.max(1, rate.retryAfter)));
