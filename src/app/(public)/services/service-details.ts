@@ -55,7 +55,7 @@ export const SERVICE_DETAILS: Record<ServiceKey, ServiceDetail> = {
     description: 'Request bulk water delivery for homes, apartments, offices, construction sites and events. Availability depends on your delivery location and capacity needs.',
     metaDescription: `Book a water tanker for your home, apartment, site or event in ${CITIES_AND}. Share the volume, check availability and confirm the quote.`,
     searchTerms: ['water tanker booking', 'paani ka tanker', 'bulk water supply', 'tanker for construction site'],
-    startingPrice: '₹299–₹799', unit: 'starting estimate; volume and access affect the quote', icon: '🚚', accent: '#0284c7',
+    startingPrice: '₹699', unit: '500L starting estimate per trip; final price varies by capacity and area', icon: '🚚', accent: '#0284c7',
     benefits: ['Share the volume you need', 'Confirm delivery access and location', 'See available options before confirming', 'Keep booking details in one account'],
     process: ['Choose tanker service and volume', 'Provide delivery address and timing', 'Confirm the available quote and booking'],
     faqs: [{ question: 'Is every tanker size available everywhere?', answer: 'No. Available volume and delivery options depend on the location and supplier.' }],

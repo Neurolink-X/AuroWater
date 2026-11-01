@@ -1413,7 +1413,14 @@ export default function BookingWizard() {
     return true;
   };
 
-  const nextStep = () => { if (!validateStep(view)) return; goTo(view + 1); };
+  const nextStep = () => {
+    if (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom') {
+      setSubmitError('Custom tanker capacity requires a supplier quotation. Please choose a listed capacity to book online.');
+      return;
+    }
+    if (!validateStep(view)) return;
+    goTo(view + 1);
+  };
   const prevStep = () => goTo(view - 1);
 
   const resetWizard = useCallback(() => {
@@ -1968,7 +1975,7 @@ export default function BookingWizard() {
                     <ScopeCard
                       key={o.key}
                       option={o}
-                      priceOverride={settings.pricing_version ? settings.service_base_prices[`water_tanker_${o.key}`] : undefined}
+                      priceOverride={settings.service_base_prices[`water_tanker_${o.key}`] ?? o.extra}
                       active={draft.subOptionKey === o.key}
                       onSelect={() => setDraft((d) => ({ ...d, subOptionKey: o.key }))}
                     />
@@ -2634,7 +2641,7 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId} onClick={() => void confirmOrder()} className={btnPrimary}>
+                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
                       {submitting ? 'Placing your order…' : 'Confirm booking →'}
                     </button>
                   )}

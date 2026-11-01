@@ -6,9 +6,10 @@ import { useSettings } from '@/hooks/useSettings';
 
 type ServicePriceProps = {
   serviceKey: string;
-  fallback: string;
+  fallback?: string;
   unit: string;
   className?: string;
+  city?: string;
 };
 
 /**
@@ -31,11 +32,11 @@ function toValidAmount(value: unknown): number | null {
 /** Reads the same public pricing settings used by booking and the service list. */
 export default function ServicePrice({
   serviceKey,
-  fallback,
   unit,
   className = '',
+  city,
 }: ServicePriceProps) {
-  const { settings, loading } = useSettings();
+  const { settings, loading } = useSettings(undefined, city);
 
   const amount = useMemo(() => {
     let configured: unknown;
@@ -55,7 +56,7 @@ export default function ServicePrice({
   }, [settings, serviceKey]);
 
   const isWaiting = loading && amount === null;
-  const display = amount === null ? fallback : `₹${INR.format(amount)}`;
+  const display = amount === null ? (loading ? 'Checking live price…' : 'Price temporarily unavailable') : `₹${INR.format(amount)}`;
 
   return (
     <div className={className} aria-busy={isWaiting}>

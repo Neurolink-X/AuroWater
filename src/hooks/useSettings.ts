@@ -123,7 +123,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   bulk_threshold:         50,
   market_can_price:       20,
   service_base_prices: {
-    water_tanker:  299,
+    water_tanker:  699,
     ro_service:    349,
     plumbing:      149,
     borewell:      499,
@@ -139,9 +139,9 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
     ro_service_new_installation: 599,
     plumbing_drainage: 49,
     plumbing_new_fitting: 99,
-    water_tanker_1000: 50,
-    water_tanker_2000: 120,
-    water_tanker_custom: 80,
+    water_tanker_1000: 300,
+    water_tanker_2000: 800,
+    water_tanker_custom: 0,
   },
   convenience_fee:     0,
   delivery_fee:        0,
@@ -410,6 +410,20 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh]);
+
+  /* Admin publishing invalidates pricing in every active tab. The API remains authoritative. */
+  React.useEffect(() => {
+    const onPublished = () => { void refresh(); };
+    const onStoragePublished = (event: StorageEvent) => {
+      if (event.key === 'aw_pricing_published_at') void refresh();
+    };
+    window.addEventListener('aurotap:pricing-published', onPublished);
+    window.addEventListener('storage', onStoragePublished);
+    return () => {
+      window.removeEventListener('aurotap:pricing-published', onPublished);
+      window.removeEventListener('storage', onStoragePublished);
     };
   }, [refresh]);
 

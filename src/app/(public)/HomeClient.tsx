@@ -206,7 +206,17 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
 /* ───────── PAGE ───────── */
 export default function HomeClient() {
   // Published versioned prices are the source of truth; fallback prices show only while unavailable.
-  const { settings } = useSettings();
+  // Display city is a visitor preference only; checkout re-resolves the saved address city.
+  const [pricingCity] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const urlCity = new URLSearchParams(window.location.search).get('city');
+      const savedCity = window.localStorage.getItem('auro_city');
+      const city = (urlCity || savedCity || '').trim();
+      return /^[a-z][a-z .-]{1,59}$/i.test(city) ? city : '';
+    } catch { return ''; }
+  });
+  const { settings } = useSettings(undefined, pricingCity);
   const currentNormal = Math.max(20, Number(settings.default_can_price) || W.normal);
   const currentChilled = Math.max(25, Number(settings.chilled_can_price) || W.chilled);
   const currentPlumbing = Number(settings.service_base_prices?.plumbing) || PRICING.plumber.visitFee;
