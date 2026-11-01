@@ -22,7 +22,9 @@ export default function BorewellEstimator() {
   const guide = BOREWELL_GUIDE.drilling[diameter];
   const key = `borewell_drilling_${diameter.replace('.', '_')}`;
   const publishedRate = settings.service_base_prices[key];
-  const selectedRate = rate ?? (Number.isFinite(publishedRate) && publishedRate > 0 ? publishedRate : guide.min);
+  const adminRate = Number.isFinite(publishedRate) && publishedRate > 0 ? publishedRate : guide.min;
+  const selectedRate = rate ?? adminRate;
+  const inspectionFee = settings.service_base_prices.borewell;
   const estimate = useMemo(() => {
     try {
       return { result: estimateBorewell({
@@ -58,7 +60,11 @@ export default function BorewellEstimator() {
               <>
                 <label className="block font-semibold text-slate-900">2. Borewell diameter
                   <select className={`mt-2 ${field}`} value={diameter} onChange={event => changeDiameter(event.target.value as BorewellDiameter)}>
-                    {diameters.map(d => <option key={d} value={d}>{d}-inch ({currency(BOREWELL_GUIDE.drilling[d].min)}–{currency(BOREWELL_GUIDE.drilling[d].max)}/ft)</option>)}
+                    {diameters.map(d => {
+                      const configured = settings.service_base_prices[`borewell_drilling_${d.replace('.', '_')}`];
+                      const display = Number.isFinite(configured) && configured > 0 ? configured : BOREWELL_GUIDE.drilling[d].min;
+                      return <option key={d} value={d}>{d}-inch (indicative {currency(display)}/ft)</option>;
+                    })}
                   </select>
                 </label>
                 <label className="block font-semibold text-slate-900">3. Estimated drilling depth (feet)
@@ -67,7 +73,7 @@ export default function BorewellEstimator() {
                 </label>
                 <label className="block font-semibold text-slate-900">4. Indicative drilling rate (₹ per foot)
                   <input className={`mt-2 ${field}`} type="number" inputMode="numeric" min={1} max={100000} step={1} value={selectedRate} onChange={event => setRate(Number(event.target.value))} />
-                  <span className="mt-1 block text-xs font-normal text-slate-500">Indicative rate: {currency(selectedRate)}/ft. Guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Admin-published indicative rate: {currency(adminRate)}/ft. Your planning rate: {currency(selectedRate)}/ft. General guide: {currency(guide.min)}–{currency(guide.max)}/ft. Actual price depends on terrain, diameter and depth.</span>
                 </label>
                 <fieldset className="space-y-3 rounded-2xl border border-slate-200 p-4">
                   <legend className="px-2 font-semibold text-slate-900">Optional work</legend>
@@ -78,7 +84,7 @@ export default function BorewellEstimator() {
                   <label className="flex items-center gap-3 text-sm text-slate-800"><input type="checkbox" checked={survey} onChange={event => setSurvey(event.target.checked)} /> Survey (from ₹3,000)</label>
                 </fieldset>
               </>
-            ) : <p className="rounded-xl bg-blue-50 p-4 text-sm text-blue-900">For {job}, describe your problem when booking. The technician will confirm the inspection or repair charges before work.</p>}
+            ) : <p className="rounded-xl bg-blue-50 p-4 text-sm text-blue-900">For {job}, describe your problem when booking. Inspection starts at {currency(inspectionFee)}; repairs and parts are quoted separately before work.</p>}
           </div>
           <aside aria-live="polite" className="self-start rounded-2xl bg-slate-950 p-6 text-white">
             <p className="text-sm font-semibold text-sky-200">Provisional cost breakdown</p>
@@ -90,7 +96,7 @@ export default function BorewellEstimator() {
                 </dl>
                 <p className="mt-5 text-xs leading-5 text-slate-300">This is an indicative subtotal. It excludes unselected items, transport, unforeseen site work, applicable taxes and permissions. Deeper drilling may have stepped rates. Final quote requires site assessment and your approval.</p>
               </>
-            ) : <p className="mt-4 text-sm text-slate-200">Inspection and repair require a site-specific quotation.</p>}
+            ) : <p className="mt-4 text-sm text-slate-200">Inspection starts at {currency(inspectionFee)}. Repair work and materials require a separate quote.</p>}
             <Link href="/book?service=borewell" className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-sky-400 px-4 font-bold text-slate-950 hover:bg-sky-300">Continue to borewell booking →</Link>
             <p className="mt-3 text-center text-xs text-slate-300">The estimator does not reserve a drilling slot or collect payment.</p>
           </aside>

@@ -219,7 +219,11 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                   </div>
                 ) : (
                   service.key === 'borewell' ? (
-                    <p className="mt-2 text-xl font-bold text-white">Indicative drilling from ₹80/ft <span className="block text-sm font-normal text-slate-300">4.5-inch only · final rate after site quotation</span></p>
+                    <div className="mt-3 space-y-2">
+                      <p className="text-2xl font-black text-white">Drilling charged per foot</p>
+                      <p className="text-sm leading-6 text-slate-200">Choose diameter and estimated depth below to see the admin-published indicative rate. Inspection and repair are priced separately; final drilling cost requires a site quote.</p>
+                      <a href="#borewell-estimate-heading" className="inline-flex min-h-11 items-center font-bold text-sky-200 underline underline-offset-4">Calculate drilling cost</a>
+                    </div>
                   ) : <ServicePrice serviceKey={service.key} fallback={service.startingPrice} unit={service.unit} />
                 )}
               </div>
