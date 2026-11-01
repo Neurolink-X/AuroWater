@@ -10,7 +10,7 @@ export const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME || 'AuroTap';
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.aurotap.in').replace(/\/$/, '');
 export const PAGE_PATH = '/services';
 
-export const LIVE_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur'] as const;
+export const LIVE_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida'] as const;
 // Built from LIVE_CITIES: "Kanpur, Lucknow & Gorakhpur". Add a city above and this updates by itself.
 export const CITY_LINE =
   LIVE_CITIES.length > 1

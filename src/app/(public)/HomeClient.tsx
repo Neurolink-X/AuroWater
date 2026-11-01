@@ -481,7 +481,7 @@ export default function HomeClient() {
               {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery'].map(b => <span key={b}>{b}</span>)}
             </div>
             <p className="mx-auto mt-3 max-w-4xl text-center text-xs leading-relaxed text-slate-500 sm:text-sm">
-              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — live service areas. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN-code coverage only. Noida Sector 73 is a pre-launch pilot pending supplier capacity; verify your exact address at booking.
+              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — full-city live service coverage. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN-code coverage only. Orders are accepted citywide; supplier matching continues after placement.
             </p>
           </div>
         </section>
@@ -553,7 +553,7 @@ export default function HomeClient() {
                     <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {c.name}</h3>
                     <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">Live</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">RO water cans, plumbers and tank cleaning in {c.areas.join(', ')} and nearby areas.</p>
+                  <p className="mt-2 text-sm text-slate-600">Citywide service throughout {c.name}, including {c.areas.join(', ')}. Listed neighborhoods are examples, not coverage limits.</p>
                   <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Order in {c.name} →</Link>
                 </div>
               ))}

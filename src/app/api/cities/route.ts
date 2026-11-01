@@ -21,8 +21,7 @@ function normalizeDatabaseCities(data: City[]): City[] {
     if (!city || typeof city.name !== 'string' || !['active', 'coming_soon', 'waitlist'].includes(city.status)) continue;
     const key = String(city.slug || city.name).trim().toLowerCase();
     if (key) {
-      // Database status is authoritative. Do not mark Noida active merely
-      // because a pilot zone exists; operational supplier readiness is separate.
+      // Database status is authoritative; supplier readiness affects dispatch, not booking acceptance.
       merged.set(key, city);
     }
   }

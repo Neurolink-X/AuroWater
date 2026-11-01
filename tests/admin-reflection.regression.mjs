@@ -75,3 +75,22 @@ test('serviceability keeps listed full cities available through legacy fallback'
   const zones = read('src/lib/zones.ts');
   assert.match(zones, /isCityServed\(city\) \|\| \(hasCoords && getServiceZone\(lat, lng\) !== null\)/);
 });
+
+test('Noida is active for citywide service requests across customer and SEO surfaces', () => {
+  const marketing = read('src/lib/marketing-pricing.ts');
+  assert.ok(marketing.includes("slug: 'noida',     name: 'Noida',     state: 'Uttar Pradesh', status: 'live' as CityStatus,"));
+  const fallback = read('src/lib/cities.ts');
+  assert.ok(fallback.includes("id: 'noida', name: 'Noida', slug: 'noida', status: 'active'"));
+  const home = read('src/app/(public)/HomeClient.tsx');
+  assert.match(home, /Citywide service throughout/);
+  assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot/);
+  const cityPage = read('src/app/cities/[city]/page.tsx');
+  assert.doesNotMatch(cityPage, /Sector 73 Pilot|limited pilot/);
+  const selector = read('src/components/ui/CitySelector.tsx');
+  assert.doesNotMatch(selector, /Pilot · Sector 73/);
+  const serviceCities = read('src/app/(public)/services/services-data.ts');
+  assert.ok(serviceCities.includes("export const LIVE_CITIES = ['Kanpur', 'Lucknow', 'Gorakhpur', 'Noida'] as const;"));
+  const readiness = read('src/app/api/admin/noida-readiness/route.ts');
+  assert.match(readiness, /citywide_coverage_active/);
+  assert.match(readiness, /does not gate order creation/);
+});

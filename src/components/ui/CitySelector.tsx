@@ -184,10 +184,7 @@ export default function CitySelector({
     (city) => city.id === value
   );
 
-  const cityStatus = (city: City) =>
-    city.slug === 'noida' && city.status === 'active'
-      ? { ...STATUS_CONFIG.active, label: 'Pilot · Sector 73' }
-      : STATUS_CONFIG[city.status];
+  const cityStatus = (city: City) => STATUS_CONFIG[city.status];
 
   const selectedStatus = selected ? cityStatus(selected) : null;
 
@@ -590,9 +587,7 @@ function CityOption({
   onSelect: () => void;
   isSelected: boolean;
 }) {
-  const config = city.slug === 'noida' && city.status === 'active'
-    ? { ...STATUS_CONFIG.active, label: 'Pilot · Sector 73' }
-    : STATUS_CONFIG[city.status];
+  const config = STATUS_CONFIG[city.status];
 
   return (
     <button

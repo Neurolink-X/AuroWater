@@ -25,13 +25,12 @@ export const FALLBACK_CITIES: City[] = [
   { id: 'aligarh', name: 'Aligarh', slug: 'aligarh', status: 'waitlist', is_featured: false, sort_order: 11 },
   // Visible for expansion discovery; these cities remain non-bookable until operations enable them.
   { id: 'delhi', name: 'Delhi', slug: 'delhi', status: 'coming_soon', is_featured: false, sort_order: 13 },
-  // Noida remains discoverable; promote it to live only when verified suppliers, stock and coverage are ready.
-  { id: 'noida', name: 'Noida', slug: 'noida', status: 'coming_soon', is_featured: true, sort_order: 4 },
+  { id: 'noida', name: 'Noida', slug: 'noida', status: 'active', is_featured: true, sort_order: 4 },
 ];
 
-// Core cities only; the Noida pilot must not be presented as citywide live coverage.
-export const ACTIVE_CITY_NAMES = FALLBACK_CITIES.filter((c) => c.status === 'active' && c.slug !== 'noida').map((c) => c.name);
-export const ADDRESS_CITY_NAMES = [...ACTIVE_CITY_NAMES, 'Noida'];
+// These cities accept bookings citywide; supplier matching continues after order placement.
+export const ACTIVE_CITY_NAMES = FALLBACK_CITIES.filter((c) => c.status === 'active').map((c) => c.name);
+export const ADDRESS_CITY_NAMES = ACTIVE_CITY_NAMES;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
