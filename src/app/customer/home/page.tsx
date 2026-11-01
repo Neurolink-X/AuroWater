@@ -532,7 +532,7 @@ export default function CustomerHomePage() {
   const { hydrated, isLoggedIn, isCustomer, name, fullName, session } = useAuth();
 
   // Site settings also supply the "starting estimate" shown on the service spotlight cards.
-  const { settings } = useSettings();
+  const { settings, pricingReady } = useSettings();
 
   const { orders, loading, error, live, version, refresh, reload } = useCustomerOrders({
     filter: 'all',
@@ -902,6 +902,7 @@ export default function CustomerHomePage() {
 
   const estimates = settings.service_base_prices as Record<string, number>;
   const estimate = (key: string) => {
+    if (!pricingReady) return 'Checking price…';
     const value = Number(estimates?.[key]);
     return Number.isFinite(value) && value > 0 ? inrFmt(value) : null;
   };

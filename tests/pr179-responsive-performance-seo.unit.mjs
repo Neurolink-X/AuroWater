@@ -55,8 +55,9 @@ test('home disables continuous decoration for coarse pointers', () => {
 test('canonical city API reads actual cities table', () => {
   assert.match(cityApi, /\.from\('cities'\)/);
 });
-test('activation requires supplier and stock readiness', () => {
-  assert.match(cityAdmin, /Cannot activate city: no assigned, approved, online supplier/);
+test('explicit admin activation is independent of dispatch stock', () => {
+  assert.match(cityAdmin, /requireAdmin\(auth.ctx\)/);
+  assert.doesNotMatch(cityAdmin, /from\('supplier_stock'\)|Cannot activate city:/);
 });
 test('supplier imagery uses responsive Next.js image component', () => {
   assert.match(supplier, /import Image from 'next\/image'/);

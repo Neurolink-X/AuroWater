@@ -31,8 +31,8 @@ test('admin writes require server-side admin authorization',()=>{
     assert.match(code,/requireAdmin\(auth.ctx\)/);
   }
   const cities=read('src/app/api/admin/cities/route.ts');
-  assert.match(cities,/Cannot activate city: no available zones with verified PIN codes/);
-  assert.match(cities,/online supplier with available stock/);
+  assert.doesNotMatch(cities,/Cannot activate city:/);
+  assert.match(cities,/\.eq\('status',city.status\)/);
   assert.match(cities,/city.status_change/);
 });
 

@@ -72,28 +72,7 @@ export async function PATCH(req:NextRequest) {
   if(!city) return jsonErr('City not found.',404);
   if(city.status===parsed.data.status) return jsonOk({city,unchanged:true});
 
-  if(parsed.data.status==='active'){
-    const {data:zones,error:zoneError}=await db.from('service_zones')
-      .select('id,pincodes,status').ilike('city',city.name).eq('status','AVAILABLE').limit(100);
-    if(zoneError) return jsonErr('Cannot verify operational zones.',503);
-    const eligible=(zones??[]).filter(z=>Array.isArray(z.pincodes)&&z.pincodes.length>0);
-    if(!eligible.length) return jsonErr('Cannot activate city: no available zones with verified PIN codes.',409);
-    const {data:links,error:linksError}=await db.from('supplier_zones')
-      .select('supplier_id').in('zone_id',eligible.map(z=>z.id)).limit(1000);
-    if(linksError) return jsonErr('Cannot verify supplier assignments.',503);
-    const ids=[...new Set((links??[]).map(l=>l.supplier_id))];
-    if(!ids.length) return jsonErr('Cannot activate city: no suppliers assigned to service zones.',409);
-    const [profiles,settings,stock]=await Promise.all([
-      db.from('profiles').select('id,city').in('id',ids).eq('role','supplier').eq('is_active',true).eq('verification_status','approved'),
-      db.from('supplier_settings').select('user_id,is_online').in('user_id',ids).eq('is_online',true),
-      db.from('supplier_stock').select('supplier_id,cans_available,reserved_cans,reservation_buffer_cans').in('supplier_id',ids),
-    ]);
-    if(profiles.error||settings.error||stock.error) return jsonErr('Cannot verify live supplier capacity.',503);
-    const online=new Set((settings.data??[]).map(x=>x.user_id));
-    const stocked=new Set((stock.data??[]).filter(x=>Number(x.cans_available??0)>Number(x.reserved_cans??0)+Number(x.reservation_buffer_cans??0)).map(x=>x.supplier_id));
-    const good=(profiles.data??[]).some(x=>x.city?.toLowerCase().trim()===city.name.toLowerCase().trim()&&online.has(x.id)&&stocked.has(x.id));
-    if(!good) return jsonErr('Cannot activate city: no assigned, approved, online supplier with available stock.',409);
-  }
+  // An explicit admin launch accepts bookings; provider capacity controls dispatch independently.
 
   const {data,error}=await db.from('cities').update({status:parsed.data.status})
     .eq('id',city.id).eq('status',city.status).select('id,name,status').maybeSingle();

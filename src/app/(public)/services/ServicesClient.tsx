@@ -1,4 +1,5 @@
 'use client';
+import PricingLoading from '@/components/pricing/PricingLoading';
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
@@ -139,7 +140,7 @@ export default function ServicesClient() {
       return /^[a-z][a-z .-]{1,59}$/i.test(city) ? city : '';
     } catch { return ''; }
   });
-  const { settings } = useSettings(undefined, pricingCity);
+  const { settings, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [filter, setFilter] = useState<ServiceCategory>('All');
   const [scrolled, setScrolled] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -169,6 +170,8 @@ export default function ServicesClient() {
     io.observe(el);
     return () => io.disconnect();
   }, []);
+
+  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
 
   return (
     <div className="sv-page">

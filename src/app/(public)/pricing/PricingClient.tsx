@@ -1,4 +1,5 @@
 'use client';
+import PricingLoading from '@/components/pricing/PricingLoading';
 
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
@@ -478,7 +479,7 @@ export default function PricingClient() {
   const city = useVisitorCity();
   // Every price on this page comes from admin settings (per city). Change a price
   // in the admin panel and this page shows it, with no code change.
-  const { settings } = useSettings(undefined, city);
+  const { settings, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, city);
   const normalPrice = settings.default_can_price;
   const chilledPrice = settings.chilled_can_price;
   const recurringPrice = settings.subscription_can_price;
@@ -687,6 +688,8 @@ export default function PricingClient() {
       ],
     }).replace(/</g, '\\u003c');
   }, [city, normalPrice, chilledPrice, recurringPrice, faq]);
+
+  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
 
   return (
     <div className="pricing-page" ref={rootRef}>

@@ -1,4 +1,5 @@
 'use client';
+import PricingLoading from '@/components/pricing/PricingLoading';
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -10,7 +11,7 @@ const field = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text
 const diameters: BorewellDiameter[] = ['4.5', '6', '6.5', '8'];
 
 export default function BorewellEstimator() {
-  const { settings } = useSettings();
+  const { settings, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings();
   const [job, setJob] = useState<BorewellJob>('drilling');
   const [diameter, setDiameter] = useState<BorewellDiameter>('4.5');
   const [depth, setDepth] = useState(300);
@@ -40,6 +41,8 @@ export default function BorewellEstimator() {
     setDiameter(next);
     setRate(null);
   };
+  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
+
   return (
     <section aria-labelledby="borewell-estimate-heading" className="mx-auto max-w-6xl px-5 py-12">
       <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">

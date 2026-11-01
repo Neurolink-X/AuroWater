@@ -175,7 +175,7 @@ function CompactRegionList({ cities }: { cities: City[] }) {
   );
 }
 
-const REFRESH_MS = 90_000;
+const REFRESH_MS = 30_000;
 const BACKOFF_BASE_MS = 15_000;
 const BACKOFF_MAX_MS = 600_000;
 
@@ -199,7 +199,7 @@ function useCityDirectory(): City[] {
       if (!force && Date.now() < nextAllowedAt) return;
       inFlight = true;
       try {
-        const res = await fetch('/api/cities', { signal: controller.signal, cache: 'default', headers: { Accept: 'application/json' } });
+        const res = await fetch('/api/cities', { signal: controller.signal, cache: 'no-store', headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error('City directory unavailable');
         const data: unknown = await res.json();
         if (!active) return;
@@ -213,14 +213,16 @@ function useCityDirectory(): City[] {
       } finally { inFlight = false; }
     };
 
-    const onReturn = () => { if (document.visibilityState === 'visible') void load(); };
+    const onReturn = () => { if (document.visibilityState === 'visible') void load(true); };
     const onOnline = () => void load(true);
     void load();
+    const timer = window.setInterval(() => void load(), REFRESH_MS);
     document.addEventListener('visibilitychange', onReturn);
     window.addEventListener('focus', onReturn, { passive: true });
     window.addEventListener('online', onOnline);
     return () => {
       active = false;
+      window.clearInterval(timer);
       controller.abort();
       document.removeEventListener('visibilitychange', onReturn);
       window.removeEventListener('focus', onReturn);

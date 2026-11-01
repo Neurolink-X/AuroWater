@@ -95,7 +95,7 @@ test('footer uses native link navigation with keyboard focus', () => {
 });
 
 test('footer avoids janky animation on low-end mobile devices', () => {
-  assert.doesNotMatch(footer, /requestAnimationFrame|setInterval|backdrop-filter/);
+  assert.doesNotMatch(footer, /requestAnimationFrame|backdrop-filter/);
   assert.match(footer, /lg:grid-cols-\[1\.2fr_0\.82fr_0\.82fr_1\.08fr\]/);
 });
 

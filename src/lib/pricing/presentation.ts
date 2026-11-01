@@ -27,3 +27,13 @@ export function pricingFaqs(s: PricingCopy) {
     {q:'What is the plumber visit charge?',a:`The current plumbing labour base rate is ${money(s.service_base_prices.plumbing)}. Additional work and materials require an agreed quote. Review fees and taxes before confirming.`},
   ];
 }
+
+export function pricingLabel(field: string) {
+  const words = (value:string) => value.replaceAll('_',' ').replace(/\b\w/g,letter=>letter.toUpperCase());
+  const parts = field.split('.');
+  if (parts[0] === 'city_overrides') return words(parts[1]) + ' → ' + parts.slice(2).filter(p=>p!=='services').map(words).join(' / ');
+  return parts.filter(p=>p!=='services').map(words).join(' / ');
+}
+export function pricingEntries(config: unknown) {
+  return Object.entries(flatten(config)).map(([field,value])=>({field,value}));
+}
