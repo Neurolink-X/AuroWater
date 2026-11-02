@@ -38,7 +38,7 @@ GRANT SELECT,INSERT,UPDATE ON public.technician_service_radii TO service_role;
 CREATE OR REPLACE FUNCTION public.guard_partner_radius_expansion()
 RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $$
 BEGIN
- IF NEW.zone_radius_km IS DISTINCT FROM OLD.zone_radius_km AND
+ IF (TG_OP='INSERT' OR NEW.zone_radius_km IS DISTINCT FROM OLD.zone_radius_km) AND
     NEW.zone_radius_km > 30 AND auth.role() IS DISTINCT FROM 'service_role' THEN
    RAISE EXCEPTION 'Delivery radius above 30 km needs admin approval' USING ERRCODE='42501';
  END IF;
@@ -47,7 +47,7 @@ END;
 $$;
 DROP TRIGGER IF EXISTS guard_supplier_radius_expansion ON public.supplier_settings;
 CREATE TRIGGER guard_supplier_radius_expansion
-BEFORE UPDATE ON public.supplier_settings FOR EACH ROW
+BEFORE INSERT OR UPDATE ON public.supplier_settings FOR EACH ROW
 EXECUTE FUNCTION public.guard_partner_radius_expansion();
 REVOKE ALL ON FUNCTION public.guard_partner_radius_expansion() FROM PUBLIC,anon,authenticated;
 
