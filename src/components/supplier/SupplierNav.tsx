@@ -39,6 +39,7 @@ const MORE_ITEMS: readonly NavItem[] = [
   { href: '/supplier/profile', label: { en: 'Profile & address', hi: 'प्रोफ़ाइल और पता' } },
   { href: '/supplier/coverage', label: { en: 'Service areas', hi: 'सेवा क्षेत्र' } },
   { href: '/supplier/analytics', label: { en: 'Performance', hi: 'प्रदर्शन' } },
+  { href: '/supplier/referrals', label: { en: 'Customer network', hi: 'ग्राहक नेटवर्क' } },
   { href: '/supplier/support', label: { en: 'Support', hi: 'सहायता' } },
 ];
 
