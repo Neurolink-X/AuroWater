@@ -21,10 +21,15 @@ test('one canonical professional dashboard displays server-confirmed specialist 
  assert.match(redirect,/redirect\('\/technician\/dashboard'\)/);
 });
 
-test('shared authenticated ProfileRow exposes optional server verification status',()=>{
- const types=read('../src/lib/db/types.ts');
- const row=types.split('export interface ProfileRow {')[1]?.split('\\n}')[0] ?? '';
- assert.match(row, /verification_status\\?:\\s*string\\s*\\|\\s*null/);
- const endpoint=read('../src/app/api/technician/specializations/route.ts');
- assert.match(endpoint, /auth\\.ctx\\.profile\\.verification_status/);
+test('shared authenticated ProfileRow exposes optional server verification status', () => {
+  const types = read('../src/lib/db/types.ts');
+  // The file contains an archived commented-out interface; select the active contract.
+  const start = types.lastIndexOf('export interface ProfileRow {');
+  assert.ok(start >= 0, 'Active ProfileRow interface is missing');
+  const end = types.indexOf('\n}', start);
+  assert.ok(end > start, 'Active ProfileRow interface is incomplete');
+  const row = types.slice(start, end);
+  assert.match(row, /verification_status\?:\s*string\s*\|\s*null/);
+  const endpoint = read('../src/app/api/technician/specializations/route.ts');
+  assert.match(endpoint, /auth\.ctx\.profile\.verification_status/);
 });
