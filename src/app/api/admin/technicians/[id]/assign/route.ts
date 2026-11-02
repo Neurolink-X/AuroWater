@@ -103,7 +103,7 @@ export async function PUT(
   } = await supabase
     .from('orders')
     .select(
-      'id, status, technician_id, customer_id',
+      'id, status, technician_id, customer_id, service_type',
     )
     .eq('id', orderId)
     .maybeSingle();
@@ -115,6 +115,10 @@ export async function PUT(
   if (!currentOrder) {
     return jsonErr('Order not found', 404);
   }
+
+  const { data: skill, error: skillError } = await supabase.from('technician_service_capabilities').select('status').eq('technician_id',technicianId).eq('service_key',String(currentOrder.service_type)).eq('status','approved').maybeSingle();
+  if(skillError)return jsonErr('Technician skill validation unavailable; assignment not changed.',503);
+  if(!skill)return jsonErr('Technician is not approved for this service. Review private capabilities first.',409);
 
   const currentStatus = String(
     currentOrder.status ?? '',
