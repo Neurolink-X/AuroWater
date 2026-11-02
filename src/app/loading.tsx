@@ -116,7 +116,7 @@ export default function Loading() {
         aria-busy="true"
         className="al-root mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-8"
       >
-        <span className="sr-only">Loading {APP_NAME}…</span>
+        <span className="sr-only">Opening {APP_NAME} — water delivery and home services…</span>
 
         <div className="al-bar" aria-hidden="true" />
 
@@ -143,6 +143,11 @@ export default function Loading() {
           </div>
         </div>
 
+        <div className="space-y-1" aria-hidden="true">
+          <p className="text-sm font-bold tracking-wide text-sky-900">AuroTap · Water & home services</p>
+          <p className="text-xs text-slate-500">Fresh water. Trusted home services. Ready when you are.</p>
+        </div>
+
         {/* Main feature block */}
         <Skel className="h-44 rounded-3xl sm:h-56" />
 
@@ -159,7 +164,7 @@ export default function Loading() {
 
         {/* Appears only if loading is slow */}
         <p className="al-slow mt-auto pt-2 text-center text-sm text-slate-500">
-          Taking longer than usual. Please check your internet connection.
+          Still opening your page. You can retry if your connection is interrupted.
         </p>
       </div>
     </>
