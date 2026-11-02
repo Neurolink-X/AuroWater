@@ -606,7 +606,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Coming soon</span>
                 </div>
                 <p className="mt-2 text-sm text-slate-700">{city.name} is being prepared. Join the waitlist and check back for verified service coverage.</p>
-                <Link href={`/cities/${city.slug}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-900 hover:underline">Check pilot updates →</Link>
+                <Link href="/service-areas" className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-900 hover:underline">View service area updates →</Link>
               </div>)}
             </div>}
             <div className="grid sm:grid-cols-3 gap-4 mt-5">
@@ -617,7 +617,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Waitlist</span>
                   </div>
                   <p className="mt-2 text-xs text-slate-600">This city is on our waitlist. Availability has not been enabled.</p>
-                  <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline">Check my PIN code →</Link>
+                  <Link href="/service-areas" className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline">Join the waitlist →</Link>
                 </div>
               ))}
             </div>
