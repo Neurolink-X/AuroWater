@@ -135,6 +135,7 @@
 //   const d = new Date(iso);
 //   if (!iso || Number.isNaN(d.getTime())) return 'Date TBD';
 //   return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
 //     timeZone: 'Asia/Kolkata',
 //     day: '2-digit',
 //     month: 'short',
@@ -182,7 +183,9 @@
 //     : raw;
 //   const date = new Date(normalized);
 //   if (Number.isNaN(date.getTime())) return '';
-//   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+//   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
 // };
 // const todayIST = () => toISTDateKey(new Date().toISOString());
 // const tomorrowIST = () => {
@@ -605,7 +608,7 @@
 //   const fullAddress = canRevealContact ? [order.address_line, order.city].filter(Boolean).join(', ') : '';
 //   const isToday = isActive && order.scheduled_date === today;
 //   const isOverdue = isActive && !!order.scheduled_date && order.scheduled_date < today;
-//   const isPaid = order.payment_status === 'paid';
+//   const isPaid = String(order.payment_status).toLowerCase() === 'paid';
 //   const payMethod = (order.payment_method || 'cash').toUpperCase();
 
 //   const nextLabel: Record<OrderStatus, string> = {
@@ -954,7 +957,7 @@
 //       const flat: Order[] = rows.map((row) => {
 //         const noteText = String(row.note ?? row.notes ?? '');
 //         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-//         const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
+//         const scheduledValue = row.scheduled_at || row.scheduled_date || row.scheduled_time || '';
 //         const scheduledDate = toISTDateKey(scheduledValue);
 
 //         return {
@@ -967,7 +970,7 @@
 //             ? null
 //             : Number(row.can_count ?? row.can_quantity ?? row.cans_count),
 //           scheduled_date: scheduledDate,
-//           scheduled_slot: String(row.time_slot ?? row.scheduled_slot ?? slotMatch?.[1]?.trim() ?? ''),
+//           scheduled_slot: String(row.time_slot ?? row.scheduled_slot ?? slotMatch?.[1]?.trim() ?? (String(scheduledValue).includes('T') ? scheduledValue : '')),
 //           notes: row.note ?? row.notes ?? null,
 //           created_at: String(row.created_at ?? ''),
 //           accepted_at: row.accepted_at ?? null,
@@ -1217,7 +1220,7 @@
 //     const weekAgo = Date.now() - 7 * 864e5;
 //     const monthAgo = Date.now() - 30 * 864e5;
 
-//     const todayOrders = orders.filter((o) => toISTDateKey(o.created_at) === today).length;
+//     const todayOrders = orders.filter((o) => o.scheduled_date === today).length;
 //     const pendingOrders = orders.filter((o) =>
 //       ['pending', 'assigned', 'in_progress'].includes(o.status)
 //     ).length;
@@ -1409,7 +1412,7 @@
 //       activeOrders
 //         .filter((o) => {
 //           if (!matchesQuery(o, q)) return false;
-//           if (filter === 'today') return toISTDateKey(o.created_at) === todayStr;
+//           if (filter === 'today') return o.scheduled_date === todayStr;
 //           if (filter === 'tomorrow') return o.scheduled_date === tomorrowStr;
 //           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
 //           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -1441,13 +1444,13 @@
 //       todays: todays.length,
 //       overdue: activeOrders.filter((o) => o.scheduled_date && o.scheduled_date < todayStr).length,
 //       cans: todays.reduce((sum, o) => sum + (o.cans_count ?? 0), 0),
-//       cash: todays.reduce((sum, o) => sum + (o.payment_status === 'paid' ? 0 : o.amount), 0),
+//       cash: todays.reduce((sum, o) => sum + (o.payment_status === 'paid' || String(o.payment_method ?? '').toLowerCase() !== 'cash' ? 0 : o.amount), 0),
 //       awaiting: activeOrders.filter((o) => o.status === 'assigned' && !o.accepted_at).length,
 //       slots: Array.from(slots.entries()),
 //     };
 //   }, [activeOrders, todayStr]);
 
-//   const freeCans = stock ? Math.max(0, stock.cans_available - stock.reserved_cans) : 0;
+//   const freeCans = stock ? Math.max(0, stock.cans_available - stock.reserved_cans - stock.reservation_buffer_cans) : 0;
 //   const lowStock = !!stock && freeCans <= stock.low_stock_alert;
 //   const unreadCount = notifications.filter((n) => !n.is_read).length;
 //   const deliveredCount = useMemo(() => orders.filter((o) => o.status === 'delivered').length, [orders]);
@@ -1650,7 +1653,7 @@
 
 //           {/* ── STATS GRID ─────────────────────────────────────────────── */}
 //           <div className="sd-stats">
-//             <StatCard icon={Icon.truck(17)} label="Today's Orders" value={stats?.todayOrders.toString() ?? '—'} sub="Scheduled for today" accent="#0B8A60" loading={loading} />
+//             <StatCard icon={Icon.truck(17)} label="Today's Orders" value={stats?.todayOrders.toString() ?? '—'} sub="Delivery scheduled today (IST)" accent="#0B8A60" loading={loading} />
 //             <StatCard icon={Icon.drop(17, '#0277B6')} label="Active Orders" value={stats?.pendingOrders.toString() ?? '—'} sub="Pending + In-progress" accent="#0277B6" loading={loading} />
 //             <StatCard icon={Icon.wallet(17)} label="This Week" value={stats ? INR(stats.weekEarnings) : '—'} sub="Earnings (7 days)" accent="#6D28D9" loading={loading} />
 //             <StatCard icon={Icon.chart(17)} label="This Month" value={stats ? INR(stats.monthEarnings) : '—'} sub={`${stats?.completionRate ?? 0}% completion rate`} accent="#9A5A06" loading={loading} />
@@ -2235,7 +2238,7 @@ const formatScheduledSlot = (value: string) => {
     const formatted = fmtTime(raw);
     return formatted || 'Time not specified';
   }
-  return raw;
+  return raw.replace(/\\s+/, ' ').trim();
 };
 
 // Normalize date-only values without shifting them. Convert timestamps to India-local dates.
@@ -2967,12 +2970,15 @@ export default function SupplierDashboardPage() {
     // keep the last successful dashboard and orders visible while data reloads.
     if (!dashboardLoadedOnceRef.current) setLoading(true);
     try {
-      await Promise.all([
+      // Profile and assigned orders are critical; auxiliary widgets must not hold
+      // the first usable dashboard frame hostage when a secondary API is slow.
+      await Promise.allSettled([
         fetchProfile(userId),
-        fetchNotifications(userId),
         fetchStock(),
         fetchDispatchSettings(),
       ]);
+      // Notifications are non-blocking and never delay orders/actions.
+      void fetchNotifications(userId);
     } finally {
       dashboardLoadedOnceRef.current = true;
       setLoading(false);
@@ -3019,20 +3025,20 @@ export default function SupplierDashboardPage() {
 
     setRatingLoadState('loading');
     setProfile(normalized);
-    await Promise.all([
-      fetchOrders(),
-      fetchEarnings(normalized.id),
-      (async () => {
-        try {
-          const rating = await supplierRatingGet();
-          setProfile((current) => current?.id === normalized.id ? { ...current, rating: rating.average_rating, rating_count: rating.review_count } : current);
-          setRatingLoadState('loaded');
-        } catch (ratingError) {
-          setRatingLoadState('error');
-          console.warn('[supplier] rating unavailable:', ratingError instanceof Error ? ratingError.message : ratingError);
-        }
-      })(),
-    ]);
+    // Orders are the critical path. Earnings and ratings are independent and
+    // must not delay the first operational frame.
+    void fetchEarnings(normalized.id);
+    void (async () => {
+      try {
+        const rating = await supplierRatingGet();
+        setProfile((current) => current?.id === normalized.id ? { ...current, rating: rating.average_rating, rating_count: rating.review_count } : current);
+        setRatingLoadState('loaded');
+      } catch (ratingError) {
+        setRatingLoadState('error');
+        console.warn('[supplier] rating unavailable:', ratingError instanceof Error ? ratingError.message : ratingError);
+      }
+    })();
+    await fetchOrders();
     buildStats(normalized);
   };
 
@@ -3673,7 +3679,7 @@ export default function SupplierDashboardPage() {
             description={isHindi
               ? 'ऑर्डर और स्टॉक आपके अकाउंट डेटा से दिखते हैं। कमाई और बैंक ट्रांसफर की स्थिति अलग से सत्यापित करें।'
               : 'Order and stock figures come from your account. Review earnings and bank transfers separately before considering them settled.'}
-            loading={loading || loadingOrders}
+            loading={loadingOrders}
             cards={[
               {
                 id: 'accept',
