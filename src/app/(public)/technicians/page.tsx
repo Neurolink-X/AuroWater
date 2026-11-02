@@ -27,7 +27,7 @@ const cityAll = UP_CITIES.join(', ');
 
 // Keep the title near 60 characters and the description near 160 so Google does not cut them.
 const TITLE = `Plumber, RO Service & Water Technicians in ${cityShort} | ${BRAND}`;
-const DESCRIPTION = `Book verified plumbers, RO service, borewell, motor pump, water tanker and tank cleaning technicians in ${cityAll}. Compare ratings, see who is live, book online.`;
+const DESCRIPTION = `Explore plumbing, RO servicing, borewell, motor pump and tank cleaning with AuroTap. Check current local coverage and verified professional availability before booking.`;
 
 const SERVICE_TERMS = ['plumber', 'RO service', 'borewell', 'motor pump repair', 'water tanker booking', 'water tank cleaning'];
 
@@ -97,16 +97,16 @@ const LABEL = 'text-sm font-bold text-emerald-800';
 /* ------------------------------------------------------------------ */
 
 const TRUST_POINTS: ReadonlyArray<readonly [string, string, string]> = [
-  ['✅', 'Reviewed partners', 'Our team reviews every applicant and calls to verify details.'],
-  ['🟢', 'Live or Busy status', 'See who can take the job now before you call.'],
-  ['⭐', 'Open profiles', 'Ratings, jobs done, city and skills on every profile.'],
-  ['⚡', 'Book in minutes', 'Pick a service, choose a technician, confirm online.'],
+  ['✅', 'Qualification review', 'Only approved service skills are eligible for specialist assignment.'],
+  ['🟢', 'Check local availability', 'Availability depends on the requested service, city and approved professionals.'],
+  ['⭐', 'Service information', 'Explore service categories and verify local coverage before booking.'],
+  ['⚡', 'Protected booking', 'Bookings are checked for local specialist eligibility before confirmation.'],
 ];
 
 const STEPS: ReadonlyArray<readonly [string, string]> = [
   ['Choose your service', 'Plumber, RO service, borewell, motor pump, tanker or tank cleaning.'],
-  ['Compare technicians', 'Check rating, jobs completed, skills and who is Live in your city.'],
-  ['Book and get it fixed', 'Confirm online. Ask for the estimate before work starts.'],
+  ['Check service area', 'Confirm that an approved professional is available for your city and selected service.'],
+  ['Request service', 'Review prices and booking status; any on-site estimate must be approved separately.'],
 ];
 
 const PROBLEMS: ReadonlyArray<readonly [string, string]> = [

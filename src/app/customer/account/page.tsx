@@ -18,7 +18,7 @@ type Settings = {
   [key: string]: unknown;
 };
 type Profile = {
-  id: string; full_name: string | null; city: string | null; phone: string | null;
+  id: string; full_name: string | null; city: string | null; phone: string | null; email?: string | null;
   created_at: string | null; settings?: Settings | null;
 };
 type Stats = {
@@ -357,7 +357,7 @@ export default function CustomerAccountPage() {
     return () => window.removeEventListener('beforeunload', h);
   }, [hasChanges, saving, loading]);
 
-  const email = session?.email?.trim() ?? '';
+  const email = profile?.email?.trim() || session?.email?.trim() || '';
   const phone = origPhone;
   const initials = useMemo(() => getInitials(profile?.full_name ?? session?.name ?? 'AuroTap'), [profile?.full_name, session?.name]);
 

@@ -20,13 +20,11 @@ import {
 
 import BottomNav from '@/components/customer/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
+import { DEFAULT_CONTACT, telHref, whatsappHref } from '@/lib/contact-shared';
 
-const SUPPORT_PHONE = '+919889305803';
-const SUPPORT_EMAIL = 'support.aurotap@gmail.com';
-
-const WHATSAPP_URL = `https://wa.me/919889305803?text=${encodeURIComponent(
-  'Hi AuroTap! I need help with my order or service.'
-)}`;
+const SUPPORT_PHONE = telHref(DEFAULT_CONTACT.supportPhone);
+const SUPPORT_EMAIL = DEFAULT_CONTACT.supportEmail;
+const WHATSAPP_URL = whatsappHref(DEFAULT_CONTACT.whatsappNumber, 'Hi AuroTap! I need help with my order or service.');
 
 export default function CustomerSupportPage() {
   const router = useRouter();
@@ -383,7 +381,7 @@ export default function CustomerSupportPage() {
 
       {/* Phone */}
       <a
-        href={`tel:${SUPPORT_PHONE}`}
+        href={`+91 ${DEFAULT_CONTACT.supportPhone}`}
         className="group flex items-center gap-3 border-b border-slate-100 p-5 transition hover:bg-sky-50 sm:border-b-0 sm:border-r"
       >
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-50">

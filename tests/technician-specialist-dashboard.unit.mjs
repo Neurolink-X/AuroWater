@@ -16,8 +16,8 @@ test('one canonical professional dashboard displays server-confirmed specialist 
  const panel=read('../src/components/technician/SpecialistStatusPanel.tsx');
  const redirect=read('../src/app/plumber/dashboard/page.tsx');
  assert.match(dash,/SpecialistStatusPanel/);
- assert.match(panel,/No approved specialization yet/);
- assert.match(panel,/setState\(null\)/);
+ assert.match(panel,/No service is approved yet/);
+ assert.match(panel,/setRecord\(null\)/);
  assert.match(redirect,/redirect\('\/technician\/dashboard'\)/);
 });
 

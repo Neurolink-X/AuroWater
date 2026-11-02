@@ -32,9 +32,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!service) return { title: `Service not found | ${BRAND}`, robots: { index: false, follow: false } };
 
   const liveCities = (await getPublicServiceCities()).filter(city => city.status === 'active');
-  const cityNames = liveCities.map(city => city.name).join(', ') || 'supported areas';
-  const title = `${service.title} in ${cityNames} | ${BRAND}`;
-  const description = `${service.title} by ${BRAND}. Check live PIN-code coverage, available providers and prices before booking.`;
+  const title = `${service.title} | Book in Available Areas | ${BRAND}`;
+  const description = `Check ${service.title.toLowerCase()} service availability, accurate live pricing and booking eligibility with ${BRAND}. Search PIN-code coverage before confirming your request.`;
   const path = `/services/${service.key}`;
 
   return {
