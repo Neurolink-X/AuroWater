@@ -1,4 +1,3 @@
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 // 'use client';
 
 // import React, {
@@ -2069,6 +2068,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 
 'use client';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 import React, {
   useCallback,
