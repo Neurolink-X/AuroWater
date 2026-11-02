@@ -25,7 +25,7 @@ let old = [];
 try { old = JSON.parse(await readFile(target,'utf8')); } catch {}
 if (!Array.isArray(old)) throw Error('Invalid editorial store');
 const existing = new Set(old.map(p=>p.slug));
-const topic = topics.find(t=>!existing.has(t.slug));
+const topic = topics.find(t=>!existing.has(t.slug+'-2026'));
 if (!topic) { console.log('No approved unused topics: skip, never duplicate'); process.exit(0); }
 const date = new Date().toISOString();
 const post = {slug:topic.slug+'-2026',title:topic.title,description:topic.summary,category:topic.category,publishAt:date,updatedAt:date,sections:topic.sections};
