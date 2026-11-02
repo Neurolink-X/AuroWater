@@ -48,8 +48,9 @@ LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
 DECLARE v_existing public.supplier_referral_attributions%ROWTYPE;
 BEGIN
  IF current_user <> 'service_role' THEN RAISE EXCEPTION 'service role required'; END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended(p_customer::text, 17));
  IF p_customer = p_supplier THEN RAISE EXCEPTION 'Self-referral not allowed'; END IF;
- PERFORM pg_advisory_xact_lock(hashtextextended(p_customer::text, 19));
+
  SELECT * INTO v_existing FROM public.supplier_referral_attributions a WHERE a.customer_id=p_customer;
  IF FOUND THEN
    RETURN QUERY SELECT v_existing.supplier_id,v_existing.priority_expires_at,true;
