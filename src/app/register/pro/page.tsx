@@ -12,6 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import { MILESTONE_TIERS, type MilestoneTier } from '@/lib/milestone-constants';
 import { useAuth } from '@/hooks/useAuth';
+import {PARTNER_ROLE_POLICY,recommendedRadiusKm} from '@/lib/partner-onboarding-policy';
 
 /* ───────────────────────── Content & constants ───────────────────────── */
 
@@ -91,6 +92,9 @@ const technicianSchema = z.object({
   type: z.literal('technician'),
   skills: z.array(z.enum(SKILLS)).min(1, 'Pick at least one skill'),
   experience_years: z.number({ message: 'Enter your experience' }).int('Use a whole number').min(0, 'Cannot be negative').max(60, 'That looks too high'),
+  working_area: z.string().trim().min(3,'Enter your working locality').max(150),
+  working_pincode: z.string().regex(/^\d{6}$/,'Enter a valid six-digit PIN'),
+  requested_radius_km: z.number().int().min(1).max(50),
 });
 
 type SupplierPayload = z.infer<typeof supplierSchema>;
@@ -116,13 +120,16 @@ type FormValues = {
   ifsc?: string;
   skills?: string[];
   experience_years?: number;
+  working_area?: string;
+  working_pincode?: string;
+  requested_radius_km?: number;
 };
 
 const defaultsFor = (role: RoleId): FormValues => {
   const r = ROLES[role];
   return r.kind === 'supplier'
     ? { type: 'supplier', role, full_name: '', phone: '', city: SERVICE_CITIES[0], vehicle_type: r.vehicle, cans_capacity: r.cans, business_name:'',business_address:'',pincode:'',base_lat:0,base_lng:0,upi_id: '', bank_account: '', ifsc: '' }
-    : { type: 'technician', role, full_name: '', phone: '', city: SERVICE_CITIES[0], skills: r.skills, experience_years: 1 };
+    : { type: 'technician', role, full_name: '', phone: '', city: SERVICE_CITIES[0], skills: r.skills, experience_years: 1, working_area:'', working_pincode:'',requested_radius_km:recommendedRadiusKm(role as keyof typeof PARTNER_ROLE_POLICY) };
 };
 
 type StepDef = { title: string; hint: string; fields: (keyof FormValues)[] };
@@ -136,11 +143,12 @@ const STEPS: Record<Kind, StepDef[]> = {
   technician: [
     { title: 'About you', hint: 'So we can reach you', fields: ['full_name', 'phone', 'city'] },
     { title: 'Your skills', hint: 'What you can fix', fields: ['skills', 'experience_years'] },
+    { title: 'Working area', hint: 'Where you can serve customers', fields: ['working_area','working_pincode','requested_radius_km'] },
   ],
 };
 
 /** Saved on this device only, and never includes payout details. */
-const DRAFT_FIELDS: (keyof FormValues)[] = ['full_name', 'phone', 'city', 'vehicle_type', 'cans_capacity','business_name','business_address','pincode','base_lat','base_lng','skills', 'experience_years'];
+const DRAFT_FIELDS: (keyof FormValues)[] = ['full_name', 'phone', 'city', 'vehicle_type', 'cans_capacity','business_name','business_address','pincode','base_lat','base_lng','skills', 'experience_years','working_area','working_pincode','requested_radius_km'];
 const draftKey = (role: RoleId) => `aurotap:pro-draft:${role}`;
 
 /* ───────────────────────── Tiers (all marketing numbers come from here) ───────────────────────── */
@@ -816,6 +824,14 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
             <p className="text-xs leading-5 text-slate-500">Payout details are never saved in your browser draft.</p>
           </>
         )}
+
+        {kind === 'technician' && step === 2 && (<div className="space-y-4">
+          <p className="text-sm text-slate-700">Your requested area will be reviewed by admin. It does not automatically enable receiving orders.</p>
+          <Field label="Working locality / shop area" htmlFor={id('working_area')} error={err('working_area')}><input {...register('working_area')} {...a11y('working_area')} className={INPUT} placeholder="Sector, colony, locality or nearby landmark"/></Field>
+          <Field label="Working area PIN" htmlFor={id('working_pincode')} error={err('working_pincode')}><input {...register('working_pincode')} {...a11y('working_pincode')} className={INPUT} maxLength={6} inputMode="numeric" placeholder="6-digit PIN"/></Field>
+          <Field label="Requested service radius (km)" htmlFor={id('requested_radius_km')} error={err('requested_radius_km')}><input {...register('requested_radius_km',{valueAsNumber:true})} {...a11y('requested_radius_km')} className={INPUT} type="number" min={1} max={50}/></Field>
+          <p className="text-xs text-slate-600">This is a request, not dispatch approval. Identity, skills and service location require verification.</p>
+        </div>)}
 
         {kind === 'technician' && step === 1 && (
           <>
