@@ -83,7 +83,8 @@ test('real supplier Settings page preserves payouts and directs profile edits th
   assert.match(page, /href="\/supplier\/profile"/);
   assert.match(page, /Admin approval required/);
   assert.match(page, /useMyLocation/);
-  assert.match(page, /window\.confirm/);
+  assert.match(page, /router\.push\('\/supplier\/profile'\)/);
+  assert.doesNotMatch(page, /getCurrentPosition/);
   assert.match(page, /dispatch_base_city_check/);
   assert.match(page, /'payout'/);
   assert.doesNotMatch(page, /body\.price_per_can/);
