@@ -92,6 +92,7 @@ test('supplier intelligence endpoints remain role-scoped and non-mutating', () =
   const api = read('src/app/api/supplier/intelligence/route.ts');
   const page = read('src/app/supplier/[section]/page.tsx');
   const coverage = read('src/app/supplier/coverage/page.tsx');
+  const coverageApi = read('src/app/api/supplier/coverage-requests/route.ts');
   assert.match(api, /requireRole\(auth\.ctx, 'supplier'\)/);
   assert.match(api, /\.eq\('supplier_id', supplierId\)/);
   assert.match(api, /\.limit\(OWN_LIMIT \+ 1\)/);
@@ -101,4 +102,8 @@ test('supplier intelligence endpoints remain role-scoped and non-mutating', () =
   assert.match(page, /endpoint: '\/api\/supplier\/intelligence'/);
   assert.match(coverage, /suggestedZone/);
   assert.doesNotMatch(coverage, /autoApprove/);
+  assert.match(coverageApi, /db\.from\('pincode_directory'\)/);
+  assert.match(coverageApi, /requestedPins\.map/);
+  assert.match(coverageApi, /No coverage request was submitted/);
+  assert.match(coverageApi, /'PENDING'/);
 });
