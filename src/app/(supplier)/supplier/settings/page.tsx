@@ -142,27 +142,8 @@ export default function SupplierSettingsPage() {
   }, [applySnap]);
 
   const useMyLocation = () => {
-    toast.info('Update shop GPS via My profile & address for admin review.');
+    toast.info('Select your actual shop on the map via My profile & address; admin review required.');
     router.push('/supplier/profile');
-    return;
-
-    const confirmed = window.confirm(
-      'Use your CURRENT device position as the PERMANENT dispatch base? Only confirm if you are physically at your supplier shop/warehouse. A wrong city or temporary travel location can prevent nearby orders from reaching you.'
-    );
-    if (!confirmed) return;
-    if (!navigator.geolocation) return toast.error('Location is not available on this device.');
-    toast.info('Getting your location…');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const la = Number(pos.coords.latitude.toFixed(6));
-        const ln = Number(pos.coords.longitude.toFixed(6));
-        setLat(String(la));
-        setLng(String(ln));
-        void save('location', { base_lat: la, base_lng: ln }, 'Service location saved.');
-      },
-      () => toast.error('Could not get your location. Allow location access and try again.'),
-      { enableHighAccuracy: true, timeout: 15000 },
-    );
   };
 
   const checks = snap?.readiness?.checks ?? [];
@@ -292,13 +273,6 @@ export default function SupplierSettingsPage() {
             disabled={saving === 'service'}
             onClick={() => {
               const body: Record<string, unknown> = { zone_radius_km: radius };
-              const la = Number(lat);
-              const ln = Number(lng);
-              if (false && (lat.trim() || lng.trim())) {
-                if (!lat.trim() || !lng.trim() || !Number.isFinite(la) || !Number.isFinite(ln)) return toast.error('Enter both latitude and longitude, or use your current location.');
-                body.base_lat = la;
-                body.base_lng = ln;
-              }
               void save('service', body, 'Delivery settings saved.');
             }}
           >

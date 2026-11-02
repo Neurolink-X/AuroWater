@@ -68,7 +68,7 @@ export default function SupplierProfilePage() {
   const settings = data?.settings ?? {};
   const fieldLabelsHi: Record<keyof typeof form, string> = {
     full_name: 'पूरा नाम', phone: 'फोन नंबर', business_name: 'व्यवसाय का नाम',
-    city: 'शहर', address: 'व्यवसाय/सेवा का पता', pincode: 'PIN कोड', reason: 'बदलाव का कारण (वैकल्पिक)',
+    city: 'शहर', address: 'व्यवसाय/सेवा का पता', pincode: 'PIN कोड', reason: 'बदलाव का कारण (वैकल्पिक)', base_lat:'दुकान अक्षांश',base_lng:'दुकान देशांतर',
   };
   return <main className="mx-auto w-full max-w-4xl min-w-0 px-3 py-5 pb-10 text-slate-900 sm:px-4 sm:py-8">
     <div className="flex min-w-0 flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
