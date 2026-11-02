@@ -13,6 +13,7 @@ import { Toaster } from 'sonner';
 import OrganizationJsonLd from '@/components/seo/OrganizationJsonLd';
 import WebSiteJsonLd from '@/components/seo/WebSiteJsonLd';
 import ServiceWorkerRegistration from '@/components/pwa/ServiceWorkerRegistration';
+import DisposableCacheMaintenance from '@/components/pwa/DisposableCacheMaintenance';
 import WebVitalsReporter from '@/components/observability/WebVitalsReporter';
 import ScrollStallReporter from '@/components/observability/ScrollStallReporter';
 import RuntimeErrorReporter from '@/components/observability/RuntimeErrorReporter';
@@ -469,6 +470,7 @@ export default function RootLayout({
 
           {/* Service Worker: silent, production-only offline support */}
           <ServiceWorkerRegistration />
+          <DisposableCacheMaintenance />
 
           {/* OAuth / PKCE callback bridge */}
           <AuthPkceBridge />
