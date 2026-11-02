@@ -290,7 +290,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                 </button>
               )}
               {status === 'assigned' && (
-                <button className="sp-btn sp-btn--go" disabled={busy} disabled={busy || !acceptedFlag} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
+                <button className="sp-btn sp-btn--go" disabled={busy || !acceptedFlag} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
                   {language === 'hi' ? 'डिलीवरी शुरू करें' : 'Start delivery'}
                 </button>
               )}
