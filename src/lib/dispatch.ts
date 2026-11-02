@@ -60,6 +60,7 @@ const REOFFER_EXPIRED = process.env.DISPATCH_REOFFER_EXPIRED !== 'false';
 
 /** Services handled by technicians. Water cans (and tankers) go through supplier dispatch. */
 const TECHNICIAN_SERVICES = ['ro_service', 'plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
+// Technician service credentials are private and approved by admin. No public role exposure.
 
 const TIER_RANK: Record<string, number> = {
   starter: 0,
@@ -941,6 +942,15 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
     }
 
     const ids = candidates.map((t) => String(t.id));
+    const serviceKey=String(orderCoverage?.service_type??'');
+    if(!TECHNICIAN_SERVICES.includes(serviceKey))return {technicianId:null,reason:'no_candidates'};
+    const {data:capabilities,error:capError}=await db.from('technician_service_capabilities')
+      .select('technician_id,service_key').in('technician_id',ids).eq('service_key',serviceKey).eq('status','approved');
+    // Fail closed when capabilities cannot be checked. Admin manual reassignment remains available.
+    if(capError){console.error('[dispatch] capability verification unavailable',capError.code);return {technicianId:null,reason:'error'};}
+    const approvedIds=new Set((capabilities??[]).map((x:any)=>String(x.technician_id)));
+    const eligible=candidates.filter(t=>approvedIds.has(String(t.id)));
+    if(!eligible.length){await alertAdmins(db,orderId,'No verified specialist for this service. Admin assignment needed.','technician_skill_unavailable');return {technicianId:null,reason:'no_candidates'};}
     const [loadRes, scores] = await Promise.all([
       db.from('orders').select('technician_id').in('technician_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       technicianTrustScores(db, ids),
@@ -955,7 +965,7 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
     type Candidate = { id: string; distance: number | null; cityMatch: boolean; load: number; trust: number; tier: number };
     const ranked: Candidate[] = [];
 
-    for (const t of candidates) {
+    for (const t of eligible) {
       const id = String(t.id);
       const load = loads.get(id) ?? 0;
       if (load >= TECHNICIAN_MAX_ACTIVE) continue;

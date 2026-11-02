@@ -35,7 +35,7 @@ const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 type Kind = 'supplier' | 'technician';
 
 /** Set to true once /api/applications accepts a `role` field. Until then the role only shapes the UI and presets. */
-const SEND_ROLE = false;
+const SEND_ROLE = true;
 
 type RoleId = 'can' | 'tanker' | 'plumber' | 'borewell' | 'tank' | 'ro';
 const ROLE_IDS = ['can', 'tanker', 'plumber', 'borewell', 'tank', 'ro'] as const;
@@ -72,6 +72,11 @@ const supplierSchema = z
     type: z.literal('supplier'),
     vehicle_type: z.enum(VEHICLES, { message: 'Choose your vehicle' }),
     cans_capacity: z.number({ message: 'Enter how many cans you can carry' }).int('Use a whole number').min(1, 'At least 1 can').max(500, 'That looks too high'),
+    business_name: z.string().trim().min(2,'Enter the shop name').max(100),
+    business_address: z.string().trim().min(8,'Enter the full shop address').max(300),
+    pincode: z.string().regex(/^\d{6}$/,'Enter a six-digit shop PIN'),
+    base_lat: z.number().min(-90).max(90).refine(v=>v!==0,'Enter shop latitude'),
+    base_lng: z.number().min(-180).max(180).refine(v=>v!==0,'Enter shop longitude'),
     upi_id: z.string().trim().regex(UPI_RE, 'Enter a valid UPI ID, for example name@bank'),
     bank_account: z.string().trim().refine((v) => !v || ACCOUNT_RE.test(v), 'Account numbers have 9 to 18 digits'),
     ifsc: z.string().trim().toUpperCase().refine((v) => !v || IFSC_RE.test(v), 'Enter a valid IFSC, for example HDFC0001234'),
@@ -101,6 +106,11 @@ type FormValues = {
   city: string;
   vehicle_type?: string;
   cans_capacity?: number;
+  business_name?: string;
+  business_address?: string;
+  pincode?: string;
+  base_lat?: number;
+  base_lng?: number;
   upi_id?: string;
   bank_account?: string;
   ifsc?: string;
@@ -111,7 +121,7 @@ type FormValues = {
 const defaultsFor = (role: RoleId): FormValues => {
   const r = ROLES[role];
   return r.kind === 'supplier'
-    ? { type: 'supplier', role, full_name: '', phone: '', city: SERVICE_CITIES[0], vehicle_type: r.vehicle, cans_capacity: r.cans, upi_id: '', bank_account: '', ifsc: '' }
+    ? { type: 'supplier', role, full_name: '', phone: '', city: SERVICE_CITIES[0], vehicle_type: r.vehicle, cans_capacity: r.cans, business_name:'',business_address:'',pincode:'',base_lat:0,base_lng:0,upi_id: '', bank_account: '', ifsc: '' }
     : { type: 'technician', role, full_name: '', phone: '', city: SERVICE_CITIES[0], skills: r.skills, experience_years: 1 };
 };
 
@@ -120,6 +130,7 @@ const STEPS: Record<Kind, StepDef[]> = {
   supplier: [
     { title: 'About you', hint: 'So we can reach you', fields: ['full_name', 'phone', 'city'] },
     { title: 'Your vehicle', hint: 'How you deliver', fields: ['vehicle_type', 'cans_capacity'] },
+    { title: 'Your shop', hint: 'Shop GPS can differ from your device GPS', fields: ['business_name','business_address','pincode','base_lat','base_lng'] },
     { title: 'Payouts', hint: 'Where we send your earnings', fields: ['upi_id', 'bank_account', 'ifsc'] },
   ],
   technician: [
@@ -129,7 +140,7 @@ const STEPS: Record<Kind, StepDef[]> = {
 };
 
 /** Saved on this device only, and never includes payout details. */
-const DRAFT_FIELDS: (keyof FormValues)[] = ['full_name', 'phone', 'city', 'vehicle_type', 'cans_capacity', 'skills', 'experience_years'];
+const DRAFT_FIELDS: (keyof FormValues)[] = ['full_name', 'phone', 'city', 'vehicle_type', 'cans_capacity','business_name','business_address','pincode','base_lat','base_lng','skills', 'experience_years'];
 const draftKey = (role: RoleId) => `aurotap:pro-draft:${role}`;
 
 /* ───────────────────────── Tiers (all marketing numbers come from here) ───────────────────────── */
@@ -761,6 +772,30 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
         )}
 
         {kind === 'supplier' && step === 2 && (
+          <div className="space-y-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <p className="text-sm font-bold text-slate-900">Shop base — not your current phone GPS. Remote registration is allowed.</p>
+            <Field label="Shop name" htmlFor={id('business_name')} error={err('business_name')}>
+              <input {...register('business_name')} {...a11y('business_name')} className={INPUT} placeholder="Shop or warehouse"/>
+            </Field>
+            <Field label="Full shop address" htmlFor={id('business_address')} error={err('business_address')}>
+              <input {...register('business_address')} {...a11y('business_address')} className={INPUT} placeholder="Building, road, locality, landmark"/>
+            </Field>
+            <Field label="Shop PIN" htmlFor={id('pincode')} error={err('pincode')}>
+              <input {...register('pincode')} {...a11y('pincode')} className={INPUT} inputMode="numeric" maxLength={6} placeholder="Six-digit PIN"/>
+            </Field>
+            <a className="text-sm font-semibold text-blue-800 underline" target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([watch('business_address'),watch('city'),watch('pincode')].filter(Boolean).join(' '))}`}>Find the shop on Google Maps</a>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Shop latitude" htmlFor={id('base_lat')} error={err('base_lat')}>
+                <input {...register('base_lat',{valueAsNumber:true})} {...a11y('base_lat')} className={INPUT} type="number" step="any"/>
+              </Field>
+              <Field label="Shop longitude" htmlFor={id('base_lng')} error={err('base_lng')}>
+                <input {...register('base_lng',{valueAsNumber:true})} {...a11y('base_lng')} className={INPUT} type="number" step="any"/>
+              </Field>
+            </div>
+            <p className="text-xs text-slate-700">Admin approval is required before this base is used for live dispatch.</p>
+          </div>
+        )}
+        {kind === 'supplier' && step === 3 && (
           <>
             <Field label="UPI ID" htmlFor={id('upi_id')} error={err('upi_id')} hint="Payouts are sent here">
               <input {...register('upi_id')} {...a11y('upi_id')} className={INPUT} autoComplete="off" autoCapitalize="none" placeholder="name@bank" />
