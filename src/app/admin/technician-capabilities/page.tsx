@@ -57,6 +57,7 @@ export default function SpecialistReviewPage(){
    {!apps.some(x=>['pending','pending_approval'].includes(x.status))&&<p className="text-slate-300">No pending specialist applications.</p>}
    {apps.filter(x=>['pending','pending_approval'].includes(x.status)).map(a=><article key={a.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
     <p className="font-semibold">{String(a.payload?.full_name??'Applicant')} · {String(a.payload?.role??a.type)}</p><p className="text-sm text-slate-300">City: {String(a.payload?.city??'Not provided')} · Skills: {Array.isArray(a.payload?.skills)?a.payload.skills.join(', '):'Not provided'}</p>
+    <p className="mt-2 rounded-lg bg-white/10 p-3 text-sm text-slate-200">Requested locality: {String(a.payload?.working_area ?? 'Not provided (legacy request)')} · PIN: {String(a.payload?.working_pincode ?? 'Not provided')} · Radius: {String(a.payload?.requested_radius_km ?? 'Not specified')} km. Verify documents, city and service capability before approval.</p>
     <p className="mt-1 text-xs text-slate-400">Application ID: {a.id} · Applicant ID: {a.user_id}</p>
     <div className="mt-3 flex gap-2"><button disabled={Boolean(busy)} onClick={()=>void review(a.id,'approved')} className="rounded-lg bg-emerald-500 px-4 py-2 text-slate-950">Approve qualified specialist</button><button disabled={Boolean(busy)} onClick={()=>void review(a.id,'rejected')} className="rounded-lg border border-rose-400 px-4 py-2 text-rose-200">Reject</button></div>
    </article>)}
