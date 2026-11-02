@@ -8,7 +8,7 @@ import type { ApiAddress } from '@/lib/api-client';
 import { useAuth } from '@/hooks/useAuth';
 import GlassCard from '@/components/ui/GlassCard';
 import BottomNav from '@/components/customer/BottomNav';
-import { ADDRESS_CITY_NAMES } from '@/lib/cities';
+import type { City } from '@/lib/cities';
 
 type Address = {
   id: string;
@@ -40,14 +40,16 @@ function isValidPincode(pin: string) {
   return /^[0-9]{6}$/.test(pin.trim());
 }
 
-function isValidCity(city: string) {
+function isValidCity(city: string, allowedCities: readonly string[]) {
   const normalized = city.trim().toLowerCase();
-  return ADDRESS_CITY_NAMES.some((c) => c.toLowerCase() === normalized);
+  return allowedCities.some((c) => c.toLowerCase() === normalized);
 }
 
 export default function AddressesPage() {
   const { hydrated, isLoggedIn, isCustomer } = useAuth();
   const [addresses, setAddresses] = useState<Address[]>([]);
+  const [addressCities, setAddressCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [houseFlat, setHouseFlat] = useState('');
   const [area, setArea] = useState('');
@@ -83,6 +85,19 @@ export default function AddressesPage() {
     void reload();
   }, [hydrated, isLoggedIn, isCustomer, reload]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/cities', { signal: controller.signal, cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error('City directory unavailable');
+        return (await response.json()) as City[];
+      })
+      .then(rows => setAddressCities(Array.isArray(rows) ? rows.map(row => row.name) : []))
+      .catch(() => { if (!controller.signal.aborted) setAddressCities([]); })
+      .finally(() => { if (!controller.signal.aborted) setCitiesLoading(false); });
+    return () => controller.abort();
+  }, []);
+
   const defaultId = useMemo(() => addresses.find((a) => a.isDefault)?.id ?? null, [addresses]);
 
   const save = async () => {
@@ -90,7 +105,7 @@ export default function AddressesPage() {
     setError(null);
     if (!houseFlat.trim()) return setError('House/Flat No is required.');
     if (!area.trim()) return setError('Area is required.');
-    if (!isValidCity(city)) return setError('City is required.');
+    if (!isValidCity(city, addressCities)) return setError('City is required.');
     if (!isValidPincode(pincode)) return setError('Pincode must be a 6-digit number.');
     setIsSaving(true);
     try {
@@ -219,8 +234,8 @@ export default function AddressesPage() {
                 onChange={(e) => setCity(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm"
               >
-                <option value="">Select City</option>
-                {ADDRESS_CITY_NAMES.map((c) => (
+                <option value="">{citiesLoading ? "Loading cities…" : "Select City"}</option>
+                {addressCities.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
