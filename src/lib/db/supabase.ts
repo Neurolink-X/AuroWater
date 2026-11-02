@@ -82,6 +82,7 @@ export function supabaseBrowser(): SupabaseClient {
     _browserSingleton = createBrowserClientUtil();
   }
 
+  if (!_browserSingleton) throw new Error('Supabase browser client initialization failed');
   return _browserSingleton;
 }
 
