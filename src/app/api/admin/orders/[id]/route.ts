@@ -22,7 +22,7 @@ const VALID_PAYMENT_STATUSES = new Set([
 const ALLOWED_UPDATE_FIELDS = [
   'status',
   'supplier_id',
-  'technician_id',
+  // Technician assignments must use the audited /admin/technicians/[id]/assign RPC.
   'scheduled_date',
   'time_slot',
   'payment_status',
