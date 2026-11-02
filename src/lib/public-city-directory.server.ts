@@ -1,6 +1,6 @@
 import 'server-only';
 import { createServiceClient } from '@/utils/supabase/server';
-import { FALLBACK_CITIES, type City } from '@/lib/cities';
+import type { City } from '@/lib/cities';
 import { mergePublicCityDirectory } from '@/lib/public-city-directory';
 
 /**
@@ -21,10 +21,10 @@ export async function getPublicServiceCities(): Promise<City[]> {
       .limit(500);
     if (error) {
       console.error('[public-city-directory] failed to read cities', { code: error.code });
-      return mergePublicCityDirectory([], FALLBACK_CITIES);
+      return mergePublicCityDirectory([], []);
     }
-    return mergePublicCityDirectory(data ?? [], FALLBACK_CITIES);
+    return mergePublicCityDirectory(data ?? [], []);
   } catch {
-    return mergePublicCityDirectory([], FALLBACK_CITIES);
+    return mergePublicCityDirectory([], []);
   }
 }
