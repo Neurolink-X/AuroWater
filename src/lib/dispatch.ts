@@ -378,6 +378,39 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     return { kind: 'error', message: 'Could not verify supplier eligibility or workload; dispatch needs retry.', action: 'supplier_eligibility_lookup_failed' };
   }
 
+  // Verify current authoritative zone/city state at dispatch time. A booking
+  // can outlive an admin zone deactivation, so never rely on booking-time checks.
+  if (order.zone_id) {
+    const { data: activeZone, error: activeZoneError } = await db
+      .from('service_zones')
+      .select('id, status, city_id, services')
+      .eq('id', order.zone_id)
+      .maybeSingle();
+    if (activeZoneError) {
+      console.error('[dispatch] zone status lookup failed', activeZoneError);
+      return { kind: 'error', message: 'Could not verify current service zone.', action: 'zone_status_lookup_failed' };
+    }
+    if (!activeZone || !['AVAILABLE', 'LIMITED'].includes(String(activeZone.status).toUpperCase())) {
+      return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'zone_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+    }
+    if (activeZone.city_id) {
+      const { data: zoneCity, error: zoneCityError } = await db
+        .from('cities').select('status').eq('id', activeZone.city_id).maybeSingle();
+      if (zoneCityError) {
+        console.error('[dispatch] city status lookup failed', zoneCityError);
+        return { kind: 'error', message: 'Could not verify current city status.', action: 'city_status_lookup_failed' };
+      }
+      if (!zoneCity || String(zoneCity.status).toLowerCase() !== 'active') {
+        return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'city_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+      }
+    }
+    const enabledServices = activeZone.services as string[] | null;
+    const requestedService = String(typeRes.data?.key ?? order.service_type ?? '');
+    if (Array.isArray(enabledServices) && !enabledServices.includes(requestedService)) {
+      return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'service_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+    }
+  }
+
   // Prefer suppliers explicitly mapped to this service zone. If those cannot fulfil the order,
   // allow an eligible same-city fallback from another zone (or with no mapping). The order must
   // already have passed customer-side serviceability checks; fallback never enables an
@@ -430,7 +463,13 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
           continue;
         }
       } else {
-        // Mapped to another zone (or unmapped): only a same-city fallback, ranked after zone matches.
+        // A supplier with explicitly approved coverage elsewhere must not be
+        // silently assigned outside those approved zones. Keep legacy unmapped
+        // suppliers eligible for the existing same-city fallback during rollout.
+        if (links.length > 0) {
+          reject('zone_not_approved', String(order.zone_id));
+          continue;
+        }
         coverageTier = 1;
       }
     }
@@ -830,6 +869,31 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
     if (attempts >= maxAttempts) {
       await alertAdmins(db, orderId, 'Technician dispatch attempts exhausted; manual assignment is required.', 'technician_dispatch_exhausted');
       return { technicianId: null, reason: 'max_attempts' };
+    }
+
+    // Recheck zone and city for technician jobs as well as supplier orders.
+    // A city can be paused after booking, before the retry sweep runs.
+    const { data: orderCoverage, error: orderCoverageError } = await db
+      .from('orders').select('zone_id, service_type').eq('id', orderId).maybeSingle();
+    if (orderCoverageError) return { technicianId: null, reason: 'error' };
+    if (orderCoverage?.zone_id) {
+      const { data: zone, error: zoneError } = await db.from('service_zones')
+        .select('status, city_id, services').eq('id', orderCoverage.zone_id).maybeSingle();
+      if (zoneError) return { technicianId: null, reason: 'error' };
+      if (!zone || !['AVAILABLE', 'LIMITED'].includes(String(zone.status).toUpperCase())) {
+        return { technicianId: null, reason: 'no_candidates' };
+      }
+      if (Array.isArray(zone.services) && !zone.services.includes(String(orderCoverage.service_type))) {
+        return { technicianId: null, reason: 'no_candidates' };
+      }
+      if (zone.city_id) {
+        const { data: city, error: cityError } = await db.from('cities')
+          .select('status').eq('id', zone.city_id).maybeSingle();
+        if (cityError) return { technicianId: null, reason: 'error' };
+        if (!city || String(city.status).toLowerCase() !== 'active') {
+          return { technicianId: null, reason: 'no_candidates' };
+        }
+      }
     }
 
     const [geo, triedRes, techsRes] = await Promise.all([
