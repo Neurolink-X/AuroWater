@@ -1,377 +1,182 @@
 /* eslint-disable no-restricted-globals */
 /**
- * public/sw.js: AuroTap / AuroWater service worker
- *
- * What it does:
- *  1. Navigation preload: the page request starts while the service worker
- *     is still waking up, so repeat launches are not slowed down by it.
- *  2. /_next/static/*  (hashed, never changes)  → cache first = instant.
- *  3. Icons, images, fonts                       → show cached, refresh quietly.
- *  4. Pages                                      → network first, so orders,
- *     prices and login are ALWAYS fresh. Offline page only if there is no internet.
- *  5. Never touches POST, /api, Supabase or any other website.
- *
- * Bump VERSION when you want every phone to drop its old cache.
+ * AuroTap PWA asset caches, v5.
+ * - Network-first HTML and zero interception of API/auth/third-party calls.
+ * - Immutable Next.js build files: bounded static cache.
+ * - Public images/icons: bounded stale-while-revalidate cache.
+ * - The offline shell lives in a separate protected cache.
+ * - Only caches with our exact prefix are ever retired.
  */
-
-const VERSION = 'v4';
+const VERSION = 'v5';
 const SHELL_CACHE = `aurowater-shell-${VERSION}`;
-const RUNTIME_CACHE = `aurowater-runtime-${VERSION}`;
-const CURRENT_CACHES = [SHELL_CACHE, RUNTIME_CACHE];
-
+const STATIC_CACHE = `aurowater-static-${VERSION}`;
+const IMAGE_CACHE = `aurowater-images-${VERSION}`;
+// Retain the previous deployment's hashed assets for open tabs during upgrade.
+const PREVIOUS_ASSET_CACHE = 'aurowater-runtime-v4';
+const CURRENT_CACHES = [SHELL_CACHE, STATIC_CACHE, IMAGE_CACHE, PREVIOUS_ASSET_CACHE];
 const OFFLINE_URL = '/offline';
-const MAX_RUNTIME_ENTRIES = 150; // old files are dropped first
+const STATIC_LIMIT = 100;
+const IMAGE_LIMIT = 40;
+const MAX_IMAGE_CONTENT_LENGTH = 700 * 1024; // oversized images may use HTTP cache, not CacheStorage
+const CORE_ASSETS = ['/icons/icon-192x192.png', '/aurotap-mark.svg', '/splash-logo.svg'];
+let maintenanceRunning = false;
+let lastMaintenance = 0;
 
-const CORE_ASSETS = [
-  '/icons/icon-192x192.png',
-  '/aurotap-mark.svg',
-  '/splash-logo.svg',
-];
-
-/* ── Helpers ─────────────────────────────────────────────────────────── */
-
-function isCacheable(response) {
-  return Boolean(response) && response.status === 200 && response.type === 'basic';
+function cacheable(response) {
+  if (!response || response.status !== 200 || response.type !== 'basic') return false;
+  const control = response.headers.get('cache-control') || '';
+  return !/(?:no-store|private)/i.test(control) && !response.headers.has('set-cookie');
 }
 
 async function trimCache(cacheName, maxEntries) {
   const cache = await caches.open(cacheName);
   const keys = await cache.keys();
+  if (keys.length <= maxEntries) return;
+  // Cache keys retain insertion order. Remove oldest entries, keep newest.
+  await Promise.allSettled(keys.slice(0, keys.length - maxEntries).map(key => cache.delete(key)));
+}
 
-  if (keys.length > maxEntries) {
-    await Promise.all(
-      keys.slice(0, keys.length - maxEntries).map((key) => cache.delete(key)),
-    );
+async function maintainRuntimeCaches(force = false) {
+  const now = Date.now();
+  if (maintenanceRunning || (!force && now - lastMaintenance < 6 * 60 * 60 * 1000)) return;
+  maintenanceRunning = true;
+  try {
+    const names = await caches.keys();
+    await Promise.all([
+      names.includes(STATIC_CACHE) ? trimCache(STATIC_CACHE, STATIC_LIMIT) : Promise.resolve(),
+      names.includes(IMAGE_CACHE) ? trimCache(IMAGE_CACHE, IMAGE_LIMIT) : Promise.resolve(),
+    ]);
+    lastMaintenance = now;
+  } catch {
+    // Cache cleanup is a progressive enhancement, never break a request.
+  } finally {
+    maintenanceRunning = false;
   }
 }
 
-/** Saves the offline page + the files it needs, so it works with no internet. */
+async function storeBounded(name, request, response, limit) {
+  try {
+    const cache = await caches.open(name);
+    await cache.put(request, response);
+    await trimCache(name, limit);
+  } catch {
+    // Quota/private mode: skip optional cache writes. Never delete user data.
+    await maintainRuntimeCaches(true).catch(() => {});
+  }
+}
+
 async function cacheOfflineAssets(cache) {
-  const response = await fetch(OFFLINE_URL, { cache: 'no-store' });
-
-  if (!response.ok) {
-    throw new Error('Unable to cache the offline page.');
-  }
-
+  const response = await fetch(OFFLINE_URL, {cache: 'no-store'});
+  if (!response.ok) throw new Error('Offline page unavailable');
   await cache.put(OFFLINE_URL, response.clone());
-
   const html = await response.text();
-  const urls = new Set(CORE_ASSETS);
-  const assetPattern = /(?:src|href)="([^"]+)"/g;
-
-  for (const match of html.matchAll(assetPattern)) {
+  const paths = new Set(CORE_ASSETS);
+  for (const match of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
     const url = match[1];
-
-    if (url.startsWith('/_next/static/') || url.startsWith('/icons/')) {
-      urls.add(url);
-    }
+    if (url.startsWith('/_next/static/') || url.startsWith('/icons/')) paths.add(url);
   }
-
-  await Promise.allSettled(
-    [...urls].map(async (url) => {
-      const assetResponse = await fetch(url, { cache: 'no-store' });
-
-      if (assetResponse.ok) {
-        await cache.put(url, assetResponse);
-      }
-      // One optional file failing must never block offline support.
-    }),
-  );
+  await Promise.allSettled([...paths].map(async path => {
+    const result = await fetch(path, {cache: 'no-store'});
+    if (result.ok) await cache.put(path, result);
+  }));
 }
 
-/** If the offline page is missing (install happened with bad internet), fix it later. */
 async function ensureOfflinePage() {
   try {
     const cache = await caches.open(SHELL_CACHE);
-
-    if (await cache.match(OFFLINE_URL)) return;
-
-    await cacheOfflineAssets(cache);
-  } catch {
-    // Try again on the next successful page load.
-  }
+    if (!await cache.match(OFFLINE_URL)) await cacheOfflineAssets(cache);
+  } catch { /* best effort, no application delay */ }
 }
 
-/* ── Strategies ──────────────────────────────────────────────────────── */
-
-/** Hashed files: if we have it, use it. Otherwise download once and keep it. */
 async function cacheFirst(event) {
-  const cached = await caches.match(event.request);
-
-  if (cached) return cached;
-
+  const cache = await caches.open(STATIC_CACHE);
+  const hit = await cache.match(event.request);
+  if (hit) return hit;
+  // Older open tabs might still request a previous Next.js build chunk.
+  const previous = await caches.match(event.request);
+  if (previous) return previous;
   const response = await fetch(event.request);
-
-  if (isCacheable(response)) {
-    const copy = response.clone();
-
-    event.waitUntil(
-      caches
-        .open(RUNTIME_CACHE)
-        .then((cache) => cache.put(event.request, copy))
-        .then(() => trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES))
-        .catch(() => {}),
-    );
+  if (cacheable(response)) {
+    event.waitUntil(storeBounded(STATIC_CACHE, event.request, response.clone(), STATIC_LIMIT));
   }
-
   return response;
 }
 
-/** Icons, images, fonts: answer instantly from cache, update in the background. */
-async function staleWhileRevalidate(event) {
-  const cached = await caches.match(event.request);
-
-  const refresh = fetch(event.request)
-    .then(async (response) => {
-      if (isCacheable(response)) {
-        const cache = await caches.open(RUNTIME_CACHE);
-        await cache.put(event.request, response.clone());
-        await trimCache(RUNTIME_CACHE, MAX_RUNTIME_ENTRIES);
-      }
-      return response;
-    })
-    .catch(() => undefined);
-
-  if (cached) {
-    event.waitUntil(refresh);
-    return cached;
+async function publicImage(event) {
+  const cache = await caches.open(IMAGE_CACHE);
+  const hit = await cache.match(event.request);
+  const updating = fetch(event.request).then(async response => {
+    const length = Number(response.headers.get('content-length') || 0);
+    if (cacheable(response) && (!Number.isFinite(length) || length <= MAX_IMAGE_CONTENT_LENGTH)) {
+      await storeBounded(IMAGE_CACHE, event.request, response.clone(), IMAGE_LIMIT);
+    }
+    return response;
+  }).catch(() => null);
+  if (hit) {
+    event.waitUntil(updating);
+    return hit;
   }
-
-  const fresh = await refresh;
-
-  return fresh || Response.error();
+  return (await updating) || Response.error();
 }
 
-/** Pages: always try the network first. Offline page only when there is no internet. */
-async function handleNavigation(event) {
+async function navigation(event) {
   try {
-    const preloaded = await event.preloadResponse;
-    const response = preloaded || (await fetch(event.request));
-
-    if (response.ok) {
-      event.waitUntil(ensureOfflinePage());
-    }
-
+    const response = (await event.preloadResponse) || (await fetch(event.request));
+    if (response.ok) event.waitUntil(ensureOfflinePage());
     return response;
   } catch {
-    const cache = await caches.open(SHELL_CACHE);
-    const offline = await cache.match(OFFLINE_URL);
-
-    return (
-      offline ||
-      new Response('You are offline.', {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      })
-    );
+    const shell = await caches.open(SHELL_CACHE);
+    return (await shell.match(OFFLINE_URL)) || new Response('You are offline.', {
+      status: 503, headers: {'Content-Type': 'text/plain; charset=utf-8'},
+    });
   }
 }
 
-/* ── Lifecycle ───────────────────────────────────────────────────────── */
+function isPublicAsset(url) {
+  if (url.pathname.startsWith('/icons/') || url.pathname.startsWith('/images/')) return true;
+  if (/^\/(?:aurotap-mark|splash-logo)\.svg$/.test(url.pathname)) return true;
+  if (url.pathname === '/_next/image') {
+    const raw = url.searchParams.get('url') || '';
+    // Never store Supabase signed images or arbitrary private remote content.
+    return raw.startsWith('/images/') || raw.startsWith('/icons/');
+  }
+  return false;
+}
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cacheOfflineAssets(cache))
-      .catch(() => {
-        // Keep installation non-blocking if the network disappears mid-install.
-      }),
-  );
-
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(SHELL_CACHE).then(cacheOfflineAssets).catch(() => {}));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    (async () => {
-      // Remove our old caches (v3 and earlier), never anyone else's.
-      const names = await caches.keys();
-
-      await Promise.all(
-        names
-          .filter(
-            (name) =>
-              name.startsWith('aurowater-') && !CURRENT_CACHES.includes(name),
-          )
-          .map((name) => caches.delete(name)),
-      );
-
-      // Start page requests before the service worker finishes waking up.
-      if (self.registration.navigationPreload) {
-        await self.registration.navigationPreload.enable().catch(() => {});
-      }
-
-      await self.clients.claim();
-    })(),
-  );
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.allSettled(names
+      .filter(name => name.startsWith('aurowater-') && !CURRENT_CACHES.includes(name))
+      .map(name => caches.delete(name)));
+    await maintainRuntimeCaches(true);
+    if (self.registration.navigationPreload) {
+      await self.registration.navigationPreload.enable().catch(() => {});
+    }
+    await self.clients.claim();
+  })());
 });
 
-/* ── Fetch routing ───────────────────────────────────────────────────── */
-
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-
-  if (request.method !== 'GET') return;
-  if (request.headers.has('range')) return; // video / partial downloads
-
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET' || request.headers.has('range') ||
+      request.headers.has('authorization')) return;
   const url = new URL(request.url);
-
-  // Pages
+  if (url.origin !== self.location.origin) return;
   if (request.mode === 'navigate') {
-    event.respondWith(handleNavigation(event));
+    event.respondWith(navigation(event));
     return;
   }
-
-  // Other websites (Supabase, analytics, maps) and our own API: do not touch.
-  if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;
-
-  // Hashed build files (JS, CSS, fonts from next/font)
+  // APIs and authentication must be fresh; no request interception.
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) return;
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirst(event));
-    return;
-  }
-
-  // Icons, images, optimized images, fonts
-  if (
-    url.pathname.startsWith('/icons/') ||
-    url.pathname.startsWith('/_next/image') ||
-    /\.(?:png|jpe?g|webp|avif|svg|woff2)$/i.test(url.pathname)
-  ) {
-    event.respondWith(staleWhileRevalidate(event));
+  } else if (isPublicAsset(url)) {
+    event.respondWith(publicImage(event));
   }
 });
-
-
-
-
-
-
-
-
-// const CACHE_NAME = 'aurowater-offline-v3';
-// const OFFLINE_URL = '/offline';
-
-// async function cacheOfflineAssets(cache) {
-//   const response = await fetch(OFFLINE_URL, { cache: 'no-store' });
-//   if (!response.ok) {
-//     throw new Error('Unable to cache the offline page.');
-//   }
-
-//   await cache.put(OFFLINE_URL, response.clone());
-
-//   const html = await response.text();
-//   const urls = new Set([
-//     '/icons/icon-192x192.png',
-//     '/splash-logo.svg',
-//   ]);
-//   const assetPattern = /(?:src|href)="([^"]+)"/g;
-
-//   for (const match of html.matchAll(assetPattern)) {
-//     const url = match[1];
-
-//     if (url.startsWith('/_next/static/') || url.startsWith('/icons/')) {
-//       urls.add(url);
-//     }
-//   }
-
-//   await Promise.all(
-//     [...urls].map(async (url) => {
-//       try {
-//         const assetResponse = await fetch(url, { cache: 'no-store' });
-
-//         if (assetResponse.ok) {
-//           await cache.put(url, assetResponse);
-//         }
-//       } catch {
-//         // One optional asset must not prevent offline support from installing.
-//       }
-//     }),
-//   );
-// }
-
-// self.addEventListener('install', (event) => {
-//   event.waitUntil(
-//     caches
-//       .open(CACHE_NAME)
-//       .then((cache) => cacheOfflineAssets(cache))
-//       .catch(() => {
-//         // Keep installation non-blocking if the network disappears mid-install.
-//       }),
-//   );
-
-//   self.skipWaiting();
-// });
-
-// self.addEventListener('activate', (event) => {
-//   event.waitUntil(
-//     caches
-//       .keys()
-//       .then((cacheNames) =>
-//         Promise.all(
-//           cacheNames
-//             .filter((cacheName) => cacheName !== CACHE_NAME)
-//             .map((cacheName) => caches.delete(cacheName)),
-//         ),
-//       ),
-//   );
-
-//   self.clients.claim();
-// });
-
-// self.addEventListener('fetch', (event) => {
-//   if (event.request.method !== 'GET') {
-//     return;
-//   }
-
-//   const requestUrl = new URL(event.request.url);
-
-//   if (
-//     requestUrl.origin === self.location.origin &&
-//     (requestUrl.pathname.startsWith('/_next/static/') ||
-//       requestUrl.pathname.startsWith('/icons/'))
-//   ) {
-//     event.respondWith(
-//       caches.match(event.request).then((cachedResponse) => {
-//         if (cachedResponse) {
-//           return cachedResponse;
-//         }
-
-//         return fetch(event.request).then((response) => {
-//           if (response.ok) {
-//             const copy = response.clone();
-//             void caches.open(CACHE_NAME).then((cache) => {
-//               void cache.put(event.request, copy);
-//             });
-//           }
-
-//           return response;
-//         });
-//       }),
-//     );
-
-//     return;
-//   }
-
-//   if (event.request.mode !== 'navigate') {
-//     return;
-//   }
-
-//   event.respondWith(
-//     fetch(event.request).catch(() =>
-//       caches.match(OFFLINE_URL).then((response) => {
-//         if (response) {
-//           return response;
-//         }
-
-//         return new Response('You are offline.', {
-//           status: 503,
-//           headers: {
-//             'Content-Type': 'text/plain; charset=utf-8',
-//           },
-//         });
-//       }),
-//     ),
-//   );
-// });
