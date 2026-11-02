@@ -43,7 +43,25 @@ export async function checkSite(fetchImpl = fetch) {
     }
     if (!succeeded) failures.push({ path, error: last });
   }
-  return { status: failures.length ? 'degraded' : 'healthy', checks: paths.length, failures };
+  const investigation = {
+    '/api/health': { component: 'database_or_auth', owner: 'Backend / Supabase', inspect: 'Supabase Database logs, connection pool, migrations and Auth availability' },
+    '/api/settings': { component: 'pricing', owner: 'Admin / Pricing', inspect: 'Published pricing snapshot, settings API, Supabase queries and RLS' },
+    '/api/cities': { component: 'city_directory', owner: 'Admin / Expansion', inspect: 'Public cities RLS, database availability, city activation state' },
+    '/': { component: 'homepage', owner: 'Frontend / Vercel', inspect: 'Latest deployment, Vercel function logs and public server dependencies' },
+    '/blog': { component: 'blog', owner: 'Content / Vercel', inspect: 'Public blog route, deployment and content queries' },
+  };
+  return {
+    status: failures.length ? 'degraded' : 'healthy',
+    checked_at: new Date().toISOString(),
+    checks: paths.length,
+    failures: failures.map(failure => ({
+      ...failure,
+      ...investigation[failure.path],
+    })),
+    recovery_note: failures.length
+      ? 'No order was cancelled or automatically marked paid. Investigate the named component and rerun safe dispatch reconciliation after database recovery.'
+      : 'Read-only public health probes passed. Authenticated ordering and real supplier fulfilment require separate E2E checks.',
+  };
 }
 if (process.argv[1] && import.meta.url === new URL('file://' + process.argv[1]).href) {
   checkSite().then(result => {
