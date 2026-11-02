@@ -43,6 +43,9 @@ test('finance amounts are sourced from wallet ledger RPC; customer-paid is not m
  assert.match(dash,/payoutStatus === 'paid' && Boolean\(paidAt\)/);
  assert.match(dash,/Supplier settlement sent/);
  assert.match(dash,/Settlement not sent/);
+ assert.match(dash,/Cash with you — reconcile/);
+ assert.match(dash,/payment_collector/);
+ assert.match(dash,/cash_held/);
  assert.doesNotMatch(api,/\.update\(|\.insert\(|\.delete\(/);
 });
 
