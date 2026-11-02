@@ -182,7 +182,7 @@ export default function SupplierSectionPage() {
         </div>
       </header>
 
-      <PartnerJourney role="supplier" isHindi={isHindi} />
+      {section === 'dispatch' && <PartnerJourney role="supplier" isHindi={isHindi} />}
 
       <div className="mt-4 flex justify-end">
         <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
