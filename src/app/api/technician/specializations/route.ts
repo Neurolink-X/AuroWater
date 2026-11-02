@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
   const response = jsonOk({
     profile: {
       city: auth.ctx.profile.city ?? null,
+      email: auth.ctx.user.email ?? auth.ctx.profile.email ?? null,
       verification: auth.ctx.profile.verification_status ?? null,
       active: auth.ctx.profile.is_active === true && auth.ctx.profile.status === 'active',
     },

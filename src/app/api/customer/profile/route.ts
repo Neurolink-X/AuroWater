@@ -390,6 +390,7 @@ export async function GET(
     full_name: profile.full_name,
     city: profile.city,
     phone: profile.phone,
+    email: auth.ctx.user.email ?? profile.email ?? null,
     created_at: profile.created_at,
     settings:
       profile.settings ?? null,

@@ -13,6 +13,7 @@ import { resolveAddressLocation, healAddressLocation } from '@/lib/address-geo.s
 import { MIN_QUALITY_FOR_WATER, isValidCoord } from '@/lib/address-geo';
 import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder, dispatchTechnicianJob } from '@/lib/dispatch';
+import { checkLocalSpecialistBooking } from '@/lib/booking/local-specialist-readiness';
 import { createServiceClient } from '@/utils/supabase/server';
 import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
 
@@ -285,6 +286,12 @@ export async function POST(req: NextRequest) {
   if (!serviceability.serviceable) {
     return jsonErr(serviceability.message, 400);
   }
+
+  // A configured city/zone alone is insufficient for professional services.
+  // Before ANY order/financial write, require a local and separately approved specialist.
+  // Gorakhpur professionals must never confirm Kanpur work solely because a city is active.
+  const specialist = await checkLocalSpecialistBooking(service_type_key, a.city, geo.ok ? geo.lat : null, geo.ok ? geo.lng : null);
+  if (!specialist.ok) return jsonErr(specialist.message, specialist.unavailable ? 409 : 503, specialist.unavailable ? 'NO_LOCAL_SPECIALIST' : 'SPECIALIST_CHECK_UNAVAILABLE');
 
 
   // Self-heal: remember the derived point so this address works everywhere next time

@@ -1646,7 +1646,7 @@ export default function BookingWizard() {
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
       checkoutAttempt.current = null;
-      toast.success('Booking confirmed! 🎉');
+      toast.success(String(order.status ?? '').toUpperCase() === 'ASSIGNED' ? 'Booking placed! A local professional has been assigned.' : 'Booking request received. We are confirming a local professional; track the status in Order History.');
     } catch (e) {
       submitLock.current = false;
       if (e instanceof ApiError && e.status === 401) {
@@ -1662,6 +1662,12 @@ export default function BookingWizard() {
         const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
         setSubmitError(m);
         toast.error(m);
+        return;
+      }
+      if (e instanceof ApiError && errCode === 'NO_LOCAL_SPECIALIST') {
+        const m = e.message || 'No local specialist is available. No booking or payment was created. Change the address, check service areas, or contact support.';
+        setSubmitError(m);
+        toast.warning(m);
         return;
       }
       if (e instanceof ApiError && errCode === 'DELIVERY_LOCATION_REQUIRED') {
@@ -2714,7 +2720,16 @@ export default function BookingWizard() {
             </div>
 
             {submitError && (
-              <div role="alert" className="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm px-4 py-3">{submitError}</div>
+              <div role="alert" className="rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm px-4 py-3">
+                <p>{submitError}</p>
+                {submitError.toLowerCase().includes('specialist') || submitError.toLowerCase().includes('professional') ? (
+                  <div className="mt-3 flex flex-wrap gap-3 text-xs font-bold">
+                    <button type="button" className="underline" onClick={() => goTo(2)}>Change service address</button>
+                    <Link href="/service-areas" className="underline">Check coverage</Link>
+                    <Link href="/customer/support" className="underline">Contact support</Link>
+                  </div>
+                ) : null}
+              </div>
             )}
 
             <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">

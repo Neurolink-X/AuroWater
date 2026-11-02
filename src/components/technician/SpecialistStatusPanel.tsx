@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type Specialty = { service_key: string; reviewed_at?: string | null };
 type Blocked = { service_key: string; status: string };
 type ApprovalState = {
-  profile: { city: string | null; verification: string | null; active: boolean };
+  profile: { city: string | null; email: string | null; verification: string | null; active: boolean };
   approved: Specialty[];
   other_capabilities: Blocked[];
   application: { id: string; status: string; created_at: string; requested_role: string | null; rejection_note: string | null } | null;
@@ -21,6 +22,8 @@ const statusColor = (s: string) => s === 'approved' ? 'text-emerald-700 bg-emera
 
 /** The server, never device-local skill checkboxes, decides what the worker may receive. */
 export default function SpecialistStatusPanel({ enabled }: { enabled: boolean }) {
+  const { language } = useLanguage();
+  const hi = language === 'hi';
   const [state, setState] = useState<ApprovalState | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -59,14 +62,14 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
     <section aria-label="Your approved service qualifications" className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Verified service capabilities</p>
-          <h2 className="mt-1 text-lg font-bold text-slate-900">{loading && !state ? 'Checking your qualifications…' : label}</h2>
+          <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{hi ? 'सत्यापित सेवाएँ' : 'Verified service capabilities'}</p>
+          <h2 className="mt-1 text-lg font-bold text-slate-900">{loading && !state ? (hi ? 'योग्यता जाँची जा रही है…' : 'Checking your qualifications…') : hi && !approved.length ? 'सेवा स्वीकृति लंबित है' : label}</h2>
           <p className="mt-1 text-sm text-slate-600">
             {state ? `Operating city: ${state.profile.city || 'Not provided'} · Account ${state.profile.active ? 'active' : 'inactive'}` : 'Only Admin-approved service skills can receive bookings.'}
           </p>
         </div>
         <button onClick={() => void reload()} disabled={loading} type="button" className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-50">
-          {loading ? 'Checking…' : 'Refresh approvals'}
+          {loading ? (hi ? 'जाँच जारी…' : 'Checking…') : hi ? 'स्वीकृति फिर जाँचें' : 'Refresh approvals'}
         </button>
       </div>
       {error && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error} Your approvals could not be confirmed; try refreshing.</p>}
@@ -77,7 +80,7 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
           </div>
         ) : (
           <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-            No approved specialization yet. You will not receive new borewell, tank cleaning, plumbing or RO assignments until Admin verifies the relevant skill and documents.
+            {hi ? 'अभी कोई सेवा स्वीकृत नहीं है। पहचान और कौशल दस्तावेज़ स्वीकृत होने के बाद ही संबंधित काम मिलेंगे।' : 'No approved specialization yet. You will not receive new borewell, tank cleaning, plumbing or RO assignments until Admin verifies the relevant skill and documents.'}
           </div>
         )}
         {!!state.other_capabilities.length && <div className="mt-3 flex flex-wrap gap-2">
@@ -89,10 +92,12 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
           {state.application.rejection_note && <span className="block text-rose-700">Review note: {state.application.rejection_note}</span>}
         </p>}
       </>}
+      {state?.profile.email && <p className="mt-3 break-all text-sm text-slate-700">{hi ? 'पंजीकृत ईमेल' : 'Registered email'}: <strong>{state.profile.email}</strong></p>}
       <div className="mt-4 flex flex-wrap gap-3 text-sm">
-        <Link href="/register/pro" className="font-semibold text-emerald-700 underline">Apply for a service</Link>
-        <Link href="/technician/dashboard#documents" className="font-semibold text-emerald-700 underline">Verification documents</Link>
-        <Link href="/technician/jobs" className="font-semibold text-emerald-700 underline">My assigned jobs</Link>
+        <Link href="/register/pro" className="font-semibold text-emerald-700 underline">{hi ? "नई सेवा के लिए आवेदन" : "Apply for a service"}</Link>
+        <Link href="/technician/dashboard#documents" className="font-semibold text-emerald-700 underline">{hi ? "सत्यापन दस्तावेज़" : "Verification documents"}</Link>
+        <Link href="/technician/jobs" className="font-semibold text-emerald-700 underline">{hi ? "मेरे काम" : "My assigned jobs"}</Link>
+        <Link href="/contact?subject=technician" className="font-semibold text-emerald-700 underline">{hi ? "सहायता" : "Professional support"}</Link>
       </div>
       <p className="mt-3 text-xs text-slate-500">This panel reflects live server approvals, not editable profile preferences. The job queue only contains work assigned to your account.</p>
     </section>

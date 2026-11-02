@@ -157,6 +157,9 @@ function sanitizeProfile(
     phone:
       profile.phone ?? null,
 
+    email:
+      profile.email ?? null,
+
     city:
       profile.city ?? null,
 
