@@ -4,6 +4,7 @@ import { pricingFaqs } from '@/lib/pricing/presentation';
 import Link from 'next/link';
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
@@ -206,6 +207,18 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
 
 /* ───────── PAGE ───────── */
 export default function HomeClient() {
+  const router = useRouter();
+  // Warm the most common booking route after the homepage becomes interactive.
+  // Idle scheduling avoids competing with first paint on low-end Android devices.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    const prefetch = () => { if (!cancelled) router.prefetch('/book?service=water_can'); };
+    const idleWindow = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const idleId = idleWindow.requestIdleCallback?.(prefetch, { timeout: 2500 });
+    const fallback = idleId === undefined ? window.setTimeout(prefetch, 900) : undefined;
+    return () => { cancelled = true; if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId); if (fallback !== undefined) window.clearTimeout(fallback); };
+  }, [router]);
   // Published versioned prices are the source of truth; fallback prices show only while unavailable.
   // Display city is a visitor preference only; checkout re-resolves the saved address city.
   const [pricingCity] = useState(() => {
