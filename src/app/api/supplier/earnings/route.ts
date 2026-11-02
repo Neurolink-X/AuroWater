@@ -52,12 +52,22 @@ export async function GET(req: NextRequest) {
 
     const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
 
+    const ledgerBalance = toMoney(row?.pending_payout);
+    // A negative wallet balance is not a payout due. Keep the accounting
+    // record unchanged and flag reconciliation rather than showing '-₹' as owed.
+    const balanceRequiresReview = ledgerBalance < 0;
     return jsonOk({
+      balance_requires_review: balanceRequiresReview,
+      payout_message: balanceRequiresReview
+        ? 'Settlement needs review: your ledger includes cash collected or adjustments. Contact AuroTap finance; do not request a payout from a negative balance.'
+        : ledgerBalance === 0
+          ? 'No verified transferable balance. Earnings and collected cash are reconciled separately.'
+          : 'Verified current ledger balance; request a payout for the amount you are eligible to withdraw.',
       period: typeof row?.period_label === 'string' && row.period_label ? row.period_label : period,
       currency: 'INR',
       order_count: Math.max(0, Math.trunc(toNumber(row?.order_count))),
       gross_amount: toMoney(row?.gross_amount),
-      pending_payout: toMoney(row?.pending_payout),
+      pending_payout: balanceRequiresReview ? null : ledgerBalance,
     });
   } catch (err) {
     console.error('[supplier/earnings] unexpected failure', err instanceof Error ? err.message : err);
