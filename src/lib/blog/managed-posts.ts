@@ -56,7 +56,7 @@ export async function allPublishedGuides(): Promise<GuidePost[]> {
         typeof post.publishAt !== 'string' || !Number.isFinite(Date.parse(post.publishAt)) ||
         Date.parse(post.publishAt) > Date.now() || !Array.isArray(post.sections) ||
         !post.sections.length || !post.sections.every(section => typeof section.heading === 'string' &&
-          Array.isArray(section.paragraphs) && section.paragraphs.every(p => typeof p === 'string'))) continue;
+          Array.isArray(section.paragraphs) && section.paragraphs.every((p: unknown) => typeof p === 'string'))) continue;
     if (!bySlug.has(post.slug)) bySlug.set(post.slug,post);
   }
   return [...bySlug.values()].sort((a,b)=>Date.parse(b.publishAt)-Date.parse(a.publishAt));
