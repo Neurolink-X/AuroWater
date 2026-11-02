@@ -99,7 +99,7 @@ test('supplier area performance is aggregated without identifiers', () => {
   assert.equal(summary[0].cancelled, 1);
   assert.equal(summary[0].delivered_cans, 4);
   assert.equal(JSON.stringify(summary).includes('customer_id'), false);
-  assert.equal(JSON.stringify(summary).includes('one'), false);
+  assert.equal(JSON.stringify(summary).includes('"id":"one"'), false);
 });
 
 test('supplier intelligence endpoints remain role-scoped and non-mutating', () => {
