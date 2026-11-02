@@ -21,6 +21,7 @@ function SlotCard({ info, latest, onChanged }: { info: SlotInfo; latest?: UserFi
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [failures, setFailures] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
   useEffect(() => () => abort.current?.abort(), []);
@@ -36,10 +37,12 @@ function SlotCard({ info, latest, onChanged }: { info: SlotInfo; latest?: UserFi
     try {
       await uploadPrivateFile({ file, category: info.category, slot: info.slot, onProgress: setProgress, signal: abort.current.signal });
       toast.success(`${info.label} uploaded. We’ll review it shortly.`);
+      setFailures(0);
       await onChanged();
     } catch (e) {
       if (e instanceof DOMException) return;
       setError(e instanceof Error ? e.message : 'Upload failed.');
+      setFailures(count => count + 1);
     } finally { setBusy(false); setProgress(null); if (input.current) input.current.value = ''; }
   };
 
@@ -98,7 +101,7 @@ function SlotCard({ info, latest, onChanged }: { info: SlotInfo; latest?: UserFi
           )}
         </div>
       )}
-      {error && <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{error}</p>}
+      {error && <div role="alert" className="mt-3 space-y-2 text-sm text-rose-700"><p className="font-semibold">{error}</p><p>Check your connection and retry the secure upload here. Your documents should not be sent in chat.</p>{failures >= 2 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">Still having trouble? Contact AuroTap support and mention “document upload failed”. Support can help you complete secure verification. Do not send Aadhaar or other identity documents over WhatsApp.</p>}</div>
 
       {latest && (
         <div className="mt-3 flex gap-4 text-sm font-bold">
