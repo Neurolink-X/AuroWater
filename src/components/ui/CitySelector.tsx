@@ -11,7 +11,6 @@ import { Check, ChevronDown, MapPin, Search, X } from 'lucide-react';
 
 import type { City } from '@/lib/cities';
 
-import { safeSessionGet, safeSessionSet } from '@/lib/storage';
 
 export type { City };
 
@@ -46,9 +45,6 @@ const STATUS_CONFIG = {
   },
 } as const;
 
-const CACHE_KEY = 'aw_cities';
-const CACHE_TTL = 5 * 60 * 1000;
-
 export default function CitySelector({
   value,
   onChange,
@@ -66,68 +62,40 @@ export default function CitySelector({
   const listId = useId();
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
+    let controller: AbortController | null = null;
+    let inFlight = false;
 
-    const raw = safeSessionGet(CACHE_KEY);
-
-    if (raw) {
+    const refresh = async () => {
+      if (!active || inFlight) return;
+      inFlight = true;
+      controller = new AbortController();
       try {
-        const parsed = JSON.parse(raw) as {
-          data?: City[];
-          ts?: number;
-        };
-
-        if (
-          Array.isArray(parsed.data) &&
-          Date.now() - (parsed.ts ?? 0) < CACHE_TTL
-        ) {
-          setCities(parsed.data);
-          setLoading(false);
-          return;
-        }
+        const response = await fetch('/api/cities', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('City directory unavailable');
+        const data: unknown = await response.json();
+        if (active) setCities(Array.isArray(data) ? (data as City[]) : []);
       } catch {
-        // Ignore invalid cache.
+        // Never resurrect cached or hardcoded active cities after a directory failure.
+        if (active && !controller?.signal.aborted) setCities([]);
+      } finally {
+        if (active) setLoading(false);
+        inFlight = false;
       }
-    }
+    };
 
-    void fetch('/api/cities')
-      .then(async (response) => {
-        if (!response.ok) {
-          return [];
-        }
-
-        const data = (await response.json()) as City[];
-
-        return Array.isArray(data)
-          ? data
-          : [];
-      })
-      .then((data) => {
-        if (cancelled) return;
-
-        setCities(data);
-
-        safeSessionSet(
-          CACHE_KEY,
-          JSON.stringify({
-            data,
-            ts: Date.now(),
-          })
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCities([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
     return () => {
-      cancelled = true;
+      active = false;
+      controller?.abort();
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onFocus);
     };
   }, []);
 
