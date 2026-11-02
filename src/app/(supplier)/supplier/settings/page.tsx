@@ -83,7 +83,7 @@ export default function SupplierSettingsPage() {
 
 
 
-  const [radius, setRadius] = useState(SUPPLIER_RADIUS.default);
+  const [radius, setRadius] = useState<number>(SUPPLIER_RADIUS.default);
 
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
