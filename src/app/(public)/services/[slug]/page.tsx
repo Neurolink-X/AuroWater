@@ -271,7 +271,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
 
       {/* ══ WHERE WE SERVE: local SEO text, honest about coverage ══ */}
       <section className="mx-auto max-w-6xl px-5 pb-14 sm:pb-20" aria-labelledby="cities-h">
-        <h2 id="cities-h" className="text-3xl font-black tracking-tight">{service.title} in {CITY_LINE}</h2>
+        <h2 id="cities-h" className="text-3xl font-black tracking-tight">{service.title} in {cityLine}</h2>
         <p className="mt-3 max-w-2xl leading-7 text-slate-600">
           {BRAND} lists {liveCities.length} active cities in its service directory. Availability depends on your exact area, so enter your address while booking and we will check it first. Service coverage depends on the city, PIN code and verified partner availability.
         </p>
