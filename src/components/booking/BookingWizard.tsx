@@ -1,5 +1,4 @@
 'use client';
-import PricingLoading from '@/components/pricing/PricingLoading';
 import { formatOrderReference } from '@/lib/order-reference';
 /**
  * src/components/booking/BookingWizard.tsx
@@ -109,6 +108,8 @@ const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'g
 const MAX_FORM_STEP = 3;
 /** Draft payload version: 3 = three-page flow. Older drafts (no flow) used five form steps. */
 const DRAFT_FLOW = 3;
+// Short-lived resume: a quick return restores progress; a later visit starts clean.
+const DRAFT_RESUME_MS = 90_000;
 const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3 };
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
@@ -763,11 +764,15 @@ export default function BookingWizard() {
       const draftKey = bookingDraftKey(session?.userId ?? session?.aurotapId ?? null);
       const raw = safeSessionGet(draftKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number; flow?: number };
+        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number; flow?: number; savedAt?: number };
+        const recentlySaved = Number.isFinite(parsed.savedAt) && Number(parsed.savedAt) <= Date.now() && Date.now() - Number(parsed.savedAt) <= DRAFT_RESUME_MS;
+        if (!recentlySaved) {
+          safeSessionRemove(draftKey);
+        }
         const s = Math.floor(Number(parsed?.step));
         // Drafts saved by the old 5-step form are mapped onto the new 3 pages.
         const page = parsed?.flow === DRAFT_FLOW ? s : (LEGACY_STEP_TO_PAGE[s] ?? 0);
-        if (parsed?.draft && typeof parsed.draft === 'object' && page >= 1 && page <= MAX_FORM_STEP) {
+        if (recentlySaved && parsed?.draft && typeof parsed.draft === 'object' && page >= 1 && page <= MAX_FORM_STEP) {
           restored = sanitizeDraft(parsed.draft);
           restoredStep = page;
         } else { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); }
@@ -785,6 +790,11 @@ export default function BookingWizard() {
     const serviceParam = searchParams?.get('service') ?? '';
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
+      // Switching service must never resume the review step for another service.
+      if (restored && restored.serviceKey !== serviceParam) {
+        restoredStep = 1;
+        Object.assign(base, emptyDraft());
+      }
       base.serviceKey = serviceParam;
       if (serviceParam === 'water_can') {
         const waterParam = searchParams?.get('water');
@@ -800,6 +810,12 @@ export default function BookingWizard() {
         base.canOrderType = 'subscription';
         base.canFrequency = allowedFrequencies.includes(frequencyParam) ? frequencyParam : 'weekly';
       }
+    }
+    // City from the coverage card is a starting hint, not proof of serviceability.
+    // Final serviceability still uses the customer's exact saved address and PIN.
+    const cityParam = searchParams?.get('city')?.trim() ?? '';
+    if (serviceOk && /^[a-z][a-z .-]{1,59}$/i.test(cityParam) && base.newAddress) {
+      base.newAddress.city = cityParam;
     }
     const cansParam = parseInt(searchParams?.get('cans') ?? '', 10);
     if (serviceOk && base.serviceKey === 'water_can' && Number.isFinite(cansParam) && cansParam >= 1 && cansParam <= MAX_CANS_ONE_TIME) {
@@ -840,7 +856,7 @@ export default function BookingWizard() {
 
   useEffect(() => {
     if (!hydrated || createdOrder) return;
-    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP), flow: DRAFT_FLOW })); } catch { /* quota */ }
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP), flow: DRAFT_FLOW, savedAt: Date.now() })); } catch { /* quota */ }
   }, [draft, step, hydrated, createdOrder, session?.userId, session?.aurotapId]);
 
   useEffect(() => {
@@ -1643,8 +1659,6 @@ export default function BookingWizard() {
     ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
 
-  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
-
   return (
     <div
       className={`min-h-screen bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 pb-28 text-slate-900 ${bookingBody.variable} ${bookingDisplay.variable}`}
@@ -1652,6 +1666,7 @@ export default function BookingWizard() {
     >
       <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+        {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Live prices are being verified. You can select a service and address now; payment confirmation waits for verified pricing.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
 
         <header className="text-center mb-6">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
@@ -2680,7 +2695,7 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
+                    <button type="button" disabled={submitting || pricingLoading || !pricingReady || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
                       {submitting ? 'Placing your order…' : 'Confirm booking →'}
                     </button>
                   )}
