@@ -257,7 +257,7 @@ export default function SupplierSettingsPage() {
 
         {/* Dispatch preferences */}
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
-          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone's temporary travel location. An incorrect city can prevent new orders.</p>
+          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone&apos;s temporary travel location. An incorrect city can prevent new orders.</p>
           <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km`}>
             <input id="s-radius" type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
