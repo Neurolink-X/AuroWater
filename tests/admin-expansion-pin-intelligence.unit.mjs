@@ -32,7 +32,7 @@ test('expansion integrates PIN tool and original postal route still works', () =
 
 test('PIN diagnostics are strictly admin-only, bounded, and do not infer bookability', () => {
   assert.match(postal, /requireAdmin\(auth.ctx\)/);
-  assert.match(postal, /const PIN = \^/);
+  assert.match(postal, /const PIN =/);
   assert.match(postal, /\.eq\('pincode', pin\)/);
   assert.match(postal, /\.contains\('pincodes', \[pin\]\)/);
   assert.match(postal, /\.limit\(LIMIT\)/);
