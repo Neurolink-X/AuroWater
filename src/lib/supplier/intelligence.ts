@@ -189,6 +189,43 @@ function geoDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(z)));
 }
 
+/**
+ * Area-level performance from the authenticated supplier's own orders ONLY.
+ * No customer identifiers, addresses or individual order records leave this aggregation.
+ */
+export function supplierAreaPerformance(
+  orders: readonly SupplierOrderSample[],
+  zones: readonly Pick<ZoneSample, 'id' | 'name' | 'city'>[],
+) {
+  const map = new Map(zones.map(zone => [zone.id, zone]));
+  const counts = new Map<string, {
+    zone_id: string; zone_name: string; city: string;
+    completed: number; cancelled: number; active: number; delivered_cans: number;
+  }>();
+  for (const order of orders) {
+    if (!order.zone_id) continue;
+    const zone = map.get(order.zone_id);
+    if (!zone) continue;
+    const row = counts.get(zone.id) ?? {
+      zone_id: zone.id, zone_name: zone.name, city: zone.city,
+      completed: 0, cancelled: 0, active: 0, delivered_cans: 0,
+    };
+    if (order.status === 'COMPLETED') {
+      row.completed++;
+      if (order.service_type === 'water_can') row.delivered_cans += cans(order);
+    } else if (order.status === 'CANCELLED') {
+      row.cancelled++;
+    } else if (order.status === 'ASSIGNED' || order.status === 'IN_PROGRESS') {
+      row.active++;
+    }
+    counts.set(zone.id, row);
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.completed + b.cancelled + b.active - a.completed - a.cancelled - a.active ||
+      a.zone_name.localeCompare(b.zone_name))
+    .slice(0, 20);
+}
+
 export function rankCoverageOpportunities(
   zones: readonly ZoneSample[],
   orders: readonly DemandSample[],
