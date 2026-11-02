@@ -234,8 +234,6 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
     if (ok) markDecided(id);
   };
 
-  const [refs, setRefs] = useState<Record<string, string>>({}); // UPI transaction references by order id
-
   const advance = async (id: string, next: Status, okMessage: string, extra: Row = {}) => {
     setOverride((o) => ({ ...o, [id]: next }));
     const ok = await send(`/api/supplier/orders/${encodeURIComponent(id)}/status`, 'PUT', { status: next.toUpperCase(), ...extra }, okMessage);
@@ -296,24 +294,25 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
               )}
               {status === 'in_progress' && (() => {
                 const paid = norm(o.payment_status) === 'paid';
-                const upi = norm(o.payment_method) === 'upi';
-                const ref = (refs[id] ?? '').trim();
+                const method = norm(o.payment_method);
+                const platformUpiPending = !paid && method === 'upi';
                 const amount = money(o.final_amount ?? o.total_amount ?? o.amount);
                 return (
                   <>
-                    {!paid && upi && (
-                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>{language === 'hi' ? 'UPI लेन-देन संदर्भ' : 'UPI transaction reference'}
-                        <input id={`ref-${id}`} className="sp-input" autoComplete="off" value={refs[id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [id]: e.target.value }))} />
-                      </label>
+                    {platformUpiPending && (
+                      <p role="status" className="sp-hint">
+                        UPI is collected through the payment method shown in the customer booking.
+                        AuroTap admin must verify the transaction. Do not collect to a personal UPI ID or mark this order paid.
+                      </p>
                     )}
-                    <Confirm
+                    {!platformUpiPending && <Confirm
                       className="sp-btn sp-btn--amber"
-                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} प्राप्त हुए` : `Tap again: ${amount} received`)}
-                      disabled={busy || (!paid && upi && !ref)}
-                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
+                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} नकद मिले` : `Tap again: ${amount} cash received`)}
+                      disabled={busy}
+                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, payment_collector: 'supplier' })}
                     >
                       <span className="sp-pulse" aria-hidden /> {language === 'hi' ? 'डिलीवरी पूरी करें' : 'Complete delivery'}
-                    </Confirm>
+                    </Confirm>}
                   </>
                 );
               })()}
