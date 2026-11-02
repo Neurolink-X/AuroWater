@@ -1602,12 +1602,12 @@ export default function BookingWizard() {
       try {
         const raw = safeSessionGet(attemptStorageKey);
         if (raw) {
-          const parsed = JSON.parse(raw) as typeof restoredAttempt;
+          const parsed = JSON.parse(raw) as { fingerprint?: string; key?: string; savedAt?: number };
           if (parsed && parsed.fingerprint === fingerprint &&
-              /^[0-9a-f-]{36}$/i.test(parsed.key) &&
-              Number.isFinite(parsed.savedAt) &&
+              typeof parsed.key === 'string' && /^[0-9a-f-]{36}$/i.test(parsed.key) &&
+              typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt) &&
               parsed.savedAt <= Date.now() && Date.now() - parsed.savedAt < CHECKOUT_ATTEMPT_TTL_MS) {
-            restoredAttempt = parsed;
+            restoredAttempt = { fingerprint: parsed.fingerprint, key: parsed.key, savedAt: parsed.savedAt };
           }
         }
       } catch { /* Damaged session data cannot authorize a checkout. */ }
