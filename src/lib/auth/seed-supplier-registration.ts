@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createServiceClient } from '@/utils/supabase/server';
+import { SUPPLIER_RADIUS } from '@/lib/supplier-radius-policy';
 
 /**
  * After a supplier profile exists, create default rows in `supplier_settings` and
@@ -18,7 +19,8 @@ export async function seedSupplierRegistrationDefaults(profileId: string): Promi
     user_id: profileId,
     is_online: false,
     price_per_can: 39,
-    service_radius: 5,
+    service_radius: SUPPLIER_RADIUS.default,
+    zone_radius_km: SUPPLIER_RADIUS.default,
   };
 
   const { error: e1 } = await admin.from('supplier_settings').insert(settingsRow);

@@ -1,4 +1,7 @@
 import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
+import { withinSupplierRadius } from './dispatch-radius';
+import { matchApprovedSupplierCoverage, type SupplierZoneCoverage } from './dispatch-coverage';
+import { technicianRadius } from './technician-service-radius';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
 
@@ -284,6 +287,7 @@ const REASON_LABEL: Record<string, string> = {
   profile_status: 'profile status is not active',
   not_verified: 'verification is not approved',
   service_not_covered: 'does not cover this service',
+  zone_not_approved: 'customer zone is not explicitly approved for this supplier',
   other_city_fallback_blocked: 'mapped to another zone and another city',
   at_capacity: 'at maximum active orders',
   outside_radius: 'outside service radius',
@@ -413,10 +417,8 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
   }
 
-  // Prefer suppliers explicitly mapped to this service zone. If those cannot fulfil the order,
-  // allow an eligible same-city fallback from another zone (or with no mapping). The order must
-  // already have passed customer-side serviceability checks; fallback never enables an
-  // unavailable customer zone.
+  // Exact approved zone first, then explicit matching PIN or citywide approval.
+  // Never grant fallback from a geographic 25km zone radius alone.
   let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
   const serviceKey = String(typeRes.data?.key ?? order.service_type ?? '');
   if (order.zone_id) {
@@ -429,20 +431,31 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
   }
 
-  // New PIN-directory zones may geographically overlap a previously approved
-  // pilot zone. Honour the existing approval's actual boundary, not just its UUID.
-  // Never extend a supplier into an unrelated area or city by this fallback.
-  const approvedZoneIds = [...new Set(((zoneRes.data ?? []) as { zone_id: string }[]).map(z => String(z.zone_id)))];
-  let approvedZoneById = new Map<string, { city: string; status: string; radius_km: number | null; center_lat: number | null; center_lng: number | null; services: string[] | null }>();
-  if (order.zone_id && approvedZoneIds.length && geo.hasCoords) {
-    const { data: approvedZones, error: approvedZoneError } = await db.from('service_zones')
-      .select('id, city, status, radius_km, center_lat, center_lng, services')
-      .in('id', approvedZoneIds);
-    if (approvedZoneError) {
-      console.error('[dispatch] approved zone boundary lookup failed', approvedZoneError.message);
-      return { kind: 'error', message: 'Could not verify approved supplier boundaries.', action: 'approved_zone_lookup_failed' };
+  const approvedIds = [...new Set(((zoneRes.data ?? []) as {zone_id:string}[]).map(z=>String(z.zone_id)))];
+  const approvedZonesById = new Map<string, SupplierZoneCoverage>();
+  if (approvedIds.length && order.zone_id) {
+    const {data: approvedZones,error: approvedZonesError} = await db.from('service_zones')
+      .select('id,city,status,is_catch_all,pincodes,services').in('id',approvedIds);
+    if (approvedZonesError) {
+      console.error('[dispatch] approved zone fallback lookup failed',approvedZonesError.code);
+      return {kind:'error',message:'Could not verify supplier PIN coverage.',action:'approved_zone_lookup_failed'};
     }
-    approvedZoneById = new Map(((approvedZones ?? []) as any[]).map(z => [String(z.id), z]));
+    for (const zone of (approvedZones??[]) as (SupplierZoneCoverage & {id:string})[]) {
+      approvedZonesById.set(String(zone.id),zone);
+    }
+  }
+  let customerPin = '';
+  if (order.zone_id) {
+    const addressSnapshot = order.address_snapshot && typeof order.address_snapshot==='object'
+      ? order.address_snapshot as Record<string,unknown> : null;
+    const snapshotPin = String(addressSnapshot?.pincode ?? '');
+    if (/^\d{6}$/.test(snapshotPin)) customerPin = snapshotPin;
+    else if (order.address_id) {
+      const {data: address,error:addressError} = await db.from('addresses')
+        .select('pincode').eq('id',order.address_id).maybeSingle();
+      if (addressError) return {kind:'error',message:'Could not verify order PIN.',action:'pin_lookup_failed'};
+      customerPin = String(address?.pincode??'');
+    }
   }
 
   const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
@@ -473,39 +486,15 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
 
     let coverageTier = 0;
     if (coverageBySupplier) {
-      const links = coverageBySupplier.get(id) ?? [];
-      const matching = links.find((link) => link.zoneId === String(order.zone_id));
-      if (matching) {
-        if (matching.serviceKeys !== null && !matching.serviceKeys.includes(serviceKey)) {
-          reject('service_not_covered', serviceKey);
-          continue;
-        }
-      } else {
-        // Only an already approved geographic service boundary can cover an
-        // overlapping PIN zone. Require verified customer GPS, a matching city,
-        // the permitted service, and a genuine positive-radius boundary.
-        const supplierCity = String(p.city ?? '').trim().toLowerCase();
-        const orderCity = geo.city.trim().toLowerCase();
-        const sameCity = Boolean(supplierCity && orderCity && supplierCity === orderCity);
-        const overlapsApprovedZone = links.some(link => {
-          const zone = approvedZoneById.get(link.zoneId);
-          if (!zone || !geo.hasCoords || !sameCity) return false;
-          if (String(zone.city ?? '').trim().toLowerCase() !== orderCity) return false;
-          if (!['AVAILABLE', 'LIMITED'].includes(String(zone.status).toUpperCase())) return false;
-          if (link.serviceKeys !== null && !link.serviceKeys.includes(serviceKey)) return false;
-          if (Array.isArray(zone.services) && !zone.services.includes(serviceKey)) return false;
-          const zoneLat = coord(zone.center_lat);
-          const zoneLng = coord(zone.center_lng);
-          const zoneRadius = Number(zone.radius_km);
-          if (!Number.isFinite(zoneLat) || !Number.isFinite(zoneLng) || !Number.isFinite(zoneRadius) || zoneRadius <= 0) return false;
-          return haversineKm(geo.lat, geo.lng, zoneLat, zoneLng) <= zoneRadius;
-        });
-        if (links.length > 0 && !overlapsApprovedZone) {
-          reject('zone_not_approved', String(order.zone_id));
-          continue;
-        }
-        coverageTier = 1;
+      const decision = matchApprovedSupplierCoverage(
+        String(order.zone_id),customerPin,geo.city,serviceKey,
+        coverageBySupplier.get(id) ?? [],approvedZonesById,
+      );
+      if (!decision.allowed) {
+        reject(decision.reason,decision.reason==='zone_not_approved'?String(order.zone_id):serviceKey);
+        continue;
       }
+      coverageTier = decision.tier;
     }
 
     const load = activeLoad.get(id) ?? 0;
@@ -521,27 +510,21 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     const supplierCity = String(p.city ?? '').trim().toLowerCase().replace(/\s+(nagar|district)$/i, '');
     const orderCity = geo.city.replace(/\s+(nagar|district)$/i, '');
     const sameCity = Boolean(supplierCity && orderCity && supplierCity === orderCity);
-    if (coverageTier === 1 && !sameCity) { reject('other_city_fallback_blocked'); continue; }
+    if (!sameCity) { reject('other_city_fallback_blocked'); continue; }
 
-    if (geo.hasCoords && Number.isFinite(sLat) && Number.isFinite(sLng)) {
-      distance = haversineKm(geo.lat, geo.lng, sLat, sLng);
-      if (distance <= radius) {
-        group = 0;
-      } else {
-        // Controlled nearby fallback: up to 3x the supplier radius (max 20 km), same city only.
-        const fallbackRadius = Math.min(20, Math.max(radius, radius * 3));
-        if (!sameCity || distance > fallbackRadius) {
-          reject('outside_radius', `${distance.toFixed(1)} km, radius ${radius} km`);
-          continue;
-        }
-        group = 1;
-      }
-    } else if (sameCity) {
-      group = 2;
-    } else {
-      reject('location_unknown', `supplier city "${supplierCity || '—'}", order city "${orderCity || '—'}"`);
+    // The supplier-selected delivery radius is a hard upper bound, never 3x
+    // fallback. Without both verified coordinates, a distance-based promise
+    // cannot be made; request location correction instead of auto-assigning.
+    if (!geo.hasCoords || !Number.isFinite(sLat) || !Number.isFinite(sLng)) {
+      reject('location_unknown', 'Customer and supplier delivery-base coordinates are required');
       continue;
     }
+    distance = haversineKm(geo.lat, geo.lng, sLat, sLng);
+    if (!withinSupplierRadius(distance, radius)) {
+      reject('outside_radius', `${distance.toFixed(1)} km, selected radius ${radius} km`);
+      continue;
+    }
+    group = 0;
 
     cands.push({
       id,
@@ -746,7 +729,8 @@ export async function diagnoseOrderDispatch(orderId: string) {
     if (counts.get('not_verified')) hints.push(`${counts.get('not_verified')} supplier(s) have a verification_status other than "approved".`);
     if (counts.get('profile_status')) hints.push(`${counts.get('profile_status')} supplier(s) have a profile status other than "active".`);
     if (counts.get('service_not_covered')) hints.push('Some suppliers are mapped to this zone but their service_keys do not include this service.');
-    if (counts.get('outside_radius')) hints.push('Some suppliers are outside their service radius. A larger radius or a closer base location fixes this.');
+    if (counts.get('zone_not_approved')) hints.push('An online supplier has another approved zone, but not this customer zone. Admin must review and approve the exact PIN/zone; distance alone does not grant coverage.');
+    if (counts.get('outside_radius')) hints.push('Some suppliers are outside their service radius. Supplier may adjust the configured radius only within explicitly approved service areas.');
     if (counts.get('at_capacity')) hints.push('Some suppliers are at supplier_max_active_orders.');
     if (counts.get('already_offered')) hints.push('Some suppliers were already offered this order (rejected, or timed out recently).');
     if (ev.cands.length > 0) {
@@ -983,10 +967,13 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
     const approvedIds=new Set((capabilities??[]).map((x:any)=>String(x.technician_id)));
     const eligible=candidates.filter(t=>approvedIds.has(String(t.id)));
     if(!eligible.length){await alertAdmins(db,orderId,'No verified specialist for this service. Admin assignment needed.','technician_skill_unavailable');return {technicianId:null,reason:'no_candidates'};}
-    const [loadRes, scores] = await Promise.all([
+    const [loadRes, scores, radiiRes] = await Promise.all([
       db.from('orders').select('technician_id').in('technician_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       technicianTrustScores(db, ids),
+      db.from('technician_service_radii').select('technician_id,radius_km').in('technician_id',ids).eq('service_key',serviceKey),
     ]);
+    if (radiiRes.error) return { technicianId:null, reason:'error' };
+    const radiusByTechnician = new Map<string,number>(((radiiRes.data??[]) as {technician_id:string;radius_km:number}[]).map(x=>[String(x.technician_id),Number(x.radius_km)]));
 
     const loads = new Map<string, number>();
     for (const row of (loadRes.data ?? []) as any[]) {
@@ -1007,13 +994,12 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
       let distance: number | null = null;
       let cityMatch = false;
 
-      if (geo.hasCoords && Number.isFinite(lat) && Number.isFinite(lng)) {
-        distance = haversineKm(geo.lat, geo.lng, lat, lng);
-        if (distance > cfg.defaultRadiusKm) continue;
-      } else {
-        cityMatch = Boolean(geo.city && String(t.city ?? '').trim().toLowerCase() === geo.city);
-        if (!cityMatch) continue;
-      }
+      const registeredCity = String(t.city ?? '').trim().toLowerCase();
+      if (!geo.city || registeredCity !== geo.city) continue;
+      if (!geo.hasCoords || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      distance = haversineKm(geo.lat, geo.lng, lat, lng);
+      if (distance > technicianRadius(serviceKey,radiusByTechnician.get(id))) continue;
+      cityMatch = true;
 
       ranked.push({
         id,

@@ -5,6 +5,7 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth, type AuthedContext } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
 import { dispatchOrder } from '@/lib/dispatch';
+import { SUPPLIER_RADIUS, validSupplierRadius, supplierRadiusRequiresApproval } from '@/lib/supplier-radius-policy';
 
 /**
  * /api/supplier/settings
@@ -50,7 +51,8 @@ const settingsSchema = z
       .optional(),
     base_lat: z.number().min(-90).max(90).nullable().optional(),
     base_lng: z.number().min(-180).max(180).nullable().optional(),
-    zone_radius_km: z.number().int().min(1).max(100).optional(),
+    zone_radius_km: z.number().int().min(SUPPLIER_RADIUS.min).max(SUPPLIER_RADIUS.max).optional(),
+    radius_confirmed: z.boolean().optional(),
     // Profile fields (stored on profiles, not supplier_settings).
     city: z.string().trim().min(2, 'Enter your city').max(60).optional(),
     full_name: z.string().trim().min(2, 'Enter your name').max(80).optional(),
@@ -66,7 +68,7 @@ const settingsSchema = z
 type Row = Record<string, unknown>;
 
 /** Shown when the supplier has not saved settings yet. Mirrors the defaults used by the settings page. */
-const DEFAULTS = { is_online: false, zone_radius_km: 5, auto_accept: false };
+const DEFAULTS = { is_online: false, zone_radius_km: SUPPLIER_RADIUS.default, auto_accept: false };
 
 const maskUpi = (v: unknown): string | null => {
   const s = typeof v === 'string' ? v : '';
@@ -177,7 +179,7 @@ async function loadSnapshot(sb: AuthedContext['supabase'], userId: string): Prom
     data: {
       ...(row ? sanitize(row) : DEFAULTS),
       profile: profile
-        ? { full_name: clean(profile.full_name), phone: clean(profile.phone), city: clean(profile.city) }
+        ? { full_name: clean(profile.full_name), phone: clean(profile.phone), city: clean(profile.city), email: null }
         : null,
       readiness: {
         ready_for_orders: complete && baseReadiness.ready_for_orders && !baseLocationMismatch && freeStock !== null && freeStock > 0,
@@ -235,7 +237,7 @@ export async function GET(req: NextRequest) {
     return jsonErr('Could not load your settings. Please try again.', 502);
   }
 
-  return jsonOk(snap.data);
+  return jsonOk({ ...snap.data, profile: snap.data.profile ? { ...(snap.data.profile as Row), email: auth.ctx.user.email ?? null } : null, radius_policy: SUPPLIER_RADIUS });
 }
 
 export async function PUT(req: NextRequest) {
@@ -255,7 +257,12 @@ export async function PUT(req: NextRequest) {
 
   const sb = auth.ctx.supabase;
   const userId = auth.ctx.profile.id;
-  const { city, full_name, ...settingsFields } = parsed.data;
+  const { city, full_name, radius_confirmed, ...settingsFields } = parsed.data;
+  if (settingsFields.zone_radius_km !== undefined) {
+    if (!validSupplierRadius(settingsFields.zone_radius_km)) return jsonErr('Invalid delivery radius.', 422);
+    if (supplierRadiusRequiresApproval(settingsFields.zone_radius_km)) return jsonErr('Delivery radius above 30 km requires admin review. Contact support before increasing coverage.', 409);
+    if (settingsFields.zone_radius_km > SUPPLIER_RADIUS.suggestReviewAbove && radius_confirmed !== true) return jsonErr('Confirm the longer delivery radius and your ability to complete orders on time.', 422);
+  }
   if(settingsFields.base_lat!==undefined||settingsFields.base_lng!==undefined||city!==undefined)return jsonErr('Shop GPS and city changes require admin approval via My profile & address.',403);
 
   // Only recover orders on a real offline → online change, not every save that happens to include is_online: true.
@@ -295,7 +302,7 @@ export async function PUT(req: NextRequest) {
     console.error('[supplier/settings] reload failed', snap.error.message);
     return jsonErr('Saved, but could not reload your settings. Please refresh.', 502);
   }
-  return jsonOk(snap.data);
+  return jsonOk({ ...snap.data, profile: snap.data.profile ? { ...(snap.data.profile as Row), email: auth.ctx.user.email ?? null } : null, radius_policy: SUPPLIER_RADIUS });
 }
 
 

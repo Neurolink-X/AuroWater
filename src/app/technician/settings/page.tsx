@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import LanguageToggle from '@/components/LanguageToggle';
 import SpecialistStatusPanel from '@/components/technician/SpecialistStatusPanel';
+import TechnicianRadiusControls from '@/components/technician/TechnicianRadiusControls';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
@@ -40,6 +41,7 @@ export default function TechnicianSettingsPage() {
           'Review your sign-in email, operating city, approved services and application status here.'}</p>
       </header>
       <SpecialistStatusPanel enabled={allowed} />
+      <TechnicianRadiusControls />
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <h2 className="text-lg font-bold">{hi ? 'उपलब्ध सेवा श्रेणियाँ' : 'Service categories'}</h2>
         <p className="mt-1 text-xs text-slate-600">{hi ? 'ये केवल सेवाओं के उदाहरण हैं। आपकी स्वीकृत सेवाएँ ऊपर दिखाई देती हैं।' :

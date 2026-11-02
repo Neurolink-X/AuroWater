@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/utils/supabase/server';
+import { technicianRadius } from '@/lib/technician-service-radius';
 
 /**
  * Booking readiness checks only the customer's requested CITY + exact approved service.
@@ -55,20 +56,20 @@ export async function checkLocalSpecialistBooking(
       .in('technician_id',ids).eq('service_key',service).eq('status','approved');
     if (skillError) throw skillError;
     const approvedIds = new Set((skills ?? []).map(s=>String(s.technician_id)));
-    const { data: config, error: configError } = await db.from('settings')
-      .select('value').eq('key','service_radius_km').maybeSingle();
-    if (configError) throw configError;
-    const radius = Number(config?.value);
-    const radiusKm = Number.isFinite(radius) && radius > 0 ? Math.min(radius,100) : 10;
+    const {data:radii,error:radiiError} = await db.from('technician_service_radii')
+      .select('technician_id,radius_km').in('technician_id',ids).eq('service_key',service);
+    if (radiiError) throw radiiError;
+    const radiusByTechnician=new Map((radii??[]).map(r=>[String(r.technician_id),Number(r.radius_km)]));
     const hasCustomerPoint = typeof latitude === 'number' && Number.isFinite(latitude) &&
       typeof longitude === 'number' && Number.isFinite(longitude);
 
     const found = candidates.some(p=>{
       if (!approvedIds.has(String(p.id))) return false;
       const techLat=numberOrNull(p.current_lat),techLng=numberOrNull(p.current_lng);
-      // If location is missing, the dispatch engine uses verified same-city fallback.
-      if (!hasCustomerPoint || techLat===null || techLng===null) return true;
-      return distanceKm(latitude,longitude,techLat,techLng)<=radiusKm;
+      // Dispatch requires verified coordinates too. Never confirm a booking
+      // that the atomic assignment flow cannot actually serve.
+      if (!hasCustomerPoint || techLat===null || techLng===null) return false;
+      return distanceKm(latitude,longitude,techLat,techLng)<=technicianRadius(service,radiusByTechnician.get(String(p.id)));
     });
     if (!found) return { ok: false, unavailable: true, message: `No approved ${service.replace(/_/g,' ')} specialist is currently available near this address in ${String(requestedCity).trim()}. Your booking has not been placed. Try another nearby address or contact support for availability.` };
     return { ok: true };

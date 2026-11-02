@@ -301,12 +301,17 @@ assert.match(activeSupplierDashboard, /application_status/);
 assert.match(activeSupplierDashboard, /Admin approval is required before you can receive orders/);
 
 
-// Supplier dispatch recovery: prefer explicitly mapped suppliers, but allow
-// same-city fallback suppliers when mapped suppliers cannot fulfil an order.
+// Dispatch safety: zone authorization and supplier-selected distance are
+// independent limits. A new PIN zone must not inherit approval from an
+// overlapping pilot zone, nor may dispatch silently triple the supplier radius.
 const dispatchSource = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
+const activeDispatchSource = dispatchSource.split('export async function dispatchOrder(')[0];
 assert.match(dispatchSource, /coverageTier - b\.coverageTier/);
-assert.match(dispatchSource, /fallbackRadius = Math\.min\(20, Math\.max\(radius, radius \* 3\)\)/);
-assert.match(dispatchSource, /if \(coverageTier === 1 && !sameCity\) continue/);
+assert.match(activeDispatchSource, /matchApprovedSupplierCoverage/);
+assert.match(activeDispatchSource, /reject\(decision\.reason/);
+assert.match(activeDispatchSource, /if \(!withinSupplierRadius\(distance, radius\)\)/);
+assert.doesNotMatch(activeDispatchSource, /fallbackRadius|overlapsApprovedZone/);
+assert.match(activeDispatchSource, /if \(!sameCity\)/);
 assert.match(dispatchSource, /eq\('key', order\.service_type\)/);
 
 const supplierSection = readFileSync(join(root, 'src', 'app', 'supplier', '\[section\]', 'page.tsx'), 'utf8');
