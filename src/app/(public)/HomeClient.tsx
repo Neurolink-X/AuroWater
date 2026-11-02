@@ -228,15 +228,15 @@ export default function HomeClient() {
   const currentEmergencyFee = Number(settings.emergency_surcharge) || 0;
   const liveServices = useMemo(() => SERVICES.map((service) => {
     if (service.href.includes('water_can')) return { ...service,
-      badge: `From ₹${currentNormal} / 20L`,
-      body: `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` };
+      badge: pricingReady ? `From ₹${currentNormal} / 20L` : 'Checking live price',
+      body: pricingReady ? `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` : 'Confirm live prices and serviceability before booking.' };
     if (service.href.includes('plumbing')) return { ...service,
-      badge: `From ₹${currentPlumbing}`,
+      badge: pricingReady ? `From ₹${currentPlumbing}` : 'Checking live price',
       body: 'Tell us your plumbing issue. The applicable visit or repair charges are confirmed in checkout before you book.' };
     if (service.href.includes('tank_cleaning')) return { ...service,
-      badge: `From ₹${currentTank}` };
+      badge: pricingReady ? `From ₹${currentTank}` : 'Checking live price' };
     return service;
-  }), [currentNormal, currentChilled, currentPlumbing, currentTank]);
+  }), [pricingReady, currentNormal, currentChilled, currentPlumbing, currentTank]);
   const [founding, setFounding] = useState<{ count: number } | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -434,7 +434,7 @@ export default function HomeClient() {
                   <div className="aw-glass p-5">
                     <p className="font-display text-sm font-bold text-emerald-300 mb-3">Reasons to consider AuroTap</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled`, `Recurring delivery options; eligibility and price locks are confirmed at booking`, `Plumbing service estimates start from ₹${currentPlumbing}; verify any visit fee at checkout`, `Tank cleaning priced by size from ₹${currentTank}`].map(i => (
+                      {[pricingReady ? `Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled` : 'Live water prices are loading', `Recurring delivery options; eligibility and price locks are confirmed at booking`, pricingReady ? `Plumbing service estimates start from ₹${currentPlumbing}; verify any visit fee at checkout` : 'Plumbing charges are confirmed at checkout', pricingReady ? `Tank cleaning priced by size from ₹${currentTank}` : 'Tank cleaning prices depend on size and location'].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -693,7 +693,7 @@ export default function HomeClient() {
         <section aria-labelledby="live-pricing-notice" className="bg-cyan-50 px-5 py-6 text-slate-900">
           <div className="mx-auto max-w-6xl rounded-2xl border border-cyan-200 bg-white p-5 sm:p-6">
             <h2 id="live-pricing-notice" className="text-lg font-extrabold">Current prices & extra fees</h2>
-            <p className="mt-2 text-sm leading-6">Normal RO from {displayPrice(currentNormal)} · Chilled RO from {displayPrice(currentChilled)}. Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}. Some fees apply only to eligible services or emergency bookings.</p>
+            <p className="mt-2 text-sm leading-6">Normal RO from {displayPrice(currentNormal)} · Chilled RO from {displayPrice(currentChilled)}. {pricingReady ? <>Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}.</> : 'Published fees are loading.'} Some fees apply only to eligible services or emergency bookings.</p>
             <p className="mt-2 text-xs leading-5 text-slate-600">Prices reflect published platform settings and may differ by city, service, quantity or scheduled change. The final server-calculated total before confirmation is authoritative.</p>
             <Link href="/pricing" className="mt-3 inline-flex min-h-11 items-center font-bold text-cyan-800 hover:underline">See full pricing & availability →</Link>
           </div>
