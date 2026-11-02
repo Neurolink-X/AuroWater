@@ -154,6 +154,22 @@ export default function CustomerSubscriptionsPage() {
     }
   }
 
+  // Reconcile subscription changes made from booking, another tab or device.
+  // Only refresh when the page becomes visible; never poll in the background.
+  useEffect(() => {
+    if (!hydrated || !isLoggedIn || !isCustomer) return;
+    const refresh = () => {
+      if (document.visibilityState === 'visible' && !busyId) void load(true);
+    };
+    const onFocus = () => refresh();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [hydrated, isLoggedIn, isCustomer, busyId]);
+
   useEffect(() => {
     if (
       hydrated &&
