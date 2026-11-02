@@ -1,4 +1,6 @@
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
+import BookingSeo from '@/components/booking/BookingSeo';
 
 const BookingWizard = dynamic(() => import('@/components/booking/BookingWizard'), {
   loading: () => (
@@ -13,5 +15,5 @@ const BookingWizard = dynamic(() => import('@/components/booking/BookingWizard')
 
 /** Stream the lightweight booking shell while the client wizard loads. */
 export default function BookPage() {
-  return <BookingWizard />;
+  return <><Suspense fallback={null}><BookingSeo /></Suspense><BookingWizard /></>;
 }
