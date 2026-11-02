@@ -259,8 +259,9 @@ export function rankCoverageOpportunities(
     const distance = supplierLocation && zone.center_lat != null && zone.center_lng != null &&
       Number.isFinite(lat) && Number.isFinite(lng)
       ? geoDistanceKm(supplierLocation.lat, supplierLocation.lng, lat, lng) : null;
-    // Avoid recommending unsupported long-distance zones; unknown geodata is shown separately.
-    if (distance !== null && distance > 20) continue;
+    // Only recommend geolocated zones demonstrably within 20 km straight-line.
+    // A zone with missing coordinates must not be marketed as 'nearby'.
+    if (distance === null || distance > 20) continue;
     if (mapped.size > 2) continue;
     results.push({
       zone_id: zone.id, zone_name: zone.name, city: zone.city,
