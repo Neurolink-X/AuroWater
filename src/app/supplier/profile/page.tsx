@@ -99,7 +99,7 @@ export default function SupplierProfilePage() {
           ] as Array<[keyof typeof form,string]>).map(([key,label]) => <label key={key} className="text-sm font-semibold">{isHindi ? fieldLabelsHi[key] : label}<input value={form[key]} onChange={e => update(key,e.target.value)} maxLength={key === 'address' ? 300 : key === 'pincode' ? 6 : 100} inputMode={key === 'pincode' ? 'numeric' : key === 'phone' ? 'tel' : 'text'} autoComplete={key === 'pincode' ? 'postal-code' : key === 'phone' ? 'tel' : 'off'} className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" /></label>)}
         </div>
         <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
-          <strong>Shop GPS is not your phone's GPS.</strong>
+          <strong>Shop GPS is not your phone&apos;s GPS.</strong>
           <p className="mt-1">You can register your shop remotely. Find the exact shop on the map, and copy its coordinates; review is required before dispatch changes.</p>
           <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([form.address,form.city,form.pincode].filter(Boolean).join(' '))}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold underline">Find my shop on Google Maps</a>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
