@@ -84,6 +84,7 @@ export default function SupplierSettingsPage() {
 
 
   const [radius, setRadius] = useState<number>(SUPPLIER_RADIUS.default);
+  const [radiusReason,setRadiusReason] = useState('');
 
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
@@ -254,6 +255,13 @@ export default function SupplierSettingsPage() {
           </p>
 
           {radius > 25 && <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Long distance delivery: confirm stock, travel time and the ability to fulfil orders reliably. Above 30 km, administrator approval is required. Changing radius never approves new PIN codes.</p>}
+          {radius > SUPPLIER_RADIUS.selfServeMax && (
+            <label htmlFor="radius-reason" className="block text-sm font-semibold text-slate-800">Reason for admin review
+              <textarea id="radius-reason" className="mt-2 w-full rounded-xl border p-3" rows={3}
+                value={radiusReason} maxLength={500} onChange={e=>setRadiusReason(e.target.value)}
+                placeholder="Describe delivery staff, vehicle, stock and maximum travel time." />
+            </label>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Base latitude" htmlFor="s-lat">
               <input id="s-lat" readOnly className={INPUT} value={lat} onChange={(e) => setLat(e.target.value)} placeholder="26.4499" />
@@ -279,13 +287,25 @@ export default function SupplierSettingsPage() {
             className={BTN}
             disabled={saving === 'service'}
             onClick={() => {
-              if (supplierRadiusRequiresApproval(radius)) { toast.error('Above 30 km requires admin review. Contact support.'); return; }
+              if (supplierRadiusRequiresApproval(radius)) {
+                if (radiusReason.trim().length < 15) { toast.error('Explain how you can reliably deliver at this distance (15+ characters).'); return; }
+                void (async () => {
+                  try {
+                    const token=await getToken();
+                    const response=await fetch('/api/supplier/radius-requests',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({radius_km:radius,reason:radiusReason.trim()})});
+                    const result=await response.json().catch(()=>({}));
+                    if(!response.ok) throw new Error(result.error??'Could not request radius change');
+                    toast.success('Request sent to admin. Current delivery radius remains unchanged.');
+                  } catch(e) {toast.error(e instanceof Error?e.message:'Request failed');}
+                })();
+                return;
+              }
               if (supplierRadiusRequiresConfirmation(radius) && !window.confirm(`You selected ${radius} km. Can you reliably fulfil every accepted order at this distance? Approved PIN areas are unchanged.`)) return;
               const body: Record<string, unknown> = { zone_radius_km: radius, radius_confirmed: radius > 25 };
               void save('service', body, 'Delivery settings saved.');
             }}
           >
-            {saving === 'service' ? 'Saving…' : 'Save delivery settings'}
+            {saving === 'service' ? 'Saving…' : radius > SUPPLIER_RADIUS.selfServeMax ? 'Request admin approval' : 'Save delivery settings'}
           </button>
         </Card>
 
