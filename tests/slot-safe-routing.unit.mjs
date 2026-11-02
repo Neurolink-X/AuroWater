@@ -34,6 +34,7 @@ test('API is provider-isolated and never exposes unaccepted delivery coordinates
  assert.match(api,/acceptedIds\.has\(order\.id\)/);
  assert.match(api,/order\.status === 'IN_PROGRESS'/);
  assert.match(api,/slotEndAt: null/);
- assert.match(api,/limit\(31\)/);
+ assert.match(api,/\.limit\(MAX_STOPS\s*\+\s*1\)/);
+ assert.match(api,/const MAX_STOPS = 30/);
  assert.doesNotMatch(api,/order_supplier_offers/);
 });
