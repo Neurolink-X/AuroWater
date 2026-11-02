@@ -11,6 +11,7 @@ import PartnerJourney from '@/components/operations/PartnerJourney';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
+import { SUPPLIER_RADIUS, supplierRadiusRequiresApproval, supplierRadiusRequiresConfirmation } from '@/lib/supplier-radius-policy';
 
 /* ───────────────────────── Types & config ───────────────────────── */
 
@@ -66,7 +67,7 @@ export default function SupplierSectionPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [online, setOnline] = useState(false);
-  const [radius, setRadius] = useState('5');
+  const [radius, setRadius] = useState(String(SUPPLIER_RADIUS.default));
   const latest = useRef(0);
   const hasData = useRef(false);
   const backgroundFetchInFlight = useRef(false);
@@ -104,7 +105,7 @@ export default function SupplierSectionPage() {
         if (!silent) setError('');
         if ((section === 'settings' || section === 'dispatch') && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
-          setRadius(String((payload as Row).zone_radius_km ?? 5));
+          setRadius(String((payload as Row).zone_radius_km ?? SUPPLIER_RADIUS.default));
         }
       } catch (e) {
         // Background polling is intentionally silent; retain data and avoid flashing errors.
@@ -461,8 +462,10 @@ function DispatchControl(p: { obj: Row; online: boolean; radius: string; setRadi
   const isHindi = language === 'hi';
   const saveRadius = () => {
     const n = Number(p.radius);
-    if (!Number.isInteger(n) || n < 1 || n > 100) return p.setError(isHindi ? 'सेवा त्रिज्या 1 से 100 किमी के बीच पूरा नंबर होनी चाहिए।' : 'Service radius must be a whole number from 1 to 100 km.');
-    void p.send('/api/supplier/settings', 'PUT', { zone_radius_km: n }, isHindi ? 'सेवा त्रिज्या सेव हो गई।' : 'Service radius saved.');
+    if (!Number.isInteger(n) || n < SUPPLIER_RADIUS.min || n > SUPPLIER_RADIUS.max) return p.setError(isHindi ? 'सेवा त्रिज्या 1 से 50 किमी के बीच पूरा नंबर होनी चाहिए।' : 'Service radius must be a whole number from 1 to 50 km.');
+    if (supplierRadiusRequiresApproval(n)) return p.setError(isHindi ? '30 किमी से अधिक के लिए एडमिन की मंजूरी जरूरी है।' : 'Over 30 km requires admin review. Contact support.');
+    if (supplierRadiusRequiresConfirmation(n) && !window.confirm(isHindi ? `${n} किमी में समय पर डिलीवरी कर सकेंगे? पुष्टि करें।` : `Confirm reliable delivery within ${n} km. Approved PIN areas will not change.`)) return;
+    void p.send('/api/supplier/settings', 'PUT', { zone_radius_km: n, radius_confirmed: n > 25 }, isHindi ? 'सेवा त्रिज्या सेव हो गई।' : 'Service radius saved.');
   };
   return (
     <section className="sp-grid">
@@ -476,8 +479,9 @@ function DispatchControl(p: { obj: Row; online: boolean; radius: string; setRadi
           </button>
         </div>
         <label className="sp-field" htmlFor="radius">{isHindi ? 'सेवा त्रिज्या (किमी)' : 'Service radius (km)'}
-          <input id="radius" className="sp-input" type="number" min={1} max={100} value={p.radius} onChange={(e) => p.setRadius(e.target.value)} />
+          <input id="radius" className="sp-input" type="number" min={SUPPLIER_RADIUS.min} max={SUPPLIER_RADIUS.max} value={p.radius} onChange={(e) => p.setRadius(e.target.value)} />
         </label>
+        <p className="sp-hint">{isHindi ? 'सुझाव: 3–10 किमी। 25 किमी से अधिक होने पर पुष्टि और 30 किमी से अधिक पर एडमिन समीक्षा जरूरी है। PIN मंजूरी अलग रहती है।' : 'Recommended 3–10 km. Above 25 km requires confirmation; above 30 km requires admin review. PIN approvals are separate.'}</p>
         <button className="sp-btn" disabled={p.busy} onClick={saveRadius}>{isHindi ? 'त्रिज्या सेव करें' : 'Save radius'}</button>
         <p className="sp-hint">{isHindi ? 'डिस्पैच लोकेशन बदलने के लिए डैशबोर्ड पर लोकेशन बटन का उपयोग करें।' : 'To change your dispatch location, use the location button on the dashboard.'}</p>
       </article>
@@ -524,6 +528,7 @@ function AccountSettings({ obj }: { obj: Row }) {
         <dl className="sp-dl">
           <dt>Name</dt><dd>{str(profile.full_name, 'Not set')}</dd>
           <dt>City</dt><dd>{str(profile.city, 'Not set')}</dd>
+          <dt>Registered email</dt><dd className="break-all">{str(profile.email, 'Not available')}</dd>
           <dt>Contact</dt><dd>{str(profile.phone, 'Not set')}</dd>
         </dl>
         <Link href="/supplier/profile" className="sp-link">Manage profile and verification</Link>
