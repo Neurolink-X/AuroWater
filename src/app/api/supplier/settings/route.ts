@@ -179,7 +179,15 @@ async function loadSnapshot(sb: AuthedContext['supabase'], userId: string): Prom
       profile: profile
         ? { full_name: clean(profile.full_name), phone: clean(profile.phone), city: clean(profile.city) }
         : null,
-      readiness: buildReadiness(row, profile),
+      readiness: {
+        ready_for_orders: complete && baseReadiness.ready_for_orders && !baseLocationMismatch && freeStock !== null && freeStock > 0,
+        checks,
+        coverage_verified: complete,
+        eligible_zone_links: complete ? (coverageRes.data?.length ?? 0) : null,
+        dispatch_base_city_distance_km: locationCityDistanceKm,
+        dispatch_base_city_check: cityMatchVerified ? (baseLocationMismatch ? 'mismatch' : 'nearby') : 'not_verified',
+        note: 'Readiness does not guarantee assignment; matching also checks exact coverage, customer address, distance, stock reservation and workload.',
+      },
     },
   };
 }
