@@ -1044,6 +1044,10 @@ async function retryPendingOrders(db: any, cfg: Cfg, limit: number, customerId?:
     // Filter exhausted orders BEFORE limit(); otherwise the oldest exhausted rows
     // can occupy every batch and permanently starve newer customers' orders.
     .or(`dispatch_attempts.is.null,dispatch_attempts.lt.${cfg.maxAttempts}`)
+    // Prioritise never-attempted orders, then oldest retry timestamps.
+    // Sorting solely by creation time starves newer eligible orders whenever
+    // the first batch contains cooldown-blocked pending orders.
+    .order('last_dispatch_at', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: true })
     .limit(limit);
   if (customerId) q = q.eq('customer_id', customerId);
