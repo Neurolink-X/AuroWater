@@ -101,7 +101,7 @@ function SlotCard({ info, latest, onChanged }: { info: SlotInfo; latest?: UserFi
           )}
         </div>
       )}
-      {error && <div role="alert" className="mt-3 space-y-2 text-sm text-rose-700"><p className="font-semibold">{error}</p><p>Check your connection and retry the secure upload here. Your documents should not be sent in chat.</p>{failures >= 2 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">Still having trouble? Contact AuroTap support and mention “document upload failed”. Support can help you complete secure verification. Do not send Aadhaar or other identity documents over WhatsApp.</p>}</div>
+      {error && <div role="alert" className="mt-3 space-y-2 text-sm text-rose-700"><p className="font-semibold">{error}</p><p>Check your connection and retry the secure upload here. Your documents should not be sent in chat.</p>{failures >= 2 && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">Still having trouble? Contact AuroTap support and mention “document upload failed”. Support can help you complete secure verification. Do not send Aadhaar or other identity documents over WhatsApp.</p>}</div>}
 
       {latest && (
         <div className="mt-3 flex gap-4 text-sm font-bold">
