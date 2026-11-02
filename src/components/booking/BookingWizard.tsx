@@ -1,5 +1,4 @@
 'use client';
-import PricingLoading from '@/components/pricing/PricingLoading';
 import { formatOrderReference } from '@/lib/order-reference';
 /**
  * src/components/booking/BookingWizard.tsx
@@ -1654,8 +1653,6 @@ export default function BookingWizard() {
     ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
 
-  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
-
   return (
     <div
       className={`min-h-screen bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 pb-28 text-slate-900 ${bookingBody.variable} ${bookingDisplay.variable}`}
@@ -1663,6 +1660,7 @@ export default function BookingWizard() {
     >
       <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+        {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Live prices are being verified. You can select a service and address now; payment confirmation waits for verified pricing.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
 
         <header className="text-center mb-6">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
