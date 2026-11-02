@@ -1,5 +1,6 @@
 import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
 import { withinSupplierRadius } from './dispatch-radius';
+import { technicianRadius } from './technician-service-radius';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
 
@@ -949,10 +950,13 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
     const approvedIds=new Set((capabilities??[]).map((x:any)=>String(x.technician_id)));
     const eligible=candidates.filter(t=>approvedIds.has(String(t.id)));
     if(!eligible.length){await alertAdmins(db,orderId,'No verified specialist for this service. Admin assignment needed.','technician_skill_unavailable');return {technicianId:null,reason:'no_candidates'};}
-    const [loadRes, scores] = await Promise.all([
+    const [loadRes, scores, radiiRes] = await Promise.all([
       db.from('orders').select('technician_id').in('technician_id', ids).in('status', ['ASSIGNED', 'IN_PROGRESS']),
       technicianTrustScores(db, ids),
+      db.from('technician_service_radii').select('technician_id,radius_km').in('technician_id',ids).eq('service_key',serviceKey),
     ]);
+    if (radiiRes.error) return { technicianId:null, reason:'error' };
+    const radiusByTechnician = new Map<string,number>(((radiiRes.data??[]) as {technician_id:string;radius_km:number}[]).map(x=>[String(x.technician_id),Number(x.radius_km)]));
 
     const loads = new Map<string, number>();
     for (const row of (loadRes.data ?? []) as any[]) {
@@ -973,13 +977,12 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
       let distance: number | null = null;
       let cityMatch = false;
 
-      if (geo.hasCoords && Number.isFinite(lat) && Number.isFinite(lng)) {
-        distance = haversineKm(geo.lat, geo.lng, lat, lng);
-        if (distance > cfg.defaultRadiusKm) continue;
-      } else {
-        cityMatch = Boolean(geo.city && String(t.city ?? '').trim().toLowerCase() === geo.city);
-        if (!cityMatch) continue;
-      }
+      const registeredCity = String(t.city ?? '').trim().toLowerCase();
+      if (!geo.city || registeredCity !== geo.city) continue;
+      if (!geo.hasCoords || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      distance = haversineKm(geo.lat, geo.lng, lat, lng);
+      if (distance > technicianRadius(serviceKey,radiusByTechnician.get(id))) continue;
+      cityMatch = true;
 
       ranked.push({
         id,
