@@ -6,7 +6,9 @@ import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import type { City } from '@/lib/cities';
 import { canIndexDeployment } from '@/lib/seo-policy';
 
-export const dynamic = 'force-dynamic'; // Admin city changes must not wait for a static rebuild.
+// Cache the public shell briefly; booking and checkout still validate live city status.
+// The client refreshes city directory independently when administrators publish changes.
+export const revalidate = 30;
 
 const title = `RO Water Delivery, Plumber & Tank Cleaning | ${SITE.name}`;
 const description =
