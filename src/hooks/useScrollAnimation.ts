@@ -11,6 +11,8 @@ export type ScrollRevealOptions = {
   once?: boolean;
   /** Compatible with existing data-reveal and fade-up markup. */
   selector?: string;
+  /** Disable observation for interaction-heavy role dashboards. */
+  enabled?: boolean;
 };
 
 /**
@@ -28,9 +30,14 @@ export function useScrollAnimation({
   rootMargin = '0px 0px -10% 0px',
   once = true,
   selector = '[data-reveal], .fade-up',
+  enabled = true,
 }: ScrollRevealOptions = {}) {
   useEffect(() => {
     const root = document.documentElement;
+    if (!enabled) {
+      root.removeAttribute('data-reveal-ready');
+      return;
+    }
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const coarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 
@@ -142,7 +149,7 @@ export function useScrollAnimation({
       observed.clear();
       root.removeAttribute('data-reveal-ready');
     };
-  }, [threshold, rootMargin, once, selector]);
+  }, [threshold, rootMargin, once, selector, enabled]);
 }
 
 export const useScrollReveal = useScrollAnimation;

@@ -38,9 +38,6 @@ const publicPages = [
 
 export const revalidate = 3600;
 
-const SITE_UPDATED = new Date('2026-10-09T00:00:00+05:30');
-const CONTENT_UPDATED = new Date('2026-10-06T00:00:00+05:30');
-
 function page(
   path: string,
   options: {
@@ -51,7 +48,7 @@ function page(
 ): MetadataRoute.Sitemap[number] {
   return {
     url: `${BASE_URL}${path}`,
-    lastModified: options.lastModified ?? CONTENT_UPDATED,
+    ...(options.lastModified ? { lastModified: options.lastModified } : {}),
     changeFrequency: options.changeFrequency,
     priority: options.priority,
   };
@@ -66,15 +63,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })) return [];
 
   const publicEntries = [
-    page('', { lastModified: SITE_UPDATED, changeFrequency: 'weekly', priority: 1 }),
+    page('', { changeFrequency: 'weekly', priority: 1 }),
     ...publicPages.map((path) => page(path, {
-      lastModified:
-        path === '/services' ||
-        path === '/service-areas' ||
-        path === '/pricing' ||
-        path.startsWith('/water-delivery')
-          ? SITE_UPDATED
-          : CONTENT_UPDATED,
       changeFrequency: path === '/contact' ? 'monthly' : 'weekly',
       priority:
         path === '/services' || path === '/service-areas'
@@ -90,7 +80,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const detailEntries = serviceDetailPages.map((path) =>
-    page(path, { lastModified: SITE_UPDATED, changeFrequency: 'monthly', priority: 0.8 }),
+    page(path, { changeFrequency: 'monthly', priority: 0.8 }),
   );
 
   const guideEntries = [

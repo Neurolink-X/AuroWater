@@ -4,6 +4,7 @@ import HomeClient from './HomeClient';
 import { SITE, FAQS, MAX_LOCK_MONTHS } from '@/lib/marketing-pricing';
 import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import type { City } from '@/lib/cities';
+import { canIndexDeployment } from '@/lib/seo-policy';
 
 export const dynamic = 'force-dynamic'; // Admin city changes must not wait for a static rebuild.
 
@@ -13,6 +14,12 @@ const description =
   `Monthly plans lock your price for up to ${MAX_LOCK_MONTHS} months. Clear prices before you confirm. Cash + UPI.`;
 
 export const viewport: Viewport = { themeColor: '#020c18', width: 'device-width', initialScale: 1 };
+
+const allowIndexing = canIndexDeployment({
+  vercelEnv: process.env.VERCEL_ENV,
+  nodeEnv: process.env.NODE_ENV,
+  allowIndexing: process.env.ALLOW_INDEXING,
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -28,7 +35,9 @@ export const metadata: Metadata = {
   openGraph: { title, description, url: '/', siteName: SITE.name, locale: 'en_IN', type: 'website' },
   twitter: { card: 'summary_large_image', title, description },
   formatDetection: { telephone: false },
-  robots: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
+  robots: allowIndexing
+    ? { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 }
+    : { index: false, follow: false, noarchive: true },
 };
 
 const buildJsonLd = (cities: City[]) => ({
