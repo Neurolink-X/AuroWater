@@ -15,7 +15,7 @@ type Payload = {
   orders: Order[]; disclaimer: string;
 };
 const MODES: { value: Mode; name: string }[] = [
-  { value: 'overdue', name: 'Older open orders' },
+  { value: 'overdue', name: 'Open orders needing review (newest first)' },
   { value: 'unpaid_completed', name: 'Completed, recorded unpaid' },
   { value: 'assigned_unpaid', name: 'Assigned, recorded unpaid' },
 ];
@@ -82,6 +82,7 @@ export default function OrderHealthPage() {
     {payload && <section aria-label="Orders to review" className="rounded-2xl border bg-white shadow-sm">
       <div className="border-b px-5 py-4">
         <h2 className="text-lg font-bold">{payload.count.toLocaleString('en-IN')} orders need review in this filter</h2>
+        <p className="mt-1 text-sm text-slate-600">Most recently placed orders first. This list is for reconciliation; see Orders for all new bookings.</p>
         <p className="mt-1 text-xs leading-5 text-slate-500">{payload.disclaimer}</p>
       </div>
       <div className="divide-y">
