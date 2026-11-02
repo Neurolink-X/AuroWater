@@ -8,6 +8,7 @@
 //   useState,
 // } from 'react';
 // import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 // import { createClient } from '@/lib/supabase/client';
 // import { toast } from 'sonner';
 // import {
@@ -3714,6 +3715,14 @@ export default function SupplierDashboardPage() {
               },
             ]}
           />
+          <div className="sd-card" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 18, padding: 12 }}>
+            <Image src="/images/water_can.webp" alt="Water-can delivery service" width={180} height={110} sizes="180px" style={{ width: 180, height: 110, borderRadius: 12, objectFit: 'cover' }} />
+            <div style={{ flex: '1 1 180px' }}>
+              <strong>{isHindi ? 'आज की डिलीवरी' : 'Today’s delivery workflow'}</strong>
+              <p style={{ fontSize: 13, marginTop: 4, color: 'var(--ink2)' }}>{isHindi ? 'ऑर्डर देखें, समय की पुष्टि करें, स्वीकार करें, डिलीवरी पूरी करें और भुगतान सत्यापित करें।' : 'Review assigned orders, check the IST slot, accept, deliver, and confirm payment only when actually received.'}</p>
+              <a href="/supplier/orders" className="sd-link">Open assigned orders</a>
+            </div>
+          </div>
           {!loading && profile && (profile.application_status === 'pending' || profile.application_status === 'pending_approval') && (
             <section role="status" aria-live="polite" className="sd-alert sd-alert--warn" style={{ padding: 20, marginBottom: 18, display: 'block' }}>
               <div style={{ fontSize: 16, fontWeight: 800 }}>
