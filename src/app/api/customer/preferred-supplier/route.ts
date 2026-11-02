@@ -20,16 +20,10 @@ export async function POST(req: NextRequest) {
  const client=db();
  const {data: supplier,error: supplierError}=await client.from('profiles').select('id,role,is_active,status').eq('id',supplierId).maybeSingle();
  if(supplierError || !supplier || supplier.role!=='supplier' || supplier.is_active===false || (supplier.status && supplier.status!=='active')) return jsonErr('Supplier unavailable',404,'NOT_FOUND');
- const now=new Date(), expires=new Date(now.getTime()+90*86400000);
- // One customer-selected supplier at a time; revocation precedes the new preference.
- const {error: revokeError}=await client.from('supplier_customer_relationships').update({status:'revoked',updated_at:now.toISOString()}).eq('customer_id',customerId).eq('status','active').neq('supplier_id',supplierId);
- if(revokeError)return jsonErr('Could not update supplier preference',503,'DB_ERROR');
- const {error}=await client.from('supplier_customer_relationships').upsert({
-   customer_id:customerId,supplier_id:supplierId,referral_source:'customer_choice',
-   status:'active',customer_confirmed_at:now.toISOString(),priority_expires_at:expires.toISOString(),updated_at:now.toISOString()
- },{onConflict:'customer_id,supplier_id'});
- if(error){console.error('[affinity] save failed',error.code);return jsonErr('Could not save supplier preference',503,'DB_ERROR');}
- return jsonOk({preferredSupplierId:supplierId,priorityExpiresAt:expires.toISOString()});
+ const {error}=await client.rpc('set_customer_supplier_preference',{p_customer:customerId,p_supplier:supplierId,p_remove:false});
+ if(error){console.error('[affinity] atomic save failed',error.code);return jsonErr('Could not save supplier preference',503,'DB_ERROR');}
+ return jsonOk({preferredSupplierId:supplierId});
+
 }
 export async function GET(req:NextRequest) {
  const auth=await requireSupabaseAuth(req);
@@ -45,7 +39,7 @@ export async function DELETE(req:NextRequest) {
  if(auth.ctx.profile.role!=='customer')return jsonErr('Customer account required',403,'FORBIDDEN');
  const parsed=schema.safeParse(await req.json().catch(()=>null));
  if(!parsed.success)return jsonErr('Invalid supplier',400,'VALIDATION_ERROR');
- const {error}=await db().from('supplier_customer_relationships').update({status:'revoked',updated_at:new Date().toISOString()}).eq('customer_id',auth.ctx.user.id).eq('supplier_id',parsed.data.supplierId);
+ const {error}=await db().rpc('set_customer_supplier_preference',{p_customer:auth.ctx.user.id,p_supplier:parsed.data.supplierId,p_remove:true});
  if(error)return jsonErr('Unable to remove preference',503,'DB_ERROR');
  return jsonOk({revoked:true});
 }
