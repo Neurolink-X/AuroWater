@@ -518,14 +518,26 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       tier: TIER_RANK[String(p.milestone_ti  // Read customer-confirmed referral preference. Missing migration must not block dispatch.
   let affinityId: string | null = null;
   if (order.customer_id) {
-    const { data: affinities, error: affinityError } = await db
+    // Explicit customer choice overrides the original referring supplier.
+    const now = new Date().toISOString();
+    const { data: preferences, error: preferenceError } = await db
       .from('supplier_customer_relationships')
       .select('supplier_id,status,priority_expires_at,customer_confirmed_at')
       .eq('customer_id', order.customer_id)
+      .eq('referral_source', 'customer_choice')
       .eq('status', 'active')
-      .gt('priority_expires_at', new Date().toISOString())
+      .gt('priority_expires_at', now)
       .limit(10);
-    if (!affinityError) affinityId = preferredSupplierId(affinities ?? []);
+    if (!preferenceError) affinityId = preferredSupplierId(preferences ?? []);
+    if (!affinityId) {
+      const { data: referrals, error: referralError } = await db
+        .from('supplier_referral_attributions')
+        .select('supplier_id,priority_expires_at')
+        .eq('customer_id', order.customer_id)
+        .gt('priority_expires_at', now)
+        .limit(1);
+      if (!referralError) affinityId = referrals?.[0]?.supplier_id ?? null;
+    }
   }
   const ranked = rankSupplierCandidates(cands, affinityId);
   cands.splice(0, cands.length, ...ranked);
