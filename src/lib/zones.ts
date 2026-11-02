@@ -79,6 +79,8 @@ export async function resolveServiceability(
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
   let canonicalCityActive = false;
+  // City and zone state are authoritative. Do not grant coverage solely
+  // because a location is near a historical hardcoded city centre.
   const legacy = (): Serviceability => {
     const ok = canonicalCityActive;
     return {
