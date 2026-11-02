@@ -41,7 +41,13 @@ export default function SupplierCoveragePage() {
       const res = await fetch('/api/supplier/coverage-requests', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? 'Could not load coverage.');
-      setPayload(json.data ?? json);
+      const loaded = (json.data ?? json) as Payload;
+      setPayload(loaded);
+      // A suggestion only preselects a configured zone; admin approval is never automatic.
+      const suggestedZone = new URLSearchParams(window.location.search).get('zone');
+      if (suggestedZone && loaded.zones.some(z => z.id === suggestedZone)) {
+        setSelected([suggestedZone]);
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load coverage.'); }
     finally { setLoading(false); }
   }, []);
