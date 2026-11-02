@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, ArrowUp, Mail, MapPin, MessageCircle } from 'lucide-react';
 
 import type { City } from '@/lib/cities';
-import { FALLBACK_CITIES } from '@/lib/cities';
+
 import { mergePublicCityDirectory } from '@/lib/public-city-directory';
 import { getFooterSocialProfiles, type FooterSocialPlatform } from '@/lib/footer-social-links';
 
@@ -185,7 +185,7 @@ const BACKOFF_MAX_MS = 600_000;
  * device comes back online, and the last-known list is always kept (never blank).
  */
 function useCityDirectory(): City[] {
-  const [cities, setCities] = useState<City[]>(() => mergePublicCityDirectory([], FALLBACK_CITIES));
+  const [cities, setCities] = useState<City[]>(() => mergePublicCityDirectory([], []));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -203,7 +203,7 @@ function useCityDirectory(): City[] {
         if (!res.ok) throw new Error('City directory unavailable');
         const data: unknown = await res.json();
         if (!active) return;
-        setCities(mergePublicCityDirectory(data, FALLBACK_CITIES));
+        setCities(mergePublicCityDirectory(data, []));
         failures = 0;
         nextAllowedAt = Date.now() + REFRESH_MS;
       } catch {
