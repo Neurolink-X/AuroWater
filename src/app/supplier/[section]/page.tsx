@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { DEFAULT_CONTACT, whatsappHref } from '@/lib/contact-shared';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
 import { useParams } from 'next/navigation';
@@ -520,7 +521,12 @@ function Support() {
           <li>{isHindi ? 'स्क्रीन पर दिखने वाला पूरा error message और आपने जो कदम किए, वे लिखें।' : 'Include the exact on-screen error and steps you already tried.'}</li>
           <li>{isHindi ? 'बताएँ कि समस्या मोबाइल या डेस्कटॉप पर है और कौन-सा पेज खुला था।' : 'Mention whether it happened on mobile or desktop and which page was open.'}</li>
         </ul>
-        <p className="sp-hint">{isHindi ? 'यह पेज सपोर्ट टिकट अपने-आप नहीं बनाता; उपलब्ध आधिकारिक AuroTap/एडमिन संपर्क माध्यम से जानकारी भेजें।' : 'This page does not create a support ticket automatically. Send these details through your official AuroTap/admin contact channel.'}</p>
+        <div className="sp-actions" aria-label="Supplier support contact methods">
+          <a className="sp-link" href={`mailto:${DEFAULT_CONTACT.supportEmail}?subject=${encodeURIComponent('AuroTap supplier support — orders or coverage')}`}>{isHindi ? 'ईमेल सहायता' : 'Email support'} · {DEFAULT_CONTACT.supportEmail}</a>
+          <a className="sp-link" href={whatsappHref(DEFAULT_CONTACT.whatsappNumber, 'Hello AuroTap Support, I am a supplier. Issue: [orders/coverage/stock]. Order ID (if any): . Please help.')} target="_blank" rel="noopener noreferrer">{isHindi ? 'व्हाट्सऐप सहायता' : 'WhatsApp support'}</a>
+          <Link className="sp-link" href="/contact?subject=supplier">{isHindi ? 'संपर्क फ़ॉर्म' : 'Contact form'}</Link>
+        </div>
+        <p className="sp-hint">{isHindi ? 'ईमेल या WhatsApp खुलने के बाद संदेश भेजना ज़रूरी है। यह पेज अपने-आप टिकट नहीं बनाता।' : 'Send your message in the email or WhatsApp app after it opens. This page does not automatically create a ticket.'}</p>
       </article>
 
       <article className="sp-card">
