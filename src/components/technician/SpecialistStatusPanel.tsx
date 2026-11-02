@@ -86,8 +86,9 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
   useEffect(() => {
     if (!enabled || !userId) return;
     void refresh();
-    const onVisible = () => { if (document.visibilityState === 'visible' && navigator.onLine) void refresh(); };
-    const onOnline = () => { if (document.visibilityState === 'visible') void refresh(); };
+    let lastFocusRefresh = Date.now();
+    const onVisible = () => { if (document.visibilityState === 'visible' && navigator.onLine && Date.now() - lastFocusRefresh >= 8_000) { lastFocusRefresh = Date.now(); void refresh(); } };
+    const onOnline = () => { if (document.visibilityState === 'visible') { lastFocusRefresh = Date.now(); void refresh(); } };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     return () => {
