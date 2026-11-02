@@ -2213,6 +2213,7 @@ const fmtDate = (iso: string) => {
   const d = new Date(iso);
   if (!iso || Number.isNaN(d.getTime())) return 'Date TBD';
   return d.toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -2253,7 +2254,9 @@ const toISTDateKey = (value: unknown): string => {
     : raw;
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
 };
 const todayIST = () => toISTDateKey(new Date().toISOString());
 const tomorrowIST = () => {
@@ -2845,7 +2848,7 @@ export default function SupplierDashboardPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [ordersStale, setOrdersStale] = useState(false);
   const [networkOnline, setNetworkOnline] = useState(true);
-  const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number } | null>(null);
+  const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number | null; balance_requires_review?: boolean; payout_message?: string } | null>(null);
   const [ratingLoadState, setRatingLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
@@ -3061,7 +3064,7 @@ export default function SupplierDashboardPage() {
       const flat: Order[] = rows.map((row) => {
         const noteText = String(row.note ?? row.notes ?? '');
         const slotMatch = noteText.match(/(?:^|\|\s*)Slot:\s*([^|]+)/i);
-        const scheduledValue = row.scheduled_date || row.scheduled_at || row.scheduled_time || '';
+        const scheduledValue = row.scheduled_at || row.scheduled_date || row.scheduled_time || '';
         const scheduledDate = toISTDateKey(scheduledValue);
 
         return {
@@ -3310,7 +3313,7 @@ export default function SupplierDashboardPage() {
     const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
     const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString();
 
-    const todayOrders = orders.filter((o) => toISTDateKey(o.created_at) === today).length;
+    const todayOrders = orders.filter((o) => o.scheduled_date === today).length;
     const pendingOrders = orders.filter((o) =>
       ['pending', 'assigned', 'in_progress'].includes(o.status)
     ).length;
@@ -3501,7 +3504,7 @@ export default function SupplierDashboardPage() {
       activeOrders
         .filter((o) => {
           if (!matchesQuery(o, q)) return false;
-          if (filter === 'today') return toISTDateKey(o.created_at) === todayStr;
+          if (filter === 'today') return o.scheduled_date === todayStr;
           if (filter === 'tomorrow') return o.scheduled_date === tomorrowIST();
           if (filter === 'overdue') return !!o.scheduled_date && o.scheduled_date < todayStr;
           if (filter === 'cash') return o.payment_status !== 'paid';
@@ -3533,13 +3536,13 @@ export default function SupplierDashboardPage() {
       todays: todays.length,
       overdue: activeOrders.filter((o) => o.scheduled_date && o.scheduled_date < todayStr).length,
       cans: todays.reduce((sum, o) => sum + (o.cans_count ?? 0), 0),
-      cash: todays.reduce((sum, o) => sum + (o.payment_status === 'paid' ? 0 : o.amount), 0),
+      cash: todays.reduce((sum, o) => sum + (o.payment_status === 'paid' || String(o.payment_method ?? '').toLowerCase() !== 'cash' ? 0 : o.amount), 0),
       awaiting: activeOrders.filter((o) => o.status === 'assigned' && !o.accepted_at).length,
       slots: Array.from(slots.entries()),
     };
   }, [activeOrders, todayStr]);
 
-  const freeCans = stock ? Math.max(0, stock.cans_available - stock.reserved_cans) : 0;
+  const freeCans = stock ? Math.max(0, stock.cans_available - stock.reserved_cans - stock.reservation_buffer_cans) : 0;
   const lowStock = !!stock && freeCans <= stock.low_stock_alert;
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const deliveredCount = useMemo(() => orders.filter((o) => o.status === 'delivered').length, [orders]);
