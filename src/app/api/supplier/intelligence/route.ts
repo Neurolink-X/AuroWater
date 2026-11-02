@@ -6,6 +6,7 @@ import {
   forecastSupplierStock,
   supplierPerformance,
   groupAcceptedDeliveries,
+  supplierAreaPerformance,
   rankCoverageOpportunities,
   type SupplierOrderSample,
   type ZoneSample,
@@ -93,13 +94,16 @@ export async function GET(req: NextRequest) {
     // customers AND >=5 recent bookings per zone). They do not change service zones.
     const city = String(auth.ctx.profile.city ?? '').trim();
     let opportunities: ReturnType<typeof rankCoverageOpportunities> = [];
+    let areaPerformance: ReturnType<typeof supplierAreaPerformance> = [];
     let coverageComplete = false;
+    let areaComplete = !ownTruncated;
     if (city.length > 0) {
       const zonesResult = await db.from('service_zones')
         .select('id,name,city,status,center_lat,center_lng,services')
         .ilike('city', city).limit(ZONE_LIMIT + 1);
       if (!zonesResult.error && zonesResult.data && zonesResult.data.length <= ZONE_LIMIT) {
         const zones = zonesResult.data as ZoneSample[];
+        areaPerformance = ownTruncated ? [] : supplierAreaPerformance(own, zones);
         const zoneIds = zones.filter(z => ['AVAILABLE', 'LIMITED'].includes(String(z.status).toUpperCase()))
           .map(z => z.id);
         if (zoneIds.length > 0) {
@@ -126,6 +130,7 @@ export async function GET(req: NextRequest) {
         }
       }
     }
+    if (!city || (!coverageComplete && areaPerformance.length === 0)) areaComplete = false;
 
     const response = jsonOk({
       checked_at: new Date().toISOString(),
@@ -139,11 +144,13 @@ export async function GET(req: NextRequest) {
       },
       forecast, performance,
       route_groups: batches,
+      area_performance: areaPerformance,
       coverage_opportunities: opportunities,
       data_quality: {
         own_history_complete: !ownTruncated,
         route_groups_complete: routeComplete,
         coverage_sample_complete: coverageComplete,
+        area_performance_complete: areaComplete,
         forecast_note: 'Planning estimate only; 56-day supplier history, weekday mix and confirmed assignments. No delivery guarantee.',
         coverage_note: '30-day zone demand, >=5 unique customers. No competitor or customer identity is shared. A suggestion requires admin approval.',
         route_note: 'Accepted assignments only. Grouped by postal PIN and broad IST time-of-day, not an optimized navigation route.',
