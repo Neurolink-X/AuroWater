@@ -21,7 +21,7 @@ const items=parseFeed(new TextDecoder().decode(Buffer.concat(chunks,bytes)));
 const relevant=/\b(water|drinking|purif|tanker|pipeline|groundwater|reservoir|sanitation|filtration|jal jeevan|ro plant)\b/i;
 const reject=/\b(celebrity|cricket|election|stocks|share price|astrology|horoscope|movie|political party)\b/i;
 const existing=JSON.parse(await readFile(output,'utf8'));
-if(!Array.isArray(existing)||existing.length>200)throw Error('Invalid or oversized news store');
+if(!Array.isArray(existing)||existing.length>40)throw Error('Invalid or oversized news store');
 const seen=new Set(existing.map(p=>p.source_url));
 const candidate=items.find(p=>relevant.test(p.title)&&!reject.test(p.title)&&!seen.has(p.source_url)&&
   Date.now()-Date.parse(p.source_published_at)<7*86400000);
@@ -37,5 +37,5 @@ const brief={
  source_name:sourceName.slice(0,100),source_url:candidate.source_url,
  source_published_at:candidate.source_published_at,reviewed_at:date,publish_at:date
 };
-await writeFile(output,JSON.stringify([...existing,brief].slice(-120),null,2)+'\n');
+await writeFile(output,JSON.stringify([...existing,brief].slice(-20),null,2)+'\n');
 console.log('Published source-attributed news brief:',brief.slug);
