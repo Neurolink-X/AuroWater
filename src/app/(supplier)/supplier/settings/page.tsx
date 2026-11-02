@@ -243,9 +243,12 @@ export default function SupplierSettingsPage() {
         {/* Dispatch preferences */}
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
           <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone&apos;s temporary travel location. An incorrect city can prevent new orders.</p>
-          <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km`}>
+          <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km maximum`}>
             <input id="s-radius" type="range" min={1} max={100} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
+          <p className="text-sm leading-6 text-slate-600">
+            Your saved radius is a strict maximum distance from your approved delivery base. Only admin-approved service zones are eligible. Increasing your radius does not approve additional PIN codes or zones.
+          </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Base latitude" htmlFor="s-lat">
