@@ -204,7 +204,8 @@ const SECTIONS: { id: SectionId; title: string; description: string; keys: Manag
     { id: 'operations', title: 'Operations', description: 'Service coverage, order limits and automation.' },
     { id: 'support', title: 'Customer support', description: 'Contact details customers see when they need help.' },
   ] as const
-).map((s) => ({ ...s, keys: MANAGED_KEYS.filter((k) => FIELD_META[k].section === s.id) }));
+).filter((s) => s.id !== 'water')
+  .map((s) => ({ ...s, keys: MANAGED_KEYS.filter((k) => FIELD_META[k].section === s.id && !LOCKED_KEYS.has(k)) }));
 
 const ORDERED_KEYS: ManagedKey[] = SECTIONS.flatMap((s) => s.keys);
 
@@ -724,7 +725,7 @@ export default function AdminSettingsPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [query, setQuery] = useState('');
-  const [activeSection, setActiveSection] = useState<SectionId>('water');
+  const [activeSection, setActiveSection] = useState<SectionId>('fees');
   const deferredQuery = useDeferredValue(query);
 
   const mountedRef = useRef(false);
@@ -1014,7 +1015,7 @@ export default function AdminSettingsPage() {
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900">These are live production settings</p>
           <p className="mt-1 text-xs leading-5 text-amber-900/80">
-            Changes affect pricing, order assignment and customer operations. You’ll see a review of every change
+            Customer-facing prices are published only in Pricing. Changes here affect operational fees, order assignment and customer support. You’ll see a review of every change
             before anything is saved.
           </p>
         </div>
