@@ -244,6 +244,16 @@ const NAV = [
   },
 ] as const;
 
+// Keep the full route registry for search, direct links and existing permissions.
+// Group lower-frequency/overlapping tools instead of deleting their pages.
+const PRIMARY_NAV_HREFS = new Set([
+  '/admin/dashboard', '/admin/orders', '/admin/dispatch', '/admin/finance',
+  '/admin/verification', '/admin/users', '/admin/expansion', '/admin/pricing',
+  '/admin/blog', '/admin/settings',
+]);
+const PRIMARY_NAV = NAV.filter(item => PRIMARY_NAV_HREFS.has(item.href));
+const MORE_TOOLS = NAV.filter(item => !PRIMARY_NAV_HREFS.has(item.href));
+
 type NavItemType = (typeof NAV)[number];
 
 type PaletteItem = {
@@ -1122,7 +1132,7 @@ export default function AdminShell({
           </p>
 
           <div className="space-y-1">
-            {NAV.map((item) => (
+            {PRIMARY_NAV.map((item) => (
               <NavLink
                 key={item.href}
                 item={item}
@@ -1131,6 +1141,17 @@ export default function AdminShell({
                 onNavigate={handleNavigate}
               />
             ))}
+            <details className="mt-3 border-t border-white/10 pt-3" key={pathname.startsWith('/admin') ? 'admin-mobile-tools' : pathname}>
+              <summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide text-cyan-200 hover:bg-white/5">
+                More tools ({MORE_TOOLS.length})
+              </summary>
+              <div className="mt-2 space-y-1">
+                {MORE_TOOLS.map((item) => (
+                  <NavLink key={item.href} item={item} active={item.href === activeHref}
+                    collapsed={false} onNavigate={handleNavigate} />
+                ))}
+              </div>
+            </details>
           </div>
         </nav>
 
@@ -1236,7 +1257,7 @@ export default function AdminShell({
             )}
 
             <div className="space-y-1">
-              {NAV.map((item) => (
+              {PRIMARY_NAV.map((item) => (
                 <NavLink
                   key={item.href}
                   item={item}
@@ -1245,6 +1266,18 @@ export default function AdminShell({
                   onNavigate={handleNavigate}
                 />
               ))}
+              <details className="mt-3 border-t border-white/10 pt-3">
+                <summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-bold uppercase text-cyan-200 hover:bg-white/5"
+                  title={collapsed ? 'More admin tools' : undefined}>
+                  {collapsed ? '•••' : `More tools (${MORE_TOOLS.length})`}
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {MORE_TOOLS.map(item => (
+                    <NavLink key={item.href} item={item} active={item.href === activeHref}
+                      collapsed={collapsed} onNavigate={handleNavigate} />
+                  ))}
+                </div>
+              </details>
             </div>
           </nav>
 

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+const PostalIntelligenceTool = dynamic(() => import('@/components/admin/PostalIntelligenceTool'), { ssr: false });
 import { getToken } from '@/lib/api-client';
 
 type City = { id:string;name:string;slug:string;status:string;state:string|null };
@@ -149,6 +151,10 @@ export default function ExpansionCenterPage(){
         <button type="submit" disabled={creating||!newCity.lat||!newCity.lng} className="self-end rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Add city to waitlist</button>
       </form>
     </section>
+    <details className="group rounded-2xl border border-slate-200 bg-white">
+      <summary className="cursor-pointer p-5 text-lg font-bold text-slate-900">PIN Intelligence · validate zones, suppliers and postal data</summary>
+      <div className="px-3 pb-4 sm:px-5"><PostalIntelligenceTool /></div>
+    </details>
     {!loading&&report&&<p className="rounded-xl border bg-white p-4 text-sm text-slate-600">{report.note}</p>}
   </main>;
 }
