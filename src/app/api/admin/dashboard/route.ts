@@ -211,7 +211,10 @@ export async function GET(req: NextRequest) {
       buildDailyRevenue(sb, 7),
       buildTopSuppliers(sb),
       fetchRecentOrders(sb),
-    ]);
+    ]).then(
+      result => ({ ok: true as const, result }),
+      error => ({ ok: false as const, error }),
+    );
     const [
       cTotalOrders,
       cTodayOrders,
@@ -283,7 +286,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = await dashboardDetails;
+    const details = await dashboardDetails;
+    if (!details.ok) throw details.error;
+    const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = details.result;
 
     const totalRev = revSum(dTotalRevenue.data as Array<{ total_amount: unknown }> | null);
     const revToday = revSum(dRevenueToday.data as Array<{ total_amount: unknown }> | null);
