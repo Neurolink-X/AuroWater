@@ -1266,7 +1266,7 @@ export default function AdminShell({
                   onNavigate={handleNavigate}
                 />
               ))}
-              <details className="mt-3 border-t border-white/10 pt-3" defaultOpen={MORE_TOOLS.some(item => isNavActive(pathname, item.href))}>
+              <details className="mt-3 border-t border-white/10 pt-3">
                 <summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-bold uppercase text-cyan-200 hover:bg-white/5"
                   title={collapsed ? 'More admin tools' : undefined}>
                   {collapsed ? '•••' : `More tools (${MORE_TOOLS.length})`}
