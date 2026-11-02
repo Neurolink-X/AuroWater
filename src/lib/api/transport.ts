@@ -1,4 +1,5 @@
 /** Shared transport policy for both API clients. Never replay an uncertain write. */
+const TRANSIENT_READ_STATUSES = new Set([502, 503, 504]);
 export function jsonHeaders(input?: HeadersInit): Headers {
   const headers = new Headers(input);
   if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -53,11 +54,13 @@ export async function requestJson<T>(
       } catch (error) {
         controller.signal.throwIfAborted();
         if (!readOnly || attempt > 0) throw error;
-        await wait(350, controller.signal);
+        await wait(200, controller.signal);
         continue;
       }
-      if (readOnly && result.res.status === 503 && attempt === 0) {
-        await wait(800, controller.signal);
+      if (readOnly && TRANSIENT_READ_STATUSES.has(result.res.status) && attempt === 0) {
+        // Gateway failures are generally short-lived. One bounded recovery probe,
+        // never a replay of an order/payment/stock mutation.
+        await wait(300, controller.signal);
         continue;
       }
       return result;

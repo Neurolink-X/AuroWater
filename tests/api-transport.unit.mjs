@@ -38,12 +38,12 @@ test('GET recovers once from network loss with headers and credentials intact', 
   assert.equal(calls, 2);
 });
 
-test('GET retries 503 only once, and does not retry 401 or 429', async (t) => {
-  for (const status of [503, 401, 429]) {
+test('GET retries transient 502/503/504 only once, and does not retry 401 or 429', async (t) => {
+  for (const status of [502, 503, 504, 401, 429]) {
     let calls = 0;
     t.mock.method(globalThis, 'fetch', async () => { calls++; return response(status); });
     assert.equal((await requestJson('/api/read', {}, parse)).res.status, status);
-    assert.equal(calls, status === 503 ? 2 : 1);
+    assert.equal(calls, [502, 503, 504].includes(status) ? 2 : 1);
     t.mock.restoreAll();
   }
 });

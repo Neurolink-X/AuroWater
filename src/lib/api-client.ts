@@ -205,7 +205,7 @@ async function fetchWithRetryParse(
 }
 
 /** Same retry/credentials/network rules; parses JSON body without `{ success, data }` envelope (admin routes). */
-async function fetchWithRetryRaw(
+async function performFetchWithRetryRaw(
   path: string,
   init: RequestInit
 ): Promise<{ res: Response; body: unknown }> {
@@ -220,6 +220,32 @@ async function fetchWithRetryRaw(
       throw new ApiError('Request timed out', 504, 'TIMEOUT');
     }
     throw new ApiError('Network error', 503, 'NETWORK');
+  }
+}
+
+
+/** Coalesce concurrent identical admin GET reads without caching stale role data.
+ * Auth header participates in the key; never share abortable reads or writes.
+ */
+const inFlightRawGetRequests = new Map<string, Promise<{ res: Response; body: unknown }>>();
+
+async function fetchWithRetryRaw(
+  path: string,
+  init: RequestInit,
+): Promise<{ res: Response; body: unknown }> {
+  if ((init.method ?? 'GET').toUpperCase() !== 'GET' || init.signal) {
+    return performFetchWithRetryRaw(path, init);
+  }
+  const headers = new Headers(init.headers);
+  const key = [path, headers.get('Authorization') ?? '', headers.get('Accept') ?? '', String(init.cache ?? '')].join('|');
+  const existing = inFlightRawGetRequests.get(key);
+  if (existing) return existing;
+  const request = performFetchWithRetryRaw(path, init);
+  inFlightRawGetRequests.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (inFlightRawGetRequests.get(key) === request) inFlightRawGetRequests.delete(key);
   }
 }
 

@@ -5,6 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_METRICS = new Set(['CLS', 'FCP', 'INP', 'LCP', 'TTFB']);
+const ALLOWED_RUNTIME_ERRORS = new Set(['RUNTIME_ERROR', 'UNHANDLED_REJECTION', 'CHUNK_LOAD_ERROR']);
 const ALLOWED_GROUPS = new Set(['customer', 'supplier', 'technician', 'admin', 'public']);
 const API_BUDGETS: Record<string, number> = {
   customer_order_detail: WEB_VITALS_BUDGETS.API_CUSTOMER_ORDER.target,
@@ -45,11 +46,13 @@ export async function POST(request: NextRequest) {
   const value = Number(metric.value);
   const rating = String(metric.rating ?? '');
   const navigationType = String(metric.navigation_type ?? 'unknown');
-  const kind = metric.kind === 'api' ? 'api' : metric.kind === 'scroll' ? 'scroll' : 'web-vital';
+  const kind = metric.kind === 'api' ? 'api' : metric.kind === 'scroll' ? 'scroll' : metric.kind === 'runtime' ? 'runtime' : 'web-vital';
   const apiGroup = String(metric.api_group ?? '');
   const statusClass = String(metric.status_class ?? '');
   const metricAllowed = kind === 'api'
     ? name === 'API' && Object.hasOwn(API_BUDGETS, apiGroup) && ['2xx', '4xx', '5xx'].includes(statusClass)
+    : kind === 'runtime'
+      ? ALLOWED_RUNTIME_ERRORS.has(name) && value === 1
     : kind === 'scroll'
       ? name === 'SCROLL_LONG_TASK'
       : ALLOWED_METRICS.has(name) && ['good', 'needs-improvement', 'poor'].includes(rating);
@@ -59,11 +62,11 @@ export async function POST(request: NextRequest) {
     return new NextResponse(null, { status: 400 });
   }
 
-  const budget = kind === 'api' ? API_BUDGETS[apiGroup] : kind === 'scroll' ? 50 : BUDGETS[name];
+  const budget = kind === 'api' ? API_BUDGETS[apiGroup] : kind === 'scroll' ? 50 : kind === 'runtime' ? 0 : BUDGETS[name];
   const event = {
-    event: kind === 'api' ? 'aurotap.api_latency' : kind === 'scroll' ? 'aurotap.scroll_stall' : 'aurotap.web_vital',
+    event: kind === 'api' ? 'aurotap.api_latency' : kind === 'scroll' ? 'aurotap.scroll_stall' : kind === 'runtime' ? 'aurotap.runtime_error' : 'aurotap.web_vital',
     metric: name,
-    ...(kind === 'api' ? { api_group: apiGroup, status_class: statusClass, coalesced: metric.coalesced === true } : kind === 'scroll' ? {} : { rating, navigation_type: navigationType.slice(0, 32) }),
+    ...(kind === 'api' ? { api_group: apiGroup, status_class: statusClass, coalesced: metric.coalesced === true } : kind === 'scroll' || kind === 'runtime' ? {} : { rating, navigation_type: navigationType.slice(0, 32) }),
     value,
     route_group: group,
     budget_ms_or_score: budget,
