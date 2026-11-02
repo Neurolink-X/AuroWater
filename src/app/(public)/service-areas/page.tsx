@@ -45,7 +45,7 @@ function CityCard({ city }: { city: City }) {
       </div>
       <div className="mt-5">
         {active ? (
-          <Link href="/book?service=water_can"
+          <Link href={`/book?service=water_can&city=${encodeURIComponent(city.name)}`}
             aria-label={`Check water delivery availability in ${city.name}`}
             className="inline-flex min-h-11 items-center justify-center rounded-xl bg-sky-700
               px-4 py-2.5 text-sm font-bold text-white hover:bg-sky-800
