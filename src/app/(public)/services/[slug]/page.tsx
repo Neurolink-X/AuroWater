@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
-import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
+import { SERVICE_DETAILS, SHARED_FAQS, serviceSeoTitle, type ServiceDetail } from '../service-details';
 import { BRAND, SERVICES, SITE_URL } from '../services-data';
 import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 
@@ -273,10 +273,10 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
       <section className="mx-auto max-w-6xl px-5 pb-14 sm:pb-20" aria-labelledby="cities-h">
         <h2 id="cities-h" className="text-3xl font-black tracking-tight">{service.title} in {CITY_LINE}</h2>
         <p className="mt-3 max-w-2xl leading-7 text-slate-600">
-          {BRAND} lists {liveCities.length} active cities in its service directory. Availability depends on your exact area, so enter your address while booking and we will check it first. We do not serve Delhi NCR yet.
+          {BRAND} lists {liveCities.length} active cities in its service directory. Availability depends on your exact area, so enter your address while booking and we will check it first. Service coverage depends on the city, PIN code and verified partner availability.
         </p>
         <ul className="mt-8 grid gap-7 sm:grid-cols-3">
-          {liveCities.map((entry) => { const city = entry.name; return (
+          {liveCities.map(({ name: city }) => (
             <li key={city} className={`${RAISED_SM} p-6`}>
               <h3 className="font-extrabold text-slate-900">{city}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">Book {service.title.toLowerCase()} in supported areas of {city}. Check your address to see availability.</p>
