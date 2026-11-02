@@ -36,7 +36,6 @@ const NAV_ITEMS: readonly NavItem[] = [
 ];
 const MORE_ITEMS: readonly NavItem[] = [
   { href: '/supplier/settings', label: { en: 'Account & settings', hi: 'खाता और सेटिंग' } },
-  { href: '/supplier/profile', label: { en: 'Profile & address', hi: 'प्रोफ़ाइल और पता' } },
   { href: '/supplier/coverage', label: { en: 'Service areas', hi: 'सेवा क्षेत्र' } },
   { href: '/supplier/analytics', label: { en: 'Performance', hi: 'प्रदर्शन' } },
   { href: '/supplier/referrals', label: { en: 'Customer network', hi: 'ग्राहक नेटवर्क' } },
@@ -63,7 +62,7 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
   const rowRef = useRef<HTMLElement | null>(null);
   const activeRef = useRef<HTMLAnchorElement | null>(null);
   const moreRef = useRef<HTMLDetailsElement | null>(null);
-  const moreActive = MORE_ITEMS.some(i => pathname === i.href || pathname.startsWith(`${i.href}/`));
+  const moreActive = pathname.startsWith('/supplier/profile') || MORE_ITEMS.some(i => pathname === i.href || pathname.startsWith(`${i.href}/`));
 
   /* Centre the active tab inside the row (scrolls only the row, never the page) */
   useEffect(() => {
@@ -132,8 +131,7 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
           overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;
           -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scroll-snap-type:x proximity;
           --fl:0px;--fr:0px;
-          -webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%);
-          mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%)}
+          -webkit-mask-image:none;mask-image:none}
         .snav-row[data-fl='1']{--fl:28px}
         .snav-row[data-fr='1']{--fr:28px}
         .snav-row::-webkit-scrollbar{display:none}
