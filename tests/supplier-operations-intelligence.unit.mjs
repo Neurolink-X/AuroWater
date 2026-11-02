@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   istSlot, tomorrowInIST, forecastSupplierStock, supplierPerformance,
-  groupAcceptedDeliveries, rankCoverageOpportunities,
+  groupAcceptedDeliveries, supplierAreaPerformance, rankCoverageOpportunities,
 } from '../src/lib/supplier/intelligence.ts';
 
 const read = p => readFileSync(p, 'utf8');
@@ -86,6 +86,20 @@ test('coverage gaps require complete scan and at least five distinct customers',
   assert.equal(results[0].action, 'request_coverage');
   assert.equal(JSON.stringify(results).includes('customer_id'), false);
   assert.equal(rankCoverageOpportunities(zones, demand, [], 'supplier1', { lat: 28, lng: 77 }, true).length, 0);
+});
+
+test('supplier area performance is aggregated without identifiers', () => {
+  const summary = supplierAreaPerformance([
+    { id: 'one', zone_id: 'z1', status: 'COMPLETED', service_type: 'water_can', can_count: 4 },
+    { id: 'two', zone_id: 'z1', status: 'CANCELLED', service_type: 'water_can', can_count: 3 },
+    { id: 'three', zone_id: 'z2', status: 'ASSIGNED', service_type: 'water_can', can_count: 1 },
+  ], [{ id: 'z1', city: 'Kanpur', name: 'North' }, { id: 'z2', city: 'Kanpur', name: 'South' }]);
+  assert.equal(summary.length, 2);
+  assert.equal(summary[0].completed, 1);
+  assert.equal(summary[0].cancelled, 1);
+  assert.equal(summary[0].delivered_cans, 4);
+  assert.equal(JSON.stringify(summary).includes('customer_id'), false);
+  assert.equal(JSON.stringify(summary).includes('one'), false);
 });
 
 test('supplier intelligence endpoints remain role-scoped and non-mutating', () => {
