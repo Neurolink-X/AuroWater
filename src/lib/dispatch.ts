@@ -278,6 +278,7 @@ type Evaluation =
       cands: Cand[];
       rejected: Rejection[];
       onlineCount: number;
+      repeatSupplierId?: string | null;
       geo: { hasCoords: boolean; city: string };
     };
 
@@ -567,7 +568,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
   const ranked = prioritizeRepeatSupplier(rankSupplierCandidates(cands, affinityId), repeatSupplierId);
   cands.splice(0, cands.length, ...ranked);
 
-  return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, geo: geoInfo };
+  return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, repeatSupplierId, geo: geoInfo };
 }
 
 const ORDER_COLS =
@@ -641,12 +642,13 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         // Re-evaluated eligible candidates are already ranked with repeat first.
         // First wave is visible ONLY to that supplier; on expiry/rejection,
         // a subsequent wave can fan out to other verified nearby suppliers.
-        const repeatSupplier = ev.cands.find(c=>c.favourite) ?? null;
+        const repeatSupplierId = ev.repeatSupplierId ?? null;
         const {data:priorOffers,error:priorOffersError}=await db.from('order_supplier_offers')
           .select('supplier_id').eq('order_id',orderId);
         if(priorOffersError)return {supplierId:null,reason:'error'};
         const previous=new Set<string>(((priorOffers??[]) as {supplier_id:string}[]).map(o=>String(o.supplier_id)));
-        const chosen=chooseOfferWave(ev.cands.filter(c=>c.distance!==null),repeatSupplier?.id??null,previous,3);
+        const chosen=chooseOfferWave(ev.cands.filter(c=>c.distance!==null),repeatSupplierId,previous,3);
+        if(chosen.length===0) return {supplierId:null,reason:'not_pending'};
         if(chosen.length>0) {
           // An active offer wave must not be defeated by the old sequential path.
           const {data:openOffers,error:openOffersError}=await db.from('order_supplier_offers')
