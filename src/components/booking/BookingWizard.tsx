@@ -109,6 +109,8 @@ const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'g
 const MAX_FORM_STEP = 3;
 /** Draft payload version: 3 = three-page flow. Older drafts (no flow) used five form steps. */
 const DRAFT_FLOW = 3;
+// Short-lived resume: a quick return restores progress; a later visit starts clean.
+const DRAFT_RESUME_MS = 90_000;
 const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3 };
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
@@ -763,11 +765,15 @@ export default function BookingWizard() {
       const draftKey = bookingDraftKey(session?.userId ?? session?.aurotapId ?? null);
       const raw = safeSessionGet(draftKey);
       if (raw) {
-        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number; flow?: number };
+        const parsed = JSON.parse(raw) as { draft?: unknown; step?: number; flow?: number; savedAt?: number };
+        const recentlySaved = Number.isFinite(parsed.savedAt) && Number(parsed.savedAt) <= Date.now() && Date.now() - Number(parsed.savedAt) <= DRAFT_RESUME_MS;
+        if (!recentlySaved) {
+          safeSessionRemove(draftKey);
+        }
         const s = Math.floor(Number(parsed?.step));
         // Drafts saved by the old 5-step form are mapped onto the new 3 pages.
         const page = parsed?.flow === DRAFT_FLOW ? s : (LEGACY_STEP_TO_PAGE[s] ?? 0);
-        if (parsed?.draft && typeof parsed.draft === 'object' && page >= 1 && page <= MAX_FORM_STEP) {
+        if (recentlySaved && parsed?.draft && typeof parsed.draft === 'object' && page >= 1 && page <= MAX_FORM_STEP) {
           restored = sanitizeDraft(parsed.draft);
           restoredStep = page;
         } else { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); }
@@ -785,6 +791,11 @@ export default function BookingWizard() {
     const serviceParam = searchParams?.get('service') ?? '';
     const serviceOk    = SERVICE_LIST.some((s) => s.key === serviceParam);
     if (serviceOk) {
+      // Switching service must never resume the review step for another service.
+      if (restored && restored.serviceKey !== serviceParam) {
+        restoredStep = 1;
+        Object.assign(base, emptyDraft());
+      }
       base.serviceKey = serviceParam;
       if (serviceParam === 'water_can') {
         const waterParam = searchParams?.get('water');
@@ -840,7 +851,7 @@ export default function BookingWizard() {
 
   useEffect(() => {
     if (!hydrated || createdOrder) return;
-    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP), flow: DRAFT_FLOW })); } catch { /* quota */ }
+    try { safeSessionSet(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null), JSON.stringify({ draft, step: Math.min(step, MAX_FORM_STEP), flow: DRAFT_FLOW, savedAt: Date.now() })); } catch { /* quota */ }
   }, [draft, step, hydrated, createdOrder, session?.userId, session?.aurotapId]);
 
   useEffect(() => {
