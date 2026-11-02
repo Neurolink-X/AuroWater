@@ -24,7 +24,7 @@ export default function RadiusApprovalsPage(){
   setBusy(r.id);try{await authFetch('PATCH',{request_id:r.id,decision,note});await reload()}catch(e){setError(e instanceof Error?e.message:'Review failed')}finally{setBusy('')}
  };
  return <main className="mx-auto max-w-5xl space-y-5 p-5 text-slate-900">
- <header><h1 className="text-2xl font-bold">Partner delivery radius approvals</h1><p className="text-sm text-slate-600">Radius does not approve PIN codes, cities, skills or customer orders. Review the supplier's capacity and service commitments before expansion.</p></header>
+ <header><h1 className="text-2xl font-bold">Partner delivery radius approvals</h1><p className="text-sm text-slate-600">Radius does not approve PIN codes, cities, skills or customer orders. Review the supplier capacity and service commitments before expansion.</p></header>
  {error&&<p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">{error}</p>}
  <button className="rounded-xl bg-slate-900 px-4 py-2 text-white" onClick={()=>void reload()}>Refresh</button>
  {loading?<p>Loading requests…</p>:items.filter(x=>x.status==='PENDING').length===0?<p>No pending radius requests.</p>:
