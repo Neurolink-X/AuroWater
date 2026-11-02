@@ -378,6 +378,39 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     return { kind: 'error', message: 'Could not verify supplier eligibility or workload; dispatch needs retry.', action: 'supplier_eligibility_lookup_failed' };
   }
 
+  // Verify current authoritative zone/city state at dispatch time. A booking
+  // can outlive an admin zone deactivation, so never rely on booking-time checks.
+  if (order.zone_id) {
+    const { data: activeZone, error: activeZoneError } = await db
+      .from('service_zones')
+      .select('id, status, city_id, services')
+      .eq('id', order.zone_id)
+      .maybeSingle();
+    if (activeZoneError) {
+      console.error('[dispatch] zone status lookup failed', activeZoneError);
+      return { kind: 'error', message: 'Could not verify current service zone.', action: 'zone_status_lookup_failed' };
+    }
+    if (!activeZone || String(activeZone.status).toUpperCase() !== 'AVAILABLE') {
+      return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'zone_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+    }
+    if (activeZone.city_id) {
+      const { data: zoneCity, error: zoneCityError } = await db
+        .from('cities').select('status').eq('id', activeZone.city_id).maybeSingle();
+      if (zoneCityError) {
+        console.error('[dispatch] city status lookup failed', zoneCityError);
+        return { kind: 'error', message: 'Could not verify current city status.', action: 'city_status_lookup_failed' };
+      }
+      if (!zoneCity || String(zoneCity.status).toLowerCase() !== 'active') {
+        return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'city_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+      }
+    }
+    const enabledServices = activeZone.services as string[] | null;
+    const requestedService = String(typeRes.data?.key ?? order.service_type ?? '');
+    if (Array.isArray(enabledServices) && enabledServices.length > 0 && !enabledServices.includes(requestedService)) {
+      return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'service_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
+    }
+  }
+
   // Prefer suppliers explicitly mapped to this service zone. If those cannot fulfil the order,
   // allow an eligible same-city fallback from another zone (or with no mapping). The order must
   // already have passed customer-side serviceability checks; fallback never enables an
