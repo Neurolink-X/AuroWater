@@ -9,7 +9,8 @@ test('admin assignment and specialist review are atomic RPCs',()=>{
  assert.match(assign,/admin_assign_specialist/);
  assert.doesNotMatch(assign,/\.update\(\{\s*technician_id:/);
  assert.match(review,/review_technician_capability/);
- assert.match(sql,/orders_verified_technician_assignment/);
+ const guard=read('../supabase/migrations/20261102184000_specialist_postdeploy_guard.sql');
+ assert.match(guard,/orders_verified_technician_assignment/);
  assert.match(sql,/FOR UPDATE/);
  assert.match(sql,/accepted_at IS NOT NULL/);
 });
