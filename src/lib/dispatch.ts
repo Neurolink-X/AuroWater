@@ -1,3 +1,4 @@
+import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
 
@@ -520,16 +521,31 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     });
   }
 
-  cands.sort(
-    (a, b) =>
-      a.coverageTier - b.coverageTier ||
-      a.group - b.group ||
-      (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY) ||
-      Number(b.favourite) - Number(a.favourite) ||
-      b.tier - a.tier ||
-      a.load - b.load ||
-      a.id.localeCompare(b.id)
-  );
+  let affinityId: string | null = null;
+  if (order.customer_id) {
+    // Explicit customer choice overrides the original referring supplier.
+    const now = new Date().toISOString();
+    const { data: preferences, error: preferenceError } = await db
+      .from('supplier_customer_relationships')
+      .select('supplier_id,status,priority_expires_at,customer_confirmed_at')
+      .eq('customer_id', order.customer_id)
+      .eq('referral_source', 'customer_choice')
+      .eq('status', 'active')
+      .gt('priority_expires_at', now)
+      .limit(10);
+    if (!preferenceError) affinityId = preferredSupplierId(preferences ?? []);
+    if (!affinityId) {
+      const { data: referrals, error: referralError } = await db
+        .from('supplier_referral_attributions')
+        .select('supplier_id,priority_expires_at')
+        .eq('customer_id', order.customer_id)
+        .gt('priority_expires_at', now)
+        .limit(1);
+      if (!referralError) affinityId = referrals?.[0]?.supplier_id ?? null;
+    }
+  }
+  const ranked = rankSupplierCandidates(cands, affinityId);
+  cands.splice(0, cands.length, ...ranked);
 
   return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, geo: geoInfo };
 }
