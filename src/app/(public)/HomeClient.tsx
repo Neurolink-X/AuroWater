@@ -1,5 +1,4 @@
 'use client';
-import PricingLoading from '@/components/pricing/PricingLoading';
 import { pricingFaqs } from '@/lib/pricing/presentation';
 
 import Link from 'next/link';
@@ -301,10 +300,15 @@ export default function HomeClient() {
 
   const s = liveServices[svc];
 
-  if (!pricingReady) return <PricingLoading error={pricingError} retry={refreshSettings} />;
 
   return (
     <>
+      {!pricingReady && (
+        <div role="status" aria-live="polite" className="relative z-20 flex flex-wrap items-center justify-center gap-2 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950">
+          <span>{pricingError ? 'Live prices are temporarily unavailable. Prices shown are indicative; checkout will verify the latest total.' : 'Refreshing live prices in the background. Final prices are verified at checkout.'}</span>
+          {pricingError && <button type="button" onClick={() => void refreshSettings()} className="rounded-md border border-amber-700 px-3 py-1 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Retry</button>}
+        </div>
+      )}
       <style>{`
         :root{--navy:#020c18;--font-display:'Bricolage Grotesque','Syne',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--fd:var(--font-display);--glass:rgba(7,30,52,.65);--glass-b:rgba(14,165,233,.16)}
         *,*::before,*::after{box-sizing:border-box}
