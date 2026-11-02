@@ -10,7 +10,7 @@ import {
 import { Check, ChevronDown, MapPin, Search, X } from 'lucide-react';
 
 import type { City } from '@/lib/cities';
-import { FALLBACK_CITIES } from '@/lib/cities';
+
 import { safeSessionGet, safeSessionSet } from '@/lib/storage';
 
 export type { City };
@@ -54,7 +54,7 @@ export default function CitySelector({
   onChange,
   className,
 }: Props) {
-  const [cities, setCities] = useState<City[]>(FALLBACK_CITIES);
+  const [cities, setCities] = useState<City[]>([]);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -93,14 +93,14 @@ export default function CitySelector({
     void fetch('/api/cities')
       .then(async (response) => {
         if (!response.ok) {
-          return FALLBACK_CITIES;
+          return [];
         }
 
         const data = (await response.json()) as City[];
 
         return Array.isArray(data)
           ? data
-          : FALLBACK_CITIES;
+          : [];
       })
       .then((data) => {
         if (cancelled) return;
@@ -117,7 +117,7 @@ export default function CitySelector({
       })
       .catch(() => {
         if (!cancelled) {
-          setCities(FALLBACK_CITIES);
+          setCities([]);
         }
       })
       .finally(() => {
