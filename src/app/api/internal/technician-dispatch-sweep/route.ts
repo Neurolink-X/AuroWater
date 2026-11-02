@@ -7,6 +7,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 170;
 
 const BATCH_SIZE = 25;
+const MAX_SWEEP_IN_FLIGHT = 1;
+// Per-instance guard reduces accidental overlapping cron invocations. This is
+// NOT a distributed lock; database-backed leases remain required at scale.
+let sweepInFlight = 0;
 const MAX_RUNTIME_MS = 150_000;
 const RECENT_ORDER_GRACE_MS = 30_000;
 const SUPPLIER_RETRY_INTERVAL_MS = 5 * 60_000;
@@ -34,6 +38,21 @@ async function runSweep(req: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  if (sweepInFlight >= MAX_SWEEP_IN_FLIGHT) {
+    return Response.json({ ok: false, error: 'Dispatch sweep already running', retry_after_seconds: 10 }, {
+      status: 429,
+      headers: { 'Retry-After': '10', 'Cache-Control': 'no-store' },
+    });
+  }
+  sweepInFlight += 1;
+  try {
+  return await executeSweep(startedAt);
+  } finally {
+    sweepInFlight -= 1;
+  }
+}
+
+async function executeSweep(startedAt: number) {
   const db = createServiceClient();
 
   // Read the same retry ceiling used by dispatchTechnicianJob. Exhausted jobs
