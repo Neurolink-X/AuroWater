@@ -1,7 +1,7 @@
-name: Publish preapproved evergreen blog guides
+name: Weekly automatic water news brief
 on:
   schedule:
-    - cron: '23 3 * * *'
+    - cron: '23 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -16,11 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Three-day cadence
+      - name: Enable scheduled or manual run
         id: cadence
-        run: |
-          day=$(( $(date -u +%s) / 86400 ))
-          if (( day % 3 == 0 )); then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; fi
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         if: steps.cadence.outputs.run == 'true'
         with:
@@ -32,16 +30,13 @@ jobs:
       - name: Fetch and prepare one attributed current news brief
         if: steps.cadence.outputs.run == 'true'
         run: node scripts/auto-publish-water-news.mjs
-      - name: Generate one preapproved evergreen guide
-        if: steps.cadence.outputs.run == 'true'
-        run: node scripts/publish-editorial-guides.mjs
       - name: Publish only if editorial store changed
         if: steps.cadence.outputs.run == 'true'
         run: |
           set -euo pipefail
-          if git diff --quiet -- src/data/auto-guides.json src/data/water-news-reviewed.json; then exit 0; fi
+          if git diff --quiet -- src/data/water-news-reviewed.json; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data/auto-guides.json src/data/water-news-reviewed.json
-          git commit -m "content: publish scheduled preapproved evergreen guide"
+          git add src/data/water-news-reviewed.json
+          git commit -m "content: publish weekly attributed water news brief"
           git push origin HEAD:main
