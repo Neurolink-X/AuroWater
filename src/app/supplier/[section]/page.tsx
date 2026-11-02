@@ -8,6 +8,7 @@ import { formatSupplierSchedule } from '@/lib/supplier/schedule-display';
 import { DEFAULT_CONTACT, whatsappHref } from '@/lib/contact-shared';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
+import SmartDispatchPanel from '@/components/supplier/SmartDispatchPanel';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
@@ -184,6 +185,7 @@ export default function SupplierSectionPage() {
       </header>
 
       {section === 'dispatch' && <PartnerJourney role="supplier" isHindi={isHindi} />}
+      {section === 'dispatch' && <div className="mt-4"><SmartDispatchPanel /></div>}
 
       <div className="mt-4 flex justify-end">
         <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>

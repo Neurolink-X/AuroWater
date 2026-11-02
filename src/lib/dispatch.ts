@@ -1,4 +1,4 @@
-import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
+import { preferredSupplierId, rankSupplierCandidates, selectRepeatSupplierId, prioritizeRepeatSupplier, chooseOfferWave } from './supplier-affinity';
 import { withinSupplierRadius } from './dispatch-radius';
 import { matchApprovedSupplierCoverage, type SupplierZoneCoverage } from './dispatch-coverage';
 import { technicianRadius } from './technician-service-radius';
@@ -60,6 +60,8 @@ const EXPIRED_REOFFER_COOLDOWN_MS = 10 * 60_000; // an expired offer may be repe
 const TECHNICIAN_RETRY_WINDOW_MS = 72 * 60 * 60_000; // stop retrying technician jobs older than this
 /** Set DISPATCH_REOFFER_EXPIRED=false to restore the old "never re-offer to a supplier who timed out" rule. */
 const REOFFER_EXPIRED = process.env.DISPATCH_REOFFER_EXPIRED !== 'false';
+// Controlled rollout: concurrent offers require both env opt-in and DB approval.
+const PARALLEL_OFFERS_OPT_IN = process.env.PARALLEL_SUPPLIER_OFFERS === 'true';
 
 /** Services handled by technicians. Water cans (and tankers) go through supplier dispatch. */
 const TECHNICIAN_SERVICES = ['ro_service', 'plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
@@ -276,6 +278,7 @@ type Evaluation =
       cands: Cand[];
       rejected: Rejection[];
       onlineCount: number;
+      repeatSupplierId?: string | null;
       geo: { hasCoords: boolean; city: string };
     };
 
@@ -366,6 +369,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       .select('supplier_id')
       .eq('customer_id', order.customer_id)
       .eq('status', 'COMPLETED')
+      .eq('service_type', 'water_can')
       .not('supplier_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -560,10 +564,11 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       if (!referralError) affinityId = referrals?.[0]?.supplier_id ?? null;
     }
   }
-  const ranked = rankSupplierCandidates(cands, affinityId);
+  const repeatSupplierId = selectRepeatSupplierId(cands, affinityId, favourite);
+  const ranked = prioritizeRepeatSupplier(rankSupplierCandidates(cands, affinityId), repeatSupplierId);
   cands.splice(0, cands.length, ...ranked);
 
-  return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, geo: geoInfo };
+  return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, repeatSupplierId, geo: geoInfo };
 }
 
 const ORDER_COLS =
@@ -627,6 +632,57 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     };
 
     if (!ev.cands.length) return noCandidates();
+    // Optional bounded parallel offer wave. Nothing is assigned or stock-reserved
+    // before a supplier explicitly claims, and existing sequential flow remains
+    // the fallback when the feature is disabled.
+    if (PARALLEL_OFFERS_OPT_IN) {
+      const {data: mode,error:modeError}=await db.from('settings')
+        .select('value').eq('key','parallel_supplier_offers_enabled').maybeSingle();
+      if(!modeError && String(mode?.value).toLowerCase()==='true') {
+        // Re-evaluated eligible candidates are already ranked with repeat first.
+        // First wave is visible ONLY to that supplier; on expiry/rejection,
+        // a subsequent wave can fan out to other verified nearby suppliers.
+        const repeatSupplierId = ev.repeatSupplierId ?? null;
+        const {data:priorOffers,error:priorOffersError}=await db.from('order_supplier_offers')
+          .select('supplier_id').eq('order_id',orderId);
+        if(priorOffersError)return {supplierId:null,reason:'error'};
+        const previous=new Set<string>(((priorOffers??[]) as {supplier_id:string}[]).map(o=>String(o.supplier_id)));
+        const chosen=chooseOfferWave(ev.cands.filter(c=>c.distance!==null),repeatSupplierId,previous,3);
+        if(chosen.length===0) return {supplierId:null,reason:'not_pending'};
+        if(chosen.length>0) {
+          // An active offer wave must not be defeated by the old sequential path.
+          const {data:openOffers,error:openOffersError}=await db.from('order_supplier_offers')
+            .select('id').eq('order_id',orderId).eq('status','OPEN')
+            .gt('expires_at',new Date().toISOString()).limit(1);
+          if(openOffersError) return {supplierId:null,reason:'error'};
+          if((openOffers??[]).length>0) return {supplierId:null,reason:'not_pending'};
+          const {data:issued,error:issueError}=await db.rpc('issue_parallel_water_offers',{
+            p_order_id:orderId,
+            p_suppliers:chosen.map(c=>c.id),
+            p_distances:chosen.map(c=>Math.round((c.distance??0)*100)/100),
+            p_duration_seconds:60,
+          });
+          if(!issueError && Number(issued)===0) {
+            // A concurrent worker may have already issued an offer wave. Avoid
+            // assigning sequentially before its recipients have responded.
+            return {supplierId:null,reason:'not_pending'};
+          }
+          if(!issueError && Number(issued)>0) {
+            await Promise.all(chosen.slice(0,Number(issued)).map(c=>
+              notify(c.id,'Nearby delivery opportunity','An eligible order is available. First confirmed supplier receives it.','system',orderId,'nearby_offer')
+            ));
+            return {supplierId:null,reason:'not_pending'};
+          }
+          if(issueError) {
+            console.error('[dispatch] parallel offer rollout failed',issueError.code);
+            // Fail closed: keep PENDING and retry, do not race a different mode.
+            await markAttempt(db,orderId);
+            return {supplierId:null,reason:'error'};
+          }
+        }
+      }
+    }
+
 
     let declined = 0;
     for (const c of ev.cands) {
