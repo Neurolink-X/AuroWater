@@ -352,6 +352,8 @@ function readCache(city?: string): { settings: Partial<PlatformSettings> | null;
 function writeCache(s: PlatformSettings, city?: string): void {
   // Only cache server-confirmed versioned pricing, never optimistic defaults.
   if (!Number.isInteger(s.pricing_version) || Number(s.pricing_version) <= 0) return;
+  const previous = readCache(city).settings;
+  if (Number(previous?.pricing_version || 0) > Number(s.pricing_version)) return;
   safeSet(cityCacheKey(city), JSON.stringify(s));
   safeSet(city ? cityCacheKey(city) + '_ts' : CACHE_TS_KEY, String(Date.now()));
 }
@@ -375,6 +377,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   const [error,   setError]   = React.useState<string | null>(null);
 
   const abortRef = React.useRef<AbortController | null>(null);
+  const latestVersionRef = React.useRef(0);
   const [verifiedCity, setVerifiedCity] = React.useState<string | null>(null);
   const pricingReady = pricingIsVerified(settings.pricing_version, verifiedCity, city);
 
@@ -393,6 +396,9 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       const raw  = await apiFetchSettings(ctrl.signal, city);
       const next = mergeSettings(raw);
       if (!ctrl.signal.aborted) {
+        const version = Number(next.pricing_version || 0);
+        if (version < latestVersionRef.current) return;
+        latestVersionRef.current = version;
         setSettings(next);
         setVerifiedCity(city?.trim().toLowerCase() || 'global');
         writeCache(next, city);
@@ -413,7 +419,13 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
     // Cached published settings are safe to display while a background refresh runs.
     // They are never sufficient to mark checkout pricing as server-verified.
-    if (cached && Number(cached.pricing_version) > 0) setSettings(mergeSettings(cached));
+    if (cached && Number(cached.pricing_version) > 0) {
+      const cachedVersion = Number(cached.pricing_version);
+      if (cachedVersion >= latestVersionRef.current) {
+        latestVersionRef.current = cachedVersion;
+        setSettings(mergeSettings(cached));
+      }
+    }
     void fresh;
     void refresh();
 
