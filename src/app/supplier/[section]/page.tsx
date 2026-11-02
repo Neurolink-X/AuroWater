@@ -9,6 +9,7 @@ import { DEFAULT_CONTACT, whatsappHref } from '@/lib/contact-shared';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
 import SmartDispatchPanel from '@/components/supplier/SmartDispatchPanel';
+import NearbyRoutePanel from '@/components/operations/NearbyRoutePanel';
 import { useParams } from 'next/navigation';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { createClient } from '@/lib/supabase/client';
