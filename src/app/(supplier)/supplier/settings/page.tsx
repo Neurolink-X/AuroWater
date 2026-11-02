@@ -142,6 +142,10 @@ export default function SupplierSettingsPage() {
   }, [applySnap]);
 
   const useMyLocation = () => {
+    toast.info('Update shop GPS via My profile & address for admin review.');
+    router.push('/supplier/profile');
+    return;
+
     const confirmed = window.confirm(
       'Use your CURRENT device position as the PERMANENT dispatch base? Only confirm if you are physically at your supplier shop/warehouse. A wrong city or temporary travel location can prevent nearby orders from reaching you.'
     );
@@ -259,21 +263,22 @@ export default function SupplierSettingsPage() {
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
           <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone&apos;s temporary travel location. An incorrect city can prevent new orders.</p>
           <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km`}>
-            <input id="s-radius" type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
+            <input id="s-radius" type="range" min={1} max={100} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Base latitude" htmlFor="s-lat">
-              <input id="s-lat" inputMode="decimal" className={INPUT} value={lat} onChange={(e) => setLat(e.target.value)} placeholder="26.4499" />
+              <input id="s-lat" readOnly className={INPUT} value={lat} onChange={(e) => setLat(e.target.value)} placeholder="26.4499" />
             </Field>
             <Field label="Base longitude" htmlFor="s-lng">
-              <input id="s-lng" inputMode="decimal" className={INPUT} value={lng} onChange={(e) => setLng(e.target.value)} placeholder="80.3319" />
+              <input id="s-lng" readOnly className={INPUT} value={lng} onChange={(e) => setLng(e.target.value)} placeholder="80.3319" />
             </Field>
           </div>
           <button type="button" onClick={useMyLocation} disabled={saving === 'location'} className={`${NU_SM} inline-flex min-h-12 items-center justify-center rounded-2xl px-5 text-sm font-extrabold text-slate-700 active:shadow-[inset_4px_4px_8px_#b7c8d9,inset_-4px_-4px_8px_#ffffff] ${FOCUS}`}>
             📍 Use my current location
           </button>
 
+          <Link href="/supplier/profile" className="text-sm font-bold text-emerald-700 underline">Change your shop address or GPS (admin review)</Link>
           <p className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-700">Water-can customer prices are managed by AuroTap. This account does not override checkout pricing.</p>
 
           <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950">
@@ -289,7 +294,7 @@ export default function SupplierSettingsPage() {
               const body: Record<string, unknown> = { zone_radius_km: radius };
               const la = Number(lat);
               const ln = Number(lng);
-              if (lat.trim() || lng.trim()) {
+              if (false && (lat.trim() || lng.trim())) {
                 if (!lat.trim() || !lng.trim() || !Number.isFinite(la) || !Number.isFinite(ln)) return toast.error('Enter both latitude and longitude, or use your current location.');
                 body.base_lat = la;
                 body.base_lng = ln;

@@ -18,7 +18,7 @@ export default function SupplierProfilePage() {
   const { language } = useLanguage();
   const isHindi = language === 'hi';
   const [data, setData] = useState<Data | null>(null);
-  const [form, setForm] = useState({ full_name: '', phone: '', business_name: '', city: '', address: '', pincode: '', reason: '' });
+  const [form, setForm] = useState({ full_name: '', phone: '', business_name: '', city: '', address: '', pincode: '', reason: '',base_lat:'',base_lng:'' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -40,7 +40,7 @@ export default function SupplierProfilePage() {
         full_name: value(d.profile?.full_name), phone: value(d.profile?.phone),
         business_name: value(d.profile?.business_name), city: value(d.profile?.city),
         address: value(s.business_address) || value(s.address),
-        pincode: value(s.pincode), reason: '',
+        pincode: value(s.pincode),reason: '',base_lat:s.base_lat==null?'':String(s.base_lat),base_lng:s.base_lng==null?'':String(s.base_lng),
       });
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load supplier profile.'); }
     finally { setLoading(false); }
@@ -56,7 +56,7 @@ export default function SupplierProfilePage() {
       if (!token) throw new Error('Please sign in again.');
       const res = await fetch('/api/supplier/profile', {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({...form,base_lat:form.base_lat.trim()?Number(form.base_lat):null,base_lng:form.base_lng.trim()?Number(form.base_lng):null}),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? 'Could not submit profile changes.');
@@ -97,6 +97,16 @@ export default function SupplierProfilePage() {
           {([
             ['full_name','Full name'],['phone','Phone number'],['business_name','Business name'],['city','City'],['address','Business/service address'],['pincode','PIN code'],
           ] as Array<[keyof typeof form,string]>).map(([key,label]) => <label key={key} className="text-sm font-semibold">{isHindi ? fieldLabelsHi[key] : label}<input value={form[key]} onChange={e => update(key,e.target.value)} maxLength={key === 'address' ? 300 : key === 'pincode' ? 6 : 100} inputMode={key === 'pincode' ? 'numeric' : key === 'phone' ? 'tel' : 'text'} autoComplete={key === 'pincode' ? 'postal-code' : key === 'phone' ? 'tel' : 'off'} className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" /></label>)}
+        </div>
+        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm">
+          <strong>Shop GPS is not your phone's GPS.</strong>
+          <p className="mt-1">You can register your shop remotely. Find the exact shop on the map, and copy its coordinates; review is required before dispatch changes.</p>
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([form.address,form.city,form.pincode].filter(Boolean).join(' '))}`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-bold underline">Find my shop on Google Maps</a>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label>Shop latitude<input value={form.base_lat} onChange={e=>update('base_lat',e.target.value)} inputMode="decimal" placeholder="26.4499" className="mt-1 w-full rounded-lg border bg-white p-3"/></label>
+            <label>Shop longitude<input value={form.base_lng} onChange={e=>update('base_lng',e.target.value)} inputMode="decimal" placeholder="80.3319" className="mt-1 w-full rounded-lg border bg-white p-3"/></label>
+          </div>
+          <p className="mt-2 text-xs">Submitting does not change live orders. Admin approves the complete shop address, city, PIN and coordinates together.</p>
         </div>
         <label className="mt-4 block text-sm font-semibold">Reason for change (optional)<textarea value={form.reason} onChange={e => update('reason',e.target.value)} maxLength={300} rows={2} className="mt-1 w-full min-w-0 rounded-xl border border-slate-200 p-3 font-normal" placeholder={isHindi ? 'उदाहरण: नया पता या सही PIN code' : 'e.g. moved to a new shop or corrected PIN code'} /></label>
         <button onClick={() => void submit()} disabled={saving} className="mt-5 rounded-xl bg-emerald-700 px-5 py-3 font-bold text-white disabled:opacity-50">{saving ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'एडमिन मंजूरी का अनुरोध करें' : 'Request admin approval')}</button>

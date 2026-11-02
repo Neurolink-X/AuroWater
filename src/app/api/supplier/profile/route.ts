@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       full_name: profileRes.data.full_name ?? null,
       phone: profileRes.data.phone ?? null,
       city: profileRes.data.city ?? null,
-      business_name: profileRes.data.business_name ?? null,
+      business_name: (settingsRes.data as {business_name?:string|null}|null)?.business_name ?? null,
       status: profileRes.data.status ?? null,
       is_active: profileRes.data.is_active ?? null,
       verification_status: profileRes.data.verification_status ?? null,
@@ -97,12 +97,14 @@ export async function PATCH(req: NextRequest) {
   const address = typeof body.address === 'string' ? body.address.trim() : '';
   const pincode = typeof body.pincode === 'string' ? body.pincode.trim() : '';
   const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 300) : '';
+  const latitude=body.base_lat,longitude=body.base_lng;
+  if(typeof latitude!=='number'||typeof longitude!=='number'||!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180||(latitude===0&&longitude===0))return jsonErr('Choose your actual shop map pin (not the phone travel location).',422);
 
   if (!fullName || fullName.length > 100) return jsonErr('Enter a valid full name (1–100 characters).', 422);
   if (phone && !/^[+0-9() -]{7,20}$/.test(phone)) return jsonErr('Enter a valid phone number.', 422);
   if (!city || city.length > 100) return jsonErr('Enter a valid city.', 422);
-  if (pincode && !/^\d{6}$/.test(pincode)) return jsonErr('PIN code must contain exactly 6 digits.', 422);
-  if (!address || address.length > 300) return jsonErr('Enter a valid business/service address.', 422);
+  if (!/^\d{6}$/.test(pincode)) return jsonErr('PIN code must contain exactly 6 digits.', 422);
+  if (!address || address.length < 8 || address.length > 300) return jsonErr('Enter a valid business/service address.', 422);
 
   const db = createServiceClient();
   const supplierId = auth.ctx.profile.id;
@@ -123,23 +125,30 @@ export async function PATCH(req: NextRequest) {
 
   const requested = {
     full_name: fullName, phone: phone || null, business_name: businessName || null,
-    city, address, pincode, reason: reason || null,
+    city, address, pincode,base_lat:latitude,base_lng:longitude,reason: reason || null,
   };
   const current = {
     full_name: profile.full_name ?? '', phone: profile.phone ?? '',
-    business_name: profile.business_name ?? '', city: profile.city ?? '',
+    business_name: settings?.business_name ?? '', city: profile.city ?? '',
     address: String(settings?.business_address ?? settings?.address ?? ''),
-    pincode: String(settings?.pincode ?? ''),
+    pincode: String(settings?.pincode ?? ''),base_lat:settings?.base_lat??null,base_lng:settings?.base_lng??null,
   };
   if (JSON.stringify(requested) === JSON.stringify({ ...current, reason: reason || null })) {
     return jsonErr('No profile changes to request.', 422);
   }
 
+  const {data:postal,error:postalError}=await db.from('pincode_directory').select('pincode').eq('pincode',pincode).limit(1);
+  if(postalError)return jsonErr('Postal verification temporarily unavailable',503);
+  if(!postal?.length)return jsonErr('PIN not found in the postal directory',422);
+  const {data:pending,error:pendingError}=await db.from('supplier_profile_change_requests').select('id').eq('supplier_id',supplierId).eq('status','PENDING').limit(1);
+  if(pendingError)return jsonErr('Could not check pending shop requests',503);
+  if(pending?.length)return jsonErr('An earlier shop request is pending admin approval',409);
   const { error } = await db.from('supplier_profile_change_requests').insert({
     supplier_id: supplierId, requested_changes: requested, status: 'PENDING',
   });
   if (error) {
-    console.error('[supplier/profile] change request save failed', error);
+    console.error('[supplier/profile] change request save failed',{code:error.code});
+    if(error.code==='23505')return jsonErr('A shop request is already pending',409);
     return jsonErr('Your profile change request could not be saved. No changes were submitted. Please retry once; if the problem continues, contact support.', 502);
   }
   return jsonOk({ status: 'PENDING', message: 'Profile change request sent to admin for review.' });
