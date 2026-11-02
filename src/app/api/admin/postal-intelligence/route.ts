@@ -79,7 +79,8 @@ export async function GET(req: NextRequest) {
       candidateIds.length ? db.from('supplier_stock').select('supplier_id,cans_available,reserved_cans,reservation_buffer_cans').in('supplier_id', candidateIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
-    const capacityComplete = capacityVerified && !settings.error && !profiles.error && !stocks.error;
+    const capacityComplete = capacityVerified && !settings.error && !profiles.error && !stocks.error &&
+      zoneRows.every(z => z.city_id && byCityId.has(z.city_id));
     const online = new Set((settings.data ?? []).filter(s => s.is_online === true).map(s => s.user_id));
     const eligible = new Set((profiles.data ?? []).filter(p =>
       p.role === 'supplier' && p.is_active !== false &&
