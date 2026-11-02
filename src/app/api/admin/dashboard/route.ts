@@ -204,6 +204,14 @@ export async function GET(req: NextRequest) {
   const twoWeekISO = daysAgoISO(14);
 
   try {
+    // Start expensive chart/recent-order work concurrently with KPI counts, not
+    // only after the slowest count finishes. This removes one network waterfall.
+    const dashboardDetails = Promise.all([
+      buildDailyOrders(sb, 7),
+      buildDailyRevenue(sb, 7),
+      buildTopSuppliers(sb),
+      fetchRecentOrders(sb),
+    ]);
     const [
       cTotalOrders,
       cTodayOrders,
@@ -275,12 +283,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = await Promise.all([
-      buildDailyOrders(sb, 7),
-      buildDailyRevenue(sb, 7),
-      buildTopSuppliers(sb),
-      fetchRecentOrders(sb),
-    ]);
+    const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = await dashboardDetails;
 
     const totalRev = revSum(dTotalRevenue.data as Array<{ total_amount: unknown }> | null);
     const revToday = revSum(dRevenueToday.data as Array<{ total_amount: unknown }> | null);
