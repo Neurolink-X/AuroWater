@@ -1,7 +1,7 @@
 name: Production health watchdog
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,7 +32,7 @@ jobs:
           const fs = require('node:fs');
           const data = fs.readFileSync('/tmp/health-result.json','utf8');
           fs.writeFileSync('/tmp/health-body.md', [
-            'Production read-only watchdog detected degraded endpoints.',
+            'Production read-only watchdog detected degraded endpoints. Each failing endpoint includes a suspected component, responsible team and investigation guidance.',
             '',
             'No production changes or financial operations were attempted.',
             '',
@@ -41,6 +41,8 @@ jobs:
             'Response:',
             '```json', data.slice(0,4000), '```',
             '',
+            'Admin: open /admin/operations-health once Supabase Auth is available; investigate failed components below. Check dispatch and pending-order recovery after the database becomes healthy.',
+            'Never assume an unverified checkout was accepted, and never mark payments successful from outage telemetry.',
             'Investigate and verify a fix in staging before deployment.'
           ].join('\n'));
           NODE

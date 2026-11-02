@@ -154,6 +154,7 @@ const TAB_KEYS = TABS.map((t) => t.key);
 const NAV_LINKS = [
   { href: '/admin/local-intelligence', label: 'Local Intelligence' },
   { href: '/admin/orders', label: 'Orders' },
+  { href: '/admin/operations-health', label: 'Operations Health' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/services', label: 'Services' },
   { href: '/admin/pricing', label: 'Pricing' },

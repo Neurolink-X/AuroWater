@@ -108,8 +108,11 @@ const bookingDraftKey = (userId?: string | null) => `${DRAFT_KEY}:${userId || 'g
 const MAX_FORM_STEP = 3;
 /** Draft payload version: 3 = three-page flow. Older drafts (no flow) used five form steps. */
 const DRAFT_FLOW = 3;
-// Short-lived resume: a quick return restores progress; a later visit starts clean.
-const DRAFT_RESUME_MS = 90_000;
+// Preserve the unfinished checkout through a short service incident. On restore,
+// the slot, serviceability, and live prices are validated again before checkout.
+const DRAFT_RESUME_MS = 24 * 60 * 60_000;
+const CHECKOUT_ATTEMPT_TTL_MS = 24 * 60 * 60_000;
+const checkoutAttemptKey = (userId?: string | null) => `aw_checkout_attempt:${userId || 'guest'}`;
 const LEGACY_STEP_TO_PAGE: Record<number, number> = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 3 };
 const MAX_CANS_ONE_TIME = 50;
 const MAX_CANS_SUBSCRIPTION = 200;
@@ -1466,7 +1469,11 @@ export default function BookingWizard() {
   const prevStep = () => goTo(view - 1);
 
   const resetWizard = useCallback(() => {
-    try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
+    try {
+      safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null));
+      safeSessionRemove(checkoutAttemptKey(session?.userId ?? session?.aurotapId ?? null));
+    } catch { /* */ }
+    checkoutAttempt.current = null;
     submitLock.current = false;
     geoReq.current += 1;
     setCreatedOrder(null); setSubmitError(null);
@@ -1606,16 +1613,36 @@ export default function BookingWizard() {
         plumber_type: draft.serviceKey === 'plumbing' ? (draft.plumberType ?? 'labour') : undefined,
       };
       const fingerprint = JSON.stringify(checkoutPayload);
+      const attemptStorageKey = checkoutAttemptKey(session?.userId ?? session?.aurotapId ?? null);
+      let restoredAttempt: { fingerprint: string; key: string; savedAt: number } | null = null;
+      try {
+        const raw = safeSessionGet(attemptStorageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { fingerprint?: string; key?: string; savedAt?: number };
+          if (parsed && parsed.fingerprint === fingerprint &&
+              typeof parsed.key === 'string' && /^[0-9a-f-]{36}$/i.test(parsed.key) &&
+              typeof parsed.savedAt === 'number' && Number.isFinite(parsed.savedAt) &&
+              parsed.savedAt <= Date.now() && Date.now() - parsed.savedAt < CHECKOUT_ATTEMPT_TTL_MS) {
+            restoredAttempt = { fingerprint: parsed.fingerprint, key: parsed.key, savedAt: parsed.savedAt };
+          }
+        }
+      } catch { /* Damaged session data cannot authorize a checkout. */ }
       const currentAttempt = checkoutAttempt.current;
       const key = currentAttempt?.fingerprint === fingerprint
         ? currentAttempt.key
-        : (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : '');
-      if (key) checkoutAttempt.current = { fingerprint, key };
+        : restoredAttempt?.key ?? (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : '');
+      if (key) {
+        checkoutAttempt.current = { fingerprint, key };
+        safeSessionSet(attemptStorageKey, JSON.stringify({ fingerprint, key, savedAt: Date.now() }));
+      }
       const order = await customerOrderCreate({
         ...checkoutPayload,
         ...(key ? { checkout_request_id: key } : {}),
       });
-      try { safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null)); } catch { /* */ }
+      try {
+        safeSessionRemove(bookingDraftKey(session?.userId ?? session?.aurotapId ?? null));
+        safeSessionRemove(attemptStorageKey);
+      } catch { /* */ }
       setDraft((d) => ({ ...d, timeSlot: sv.time_slot, startTime: sv.startTime, endTime: sv.endTime }));
       setCreatedOrder(order);
       checkoutAttempt.current = null;
@@ -1643,7 +1670,16 @@ export default function BookingWizard() {
         goTo(2);
         return;
       }
-      const msg = e instanceof ApiError ? e.message : 'Booking failed. Please try again.';
+      const uncertain = !(e instanceof ApiError) || e.status >= 500 || e.code === 'NETWORK' || e.code === 'TIMEOUT';
+      if (uncertain) {
+        // Server-side writes can succeed before the response is lost. Preserve the same
+        // request UUID and NEVER replay the mutation automatically.
+        const msg = 'We could not verify your booking response. Your details are saved in this tab. Check Order History first; if needed, retry here using the same request reference. Please do not pay twice.';
+        setSubmitError(msg);
+        toast.warning(msg);
+        return;
+      }
+      const msg = e.message;
       setSubmitError(msg); toast.error(msg);
     } finally { setSubmitting(false); }
   };
