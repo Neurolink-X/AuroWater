@@ -41,7 +41,7 @@ import Image from 'next/image';
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME?.trim() || 'AuroTap';
 
-const REVEAL_DELAY = '120ms'; // nothing shows before this (prevents flicker)
+const REVEAL_DELAY = '220ms'; // nothing shows before this (prevents flicker)
 const SLOW_HINT_AFTER = '4s'; // "taking longer than usual" message
 
 const loadingCss = `
@@ -52,6 +52,10 @@ const loadingCss = `
   --al-accent-b:#2563EB;
   animation:al-reveal .2s ease-out ${REVEAL_DELAY} both;
 }
+
+/* Keep loading content compact so route changes never resemble a second splash. */
+.al-root { contain:layout style; }
+@media (prefers-reduced-motion:reduce){.al-root{animation-duration:.01ms}}
 
 /* ── Progress bar (top of screen) ── */
 .al-bar{
@@ -110,7 +114,7 @@ export default function Loading() {
         role="status"
         aria-live="polite"
         aria-busy="true"
-        className="al-root mx-auto flex min-h-[60svh] w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8"
+        className="al-root mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-8"
       >
         <span className="sr-only">Loading {APP_NAME}…</span>
 
