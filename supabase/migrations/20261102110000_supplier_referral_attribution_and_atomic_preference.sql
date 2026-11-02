@@ -16,7 +16,7 @@ CREATE OR REPLACE FUNCTION public.set_customer_supplier_preference(p_customer uu
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_now timestamptz := now();
 BEGIN
- IF auth.role() <> 'service_role' THEN RAISE EXCEPTION 'service role required'; END IF;
+ IF current_user <> 'service_role' THEN RAISE EXCEPTION 'service role required'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended(p_customer::text, 17));
  IF p_remove THEN
    UPDATE public.supplier_customer_relationships SET status='revoked',updated_at=v_now
