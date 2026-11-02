@@ -390,7 +390,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       console.error('[dispatch] zone status lookup failed', activeZoneError);
       return { kind: 'error', message: 'Could not verify current service zone.', action: 'zone_status_lookup_failed' };
     }
-    if (!activeZone || String(activeZone.status).toUpperCase() !== 'AVAILABLE') {
+    if (!activeZone || !['AVAILABLE', 'LIMITED'].includes(String(activeZone.status).toUpperCase())) {
       return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'zone_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
     }
     if (activeZone.city_id) {
@@ -406,7 +406,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
     const enabledServices = activeZone.services as string[] | null;
     const requestedService = String(typeRes.data?.key ?? order.service_type ?? '');
-    if (Array.isArray(enabledServices) && enabledServices.length > 0 && !enabledServices.includes(requestedService)) {
+    if (Array.isArray(enabledServices) && !enabledServices.includes(requestedService)) {
       return { kind: 'ok', cands: [], rejected: [...rejected, { supplierId: 'zone', reason: 'service_unavailable' }], onlineCount: onlineRows.length, geo: geoInfo };
     }
   }
