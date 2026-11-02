@@ -1060,7 +1060,17 @@ export type SupplierEarningsSummary = {
   period: string;
   order_count: number;
   gross_amount: number;
-  pending_payout: number;
+  pending_payout: number | null;
+  balance_requires_review?: boolean;
+  payout_message?: string;
+  customer_payment_explainer?: string;
+  supplier_settlement_explainer?: string;
+  wallet_breakdown?: {
+    total_earned: number;
+    cash_to_remit: number;
+    total_paid_out: number;
+    payout_requested: number;
+  } | null;
 };
 
 export type SupplierStock = {
