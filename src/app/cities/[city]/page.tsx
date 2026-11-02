@@ -4,31 +4,26 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CITIES, PRICING, SITE, MAX_LOCK_MONTHS, CAN_FLOOR } from '@/lib/marketing-pricing';
+import { PRICING, SITE, MAX_LOCK_MONTHS, CAN_FLOOR } from '@/lib/marketing-pricing';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
+import type { City } from '@/lib/cities';
 
-export const dynamicParams = false;
-export const revalidate = 3600; // re-render hourly so a scheduled price change shows up without a redeploy
-
-type City = (typeof CITIES)[number];
+export const dynamicParams = true;
+export const dynamic = 'force-dynamic'; // Newly activated admin cities resolve without redeploy.
 type CityPageProps = { params: Promise<{ city: string }> };
 
-const findCity = (slug: string): City | undefined => CITIES.find(c => c.slug === slug.toLowerCase());
+const findCity = async (slug: string): Promise<City | undefined> =>
+  (await getPublicServiceCities()).find(c => c.slug === slug.toLowerCase());
 const inr = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
-export function generateStaticParams(): Array<{ city: string }> {
-  return CITIES.map(c => ({ city: c.slug }));
-}
-
 function faqsFor(city: City) {
-  const live = city.status === 'live';
+  const live = city.status === 'active';
   const { water, tank, plumber } = PRICING;
   return [
     { q: `How much does RO water delivery cost in ${city.name}?`,
       a: `Normal RO starts at ${inr(water.normal)} and chilled RO at ${inr(water.chilled)} per 20L can where a verified supplier is available. See the final checkout total and serviceability first.` },
-    { q: `Do you deliver water in ${city.areas[0]} and nearby areas?`,
-      a: live
-        ? `Yes. We accept service requests throughout all areas of ${city.name}, including ${city.areas.join(', ')}. The listed neighborhoods are examples, not coverage limits. Supplier matching continues after you place the request.`
-        : `We serve selected PIN codes in ${city.name}, including areas such as ${city.areas.slice(0, 4).join(', ')}. Enter your PIN code at booking and we confirm availability before you pay.` },
+    { q: `Do you deliver water in ${city.name}?`,
+      a: live ? `You can check service availability for ${city.name}. Enter your exact PIN code and address to verify the service and eligible supplier before booking.` : `This city is not live yet. Check the service-area directory for updates and join the waitlist.` },
     { q: `How much does water tank cleaning cost in ${city.name}?`,
       a: `Tank cleaning starts from ${inr(tank[0].from)} for tanks up to 500 litres, ${inr(tank[1].from)} up to 1,000 litres and ${inr(tank[2].from)} up to 2,000 litres. Larger or heavily soiled tanks are quoted before work begins.` },
     { q: `What is the plumber visit charge in ${city.name}?`,
@@ -42,12 +37,12 @@ function faqsFor(city: City) {
 
 export async function generateMetadata({ params }: CityPageProps): Promise<Metadata> {
   const { city: raw } = await params;
-  const city = findCity(raw);
+  const city = await findCity(raw);
   if (!city) return { title: `City not found | ${SITE.name}`, robots: { index: false, follow: false } };
 
   const title = `RO Water, Plumber & Tank Cleaning in ${city.name} | ${SITE.name}`;
   const description =
-    `20L RO water cans from ${inr(PRICING.water.normal)} in ${city.name}. Citywide service requests are accepted; supplier matching continues after order placement. Check final prices before you confirm. Cash + UPI.`;
+    `Check RO water, plumber and tank cleaning availability in ${city.name}. Exact PIN code, service area, price and supplier readiness are checked before booking.`;
   const url = `/cities/${city.slug}`;
 
   return {
@@ -72,7 +67,7 @@ export default async function CityPage({ params }: CityPageProps) {
   const live = city.status === 'live';
   const pageUrl = `${SITE.url}/cities/${city.slug}`;
   const faqs = faqsFor(city);
-  const others = CITIES.filter(c => c.slug !== city.slug);
+  const others = directory.filter(c => c.slug !== city.slug);
   const book = (service: string) => `/book?service=${service}&city=${city.slug}`;
 
   const structuredData = {
@@ -144,7 +139,7 @@ export default async function CityPage({ params }: CityPageProps) {
           <div>
             <span className={`inline-flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-semibold shadow-sm ${live ? 'border-emerald-200 text-emerald-800' : 'border-amber-200 text-amber-800'}`}>
               <span className={`h-2 w-2 rounded-full ${live ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-              {live ? `Live in ${city.name}` : `${city.name}: select PIN codes`}
+              {live ? `Check coverage in ${city.name}` : `${city.name}: coming soon`}
             </span>
             <h1 className="mt-5 text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">
               RO water, plumber &amp; tank cleaning
@@ -152,7 +147,7 @@ export default async function CityPage({ params }: CityPageProps) {
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 sm:text-lg">
               20L RO water cans from <strong className="text-slate-900">{inr(PRICING.water.normal)}</strong>, plumbers for leaks and fittings, and
-              scheduled water tank cleaning across {city.areas.slice(0, 4).join(', ')} and more. {live
+              scheduled water tank cleaning in supported areas of {city.name}. {live
                 ? 'See the total before you confirm.'
                 : 'Enter your PIN code to confirm availability before you pay.'}
             </p>
@@ -218,7 +213,7 @@ export default async function CityPage({ params }: CityPageProps) {
       <section className="border-y border-slate-100 bg-slate-50" aria-labelledby="areas-h">
         <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
           <h2 id="areas-h" className="text-2xl font-extrabold tracking-tight sm:text-3xl">Areas we cover in {city.name}</h2>
-          <p className="mt-2 max-w-2xl text-slate-600">{live ? 'Water, plumbing and tank cleaning across these areas and nearby localities.' : 'We serve approved PIN codes. These areas are covered, and we confirm your exact address at booking.'}</p>
+          <p className="mt-2 max-w-2xl text-slate-600">{live ? 'Serviceability depends on your exact PIN code, selected service and provider coverage.' : 'This city is not live yet. Join the waitlist for availability updates.'}</p>
           <ul className="mt-6 flex flex-wrap gap-2">
             {city.areas.map(a => (
               <li key={a} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">📍 {a}</li>
@@ -270,7 +265,7 @@ export default async function CityPage({ params }: CityPageProps) {
             <li key={c.slug}>
               <Link href={`/cities/${c.slug}`} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold hover:border-cyan-200 hover:bg-cyan-50">
                 {c.name}
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === 'live' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{c.status === 'live' ? 'Live' : 'Select PINs'}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{c.status === 'active' ? 'Check coverage' : 'Coming soon'}</span>
               </Link>
             </li>
           ))}
