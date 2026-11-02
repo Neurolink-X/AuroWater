@@ -10,7 +10,7 @@ type Report = {
   checked_at: string;
   duration_ms: number;
   checks: Record<'database' | 'orders' | 'cities', Probe>;
-  pending_sample: { checked: number; stale_over_10m: number; capped: boolean } | null;
+  pending_sample: { checked: number; overdue_unassigned_water: number; overdue_unassigned_technician: number; capped: boolean } | null;
   recovery: string[];
   note: string;
 };
@@ -98,7 +98,9 @@ export default function OperationsHealthPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="font-bold">Pending order investigation</h2>
           {report.pending_sample ? <>
-            <p className="mt-2 text-sm text-slate-700">Oldest pending sample: {report.pending_sample.checked} checked, {report.pending_sample.stale_over_10m} older than 10 minutes.</p>
+            <p className="mt-2 text-sm text-slate-700">Oldest pending sample: {report.pending_sample.checked} checked.</p>
+            <p className="mt-2 text-sm font-semibold text-amber-800">Overdue unassigned water orders: {report.pending_sample.overdue_unassigned_water}</p>
+            <p className="mt-1 text-sm font-semibold text-amber-800">Overdue unassigned technician jobs: {report.pending_sample.overdue_unassigned_technician}</p>
             {report.pending_sample.capped && <p className="mt-1 text-sm text-amber-800">Sample capped at 100 orders. More may be pending.</p>}
           </> : <p className="mt-2 text-sm text-amber-800">Pending-order data could not be verified; no backlog estimate is available.</p>}
           <p className="mt-2 text-xs text-slate-500">{report.note}</p>
