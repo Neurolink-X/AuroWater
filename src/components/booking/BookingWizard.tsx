@@ -2695,7 +2695,7 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || pricingLoading || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
+                    <button type="button" disabled={submitting || pricingLoading || !pricingReady || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
                       {submitting ? 'Placing your order…' : 'Confirm booking →'}
                     </button>
                   )}
