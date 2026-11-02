@@ -307,8 +307,8 @@ assert.match(activeSupplierDashboard, /Admin approval is required before you can
 const dispatchSource = readFileSync(join(root, 'src', 'lib', 'dispatch.ts'), 'utf8');
 const activeDispatchSource = dispatchSource.split('export async function dispatchOrder(')[0];
 assert.match(dispatchSource, /coverageTier - b\.coverageTier/);
-assert.match(activeDispatchSource, /if \(links\.length > 0\)/);
-assert.match(activeDispatchSource, /reject\('zone_not_approved', String\(order\.zone_id\)\)/);
+assert.match(activeDispatchSource, /matchApprovedSupplierCoverage/);
+assert.match(activeDispatchSource, /reject\(decision\.reason/);
 assert.match(activeDispatchSource, /if \(!withinSupplierRadius\(distance, radius\)\)/);
 assert.doesNotMatch(activeDispatchSource, /fallbackRadius|overlapsApprovedZone/);
 assert.match(activeDispatchSource, /if \(!sameCity\)/);
