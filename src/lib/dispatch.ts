@@ -865,6 +865,31 @@ export async function dispatchTechnicianJob(orderId: string): Promise<Technician
       return { technicianId: null, reason: 'max_attempts' };
     }
 
+    // Recheck zone and city for technician jobs as well as supplier orders.
+    // A city can be paused after booking, before the retry sweep runs.
+    const { data: orderCoverage, error: orderCoverageError } = await db
+      .from('orders').select('zone_id, service_type').eq('id', orderId).maybeSingle();
+    if (orderCoverageError) return { technicianId: null, reason: 'error' };
+    if (orderCoverage?.zone_id) {
+      const { data: zone, error: zoneError } = await db.from('service_zones')
+        .select('status, city_id, services').eq('id', orderCoverage.zone_id).maybeSingle();
+      if (zoneError) return { technicianId: null, reason: 'error' };
+      if (!zone || !['AVAILABLE', 'LIMITED'].includes(String(zone.status).toUpperCase())) {
+        return { technicianId: null, reason: 'no_candidates' };
+      }
+      if (Array.isArray(zone.services) && !zone.services.includes(String(orderCoverage.service_type))) {
+        return { technicianId: null, reason: 'no_candidates' };
+      }
+      if (zone.city_id) {
+        const { data: city, error: cityError } = await db.from('cities')
+          .select('status').eq('id', zone.city_id).maybeSingle();
+        if (cityError) return { technicianId: null, reason: 'error' };
+        if (!city || String(city.status).toLowerCase() !== 'active') {
+          return { technicianId: null, reason: 'no_candidates' };
+        }
+      }
+    }
+
     const [geo, triedRes, techsRes] = await Promise.all([
       orderGeo(db, order),
       db.from('technician_job_dispatch').select('technician_id').eq('order_id', orderId),
