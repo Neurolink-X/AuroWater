@@ -198,9 +198,9 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
 
               {/* Trust points: all true to how booking works today */}
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-slate-200">
-                {['Address checked before booking', 'Price confirmed before work', 'Live in 3 UP cities'].map((t) => (
+                {['Address checked before booking', 'Price confirmed before work', 'Check live city coverage'].map((t) => (
                   <li key={t} className="flex items-center gap-2"><span aria-hidden className="text-emerald-400">✓</span>{t}</li>
-                ); })}
+                ))}
               </ul>
             </div>
 
