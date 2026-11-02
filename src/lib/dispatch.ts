@@ -638,6 +638,12 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       if(!modeError && String(mode?.value).toLowerCase()==='true') {
         const chosen=ev.cands.filter(c=>c.distance!==null).slice(0,3);
         if(chosen.length>0) {
+          // An active offer wave must not be defeated by the old sequential path.
+          const {data:openOffers,error:openOffersError}=await db.from('order_supplier_offers')
+            .select('id').eq('order_id',orderId).eq('status','OPEN')
+            .gt('expires_at',new Date().toISOString()).limit(1);
+          if(openOffersError) return {supplierId:null,reason:'error'};
+          if((openOffers??[]).length>0) return {supplierId:null,reason:'not_pending'};
           const {data:issued,error:issueError}=await db.rpc('issue_parallel_water_offers',{
             p_order_id:orderId,
             p_suppliers:chosen.map(c=>c.id),
