@@ -93,7 +93,8 @@ test('concurrent checkout attempts use a database unique key, not only a time-ba
   assert.match(migration, /add column if not exists checkout_request_id uuid/i);
   assert.match(migration, /create unique index if not exists orders_customer_checkout_request_unique_idx/i);
   assert.match(migration, /\(customer_id, checkout_request_id\)/);
-  assert.match(checkout, /CHECKOUT_IDEMPOTENCY_DB_ENABLED/);
+  assert.doesNotMatch(checkout, /process\.env\.CHECKOUT_IDEMPOTENCY_DB_ENABLED/);
+  assert.match(checkout, /const checkoutKey = checkoutRequestId \|\| null/);
   assert.match(checkout, /checkout_request_id: checkoutKey/);
   assert.match(checkout, /oErr\?\.code === '23505'/);
   assert.match(checkout, /findExistingCheckout\(\)/);

@@ -201,15 +201,16 @@ export async function POST(req: NextRequest) {
 
   const customerId = auth.ctx.profile.id;
 
-  // Enable only after the per-customer unique index migration is applied.
-  // Identical retries share a key across instances; only one insert can win.
-  const checkoutIdempotencyEnabled = process.env.CHECKOUT_IDEMPOTENCY_DB_ENABLED === 'true';
+  // The checkout_request_id column and per-customer unique index are deployed.
+  // Never silently disable cross-instance deduplication because an optional
+  // environment flag is missing: retries must use the same request identity.
+  // Legacy callers without a UUID retain the existing 20-second duplicate guard.
   const checkoutRequestId = typeof body.checkout_request_id === 'string'
     ? body.checkout_request_id.trim() : '';
   if (checkoutRequestId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(checkoutRequestId)) {
     return jsonErr('Invalid checkout request identifier.', 400);
   }
-  const checkoutKey = checkoutIdempotencyEnabled && checkoutRequestId ? checkoutRequestId : null;
+  const checkoutKey = checkoutRequestId || null;
   const findExistingCheckout = async () => {
     if (!checkoutKey) return null;
     const { data, error } = await auth.ctx.supabase.from('orders')
