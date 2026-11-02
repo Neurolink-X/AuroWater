@@ -72,3 +72,16 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.confirm_customer_supplier_referral(uuid,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.confirm_customer_supplier_referral(uuid,uuid) TO service_role;
+
+-- Prevent referral claims racing with the first order insert by serializing on the customer.
+CREATE OR REPLACE FUNCTION public.lock_customer_referral_eligibility()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
+BEGIN
+ IF NEW.customer_id IS NOT NULL THEN
+   PERFORM pg_advisory_xact_lock(hashtextextended(NEW.customer_id::text,17));
+ END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS lock_customer_referral_eligibility_before_order ON public.orders;
+CREATE TRIGGER lock_customer_referral_eligibility_before_order
+BEFORE INSERT ON public.orders FOR EACH ROW EXECUTE FUNCTION public.lock_customer_referral_eligibility();
