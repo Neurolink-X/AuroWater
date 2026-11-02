@@ -19,7 +19,7 @@ type Snap = {
   is_online?: boolean;
   zone_radius_km?: number;
   // Customer and supplier payout prices are centrally calculated; never edited here.
-  auto_accept?: boolean;
+
   base_lat?: number | null;
   base_lng?: number | null;
   upi_id?: string | null;
@@ -83,7 +83,6 @@ export default function SupplierSettingsPage() {
 
   const [radius, setRadius] = useState(5);
 
-  const [autoAccept, setAutoAccept] = useState(false);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [upi, setUpi] = useState('');
@@ -97,7 +96,6 @@ export default function SupplierSettingsPage() {
 
     setRadius(Number(s.zone_radius_km) || 5);
 
-    setAutoAccept(Boolean(s.auto_accept));
     setLat(s.base_lat != null ? String(s.base_lat) : '');
     setLng(s.base_lng != null ? String(s.base_lng) : '');
   }, []);
@@ -272,22 +270,17 @@ export default function SupplierSettingsPage() {
 
           <p className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-700">Water-can customer prices are managed by AuroTap. This account does not override checkout pricing.</p>
 
-          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-2xl px-1 text-sm font-bold text-slate-700">
-            <span>Auto-accept orders<span className="block text-xs font-medium text-slate-500">Confirm new orders without tapping accept.</span></span>
-            <input type="checkbox" checked={autoAccept} onChange={(e) => setAutoAccept(e.target.checked)} className="h-5 w-5 accent-emerald-600" />
-          </label>
+          <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950">
+            Orders are assigned by the AuroTap matching service, but your acceptance is always required.
+            Auto-accept is not enabled; it will not be advertised until the end-to-end workflow is verified.
+          </p>
 
           <button
             type="button"
             className={BTN}
             disabled={saving === 'service'}
             onClick={() => {
-              const body: Record<string, unknown> = { zone_radius_km: radius, auto_accept: autoAccept };
-              const p = Number(price);
-              if (price.trim()) {
-                if (!Number.isFinite(p) || p < 1 || p > 1000) return toast.error('Price per can must be between ₹1 and ₹1000.');
-                body.price_per_can = p;
-              }
+              const body: Record<string, unknown> = { zone_radius_km: radius };
               const la = Number(lat);
               const ln = Number(lng);
               if (lat.trim() || lng.trim()) {
