@@ -26,7 +26,7 @@ type Snap = {
   bank_account?: string | null;
   has_payout_details?: boolean;
   profile?: { full_name: string | null; phone: string | null; city: string | null } | null;
-  readiness?: { ready_for_orders: boolean; checks: Check[] };
+  readiness?: { ready_for_orders: boolean; checks: Check[]; dispatch_base_city_check?: 'mismatch' | 'nearby' | 'not_verified'; dispatch_base_city_distance_km?: number | null };
 };
 
 const NU = 'bg-[#E3EDF6] shadow-[9px_9px_18px_#b7c8d9,-9px_-9px_18px_#ffffff]';
@@ -142,6 +142,10 @@ export default function SupplierSettingsPage() {
   }, [applySnap]);
 
   const useMyLocation = () => {
+    const confirmed = window.confirm(
+      'Use your CURRENT device position as the PERMANENT dispatch base? Only confirm if you are physically at your supplier shop/warehouse. A wrong city or temporary travel location can prevent nearby orders from reaching you.'
+    );
+    if (!confirmed) return;
     if (!navigator.geolocation) return toast.error('Location is not available on this device.');
     toast.info('Getting your location…');
     navigator.geolocation.getCurrentPosition(
@@ -220,6 +224,7 @@ export default function SupplierSettingsPage() {
             </button>
           </div>
 
+          {snap?.readiness?.dispatch_base_city_check === 'mismatch' && <p role="alert" className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm font-bold text-rose-900">Dispatch location may be wrong: your saved business base is about {snap.readiness.dispatch_base_city_distance_km} km from the center of your registered city. Verify the real delivery base before accepting new orders.</p>}
           <div className={`mt-5 rounded-2xl p-4 ${NU_IN}`} aria-live="polite">
             <p className={`text-sm font-black ${ready ? 'text-emerald-700' : 'text-amber-800'}`}>
               {ready ? 'You can receive orders.' : `Fix ${todo.length} thing${todo.length === 1 ? '' : 's'} so orders can reach you`}
@@ -252,6 +257,7 @@ export default function SupplierSettingsPage() {
 
         {/* Dispatch preferences */}
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
+          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone's temporary travel location. An incorrect city can prevent new orders.</p>
           <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km`}>
             <input id="s-radius" type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
