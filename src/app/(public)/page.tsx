@@ -1,13 +1,15 @@
 // src/app/(public)/page.tsx — SERVER component: owns metadata + structured data (SEO).
 import type { Metadata, Viewport } from 'next';
 import HomeClient from './HomeClient';
-import { SITE, PRICING, FAQS, CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS } from '@/lib/marketing-pricing';
+import { SITE, FAQS, MAX_LOCK_MONTHS } from '@/lib/marketing-pricing';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
+import type { City } from '@/lib/cities';
 
-export const revalidate = 3600; // re-render hourly so a scheduled price change appears without a redeploy
+export const dynamic = 'force-dynamic'; // Admin city changes must not wait for a static rebuild.
 
 const title = `RO Water Delivery, Plumber & Tank Cleaning | ${SITE.name}`;
 const description =
-  `Check current 20L RO water prices, plumber and water tank cleaning availability in ${LIVE_CITY_NAMES.replace(' and ', ' & ')} and selected PIN-code areas. ` +
+  `Check current 20L RO water prices, plumber and water tank cleaning availability by PIN code and service area. ` +
   `Monthly plans lock your price for up to ${MAX_LOCK_MONTHS} months. Clear prices before you confirm. Cash + UPI.`;
 
 export const viewport: Viewport = { themeColor: '#020c18', width: 'device-width', initialScale: 1 };
@@ -21,8 +23,6 @@ export const metadata: Metadata = {
   keywords: [
     'RO water can delivery', '20 litre water can price', 'chilled water can delivery', 'monthly water subscription',
     'bulk water for events', 'water tank cleaning service', 'plumber near me',
-    ...CITIES.map(c => `water delivery ${c.name}`),
-    ...CITIES.map(c => `plumber ${c.name}`),
   ],
   alternates: { canonical: '/', languages: { 'en-IN': '/' } },
   openGraph: { title, description, url: '/', siteName: SITE.name, locale: 'en_IN', type: 'website' },
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1 },
 };
 
-const jsonLd = {
+const buildJsonLd = (cities: City[]) => ({
   '@context': 'https://schema.org',
   '@graph': [
     {
@@ -59,7 +59,7 @@ const jsonLd = {
       priceRange: '₹',
       paymentAccepted: 'Cash, UPI',
       currenciesAccepted: 'INR',
-      areaServed: CITIES.filter(c => c.status !== 'pilot').map(c => ({ '@type': 'City', name: c.name, url: `${SITE.url}/cities/${c.slug}` })),
+      areaServed: cities.filter(c => c.status === 'active').map(c => ({ '@type': 'City', name: c.name, url: `${SITE.url}/cities/${c.slug}` })),
       // No static Offer.price: admin can publish a new price without redeploy.
       // The live checkout, not old JSON-LD, is authoritative.
       serviceType: [
@@ -73,9 +73,11 @@ const jsonLd = {
       mainEntity: FAQS.map(f => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
     },
   ],
-};
+});
 
-export default function Page() {
+export default async function Page() {
+  const cities = await getPublicServiceCities();
+  const jsonLd = buildJsonLd(cities);
   return (
     <>
       <script
@@ -83,7 +85,7 @@ export default function Page() {
         // escape "<" so no text can ever close the script tag
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
-      <HomeClient />
+      <HomeClient initialCities={cities} />
     </>
   );
 }
