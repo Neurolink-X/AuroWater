@@ -87,7 +87,8 @@ test('Noida is active for citywide service requests across customer and SEO surf
   assert.match(wizard, /fetch\('\/api\/cities'/);
   assert.doesNotMatch(wizard.split('/* ───────── Premium presentation helpers')[0], /ACTIVE_CITY_NAMES/);
   const home = read('src/app/(public)/HomeClient.tsx');
-  assert.match(home, /Citywide service throughout/);
+  assert.match(home, /exact PIN, service and partner availability/);
+  assert.doesNotMatch(home, /Citywide service throughout/);
   assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot/);
   const cityPage = read('src/app/cities/[city]/page.tsx');
   assert.doesNotMatch(cityPage, /Sector 73 Pilot|limited pilot/);
