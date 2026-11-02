@@ -21,6 +21,7 @@ test('Dispatch and Settings are independent valid routes with preserved order an
   assert.match(sections, /settings: \{ nav: 'Settings'/);
   assert.match(sections, /section === 'dispatch' && <DispatchControl/);
   assert.match(sections, /section === 'settings' && <AccountSettings/);
+  assert.match(sections, /section === 'dispatch' && <PartnerJourney/);
   assert.doesNotMatch(sections.split('function DispatchControl')[1].split('function AccountSettings')[0], /Object\.entries\(p\.obj\)/);
 });
 
