@@ -80,6 +80,7 @@ const maskAccount = (v: unknown): string | null =>
 function sanitize(row: Row): Row {
   return {
     ...row,
+    price_per_can: undefined, // Customer-facing prices are centrally controlled, not supplier-configured.
     upi_id: maskUpi(row.upi_id),
     bank_account: maskAccount(row.bank_account),
     has_payout_details: Boolean(row.upi_id || row.bank_account),
@@ -107,8 +108,6 @@ function buildReadiness(row: Row | null, profile: Row | null) {
     { key: 'location', ok: located, label: 'Service location is set', fix: 'Set your base location so nearby orders can find you.' },
     { key: 'city', ok: hasCity, label: 'City is set', fix: 'Add your city. It is used when no base location is set.' },
     { key: 'radius', ok: Number(row?.zone_radius_km) > 0, label: 'Service radius is set', fix: 'Choose how far you deliver.' },
-    { key: 'price', ok: Number(row?.price_per_can) > 0, label: 'Price per can is set', fix: 'Add your price per can.' },
-    { key: 'payout', ok: Boolean(row?.upi_id || row?.bank_account), label: 'Payout details are added', fix: 'Add a UPI ID or bank account to get paid.' },
   ];
 
   const ready =
@@ -126,18 +125,32 @@ type SnapshotResult =
 
 async function loadSnapshot(sb: AuthedContext['supabase'], userId: string): Promise<SnapshotResult> {
   const service = createServiceClient();
-  const [settingsRes, profileRes] = await Promise.all([
+  const [settingsRes, profileRes, coverageRes, stockRes] = await Promise.all([
     sb.from('supplier_settings').select('*').eq('user_id', userId).maybeSingle(),
-    service.from('profiles').select('full_name, phone, city, status, verification_status').eq('id', userId).maybeSingle(),
+    service.from('profiles').select('full_name, phone, city, status, is_active, verification_status').eq('id', userId).maybeSingle(),
+    service.from('supplier_zones').select('zone_id').eq('supplier_id', userId).limit(5),
+    service.from('supplier_stock').select('cans_available,reserved_cans,reservation_buffer_cans').eq('supplier_id', userId).maybeSingle(),
   ]);
 
   if (settingsRes.error) {
     return { ok: false, error: { message: settingsRes.error.message } };
   }
-  if (profileRes.error) console.error('[supplier/settings] profile lookup failed', profileRes.error.message);
+  if (profileRes.error || coverageRes.error || stockRes.error) {
+    console.error('[supplier/settings] readiness dependencies failed', {
+      profile: profileRes.error?.code, coverage: coverageRes.error?.code, stock: stockRes.error?.code,
+    });
+  }
 
   const row = (settingsRes.data as Row | null) ?? null;
   const profile = (profileRes.data as Row | null) ?? null;
+  const baseReadiness = buildReadiness(row, profile);
+  const freeStock = stockRes.data ? Number(stockRes.data.cans_available ?? 0) - Number(stockRes.data.reserved_cans ?? 0) - Number(stockRes.data.reservation_buffer_cans ?? 0) : null;
+  const complete = !profileRes.error && !coverageRes.error && !stockRes.error;
+  const checks = [
+    ...baseReadiness.checks,
+    { key: 'stock', ok: freeStock !== null && freeStock > 0, label: 'Unreserved water-can stock available', fix: 'Update water-can inventory and reservation buffer.' },
+    { key: 'coverage', ok: (coverageRes.data?.length ?? 0) > 0, label: 'Approved service zone linked', fix: 'Review your PIN coverage. Legacy same-city fallback may still apply.' },
+  ];
 
   return {
     ok: true,
