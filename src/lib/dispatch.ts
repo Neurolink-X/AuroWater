@@ -515,7 +515,12 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       favourite: id === favourite,
       group,
       distance,
-      tier: TIER_RANK[String(p.milestone_ti  // Read customer-confirmed referral preference. Missing migration must not block dispatch.
+      tier: TIER_RANK[String(p.milestone_tier ?? 'starter').toLowerCase()] ?? 0,
+      load,
+      coverageTier,
+    });
+  }
+
   let affinityId: string | null = null;
   if (order.customer_id) {
     // Explicit customer choice overrides the original referring supplier.
