@@ -487,6 +487,18 @@ export async function GET(
         );
       }
 
+      // Re-check state immediately before dispatch; a customer may have paused
+      // or cancelled the plan while this cron execution was preparing the order.
+      const { data: currentPlan, error: stateError } = await db
+        .from('water_subscriptions')
+        .select('status, next_order_date')
+        .eq('id', subscriptionId)
+        .maybeSingle();
+      if (stateError || currentPlan?.status !== 'ACTIVE' || currentPlan.next_order_date !== nextDate) {
+        skipped += 1;
+        continue;
+      }
+
       if (orderId) {
         const result =
           await dispatchOrder(
@@ -506,7 +518,7 @@ export async function GET(
           subscription.frequency
         );
 
-      await db
+      const { data: advanced, error: advanceError } = await db
         .from(
           'water_subscriptions'
         )
@@ -523,7 +535,10 @@ export async function GET(
         .eq(
           'status',
           'ACTIVE'
-        );
+        )
+        .eq('next_order_date', nextDate)
+        .select('id');
+      if (advanceError || !advanced?.length) { skipped += 1; continue; }
 
       processed += 1;
     } catch {
