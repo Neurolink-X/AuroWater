@@ -2080,6 +2080,7 @@ import React, {
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -3722,7 +3723,7 @@ export default function SupplierDashboardPage() {
             <div style={{ flex: '1 1 180px' }}>
               <strong>{isHindi ? 'आज की डिलीवरी' : 'Today’s delivery workflow'}</strong>
               <p style={{ fontSize: 13, marginTop: 4, color: 'var(--ink2)' }}>{isHindi ? 'ऑर्डर देखें, समय की पुष्टि करें, स्वीकार करें, डिलीवरी पूरी करें और भुगतान सत्यापित करें।' : 'Review assigned orders, check the IST slot, accept, deliver, and confirm payment only when actually received.'}</p>
-              <a href="/supplier/orders" className="sd-link">Open assigned orders</a>
+              <Link href="/supplier/orders" className="sd-link">Open assigned orders</Link>
             </div>
           </div>
           {!loading && profile && (profile.application_status === 'pending' || profile.application_status === 'pending_approval') && (
