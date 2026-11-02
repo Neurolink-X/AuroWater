@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { createServiceClient } from '@/utils/supabase/server';
 import type { GuidePost } from '@/lib/blog/posts';
+import autoGuides from '@/data/auto-guides.json';
 
 /** Public-only read. Drafts, embargoed dates, and private author information never leave the server. */
 export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost[]> => {
@@ -46,6 +47,18 @@ export async function allPublishedGuides(): Promise<GuidePost[]> {
   const bySlug = new Map(publishedGuides().map(post => [post.slug, post]));
   // Version-controlled editorial guides win on slug collision.
   for (const post of managed) if (!bySlug.has(post.slug)) bySlug.set(post.slug,post);
+  // Static scheduled editorial output is validated before it reaches public pages.
+  for (const raw of autoGuides as unknown[]) {
+    if (!raw || typeof raw !== 'object') continue;
+    const post = raw as GuidePost;
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(post.slug ?? '')) ||
+        typeof post.title !== 'string' || typeof post.description !== 'string' ||
+        typeof post.publishAt !== 'string' || !Number.isFinite(Date.parse(post.publishAt)) ||
+        Date.parse(post.publishAt) > Date.now() || !Array.isArray(post.sections) ||
+        !post.sections.length || !post.sections.every(section => typeof section.heading === 'string' &&
+          Array.isArray(section.paragraphs) && section.paragraphs.every(p => typeof p === 'string'))) continue;
+    if (!bySlug.has(post.slug)) bySlug.set(post.slug,post);
+  }
   return [...bySlug.values()].sort((a,b)=>Date.parse(b.publishAt)-Date.parse(a.publishAt));
 }
 
