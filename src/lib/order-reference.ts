@@ -13,7 +13,8 @@ export function parseOrderIdentifier(value: string):
   | { kind: 'uuid'; value: string }
   | { kind: 'reference'; value: string }
   | null {
-  const normalized = value.trim();
+  // UI screenshots, copied messages and support chats commonly prefix order refs with #.
+  const normalized = value.trim().replace(/^#\s*/, '');
   if (UUID_PATTERN.test(normalized)) return { kind: 'uuid', value: normalized.toLowerCase() };
   if (PUBLIC_REFERENCE_PATTERN.test(normalized)) return { kind: 'reference', value: normalized.toUpperCase() };
   return null;
