@@ -55,6 +55,11 @@ const supplierSchema =
       .int()
       .min(1)
       .max(5000),
+    business_name:z.string().trim().min(2).max(100),
+    business_address:z.string().trim().min(8).max(300),
+    pincode:z.string().regex(/^\d{6}$/),
+    base_lat:z.number().min(-90).max(90).refine(v=>v!==0),
+    base_lng:z.number().min(-180).max(180).refine(v=>v!==0),
 
     upi_id: z
       .string()
@@ -68,6 +73,7 @@ const supplierSchema =
       .max(30)
       .optional(),
 
+    role:z.enum(['can','tanker']).optional(),
     ifsc: z
       .string()
       .trim()
@@ -99,6 +105,7 @@ const technicianSchema =
       .int()
       .min(0)
       .max(60),
+    role:z.enum(['plumber','borewell','tank','ro']).optional(),
   });
 
 const applicationSchema =

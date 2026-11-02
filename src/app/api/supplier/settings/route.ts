@@ -256,6 +256,7 @@ export async function PUT(req: NextRequest) {
   const sb = auth.ctx.supabase;
   const userId = auth.ctx.profile.id;
   const { city, full_name, ...settingsFields } = parsed.data;
+  if(settingsFields.base_lat!==undefined||settingsFields.base_lng!==undefined||city!==undefined)return jsonErr('Shop GPS and city changes require admin approval via My profile & address.',403);
 
   // Only recover orders on a real offline → online change, not every save that happens to include is_online: true.
   let becameOnline = false;

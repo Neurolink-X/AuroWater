@@ -111,18 +111,22 @@ export default function AdminOrdersPage() {
 
   const fetchTechs = useCallback(async () => {
     try {
-      const list = await adminTechniciansList();
+      const serviceKey = String(drawerOrder?.service_type ?? '');
+      if (!serviceKey) { toast.error('Order service is missing. Cannot assign safely.'); return; }
+      setTechList([]);
+      const list = await adminTechniciansList(serviceKey);
       setTechList(list ?? []);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load technicians');
     }
-  }, []);
+  }, [drawerOrder?.service_type]);
 
   const openDrawer = useCallback(async (orderId: string) => {
     setDrawerOpen(true);
     setDrawerLoading(true);
     setTechPickerOpen(false);
     setTechSearch('');
+    setTechList([]);
     setCancelOpen(false);
     setCancelNote('');
     try {
@@ -130,7 +134,7 @@ export default function AdminOrdersPage() {
       setDrawerOrder(detail);
       const st = String(detail.status ?? '');
       if (st === 'PENDING' || st === 'ASSIGNED') {
-        void fetchTechs();
+        void adminTechniciansList(String(detail.service_type ?? '')).then(setTechList).catch(() => setTechList([]));
       }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load order');
@@ -158,8 +162,8 @@ export default function AdminOrdersPage() {
         const detail = await adminOrderGet(drawerOrder.id);
         setDrawerOrder(detail);
         void load();
-      } catch {
-        toast.error('Assignment failed.');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Assignment failed.');
       } finally {
         setAssigning(false);
       }
@@ -652,12 +656,13 @@ export default function AdminOrdersPage() {
                       <input
                         value={techSearch}
                         onChange={(e) => setTechSearch(e.target.value)}
-                        placeholder="Search by name, phone…"
+                        placeholder="Search approved specialists…"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                       />
+                      <p className="text-xs text-slate-600">Verified specialists for {String(drawerOrder.service_type)} only.</p>
                       <div className="max-h-56 overflow-y-auto space-y-2 border border-slate-200 rounded-xl p-2">
                         {filteredTechs.length === 0 ? (
-                          <p className="text-slate-500 text-xs p-2">No technicians.</p>
+                          <div className="space-y-1 p-2"><p className="text-slate-600 text-xs">No approved specialist is available for this service. Do not assign an unrelated plumber.</p><a className="font-semibold text-sky-700 underline text-xs" href="/admin/technician-capabilities">Review service qualifications</a></div>
                         ) : (
                           filteredTechs.map((t) => {
                             const activeJobs = t.active_jobs ?? t.stats?.active ?? 0;

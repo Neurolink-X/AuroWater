@@ -94,6 +94,7 @@ import {
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
+import SpecialistStatusPanel from '@/components/technician/SpecialistStatusPanel';
 import { safeGet as lsGet, safeSet as lsSet, safeRemove as lsRemove } from '@/lib/storage';
 
 /* ───────────────────────────── Types ───────────────────────────── */
@@ -1938,6 +1939,7 @@ export default function TechnicianDashboardPage() {
           </aside>
 
           <main id="tech-main" role="tabpanel" aria-labelledby={`tech-tab-${tab}`} tabIndex={-1} className="min-w-0 flex-1 pb-24 outline-none lg:pb-0">
+            {(tab === 'overview' || tab === 'profile') && <SpecialistStatusPanel enabled={allowed} />}
             {tab === 'overview' && <LiveOperationsActionCenter
               title={isHindi ? 'अभी किस काम पर ध्यान दें' : 'What needs attention now'}
               description={isHindi

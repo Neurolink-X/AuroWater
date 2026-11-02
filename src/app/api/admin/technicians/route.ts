@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
+import { createServiceClient } from '@/utils/supabase/server';
 import {
   requireAdmin,
   requireSupabaseAuth,
@@ -23,6 +24,7 @@ const ACTIVE_JOB_STATUSES = new Set([
 ]);
 
 const COMPLETED_STATUS = 'COMPLETED';
+const SUPPORTED_SERVICES = new Set(['plumbing','ro_service','borewell','motor_pump','tank_cleaning','installation','maintenance']);
 
 export async function GET(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
@@ -35,19 +37,28 @@ export async function GET(req: NextRequest) {
     return jsonErr('Forbidden', 403);
   }
 
-  const { data: techs, error: techError } =
-    await auth.ctx.supabase
-      .from('profiles')
-      .select('id, full_name, is_online, phone')
-      .eq('role', 'technician')
-      .order('is_online', {
-        ascending: false,
-        nullsFirst: false,
-      })
-      .order('full_name', {
-        ascending: true,
-        nullsFirst: true,
-      });
+  // For service-specific assignment, return only approved specialists.
+  // Never fall back to the entire technician roster on a capability query error.
+  const serviceKey = req.nextUrl.searchParams.get('service_key') ?? '';
+  if (serviceKey && !SUPPORTED_SERVICES.has(serviceKey)) return jsonErr('Unsupported technician service.', 422);
+  let approvedIds: string[] | null = null;
+  if (serviceKey) {
+    const { data: approved, error: approvalError } = await createServiceClient()
+      .from('technician_service_capabilities')
+      .select('technician_id').eq('service_key', serviceKey).eq('status', 'approved').limit(500);
+    if (approvalError) return jsonErr('Could not verify specialists. Assignment remains unchanged.', 503);
+    approvedIds = (approved ?? []).map(item => String(item.technician_id));
+    if (!approvedIds.length) return jsonOk([]);
+  }
+
+  let query = auth.ctx.supabase.from('profiles')
+    .select('id, full_name, is_online, phone')
+    .eq('role', 'technician')
+    .order('is_online', { ascending: false, nullsFirst: false })
+    .order('full_name', { ascending: true, nullsFirst: true });
+  if (approvedIds !== null) query = query.in('id', approvedIds).eq('is_active', true).eq('status', 'active')
+    .eq('verification_status', 'approved');
+  const { data: techs, error: techError } = await query;
 
   if (techError) {
     return jsonErr(techError.message, 502);

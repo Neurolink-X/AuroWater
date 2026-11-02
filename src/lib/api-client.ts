@@ -1013,8 +1013,9 @@ export type AdminTechnicianRow = {
   stats?: { active: number; done: number };
 };
 
-export async function adminTechniciansList(): Promise<AdminTechnicianRow[]> {
-  return apiFetchAuth<AdminTechnicianRow[]>('/admin/technicians');
+export async function adminTechniciansList(serviceKey?: string): Promise<AdminTechnicianRow[]> {
+  const query = serviceKey ? `?service_key=${encodeURIComponent(serviceKey)}` : '';
+  return apiFetchAuth<AdminTechnicianRow[]>(`/admin/technicians${query}`);
 }
 
 
