@@ -1,4 +1,4 @@
-import { ACTIVE_CITY_NAMES } from '@/lib/cities';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import { CAN_PRICES } from '@/lib/booking-pricing';
 
 /**
@@ -6,8 +6,9 @@ import { CAN_PRICES } from '@/lib/booking-pricing';
  * Server component: render it once inside the /book page, next to <BookingWizard />.
  * Prices come from booking-pricing.ts, so markup always matches what customers see.
  */
-export default function BookingSeo() {
-  const cities = Array.from(ACTIVE_CITY_NAMES as readonly string[]);
+export default async function BookingSeo() {
+  // Publish active coverage only when confirmed by the authoritative city directory.
+  const cities = (await getPublicServiceCities()).filter(city => city.status === 'active').map(city => city.name);
 
   const offer = (name: string, price: number) => ({
     '@type': 'Offer',
