@@ -9,7 +9,6 @@ import { useSettings } from '@/hooks/useSettings';
 import {
   CATEGORIES,
   CATEGORY_ICONS,
-  CITY_LINE,
   SERVICES,
   type Service,
   type ServiceCategory,
@@ -129,7 +128,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
 /* ─────────────────────────────────────────────
    MAIN PAGE CONTENT
 ───────────────────────────────────────────── */
-export default function ServicesClient() {
+export default function ServicesClient({ cityLine }: { cityLine: string }) {
   // Display city is a visitor preference only; checkout re-resolves the saved address city.
   const [pricingCity] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -186,7 +185,7 @@ export default function ServicesClient() {
         <div className="sv-hero-inner">
           <div className="sv-hero-eyebrow">
             <span className="sv-eyebrow-dot" />
-            Explore services in {CITY_LINE}
+            Explore services in {cityLine}
           </div>
 
           <h1 className="sv-hero-title">
