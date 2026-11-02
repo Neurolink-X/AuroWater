@@ -20,3 +20,11 @@ test('one canonical professional dashboard displays server-confirmed specialist 
  assert.match(panel,/setState\(null\)/);
  assert.match(redirect,/redirect\('\/technician\/dashboard'\)/);
 });
+
+test('shared authenticated ProfileRow exposes optional server verification status',()=>{
+ const types=read('../src/lib/db/types.ts');
+ const row=types.split('export interface ProfileRow {')[1]?.split('\\n}')[0] ?? '';
+ assert.match(row, /verification_status\\?:\\s*string\\s*\\|\\s*null/);
+ const endpoint=read('../src/app/api/technician/specializations/route.ts');
+ assert.match(endpoint, /auth\\.ctx\\.profile\\.verification_status/);
+});

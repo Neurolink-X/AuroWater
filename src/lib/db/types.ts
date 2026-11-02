@@ -194,6 +194,8 @@ export interface ProfileRow {
   referral_credits?:   number | null;
   tier?:               'bronze' | 'silver' | 'gold' | 'platinum' | string;
   is_active?:          boolean | null;
+  /** Server-verified approval lifecycle; optional for legacy profile rows. */
+  verification_status?: string | null;
   last_seen_at?:       string | null;
   language?:           string | null;
   deleted_at?:         string | null;
