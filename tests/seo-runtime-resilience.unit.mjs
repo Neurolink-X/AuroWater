@@ -29,3 +29,11 @@ test('runtime telemetry sends role + allowlisted code only, no sensitive excepti
   assert.match(endpoint, /ALLOWED_RUNTIME_ERRORS\.has\(name\) && value === 1/);
   assert.match(endpoint, /aurotap\.runtime_error/);
 });
+
+test('all public routes inherit preview-safe metadata, default brand is AuroTap', () => {
+  const layout = read('../src/app/layout.tsx');
+  assert.match(layout, /canIndexDeployment/);
+  assert.match(layout, /robots: allowIndexing \?/);
+  assert.match(layout, /googleBot: \{ index: false, follow: false \}/);
+  assert.match(layout, /NEXT_PUBLIC_APP_NAME\?\.trim\(\) \|\| 'AuroTap'/);
+});

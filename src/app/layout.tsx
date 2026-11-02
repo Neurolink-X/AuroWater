@@ -8,6 +8,7 @@ import ScrollReveal from '@/components/ScrollReveal';
 import SplashController from '@/components/SplashController';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 import { getSiteUrl } from '@/lib/env';
+import { canIndexDeployment } from '@/lib/seo-policy';
 import { Toaster } from 'sonner';
 import OrganizationJsonLd from '@/components/seo/OrganizationJsonLd';
 import WebSiteJsonLd from '@/components/seo/WebSiteJsonLd';
@@ -45,7 +46,7 @@ import RuntimeErrorReporter from '@/components/observability/RuntimeErrorReporte
  * ──────────────────────────────────────────────────────────────────────── */
 
 const APP_URL = getSiteUrl();
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME?.trim() || 'AuroWater';
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME?.trim() || 'AuroTap';
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID?.trim();
 const GOOGLE_VERIFICATION =
@@ -53,6 +54,11 @@ const GOOGLE_VERIFICATION =
 const BING_VERIFICATION = process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION?.trim();
 
 const SUPABASE_ORIGIN = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const allowIndexing = canIndexDeployment({
+  vercelEnv: process.env.VERCEL_ENV,
+  nodeEnv: process.env.NODE_ENV,
+  allowIndexing: process.env.ALLOW_INDEXING,
+});
 
 /*
  * SEO copy.
@@ -321,7 +327,7 @@ export const metadata: Metadata = {
 
   /* ── Search engine crawling ─────────────────────────────────────────── */
 
-  robots: {
+  robots: allowIndexing ? {
     index: true,
     follow: true,
     googleBot: {
@@ -331,6 +337,11 @@ export const metadata: Metadata = {
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
+  } : {
+    index: false,
+    follow: false,
+    noarchive: true,
+    googleBot: { index: false, follow: false },
   },
 
   /* ── Canonical ──────────────────────────────────────────────────────────
