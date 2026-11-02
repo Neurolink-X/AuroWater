@@ -17,7 +17,11 @@ import { isPostgrestTableUnavailableError } from '@/lib/supabase/postgrest-error
 export const ZONE_STATUSES = ['AVAILABLE', 'LIMITED', 'TEMPORARILY_UNAVAILABLE', 'COMING_SOON'] as const;
 export type ZoneStatus = (typeof ZONE_STATUSES)[number];
 
-const BOOKABLE: ZoneStatus[] = ['AVAILABLE', 'LIMITED'];
+export const BOOKABLE_ZONE_STATUSES: readonly ZoneStatus[] = ['AVAILABLE', 'LIMITED'];
+
+export function isBookableZoneStatus(status: string | null | undefined): boolean {
+  return BOOKABLE_ZONE_STATUSES.includes(String(status ?? '').toUpperCase() as ZoneStatus);
+}
 
 export type ZoneRow = {
   id: string;
@@ -75,6 +79,8 @@ export async function resolveServiceability(
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
   let canonicalCityActive = false;
+  // City and zone state are authoritative. Do not grant coverage solely
+  // because a location is near a historical hardcoded city centre.
   const legacy = (): Serviceability => {
     const ok = canonicalCityActive;
     return {
@@ -159,7 +165,7 @@ export async function resolveServiceability(
 
   const customerMessage = typeof zone.customer_message === 'string' ? zone.customer_message.trim() : '';
 
-  if (!BOOKABLE.includes(zone.status)) {
+  if (!isBookableZoneStatus(zone.status)) {
     return {
       serviceable: false,
       status: zone.status,
