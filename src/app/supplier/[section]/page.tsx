@@ -386,10 +386,13 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
   const [upi, setUpi] = useState('');
   const [account, setAccount] = useState('');
   const [ifsc, setIfsc] = useState('');
+  const payoutReview = obj.balance_requires_review === true;
+  const verifiedBalance = typeof obj.pending_payout === 'number' && Number.isFinite(obj.pending_payout) ? obj.pending_payout : null;
 
   const submit = async () => {
+    if (payoutReview || verifiedBalance === null || verifiedBalance <= 0) return setError('No verified transferable balance. Check the settlement explanation below.');
     const n = Number(amount);
-    if (!Number.isFinite(n) || n <= 0) return setError(isHindi ? '₹0 से अधिक भुगतान राशि डालें।' : 'Enter a payout amount greater than ₹0.');
+    if (!Number.isFinite(n) || n <= 0 || n > verifiedBalance) return setError(isHindi ? 'सत्यापित उपलब्ध राशि से अधिक भुगतान का अनुरोध नहीं कर सकते।' : 'Payout amount must be positive and within the verified balance.');
     if (method === 'upi' && !UPI_RE.test(upi.trim())) return setError(isHindi ? 'सही UPI ID डालें, जैसे name@bank।' : 'Enter a valid UPI ID, for example name@bank.');
     if (method === 'bank' && !ACCOUNT_RE.test(account.trim())) return setError(isHindi ? 'बैंक खाता संख्या 9 से 18 अंकों की होनी चाहिए।' : 'Bank account numbers have 9 to 18 digits.');
     if (method === 'bank' && !IFSC_RE.test(ifsc.trim())) return setError(isHindi ? '11 अक्षरों का सही IFSC डालें, जैसे HDFC0001234।' : 'Enter a valid 11-character IFSC, for example HDFC0001234.');
@@ -403,12 +406,13 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
     <section className="sp-grid">
       <Metric name={isHindi ? 'पूरे हुए ऑर्डर' : 'Completed orders'} value={num(obj.order_count)} />
       <Metric name={isHindi ? 'कुल कमाई' : 'Gross earnings'} value={money(obj.gross_amount)} />
-      <Metric name={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={money(obj.pending_payout)} />
+      <Metric name={isHindi ? 'निकालने योग्य बैलेंस' : 'Available for payout'} value={payoutReview || verifiedBalance === null ? 'Needs review' : money(verifiedBalance)} />
       <article className="sp-card sp-wide">
         <h2 className="sp-h2">{isHindi ? 'भुगतान अनुरोध करें' : 'Request a payout'}</h2>
+        <p role="status" className="sp-sub">{str(obj.payout_message, 'Payout availability has not been verified.')}</p>
         <p className="sp-sub">{isHindi ? 'अनुरोध भेजने से पैसे ट्रांसफर नहीं होते। एडमिन बाद में इसे प्रोसेस करता है।' : 'Submitting a request does not move money. The administrator processes it afterwards.'}</p>
         <label className="sp-field" htmlFor="po-amount">{isHindi ? 'राशि (₹)' : 'Amount (₹)'}
-          <input id="po-amount" className="sp-input" type="number" min={1} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input id="po-amount" className="sp-input" type="number" min={0.01} max={verifiedBalance ?? undefined} disabled={payoutReview || verifiedBalance === null || verifiedBalance <= 0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </label>
         <label className="sp-field" htmlFor="po-method">{isHindi ? 'भुगतान का तरीका' : 'Payout method'}
           <select id="po-method" className="sp-input" value={method} onChange={(e) => setMethod(e.target.value as 'upi' | 'bank')}>
@@ -430,7 +434,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
             </label>
           </>
         )}
-        <button className="sp-btn" disabled={busy} onClick={() => void submit()}>{busy ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'भुगतान अनुरोध भेजें' : 'Submit payout request')}</button>
+        <button className="sp-btn" disabled={busy || payoutReview || verifiedBalance === null || verifiedBalance <= 0} onClick={() => void submit()}>{busy ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'भुगतान अनुरोध भेजें' : 'Submit payout request')}</button>
       </article>
     </section>
   );
