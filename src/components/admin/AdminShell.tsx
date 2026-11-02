@@ -1141,7 +1141,7 @@ export default function AdminShell({
                 onNavigate={handleNavigate}
               />
             ))}
-            <details className="mt-3 border-t border-white/10 pt-3" key={pathname.startsWith('/admin') ? 'admin-mobile-tools' : pathname} defaultOpen={MORE_TOOLS.some(item => isNavActive(pathname, item.href))}>
+            <details className="mt-3 border-t border-white/10 pt-3" key={pathname.startsWith('/admin') ? 'admin-mobile-tools' : pathname}>
               <summary className="cursor-pointer rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wide text-cyan-200 hover:bg-white/5">
                 More tools ({MORE_TOOLS.length})
               </summary>
