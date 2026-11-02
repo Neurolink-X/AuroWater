@@ -30,7 +30,7 @@ test('unverified coordinates and times never enter route',()=>{
 });
 test('API is provider-isolated and never exposes unaccepted delivery coordinates',()=>{
  const api=readFileSync('src/app/api/partner/route-plan/route.ts','utf8');
- assert.match(api,/\.eq\(field,id\)/);
+ assert.match(api,/\.eq\(field,\s*id\)/);
  assert.match(api,/acceptedIds\.has\(order\.id\)/);
  assert.match(api,/order\.status === 'IN_PROGRESS'/);
  assert.match(api,/slotEndAt: null/);
