@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { useAuth } from '@/hooks/useAuth';
 import { getToken } from '@/lib/api-client';
+import { SUPPLIER_RADIUS, supplierRadiusRequiresApproval, supplierRadiusRequiresConfirmation } from '@/lib/supplier-radius-policy';
 
 /* Supplier settings: business details, dispatch preferences and payouts.
    The server (/api/supplier/settings) enforces the supplier role; this page only reacts to a 403. */
@@ -18,6 +19,7 @@ type Check = { key: string; ok: boolean; label: string; fix: string };
 type Snap = {
   is_online?: boolean;
   zone_radius_km?: number;
+  radius_policy?: typeof SUPPLIER_RADIUS;
   // Customer and supplier payout prices are centrally calculated; never edited here.
 
   base_lat?: number | null;
@@ -25,7 +27,7 @@ type Snap = {
   upi_id?: string | null;
   bank_account?: string | null;
   has_payout_details?: boolean;
-  profile?: { full_name: string | null; phone: string | null; city: string | null } | null;
+  profile?: { full_name: string | null; phone: string | null; city: string | null; email?: string | null } | null;
   readiness?: { ready_for_orders: boolean; checks: Check[]; dispatch_base_city_check?: 'mismatch' | 'nearby' | 'not_verified'; dispatch_base_city_distance_km?: number | null };
 };
 
@@ -81,7 +83,7 @@ export default function SupplierSettingsPage() {
 
 
 
-  const [radius, setRadius] = useState(5);
+  const [radius, setRadius] = useState(SUPPLIER_RADIUS.default);
 
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
@@ -94,7 +96,7 @@ export default function SupplierSettingsPage() {
     if (!resetForm) return;
 
 
-    setRadius(Number(s.zone_radius_km) || 5);
+    setRadius(Number(s.zone_radius_km) || SUPPLIER_RADIUS.default);
 
     setLat(s.base_lat != null ? String(s.base_lat) : '');
     setLng(s.base_lng != null ? String(s.base_lng) : '');
@@ -232,6 +234,7 @@ export default function SupplierSettingsPage() {
         <Card title="Business profile & verification" hint="Your verified identity, address and city are managed by the admin-reviewed profile workflow.">
           <div className="grid gap-3 rounded-2xl p-4 text-sm text-slate-800 sm:grid-cols-2">
             <div><span className="text-slate-500">Name</span><p className="font-bold">{snap?.profile?.full_name || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Registered email</span><p className="break-all font-bold">{snap?.profile?.email || 'No registered email available'}</p></div>
             <div><span className="text-slate-500">Registered city</span><p className="font-bold">{snap?.profile?.city || 'Not available'}</p></div>
             <div><span className="text-slate-500">Registered phone</span><p className="font-bold">{snap?.profile?.phone || 'Not available'}</p></div>
             <div><span className="text-slate-500">Profile changes</span><p className="font-bold">Admin approval required</p></div>
@@ -244,12 +247,13 @@ export default function SupplierSettingsPage() {
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
           <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone&apos;s temporary travel location. An incorrect city can prevent new orders.</p>
           <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km maximum`}>
-            <input id="s-radius" type="range" min={1} max={100} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
+            <input id="s-radius" type="range" min={SUPPLIER_RADIUS.min} max={SUPPLIER_RADIUS.max} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
           <p className="text-sm leading-6 text-slate-600">
             Your saved radius is a strict maximum distance from your approved delivery base. Only admin-approved service zones are eligible. Increasing your radius does not approve additional PIN codes or zones.
           </p>
 
+          {radius > 25 && <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">Long distance delivery: confirm stock, travel time and the ability to fulfil orders reliably. Above 30 km, administrator approval is required. Changing radius never approves new PIN codes.</p>}
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Base latitude" htmlFor="s-lat">
               <input id="s-lat" readOnly className={INPUT} value={lat} onChange={(e) => setLat(e.target.value)} placeholder="26.4499" />
@@ -275,7 +279,9 @@ export default function SupplierSettingsPage() {
             className={BTN}
             disabled={saving === 'service'}
             onClick={() => {
-              const body: Record<string, unknown> = { zone_radius_km: radius };
+              if (supplierRadiusRequiresApproval(radius)) { toast.error('Above 30 km requires admin review. Contact support.'); return; }
+              if (supplierRadiusRequiresConfirmation(radius) && !window.confirm(`You selected ${radius} km. Can you reliably fulfil every accepted order at this distance? Approved PIN areas are unchanged.`)) return;
+              const body: Record<string, unknown> = { zone_radius_km: radius, radius_confirmed: radius > 25 };
               void save('service', body, 'Delivery settings saved.');
             }}
           >
