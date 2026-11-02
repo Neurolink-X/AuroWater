@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: CityPageProps): Promise<Metad
     description,
     keywords: [
       `water delivery ${city.name}`, `RO water can ${city.name}`, `20 litre water can price ${city.name}`,
-      `plumber ${city.name}`, `water tank cleaning ${city.name}`, ...city.areas.slice(0, 4).map(a => `water delivery ${a}`),
+      `plumber ${city.name}`, `water tank cleaning ${city.name}`,
     ],
     alternates: { canonical: url },
     openGraph: { title, description, url: `${SITE.url}${url}`, type: 'website', siteName: SITE.name, locale: 'en_IN' },
@@ -61,10 +61,11 @@ export async function generateMetadata({ params }: CityPageProps): Promise<Metad
 
 export default async function CityPage({ params }: CityPageProps) {
   const { city: raw } = await params;
-  const city = findCity(raw);
+  const directory = await getPublicServiceCities();
+  const city = directory.find(entry => entry.slug === raw.toLowerCase());
   if (!city) notFound();
 
-  const live = city.status === 'live';
+  const live = city.status === 'active';
   const pageUrl = `${SITE.url}/cities/${city.slug}`;
   const faqs = faqsFor(city);
   const others = directory.filter(c => c.slug !== city.slug);
@@ -82,8 +83,7 @@ export default async function CityPage({ params }: CityPageProps) {
         paymentAccepted: 'Cash, UPI',
         parentOrganization: { '@type': 'Organization', name: SITE.name, url: SITE.url },
         areaServed: [
-          { '@type': 'City', name: city.name, containedInPlace: { '@type': 'AdministrativeArea', name: city.state } },
-          ...city.areas.map(a => ({ '@type': 'Place', name: `${a}, ${city.name}` })),
+          { '@type': 'City', name: city.name },
         ],
         makesOffer: [
           { '@type': 'Offer', name: 'Normal RO 20L can', price: PRICING.water.normal, priceCurrency: 'INR' },
@@ -215,9 +215,7 @@ export default async function CityPage({ params }: CityPageProps) {
           <h2 id="areas-h" className="text-2xl font-extrabold tracking-tight sm:text-3xl">Areas we cover in {city.name}</h2>
           <p className="mt-2 max-w-2xl text-slate-600">{live ? 'Serviceability depends on your exact PIN code, selected service and provider coverage.' : 'This city is not live yet. Join the waitlist for availability updates.'}</p>
           <ul className="mt-6 flex flex-wrap gap-2">
-            {city.areas.map(a => (
-              <li key={a} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">📍 {a}</li>
-            ))}
+            <li className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Check your exact PIN code for coverage</li>
           </ul>
         </div>
       </section>
