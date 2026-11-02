@@ -56,7 +56,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
 import { safeSessionGet, safeSessionRemove, safeSessionSet } from '@/lib/storage';
-import { ACTIVE_CITY_NAMES } from '@/lib/cities';
+import type { City } from '@/lib/cities';
 import WaitlistPanel from '@/components/ui/WaitlistPanel';
 import { bookingBody, bookingDisplay } from '@/components/booking/booking-fonts';
 import {
@@ -227,9 +227,7 @@ const SERVICE_LIST = [
   { key: 'tank_cleaning', emoji: '✨', title: 'Tank cleaning' },
 ];
 
-const LIVE_CITIES: readonly string[] = ACTIVE_CITY_NAMES;
-// Candidate cities are selectable for address entry; server-side coverage still controls booking.
-const ADDRESS_CITIES: readonly string[] = Array.from(new Set([...ACTIVE_CITY_NAMES, 'Noida', 'Delhi']));
+// City choices are fetched from the canonical /api/cities endpoint; booking eligibility remains server-controlled.
 
 /* ───────── Premium presentation helpers ───────── */
 
@@ -297,7 +295,7 @@ function WhyChooseUs() {
   );
 }
 
-function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice, convenience, delivery, gstRate }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number; convenience: number; delivery: number; gstRate: number }) {
+function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPrice, convenience, delivery, gstRate, liveCities }: { emergencySurcharge: number; normalPrice: number; chilledPrice: number; subscriptionPrice: number; convenience: number; delivery: number; gstRate: number; liveCities: readonly string[] }) {
   const items: [string, string][] = [
     ['What does a 20L RO can cost?',
       `Normal RO is ${inr(normalPrice)} per can, chilled RO is ${inr(chilledPrice)} per can, and subscriptions are ${inr(subscriptionPrice)} per can. Convenience ${inr(convenience)}, delivery ${inr(delivery)} and GST ${gstRate * 100}% are shown before confirmation.`],
@@ -306,7 +304,7 @@ function FaqList({ emergencySurcharge, normalPrice, chilledPrice, subscriptionPr
     ['Can I pause or cancel a subscription?',
       'Yes. You can pause or cancel future deliveries later. Each delivery is billed separately and there is no automatic debit.'],
     ['Which cities do you serve?',
-      `We currently deliver in ${LIVE_CITIES.join(', ')}. Not listed? Join the waitlist on the address & time step.`],
+      liveCities.length ? `Our active cities: ${liveCities.join(', ')}. Exact PIN and service eligibility are verified at checkout.` : 'Check your address for coverage, or join the launch waitlist.'],
     ['How fast can I get water?',
       `Choose a 3-hour delivery window, or tick Emergency for ASAP delivery (${inr(emergencySurcharge)} surcharge).`],
   ];
@@ -375,7 +373,7 @@ function emptyDraft(): BookingDraft {
     notes: '', slotValid: false,
     newAddress: {
       label: 'Home', house_flat: '', area: '',
-      city: LIVE_CITIES[0] ?? 'Gorakhpur', pincode: '', landmark: '', is_default: true,
+      city: '', pincode: '', landmark: '', is_default: true,
     },
   };
 }
@@ -671,6 +669,10 @@ export default function BookingWizard() {
   const [hydrated, setHydrated]   = useState(false);
   const [draft, setDraft]         = useState<BookingDraft>(emptyDraft);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
+  const [directoryCities, setDirectoryCities] = useState<City[]>([]);
+  const [cityDirectoryLoading, setCityDirectoryLoading] = useState(true);
+  const LIVE_CITIES = useMemo(() => directoryCities.filter(city => city.status === 'active').map(city => city.name), [directoryCities]);
+  const ADDRESS_CITIES = useMemo(() => directoryCities.map(city => city.name), [directoryCities]);
   const pricingCity = addresses.find((address) => address.id === draft.addressId)?.city ?? draft.newAddress?.city ?? undefined;
   const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, pricingCity);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
@@ -748,6 +750,20 @@ export default function BookingWizard() {
     const clamped = Math.min(MAX_FORM_STEP, Math.max(1, n));
     setStep(clamped);
     setFurthest((f) => Math.max(f, clamped));
+  }, []);
+
+  // Never use a hardcoded live-city fallback: the database is authoritative.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch('/api/cities', { signal: controller.signal, cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error('City directory unavailable');
+        return (await response.json()) as City[];
+      })
+      .then(rows => { if (!controller.signal.aborted) setDirectoryCities(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (!controller.signal.aborted) setDirectoryCities([]); })
+      .finally(() => { if (!controller.signal.aborted) setCityDirectoryLoading(false); });
+    return () => controller.abort();
   }, []);
 
   /* Cancel any in-flight geolocation work on unmount */
@@ -2099,7 +2115,7 @@ export default function BookingWizard() {
         {view === 1 && (
           <>
             <WhyChooseUs />
-            <FaqList convenience={settings.convenience_fee} delivery={settings.delivery_fee} gstRate={settings.gst_rate} emergencySurcharge={settings.emergency_surcharge + settings.surge_charge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
+            <FaqList liveCities={LIVE_CITIES} convenience={settings.convenience_fee} delivery={settings.delivery_fee} gstRate={settings.gst_rate} emergencySurcharge={settings.emergency_surcharge + settings.surge_charge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
           </>
         )}
 
@@ -2108,7 +2124,7 @@ export default function BookingWizard() {
           <>
         <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
             <h2 className="text-base font-bold text-slate-900">2 · Delivery address</h2>
-            <p className="text-sm text-slate-500">We deliver in: {LIVE_CITIES.join(', ')}</p>
+            <p className="text-sm text-slate-500">{cityDirectoryLoading ? 'Checking live city coverage…' : LIVE_CITIES.length ? `Active cities: ${LIVE_CITIES.join(', ')}. Check your exact PIN for availability.` : 'Live city directory unavailable. Retry when the connection is restored.'}</p>
 
             <details className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white p-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-800">
@@ -2339,9 +2355,10 @@ export default function BookingWizard() {
                     )}
 
                     <select className={`${selectCls}${flashCls}`} aria-label="City"
-                      value={draft.newAddress?.city ?? LIVE_CITIES[0] ?? ''}
+                      value={draft.newAddress?.city ?? ''}
                       onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, city: e.target.value } }))}>
-                      {ADDRESS_CITIES.map((c) => <option key={c} value={c}>{c}{!LIVE_CITIES.includes(c) ? ' · availability check required' : ''}</option>)}
+                      <option value="">{cityDirectoryLoading ? 'Loading cities…' : 'Select city'}</option>
+                       {ADDRESS_CITIES.map((c) => <option key={c} value={c}>{c}{!LIVE_CITIES.includes(c) ? ' · availability check required' : ''}</option>)}
                     </select>
 
                     <div>

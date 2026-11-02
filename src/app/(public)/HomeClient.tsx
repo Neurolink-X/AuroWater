@@ -8,7 +8,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
-import { PRICING, ORDER_FEES, FAQS, CITIES, LIVE_CITIES, PIN_CITIES, PILOT_CITIES, LIVE_CITY_NAMES, PIN_CITY_NAMES, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
+import { PRICING, ORDER_FEES, FAQS, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
+import type { City } from '@/lib/cities';
 
 /* ───────── DATA ───────── */
 const W = PRICING.water;
@@ -206,7 +207,28 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
 }
 
 /* ───────── PAGE ───────── */
-export default function HomeClient() {
+export default function HomeClient({ initialCities }: { initialCities: City[] }) {
+  const [directoryCities, setDirectoryCities] = useState<City[]>(initialCities);
+  const LIVE_CITIES = directoryCities.filter(city => city.status === 'active');
+  const PILOT_CITIES = directoryCities.filter(city => city.status === 'coming_soon');
+  const PIN_CITIES = directoryCities.filter(city => city.status === 'waitlist');
+  const LIVE_CITY_NAMES = LIVE_CITIES.map(city => city.name).join(', ') || 'supported areas';
+  const PIN_CITY_NAMES = PILOT_CITIES.map(city => city.name).join(', ');
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const refresh = () => {
+      void fetch('/api/cities', { cache: 'no-store', signal: controller.signal })
+        .then(async response => { if (!response.ok) throw new Error('City directory unavailable'); return response.json() as Promise<City[]>; })
+        .then(rows => { if (active) setDirectoryCities(Array.isArray(rows) ? rows : []); })
+        .catch(() => { if (active && !controller.signal.aborted) setDirectoryCities([]); });
+    };
+    const onFocus = () => { if (document.visibilityState === 'visible') refresh(); };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+    return () => { active = false; controller.abort(); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus); };
+  }, []);
   const router = useRouter();
   // Warm the most common booking route after the homepage becomes interactive.
   // Idle scheduling avoids competing with first paint on low-end Android devices.
@@ -398,7 +420,7 @@ export default function HomeClient() {
               <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
 
                 <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
-                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in {LIVE_CITY_NAMES.replace(' and ', ' & ')} · {PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes</div>
+                  <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Check live coverage in {LIVE_CITY_NAMES}</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
                     <span className="hero-h block mt-2">RO Water from {displayPrice(currentNormal)},</span>
@@ -500,7 +522,7 @@ export default function HomeClient() {
               {['💧 Water + plumbing + tank cleaning', '💳 Cash + UPI', '🧾 Clear order totals', '🗓️ Recurring delivery'].map(b => <span key={b}>{b}</span>)}
             </div>
             <p className="mx-auto mt-3 max-w-4xl text-center text-xs leading-relaxed text-slate-500 sm:text-sm">
-              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ')} — full-city live service coverage. {PIN_CITIES.map(c => c.name).join(' · ')} — selected PIN-code coverage only. Orders are accepted citywide; supplier matching continues after placement.
+              <span className="font-semibold text-slate-700">Service areas:</span> {LIVE_CITIES.map(c => c.name).join(' · ') || 'Check availability'} — exact PIN, service and partner availability are verified before booking.
             </p>
           </div>
         </section>
@@ -563,7 +585,7 @@ export default function HomeClient() {
           <div className="max-w-6xl mx-auto px-5 sm:px-8">
             <div className="text-center mb-10">
               <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900">Water delivery, plumber &amp; tank cleaning near you</h2>
-              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Live in {LIVE_CITY_NAMES}. {PIN_CITY_NAMES} are served on approved PIN codes. We confirm availability for your address before you pay.</p>
+              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Active cities: {LIVE_CITY_NAMES}. Check your exact PIN and service before placing an order.</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {LIVE_CITIES.map(c => (
@@ -572,7 +594,7 @@ export default function HomeClient() {
                     <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {c.name}</h3>
                     <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">Live</span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">Citywide service throughout {c.name}, including {c.areas.join(', ')}. Listed neighborhoods are examples, not coverage limits.</p>
+                  <p className="mt-2 text-sm text-slate-600">Check coverage for your exact address in {c.name}. Availability depends on approved zones, service type and eligible partners.</p>
                   <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Order in {c.name} →</Link>
                 </div>
               ))}
@@ -581,10 +603,10 @@ export default function HomeClient() {
               {PILOT_CITIES.map(city => <div key={city.slug} className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-display text-lg font-extrabold text-slate-900">📍 {city.name}</h3>
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Pilot · not yet live</span>
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">Coming soon</span>
                 </div>
-                <p className="mt-2 text-sm text-slate-700">Our {city.areas.join(', ')} pilot is being prepared. Bookings depend on verified available suppliers and exact address coverage. No guaranteed delivery yet.</p>
-                <Link href={`/cities/${city.slug}`} className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-900 hover:underline">Check pilot updates →</Link>
+                <p className="mt-2 text-sm text-slate-700">{city.name} is being prepared. Join the waitlist and check back for verified service coverage.</p>
+                <Link href="/service-areas" className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-amber-900 hover:underline">View service area updates →</Link>
               </div>)}
             </div>}
             <div className="grid sm:grid-cols-3 gap-4 mt-5">
@@ -592,14 +614,14 @@ export default function HomeClient() {
                 <div key={c.slug} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-display font-extrabold text-slate-900">📍 {c.name}</h3>
-                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Select PINs</span>
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">Waitlist</span>
                   </div>
-                  <p className="mt-2 text-xs text-slate-600">Areas incl. {c.areas.slice(0, 4).join(', ')}.</p>
-                  <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline">Check my PIN code →</Link>
+                  <p className="mt-2 text-xs text-slate-600">This city is on our waitlist. Availability has not been enabled.</p>
+                  <Link href="/service-areas" className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline">Join the waitlist →</Link>
                 </div>
               ))}
             </div>
-            <p className="mt-6 text-center text-xs text-slate-500">Not listed? Request your area: {CITIES.length} cities and growing.</p>
+            <p className="mt-6 text-center text-xs text-slate-500">Not listed? Request your area: {directoryCities.length} cities in the directory.</p>
           </div>
         </section>
 

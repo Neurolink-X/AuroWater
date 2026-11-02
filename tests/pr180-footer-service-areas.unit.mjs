@@ -42,8 +42,9 @@ test('footer city activation is based on existing canonical city directory', () 
 test('footer cleans up its fetch after navigation', () => {
   assert.match(footer, /controller\.abort\(\)/);
 });
-test('footer preserves fallback if city API fails', () => {
-  assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
+test('footer never advertises hardcoded live cities on API failure', () => {
+  assert.match(footer, /mergePublicCityDirectory\(\[\], \[\]\)/);
+  assert.doesNotMatch(footer, /FALLBACK_CITIES/);
 });
 test('footer marks regions without live cities as coming soon', () => {
   assert.match(directory, /'coming_soon'/);

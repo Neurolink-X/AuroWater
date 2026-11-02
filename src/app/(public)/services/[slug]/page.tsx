@@ -5,15 +5,16 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 
 import ServicePrice from '@/components/services/ServicePrice';
-import { SERVICE_DETAILS, SHARED_FAQS, serviceKeywords, serviceSeoTitle, type ServiceDetail } from '../service-details';
-import { BRAND, CITY_LINE, LIVE_CITIES, SERVICES, SITE_URL } from '../services-data';
+import { SERVICE_DETAILS, SHARED_FAQS, serviceSeoTitle, type ServiceDetail } from '../service-details';
+import { BRAND, SERVICES, SITE_URL } from '../services-data';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 
 /* ─────────────────────────────────────────────
    Speed: every service page is built once, served from the CDN,
    and unknown slugs return 404 instantly instead of rendering on demand.
 ───────────────────────────────────────────── */
 export const dynamicParams = false;
-export const revalidate = 86400;
+export const dynamic = 'force-dynamic';
 
 export function generateStaticParams() {
   return Object.keys(SERVICE_DETAILS).map((slug) => ({ slug }));
@@ -30,18 +31,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const service = getService(slug);
   if (!service) return { title: `Service not found | ${BRAND}`, robots: { index: false, follow: false } };
 
-  const title = serviceSeoTitle(service);
+  const liveCities = (await getPublicServiceCities()).filter(city => city.status === 'active');
+  const cityNames = liveCities.map(city => city.name).join(', ') || 'supported areas';
+  const title = `${service.title} in ${cityNames} | ${BRAND}`;
+  const description = `${service.title} by ${BRAND}. Check live PIN-code coverage, available providers and prices before booking.`;
   const path = `/services/${service.key}`;
 
   return {
     metadataBase: new URL(SITE_URL),
     title,
-    description: service.metaDescription,
-    keywords: serviceKeywords(service),
+    description,
+    keywords: [service.title, ...liveCities.map(city => `${service.title} ${city.name}`)],
     alternates: { canonical: path, languages: { 'en-IN': path } },
     // The share image comes from opengraph-image.tsx in this folder (WhatsApp, Facebook, LinkedIn, X).
-    openGraph: { title, description: service.metaDescription, url: path, type: 'website', siteName: BRAND, locale: 'en_IN' },
-    twitter: { card: 'summary_large_image', title, description: service.metaDescription },
+    openGraph: { title, description, url: path, type: 'website', siteName: BRAND, locale: 'en_IN' },
+    twitter: { card: 'summary_large_image', title, description },
     robots: {
       index: true,
       follow: true,
@@ -73,6 +77,8 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   const service = getService(slug);
   if (!service) notFound();
 
+  const liveCities = (await getPublicServiceCities()).filter(city => city.status === 'active');
+  const cityLine = liveCities.map(city => city.name).join(', ') || 'supported areas';
   const accent = service.accent;
   const path = `/services/${service.key}`;
   const pageUrl = SITE_URL + path;
@@ -90,11 +96,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
     .slice(0, 3)
     .map((s) => SERVICE_DETAILS[s.key]);
 
-  const areaServed = LIVE_CITIES.map((name) => ({
-    '@type': 'City',
-    name,
-    containedInPlace: { '@type': 'State', name: 'Uttar Pradesh' },
-  }));
+  const areaServed = liveCities.map(city => ({ '@type': 'City', name: city.name }));
 
   /* Structured data: no prices, no ratings (prices are live, ratings must be real). */
   const ld = [
@@ -176,7 +178,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
               {/* The H1 carries the service AND the cities people search for */}
               <h1 className="max-w-3xl text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
                 {service.title}
-                <span className="mt-2 block text-2xl font-bold text-slate-300 sm:text-3xl">in {CITY_LINE}</span>
+                <span className="mt-2 block text-2xl font-bold text-slate-300 sm:text-3xl">in {cityLine}</span>
               </h1>
               <p lang="hi" className="mt-4 text-lg font-semibold text-sky-200">{service.hindi}</p>
               <p className="mt-5 max-w-2xl text-base leading-8 text-slate-300 sm:text-lg">{service.description}</p>
@@ -196,7 +198,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
 
               {/* Trust points: all true to how booking works today */}
               <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-slate-200">
-                {['Address checked before booking', 'Price confirmed before work', 'Live in 3 UP cities'].map((t) => (
+                {['Address checked before booking', 'Price confirmed before work', 'Check live city coverage'].map((t) => (
                   <li key={t} className="flex items-center gap-2"><span aria-hidden className="text-emerald-400">✓</span>{t}</li>
                 ))}
               </ul>
@@ -269,12 +271,12 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
 
       {/* ══ WHERE WE SERVE: local SEO text, honest about coverage ══ */}
       <section className="mx-auto max-w-6xl px-5 pb-14 sm:pb-20" aria-labelledby="cities-h">
-        <h2 id="cities-h" className="text-3xl font-black tracking-tight">{service.title} in {CITY_LINE}</h2>
+        <h2 id="cities-h" className="text-3xl font-black tracking-tight">{service.title} in {cityLine}</h2>
         <p className="mt-3 max-w-2xl leading-7 text-slate-600">
-          {BRAND} is live in {LIVE_CITIES.length} Uttar Pradesh cities. Availability depends on your exact area, so enter your address while booking and we will check it first. We do not serve Delhi NCR yet.
+          {BRAND} lists {liveCities.length} active cities in its service directory. Availability depends on your exact area, so enter your address while booking and we will check it first. Service coverage depends on the city, PIN code and verified partner availability.
         </p>
         <ul className="mt-8 grid gap-7 sm:grid-cols-3">
-          {LIVE_CITIES.map((city) => (
+          {liveCities.map(({ name: city }) => (
             <li key={city} className={`${RAISED_SM} p-6`}>
               <h3 className="font-extrabold text-slate-900">{city}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">Book {service.title.toLowerCase()} in supported areas of {city}. Check your address to see availability.</p>

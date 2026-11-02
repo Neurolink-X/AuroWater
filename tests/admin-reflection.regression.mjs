@@ -82,9 +82,13 @@ test('Noida is active for citywide service requests across customer and SEO surf
   const marketing = read('src/lib/marketing-pricing.ts');
   assert.ok(marketing.includes("slug: 'noida',     name: 'Noida',     state: 'Uttar Pradesh', status: 'live' as CityStatus,"));
   const fallback = read('src/lib/cities.ts');
-  assert.ok(fallback.includes("id: 'noida', name: 'Noida', slug: 'noida', status: 'active'"));
+  assert.doesNotMatch(fallback, /FALLBACK_CITIES|ACTIVE_CITY_NAMES|ADDRESS_CITY_NAMES/);
+  const wizard = read('src/components/booking/BookingWizard.tsx');
+  assert.match(wizard, /fetch\('\/api\/cities'/);
+  assert.doesNotMatch(wizard.split('/* ───────── Premium presentation helpers')[0], /ACTIVE_CITY_NAMES/);
   const home = read('src/app/(public)/HomeClient.tsx');
-  assert.match(home, /Citywide service throughout/);
+  assert.match(home, /exact PIN, service and partner availability/);
+  assert.doesNotMatch(home, /Citywide service throughout/);
   assert.doesNotMatch(home, /Noida Sector 73 is a pre-launch pilot/);
   const cityPage = read('src/app/cities/[city]/page.tsx');
   assert.doesNotMatch(cityPage, /Sector 73 Pilot|limited pilot/);

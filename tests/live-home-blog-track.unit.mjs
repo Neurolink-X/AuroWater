@@ -17,7 +17,8 @@ test('homepage prices are from versioned live settings, not immutable marketing 
   assert.match(home, /currentEmergencyFee/);
   assert.doesNotMatch(meta.slice(0, 4000), /price: PRICING\.water\./);
   assert.doesNotMatch(home, /Most popular · Best for families/);
-  assert.match(home, /Citywide service throughout/);
+  assert.match(home, /exact PIN, service and partner availability/);
+  assert.doesNotMatch(home, /Citywide service throughout/);
   assert.match(read('src/lib/marketing-pricing.ts'), /slug: 'noida'.*status: 'live'/);
   assert.doesNotMatch(read('src/lib/marketing-pricing.ts'), /status: 'pilot' as CityStatus/);
 });

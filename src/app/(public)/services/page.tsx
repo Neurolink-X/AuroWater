@@ -1,7 +1,6 @@
 import ServicesClient from './ServicesClient';
 import {
   BRAND,
-  LIVE_CITIES,
   PAGE_DESCRIPTION,
   PAGE_PATH,
   PAGE_TITLE,
@@ -10,18 +9,22 @@ import {
   SITE_URL,
 } from './services-data';
 import './services.css';
+import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 
 /* Page metadata (title, description, canonical, keywords, viewport) lives in layout.tsx.
    This file only renders the page, the structured data and the FAQ. */
 
 // Static page: served from the CDN and refreshed once a day. Live prices load in the browser from settings.
-export const revalidate = 86400;
+export const dynamic = 'force-dynamic';
 
 const json = (o: unknown) => JSON.stringify(o).replace(/</g, '\\u003c');
 
-export default function ServicesPage() {
+export default async function ServicesPage() {
+  const cities = await getPublicServiceCities();
+  const liveCities = cities.filter(city => city.status === 'active');
+  const cityLine = liveCities.map(city => city.name).join(', ') || 'supported areas';
   const url = SITE_URL + PAGE_PATH;
-  const areaServed = LIVE_CITIES.map((c) => ({ '@type': 'City', name: c }));
+  const areaServed = liveCities.map(city => ({ '@type': 'City', name: city.name }));
 
   // No prices and no ratings in structured data: prices are live, and ratings must be real.
   const ld = [
@@ -82,7 +85,7 @@ export default function ServicesPage() {
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: json(o) }} />
       ))}
 
-      <ServicesClient />
+      <ServicesClient cityLine={cityLine} />
 
       {/* Server-rendered FAQ: real text for search engines, zero extra JavaScript */}
       <div className="sv-faq-wrap">
