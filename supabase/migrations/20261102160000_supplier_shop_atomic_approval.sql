@@ -14,6 +14,10 @@ ALTER TABLE public.supplier_shop_location_history ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.supplier_shop_location_history FROM PUBLIC,anon,authenticated;
 GRANT SELECT,INSERT ON public.supplier_shop_location_history TO service_role;
 
+-- Requests are idempotent per supplier while pending; concurrent submissions cannot create two active relocations.
+CREATE UNIQUE INDEX IF NOT EXISTS supplier_shop_one_pending_request_idx
+ ON public.supplier_profile_change_requests(supplier_id) WHERE status='PENDING';
+
 -- Prevent suppliers from bypassing shop approval by updating their own settings via the Data API.
 -- Online status, service radius and payout fields continue to work normally.
 CREATE OR REPLACE FUNCTION public.guard_supplier_shop_base()
