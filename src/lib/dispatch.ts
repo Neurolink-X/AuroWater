@@ -1,4 +1,4 @@
-import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
+import { preferredSupplierId, rankSupplierCandidates, selectRepeatSupplierId, prioritizeRepeatSupplier, chooseOfferWave } from './supplier-affinity';
 import { withinSupplierRadius } from './dispatch-radius';
 import { matchApprovedSupplierCoverage, type SupplierZoneCoverage } from './dispatch-coverage';
 import { technicianRadius } from './technician-service-radius';
@@ -368,6 +368,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       .select('supplier_id')
       .eq('customer_id', order.customer_id)
       .eq('status', 'COMPLETED')
+      .eq('service_type', 'water_can')
       .not('supplier_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -562,7 +563,8 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       if (!referralError) affinityId = referrals?.[0]?.supplier_id ?? null;
     }
   }
-  const ranked = rankSupplierCandidates(cands, affinityId);
+  const repeatSupplierId = selectRepeatSupplierId(cands, affinityId, favourite);
+  const ranked = prioritizeRepeatSupplier(rankSupplierCandidates(cands, affinityId), repeatSupplierId);
   cands.splice(0, cands.length, ...ranked);
 
   return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, geo: geoInfo };
@@ -636,7 +638,15 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       const {data: mode,error:modeError}=await db.from('settings')
         .select('value').eq('key','parallel_supplier_offers_enabled').maybeSingle();
       if(!modeError && String(mode?.value).toLowerCase()==='true') {
-        const chosen=ev.cands.filter(c=>c.distance!==null).slice(0,3);
+        // Re-evaluated eligible candidates are already ranked with repeat first.
+        // First wave is visible ONLY to that supplier; on expiry/rejection,
+        // a subsequent wave can fan out to other verified nearby suppliers.
+        const repeatSupplier = ev.cands.find(c=>c.favourite) ?? null;
+        const {data:priorOffers,error:priorOffersError}=await db.from('order_supplier_offers')
+          .select('supplier_id').eq('order_id',orderId);
+        if(priorOffersError)return {supplierId:null,reason:'error'};
+        const previous=new Set<string>(((priorOffers??[]) as {supplier_id:string}[]).map(o=>String(o.supplier_id)));
+        const chosen=chooseOfferWave(ev.cands.filter(c=>c.distance!==null),repeatSupplier?.id??null,previous,3);
         if(chosen.length>0) {
           // An active offer wave must not be defeated by the old sequential path.
           const {data:openOffers,error:openOffersError}=await db.from('order_supplier_offers')
