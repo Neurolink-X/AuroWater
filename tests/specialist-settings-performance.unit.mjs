@@ -23,5 +23,6 @@ test('specialist verification is bounded, deduplicated, auth-scoped and not pers
  assert.match(panel,/cached\.get\(userId\)/);
  assert.match(panel,/const data = enabled && userId === record\?\.userId/);
  assert.match(panel,/setRecord\(null\)/);
- assert.doesNotMatch(panel,/localStorage|sessionStorage/);
+ // Check executable storage access, not the explanatory security comment.
+ assert.doesNotMatch(panel,/\b(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
 });
