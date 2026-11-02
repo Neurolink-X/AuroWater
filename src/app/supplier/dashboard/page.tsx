@@ -3157,12 +3157,13 @@ export default function SupplierDashboardPage() {
       // timestamp is the accounting source of truth; legacy/unreconciled rows remain review-only.
       const financialsPosted = Boolean(row.financials_posted_at);
       const needsReview = !financialsPosted || !Number.isFinite(amount) || amount <= 0;
-      const isSettled = payoutStatus === 'paid' && !needsReview;
+      const isSettled = payoutStatus === 'paid' && Boolean(paidAt) && !needsReview;
+      const settlementNeedsReview = needsReview || (payoutStatus === 'paid' && !paidAt);
       return {
         id: String(row.id),
         order_reference: String(row.order_number ?? '—'),
         amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
-        status: needsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
+        status: settlementNeedsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
         paid_at: isSettled ? paidAt : null,
         created_at: String(row.completed_at ?? row.created_at ?? ''),
       };
@@ -4193,9 +4194,15 @@ export default function SupplierDashboardPage() {
                 {isHindi ? 'हाल की CSV एक्सपोर्ट करें' : 'Export recent CSV'} ({earnings.length})
               </button>
             </div>
+            <div className="sd-card" style={{ marginBottom: 12, padding: 14, fontSize: 13, lineHeight: 1.7 }} role="note">
+              <strong>{isHindi ? 'ग्राहक का Paid और सप्लायर का Payout अलग हैं।' : 'Customer paid does not mean supplier payout sent.'}</strong>
+              <p>{isHindi ? 'आपने ग्राहक का कैश कलेक्ट किया, तो पैसा पहले से आपके पास है और कुल सेटलमेंट में एडजस्ट होता है। Payout pending का मतलब AuroTap से अलग ट्रांसफर रिकॉर्ड नहीं हुआ।' : 'If you collected cash from the customer, you already hold that money; it offsets your net settlement. Payout pending means no separate transfer from AuroTap is recorded.'}</p>
+              <p style={{ marginTop: 6, color: 'var(--ink2)' }}>{isHindi ? 'पुराने ऑर्डर जिनमें लेज़र एंट्री अधूरी है, उन्हें Finance review दिखाया जाएगा।' : 'Older orders with incomplete financial records show Finance review, not a false promise of payment.'}</p>
+              <Link href="/supplier/earnings" className="sd-link">{isHindi ? 'सेटलमेंट विवरण देखें' : 'Review settlement breakdown'}</Link>
+            </div>
             <div className="sd-stats" style={{ marginBottom: 16 }}>
               <StatCard icon={Icon.wallet(17)} label="This month" value={earningsSummary ? INR(earningsSummary.gross_amount) : '—'} sub={earningsSummary ? (isHindi ? `वित्तीय लेज़र में ${earningsSummary.order_count} ऑर्डर दर्ज` : `${earningsSummary.order_count} orders counted by finance ledger`) : (isHindi ? 'सारांश अस्थायी रूप से उपलब्ध नहीं' : 'Summary temporarily unavailable')} accent="#6D28D9" loading={loading} />
-              <StatCard icon={Icon.chart(17)} label={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={earningsSummary?.balance_requires_review ? (isHindi ? 'समीक्षा जरूरी' : 'Needs review') : earningsSummary?.pending_payout != null ? INR(earningsSummary.pending_payout) : '—'} sub={earningsSummary?.payout_message || (isHindi ? 'सप्लायर कमाई लेज़र से' : 'From the supplier earnings ledger')} accent="#9A5A06" loading={loading} />
+              <StatCard icon={Icon.chart(17)} label={isHindi ? 'नेट सेटलमेंट बैलेंस' : 'Net settlement balance'} value={earningsSummary?.balance_requires_review ? (isHindi ? 'समीक्षा जरूरी' : 'Needs review') : earningsSummary?.pending_payout != null ? INR(earningsSummary.pending_payout) : '—'} sub={earningsSummary?.payout_message || (isHindi ? 'सप्लायर कमाई लेज़र से' : 'From the supplier earnings ledger')} accent="#9A5A06" loading={loading} />
             </div>
           </section>
           {earnings.length > 0 && (
@@ -4211,7 +4218,7 @@ export default function SupplierDashboardPage() {
                     <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#B91C1C' : 'var(--brand2)' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
                     <div>
                       <span className={`sd-chip ${e.status === 'paid' ? 'sd-chip--ok' : e.status === 'review' ? 'sd-chip--bad' : 'sd-chip--warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
-                        {e.status === 'paid' ? (isHindi ? 'भुगतान हुआ' : 'Paid') : e.status === 'review' ? (isHindi ? 'समीक्षा ज़रूरी' : 'Needs review') : (isHindi ? 'लंबित' : 'Pending')}
+                        {e.status === 'paid' ? (isHindi ? 'सप्लायर सेटलमेंट भेजा' : 'Supplier settlement sent') : e.status === 'review' ? (isHindi ? 'फाइनेंस समीक्षा' : 'Finance review') : (isHindi ? 'सेटलमेंट बाकी' : 'Settlement not sent')}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{e.paid_at ? fmtDate(e.paid_at) : fmtDate(e.created_at)}</div>
