@@ -52,17 +52,32 @@ export async function GET(req: NextRequest) {
 
     const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null | undefined;
 
+    // Ledger totals must come from server-scoped functions, not the browser.
+    // A failed optional breakdown must never invent a zero cash/payout figure.
+    const { data: walletData, error: walletError } = await auth.ctx.supabase.rpc('get_wallet_summary');
+    const wallet = !walletError ? (Array.isArray(walletData) ? walletData[0] : walletData) as Record<string, unknown> | null : null;
+    if (walletError) console.warn('[supplier/earnings] optional settlement breakdown unavailable', { code: walletError.code });
+    const walletBreakdown = wallet ? {
+      total_earned: toMoney(wallet.total_earned),
+      cash_to_remit: toMoney(wallet.cash_to_remit),
+      total_paid_out: toMoney(wallet.total_paid_out),
+      payout_requested: toMoney(wallet.payout_requested),
+    } : null;
+
     const ledgerBalance = toMoney(row?.pending_payout);
     // A negative wallet balance is not a payout due. Keep the accounting
     // record unchanged and flag reconciliation rather than showing '-₹' as owed.
     const balanceRequiresReview = ledgerBalance < 0;
     return jsonOk({
       balance_requires_review: balanceRequiresReview,
+      wallet_breakdown: walletBreakdown,
+      customer_payment_explainer: 'Customer payment marked paid means the order collection is recorded. It does not mean AuroTap has transferred your supplier settlement.',
+      supplier_settlement_explainer: 'An order payout marked pending means finance settlement is not marked as transferred. If you collected cash directly, that cash is already with you and offsets the amount payable by AuroTap.',
       payout_message: balanceRequiresReview
-        ? 'Settlement needs review: your ledger includes cash collected or adjustments. Contact AuroTap finance; do not request a payout from a negative balance.'
+        ? 'Net settlement requires review: cash received by you and other adjustments can offset earnings. This is not an unpaid customer order. Contact AuroTap finance before requesting a transfer.'
         : ledgerBalance === 0
           ? 'No verified transferable balance. Earnings and collected cash are reconciled separately.'
-          : 'Verified current ledger balance; request a payout for the amount you are eligible to withdraw.',
+          : 'Current net balance may be eligible for a payout request; submitting a request is not a completed bank/UPI transfer.',
       period: typeof row?.period_label === 'string' && row.period_label ? row.period_label : period,
       currency: 'INR',
       order_count: Math.max(0, Math.trunc(toNumber(row?.order_count))),
