@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -11,16 +12,13 @@ import { getToken } from '@/lib/api-client';
 /* Supplier settings: business details, dispatch preferences and payouts.
    The server (/api/supplier/settings) enforces the supplier role; this page only reacts to a 403. */
 
-const CITIES = [
-  'Kanpur', 'Gorakhpur', 'Lucknow', 'Varanasi', 'Prayagraj', 'Agra', 'Meerut',
-  'Bareilly', 'Aligarh', 'Mathura', 'Delhi', 'Noida', 'Ghaziabad',
-];
+
 
 type Check = { key: string; ok: boolean; label: string; fix: string };
 type Snap = {
   is_online?: boolean;
   zone_radius_km?: number;
-  price_per_can?: number | null;
+  // Customer and supplier payout prices are centrally calculated; never edited here.
   auto_accept?: boolean;
   base_lat?: number | null;
   base_lng?: number | null;
@@ -81,10 +79,10 @@ export default function SupplierSettingsPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [saving, setSaving] = useState<string | null>(null);
 
-  const [fullName, setFullName] = useState('');
-  const [city, setCity] = useState('');
+
+
   const [radius, setRadius] = useState(5);
-  const [price, setPrice] = useState('');
+
   const [autoAccept, setAutoAccept] = useState(false);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
@@ -95,10 +93,10 @@ export default function SupplierSettingsPage() {
   const applySnap = useCallback((s: Snap, resetForm: boolean) => {
     setSnap(s);
     if (!resetForm) return;
-    setFullName(s.profile?.full_name ?? '');
-    setCity(s.profile?.city ?? '');
+
+
     setRadius(Number(s.zone_radius_km) || 5);
-    setPrice(s.price_per_can ? String(s.price_per_can) : '');
+
     setAutoAccept(Boolean(s.auto_accept));
     setLat(s.base_lat != null ? String(s.base_lat) : '');
     setLng(s.base_lng != null ? String(s.base_lng) : '');
@@ -163,7 +161,7 @@ export default function SupplierSettingsPage() {
 
   const checks = snap?.readiness?.checks ?? [];
   const todo = useMemo(() => checks.filter((c) => !c.ok), [checks]);
-  const cityOptions = useMemo(() => (city && !CITIES.includes(city) ? [city, ...CITIES] : CITIES), [city]);
+
 
   if (!hydrated || state === 'loading') {
     return (
@@ -199,7 +197,7 @@ export default function SupplierSettingsPage() {
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-6 sm:px-6">
         <header>
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Settings</h1>
-          <p className="mt-1 text-sm text-slate-600">Your business details, where you deliver, and how you get paid.</p>
+          <p className="mt-1 text-sm text-slate-600">Verified account, delivery preferences, and payout destinations in one place.</p>
         </header>
 
         {/* Online switch + readiness */}
@@ -243,27 +241,15 @@ export default function SupplierSettingsPage() {
         </section>
 
         {/* Business details */}
-        <Card title="Business details" hint="Your city is used to match nearby orders when no service location is set.">
-          <Field label="Name" htmlFor="s-name">
-            <input id="s-name" className={INPUT} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
-          </Field>
-          <Field label="City" htmlFor="s-city">
-            <select id="s-city" className={INPUT} value={city} onChange={(e) => setCity(e.target.value)}>
-              <option value="">Choose your city</option>
-              {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Mobile number" htmlFor="s-phone" hint="Contact support to change">
-            <input id="s-phone" className={`${INPUT} opacity-70`} value={snap?.profile?.phone ?? ''} readOnly />
-          </Field>
-          <button
-            type="button"
-            className={BTN}
-            disabled={saving === 'profile' || fullName.trim().length < 2 || city.trim().length < 2}
-            onClick={() => void save('profile', { full_name: fullName.trim(), city: city.trim() }, 'Details saved.')}
-          >
-            {saving === 'profile' ? 'Saving…' : 'Save details'}
-          </button>
+        <Card title="Business profile & verification" hint="Your verified identity, address and city are managed by the admin-reviewed profile workflow.">
+          <div className="grid gap-3 rounded-2xl p-4 text-sm text-slate-800 sm:grid-cols-2">
+            <div><span className="text-slate-500">Name</span><p className="font-bold">{snap?.profile?.full_name || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Registered city</span><p className="font-bold">{snap?.profile?.city || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Registered phone</span><p className="font-bold">{snap?.profile?.phone || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Profile changes</span><p className="font-bold">Admin approval required</p></div>
+          </div>
+          <Link href="/supplier/profile" className={BTN}>Manage profile & address</Link>
+          <Link href="/supplier/coverage" className="inline-flex min-h-11 items-center font-semibold text-emerald-800 underline">Review approved PIN service areas</Link>
         </Card>
 
         {/* Dispatch preferences */}
@@ -284,9 +270,7 @@ export default function SupplierSettingsPage() {
             📍 Use my current location
           </button>
 
-          <Field label="Price per can (₹)" htmlFor="s-price">
-            <input id="s-price" inputMode="decimal" className={`${INPUT} max-w-[180px]`} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="20" />
-          </Field>
+          <p className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-700">Water-can customer prices are managed by AuroTap. This account does not override checkout pricing.</p>
 
           <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-2xl px-1 text-sm font-bold text-slate-700">
             <span>Auto-accept orders<span className="block text-xs font-medium text-slate-500">Confirm new orders without tapping accept.</span></span>
@@ -325,6 +309,7 @@ export default function SupplierSettingsPage() {
               ? `Current: ${[snap.upi_id, snap.bank_account].filter(Boolean).join(' · ')}`
               : 'No payout details yet.'}
           </p>
+          <p className="text-xs text-slate-600">Payout details are destinations for admin/finance settlement; saving them does not initiate a transfer. Collect customer payments only as instructed on the confirmed order.</p>
           <Field label="UPI ID" htmlFor="s-upi">
             <input id="s-upi" className={INPUT} value={upi} onChange={(e) => setUpi(e.target.value)} autoCapitalize="none" autoComplete="off" placeholder="name@bank" />
           </Field>
