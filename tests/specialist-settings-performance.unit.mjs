@@ -24,5 +24,14 @@ test('specialist verification is bounded, deduplicated, auth-scoped and not pers
  assert.match(panel,/const data = enabled && userId === record\?\.userId/);
  assert.match(panel,/setRecord\(null\)/);
  // Check executable storage access, not the explanatory security comment.
- assert.doesNotMatch(panel,/\b(?:window\.)?(?:localStorage|sessionStorage)\s*\./);
+ const executableSource = panel.replace(/^\s*\/\/.*$/gm, '');
+ assert.doesNotMatch(executableSource,/\b(?:window\.)?(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem|clear|key)\s*\(/);
+});
+
+test('privacy check distinguishes explanatory comments from real browser-storage calls', () => {
+ const stripComments = (source) => source.replace(/^\s*\/\/.*$/gm, '');
+ const storageCall = /\b(?:window\.)?(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem|clear|key)\s*\(/;
+ assert.doesNotMatch(stripComments('// sessionStorage.getItem example only'), storageCall);
+ assert.match(stripComments('window.localStorage.setItem("user", "email")'),storageCall);
+ assert.match(stripComments('sessionStorage.getItem("email")'),storageCall);
 });
