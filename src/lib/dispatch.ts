@@ -449,7 +449,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     const addressSnapshot = order.address_snapshot && typeof order.address_snapshot==='object'
       ? order.address_snapshot as Record<string,unknown> : null;
     const snapshotPin = String(addressSnapshot?.pincode ?? '');
-    if (/^\\d{6}$/.test(snapshotPin)) customerPin = snapshotPin;
+    if (/^\d{6}$/.test(snapshotPin)) customerPin = snapshotPin;
     else if (order.address_id) {
       const {data: address,error:addressError} = await db.from('addresses')
         .select('pincode').eq('id',order.address_id).maybeSingle();
