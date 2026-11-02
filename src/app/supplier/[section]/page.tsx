@@ -510,6 +510,24 @@ function Analytics({ insight }: { insight: Row }) {
       </div>
 
       <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'ऑर्डर के लिए तैयार?' : 'Dispatch readiness signals'}</h2>
+        <p className="sp-sub">Being online alone does not guarantee a new order. Dispatch still checks your approved service area, location, workload and stock atomically.</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <p className={`rounded-lg p-3 text-sm font-bold ${result.supplier_online ? 'bg-emerald-900/30 text-emerald-200' : 'bg-amber-900/30 text-amber-200'}`}>
+            Dispatch: {result.supplier_online ? 'Online' : 'Offline'}
+          </p>
+          <p className="rounded-lg bg-white/5 p-3 text-sm">
+            Unreserved cans: {forecast ? forecast.free_stock : 'Not verified'}
+          </p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Link href="/supplier/settings" className="sp-link">Review dispatch location</Link>
+          <Link href="/supplier/coverage" className="sp-link">Check approved coverage</Link>
+          <Link href="/supplier/inventory" className="sp-link">Update available stock</Link>
+        </div>
+      </article>
+
+      <article className="sp-card">
         <h2 className="sp-h2">{isHindi ? 'कल का स्टॉक प्लान' : 'Tomorrow’s stock plan'}</h2>
         <p className="sp-sub">{isHindi ? 'पिछले 56 दिनों के पूरे ऑर्डर का सीमित अनुमान। यह पक्का ऑर्डर नहीं है।' : 'A conservative estimate from up to 56 days of your own completed deliveries. Not a promised order or purchase instruction.'}</p>
         {forecast ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
