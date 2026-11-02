@@ -8,7 +8,6 @@
 //   useState,
 // } from 'react';
 // import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 // import { createClient } from '@/lib/supabase/client';
 // import { toast } from 'sonner';
 // import {
@@ -136,7 +135,6 @@ import Image from 'next/image';
 //   const d = new Date(iso);
 //   if (!iso || Number.isNaN(d.getTime())) return 'Date TBD';
 //   return d.toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Kolkata',
 //     timeZone: 'Asia/Kolkata',
 //     day: '2-digit',
 //     month: 'short',
@@ -185,8 +183,8 @@ import Image from 'next/image';
 //   const date = new Date(normalized);
 //   if (Number.isNaN(date.getTime())) return '';
 //   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
-  const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${fields.year}-${fields.month}-${fields.day}`;
+//   const fields = Object.fromEntries(parts.map(part => [part.type, part.value]));
+//   return `${fields.year}-${fields.month}-${fields.day}`;
 // };
 // const todayIST = () => toISTDateKey(new Date().toISOString());
 // const tomorrowIST = () => {
@@ -2082,6 +2080,7 @@ import React, {
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import {
