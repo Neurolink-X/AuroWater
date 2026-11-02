@@ -38,7 +38,7 @@ export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost
     // Do not interrupt public reading if the new CMS schema has not been deployed.
     return [];
   }
-}, ['aurotap-public-editorial-guides-v1'], { revalidate: 60 });
+}, ['aurotap-public-editorial-guides-v1'], { revalidate: 300 });
 
 export async function allPublishedGuides(): Promise<GuidePost[]> {
   const [{ publishedGuides }, managed] = await Promise.all([
