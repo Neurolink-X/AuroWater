@@ -177,6 +177,8 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
 const CACHE_KEY        = 'aw_settings_v3';
 const CACHE_TS_KEY     = 'aw_settings_v3_ts';
 const DEFAULT_STALE_MS = 0; // Pricing always revalidates against the published version
+const CITY_CACHE_PREFIX = 'aw_settings_city_v1_';
+const cityCacheKey = (city?: string) => city?.trim() ? CITY_CACHE_PREFIX + city.trim().toLowerCase() : CACHE_KEY;
 
 /* ═══════════════════════════════════════════════════════════════
    PURE HELPERS  (no React deps — independently testable)
@@ -340,16 +342,20 @@ async function apiSaveSettings(
    CACHE HELPERS
 ═══════════════════════════════════════════════════════════════ */
 
-function readCache(): { settings: Partial<PlatformSettings> | null; ts: number } {
+function readCache(city?: string): { settings: Partial<PlatformSettings> | null; ts: number } {
   return {
-    settings: safeParse<Partial<PlatformSettings>>(safeGet(CACHE_KEY)),
-    ts:       Number(safeGet(CACHE_TS_KEY) ?? '0'),
+    settings: safeParse<Partial<PlatformSettings>>(safeGet(cityCacheKey(city))),
+    ts:       Number(safeGet(city ? cityCacheKey(city) + '_ts' : CACHE_TS_KEY) ?? '0'),
   };
 }
 
-function writeCache(s: PlatformSettings): void {
-  safeSet(CACHE_KEY, JSON.stringify(s));
-  safeSet(CACHE_TS_KEY, String(Date.now()));
+function writeCache(s: PlatformSettings, city?: string): void {
+  // Only cache server-confirmed versioned pricing, never optimistic defaults.
+  if (!Number.isInteger(s.pricing_version) || Number(s.pricing_version) <= 0) return;
+  const previous = readCache(city).settings;
+  if (Number(previous?.pricing_version || 0) > Number(s.pricing_version)) return;
+  safeSet(cityCacheKey(city), JSON.stringify(s));
+  safeSet(city ? cityCacheKey(city) + '_ts' : CACHE_TS_KEY, String(Date.now()));
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -361,13 +367,17 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
    * Initialise synchronously from cache so the first render already has
    * real data (avoids flash of fallback values on page load).
    */
-  const [settings, setSettings] = React.useState<PlatformSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = React.useState<PlatformSettings>(() => {
+    // Hydration-safe: the initial render matches SSR; the cache is restored on mount.
+    return DEFAULT_SETTINGS;
+  });
 
   const [loading, setLoading] = React.useState(true);
   const [saving,  setSaving]  = React.useState(false);
   const [error,   setError]   = React.useState<string | null>(null);
 
   const abortRef = React.useRef<AbortController | null>(null);
+  const latestVersionRef = React.useRef(0);
   const [verifiedCity, setVerifiedCity] = React.useState<string | null>(null);
   const pricingReady = pricingIsVerified(settings.pricing_version, verifiedCity, city);
 
@@ -386,9 +396,12 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       const raw  = await apiFetchSettings(ctrl.signal, city);
       const next = mergeSettings(raw);
       if (!ctrl.signal.aborted) {
+        const version = Number(next.pricing_version || 0);
+        if (version < latestVersionRef.current) return;
+        latestVersionRef.current = version;
         setSettings(next);
         setVerifiedCity(city?.trim().toLowerCase() || 'global');
-        if (!city) writeCache(next);
+        writeCache(next, city);
       }
     } catch (cause: unknown) {
       if (timedOut || !ctrl.signal.aborted) setError(timedOut ? 'Current prices took too long to load. Please retry.' : cause instanceof Error ? cause.message : 'Live pricing unavailable');
@@ -401,10 +414,19 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   /* ── Mount: serve cache if fresh; otherwise fetch ── */
   React.useEffect(() => {
-    const { settings: cached, ts } = city ? { settings: null, ts: 0 } : readCache();
+    const { settings: cached, ts } = readCache(city);
     const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
 
-    if (fresh) setSettings(mergeSettings(cached));
+    // Cached published settings are safe to display while a background refresh runs.
+    // They are never sufficient to mark checkout pricing as server-verified.
+    if (cached && Number(cached.pricing_version) > 0) {
+      const cachedVersion = Number(cached.pricing_version);
+      if (cachedVersion >= latestVersionRef.current) {
+        latestVersionRef.current = cachedVersion;
+        setSettings(mergeSettings(cached));
+      }
+    }
+    void fresh;
     void refresh();
 
     return () => { abortRef.current?.abort(); };
@@ -456,7 +478,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     (patch: Partial<PlatformSettings>): void => {
       setSettings(prev => {
         const next = mergeSettings({ ...prev, ...patch });
-        if (!city) writeCache(next);
+        // Do not persist unconfirmed admin edits as published customer prices.
         return next;
       });
     },

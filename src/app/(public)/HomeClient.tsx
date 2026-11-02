@@ -4,6 +4,7 @@ import { pricingFaqs } from '@/lib/pricing/presentation';
 import Link from 'next/link';
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
@@ -206,6 +207,18 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
 
 /* ───────── PAGE ───────── */
 export default function HomeClient() {
+  const router = useRouter();
+  // Warm the most common booking route after the homepage becomes interactive.
+  // Idle scheduling avoids competing with first paint on low-end Android devices.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    const prefetch = () => { if (!cancelled) router.prefetch('/book?service=water_can'); };
+    const idleWindow = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const idleId = idleWindow.requestIdleCallback?.(prefetch, { timeout: 2500 });
+    const fallback = idleId === undefined ? window.setTimeout(prefetch, 900) : undefined;
+    return () => { cancelled = true; if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId); if (fallback !== undefined) window.clearTimeout(fallback); };
+  }, [router]);
   // Published versioned prices are the source of truth; fallback prices show only while unavailable.
   // Display city is a visitor preference only; checkout re-resolves the saved address city.
   const [pricingCity] = useState(() => {
@@ -228,15 +241,15 @@ export default function HomeClient() {
   const currentEmergencyFee = Number(settings.emergency_surcharge) || 0;
   const liveServices = useMemo(() => SERVICES.map((service) => {
     if (service.href.includes('water_can')) return { ...service,
-      badge: `From ₹${currentNormal} / 20L`,
-      body: `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` };
+      badge: pricingReady ? `From ₹${currentNormal} / 20L` : 'Checking live price',
+      body: pricingReady ? `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` : 'Confirm live prices and serviceability before booking.' };
     if (service.href.includes('plumbing')) return { ...service,
-      badge: `From ₹${currentPlumbing}`,
+      badge: pricingReady ? `From ₹${currentPlumbing}` : 'Checking live price',
       body: 'Tell us your plumbing issue. The applicable visit or repair charges are confirmed in checkout before you book.' };
     if (service.href.includes('tank_cleaning')) return { ...service,
-      badge: `From ₹${currentTank}` };
+      badge: pricingReady ? `From ₹${currentTank}` : 'Checking live price' };
     return service;
-  }), [currentNormal, currentChilled, currentPlumbing, currentTank]);
+  }), [pricingReady, currentNormal, currentChilled, currentPlumbing, currentTank]);
   const [founding, setFounding] = useState<{ count: number } | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -298,17 +311,15 @@ export default function HomeClient() {
     finally { setBusy(false); }
   }, [name, phone]);
 
+  // Never present launch-default or stale amounts as current published prices.
+  // The content remains navigable while authoritative city pricing loads.
+  const displayPrice = (amount: number) => pricingReady ? `₹${amount}` : 'Checking price';
+
   const s = liveServices[svc];
 
 
   return (
     <>
-      {!pricingReady && (
-        <div role="status" aria-live="polite" className="relative z-20 flex flex-wrap items-center justify-center gap-2 bg-amber-50 px-4 py-2 text-center text-sm text-amber-950">
-          <span>{pricingError ? 'Live prices are temporarily unavailable. Prices shown are indicative; checkout will verify the latest total.' : 'Refreshing live prices in the background. Final prices are verified at checkout.'}</span>
-          {pricingError && <button type="button" onClick={() => void refreshSettings()} className="rounded-md border border-amber-700 px-3 py-1 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Retry</button>}
-        </div>
-      )}
       <style>{`
         :root{--navy:#020c18;--font-display:'Bricolage Grotesque','Syne',system-ui,sans-serif;--font-body:'DM Sans',system-ui,sans-serif;--fd:var(--font-display);--glass:rgba(7,30,52,.65);--glass-b:rgba(14,165,233,.16)}
         *,*::before,*::after{box-sizing:border-box}
@@ -390,7 +401,7 @@ export default function HomeClient() {
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Live in {LIVE_CITY_NAMES.replace(' and ', ' & ')} · {PIN_CITY_NAMES.replace(' and ', ' & ')} on select PIN codes</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
-                    <span className="hero-h block mt-2">RO Water from ₹{currentNormal},</span>
+                    <span className="hero-h block mt-2">RO Water from {displayPrice(currentNormal)},</span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
@@ -403,10 +414,10 @@ export default function HomeClient() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      [`₹${currentNormal}`, 'Normal RO · 20L'],
-                      [`₹${currentChilled}`, 'Chilled RO · 20L'],
+                      [displayPrice(currentNormal), 'Normal RO · 20L'],
+                      [displayPrice(currentChilled), 'Chilled RO · 20L'],
                       [`${MAX_LOCK}mo`, 'Price lock on plans'],
-                      [`₹${currentTank}`, 'Tank cleaning from'],
+                      [displayPrice(currentTank), 'Tank cleaning from'],
                     ].map(([v, l]) => (
                       <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
                         <div className="text-xl font-black text-white">{v}</div>
@@ -436,7 +447,7 @@ export default function HomeClient() {
                   <div className="aw-glass p-5">
                     <p className="font-display text-sm font-bold text-emerald-300 mb-3">Reasons to consider AuroTap</p>
                     <ul className="space-y-2.5">
-                      {[`Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled`, `Recurring delivery options; eligibility and price locks are confirmed at booking`, `Plumbing service estimates start from ₹${currentPlumbing}; verify any visit fee at checkout`, `Tank cleaning priced by size from ₹${currentTank}`].map(i => (
+                      {[pricingReady ? `Pay ₹${currentNormal} per 20L can, ₹${currentChilled} for chilled` : 'Live water prices are loading', `Recurring delivery options; eligibility and price locks are confirmed at booking`, pricingReady ? `Plumbing service estimates start from ₹${currentPlumbing}; verify any visit fee at checkout` : 'Plumbing charges are confirmed at checkout', pricingReady ? `Tank cleaning priced by size from ₹${currentTank}` : 'Tank cleaning prices depend on size and location'].map(i => (
                         <li key={i} className="flex items-start gap-2.5 text-sm text-sky-100/80"><span className="text-sky-400 text-xs mt-1">◆</span>{i}</li>
                       ))}
                     </ul>
@@ -461,7 +472,7 @@ export default function HomeClient() {
                 <span className="aw-campaign-spark" aria-hidden="true">💧</span>
                 <p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Everyday essential</p>
                 <h3 className="mt-2 text-xl font-extrabold">RO water to your doorstep</h3>
-                <p className="mt-2 max-w-[240px] text-sm text-sky-100">20L normal from ₹{currentNormal}. Confirm availability and final price at checkout.</p>
+                <p className="mt-2 max-w-[240px] text-sm text-sky-100">20L normal from {displayPrice(currentNormal)}. Confirm availability and final price at checkout.</p>
                 <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-sky-900">Order water →</span>
               </Link>
               <Link href="/book?service=plumbing" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-indigo-900 to-violet-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
@@ -494,7 +505,7 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <PricingSection normal={currentNormal} chilled={currentChilled} deliveryFee={currentDeliveryFee} plumberFee={currentPlumbing} tankFee={currentTank} />
+        {pricingReady ? <PricingSection normal={currentNormal} chilled={currentChilled} deliveryFee={currentDeliveryFee} plumberFee={currentPlumbing} tankFee={currentTank} /> : <section id="pricing" role="status" aria-live="polite" className="mx-auto max-w-5xl px-5 py-10"><div className="h-8 w-48 animate-pulse rounded-lg bg-slate-200 motion-reduce:animate-none"/><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{[0,1,2,3].map(n=><div key={n} className="h-24 animate-pulse rounded-2xl bg-slate-200 motion-reduce:animate-none"/>)}</div>{pricingError && <button type="button" onClick={() => void refreshSettings()} className="mt-4 rounded-lg border border-slate-400 px-4 py-2 text-sm font-semibold">Retry live prices</button>}</section> }
 
         {/* ═══ SERVICES ═══ */}
         <div className="bg-slate-50"><Wave flip color="var(--navy)" /></div>
@@ -695,7 +706,7 @@ export default function HomeClient() {
         <section aria-labelledby="live-pricing-notice" className="bg-cyan-50 px-5 py-6 text-slate-900">
           <div className="mx-auto max-w-6xl rounded-2xl border border-cyan-200 bg-white p-5 sm:p-6">
             <h2 id="live-pricing-notice" className="text-lg font-extrabold">Current prices & extra fees</h2>
-            <p className="mt-2 text-sm leading-6">Normal RO from ₹{currentNormal} · Chilled RO from ₹{currentChilled}. Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}. Some fees apply only to eligible services or emergency bookings.</p>
+            <p className="mt-2 text-sm leading-6">Normal RO from {displayPrice(currentNormal)} · Chilled RO from {displayPrice(currentChilled)}. {pricingReady ? <>Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}.</> : 'Published fees are loading.'} Some fees apply only to eligible services or emergency bookings.</p>
             <p className="mt-2 text-xs leading-5 text-slate-600">Prices reflect published platform settings and may differ by city, service, quantity or scheduled change. The final server-calculated total before confirmation is authoritative.</p>
             <Link href="/pricing" className="mt-3 inline-flex min-h-11 items-center font-bold text-cyan-800 hover:underline">See full pricing & availability →</Link>
           </div>
