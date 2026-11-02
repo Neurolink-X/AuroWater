@@ -528,10 +528,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     if (!affinityError) affinityId = preferredSupplierId(affinities ?? []);
   }
   const ranked = rankSupplierCandidates(cands, affinityId);
-  cands.splice(0, cands.length, ...ranked);    b.tier - a.tier ||
-      a.load - b.load ||
-      a.id.localeCompare(b.id)
-  );
+  cands.splice(0, cands.length, ...ranked);
 
   return { kind: 'ok', cands, rejected, onlineCount: onlineRows.length, geo: geoInfo };
 }
