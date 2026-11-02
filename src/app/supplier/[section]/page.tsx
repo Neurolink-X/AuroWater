@@ -21,7 +21,7 @@ const SECTIONS: Record<Section, { nav: string; title: string; subtitle: string; 
   inventory: { nav: 'Inventory', title: 'Inventory control', subtitle: 'Current stock and reservations.', endpoint: '/api/supplier/stock' },
   earnings: { nav: 'Earnings', title: 'Earnings & payouts', subtitle: 'This month’s earnings and payout requests.', endpoint: '/api/supplier/earnings?period=month' },
   settings: { nav: 'Dispatch', title: 'Dispatch settings', subtitle: 'Your online status, service radius and dispatch location.', endpoint: '/api/supplier/settings' },
-  analytics: { nav: 'Performance', title: 'Performance overview', subtitle: 'Live figures from your current orders. Nothing here is estimated.', endpoint: '/api/supplier/orders' },
+  analytics: { nav: 'Performance', title: 'Local performance & planning', subtitle: 'Your verified orders, conservative stock planning, accepted delivery batches and suggested coverage gaps.', endpoint: '/api/supplier/intelligence' },
   support: { nav: 'Support', title: 'Supplier support', subtitle: 'Fix common dispatch problems or contact your administrator.', endpoint: '/api/supplier/settings' },
 };
 const ORDER = Object.keys(SECTIONS) as Section[];
@@ -160,7 +160,7 @@ export default function SupplierSectionPage() {
     inventory: { nav: 'स्टॉक', title: 'स्टॉक प्रबंधन', subtitle: 'उपलब्ध स्टॉक और आरक्षित कैन की जानकारी।' },
     earnings: { nav: 'कमाई', title: 'कमाई और भुगतान', subtitle: 'इस महीने की कमाई और भुगतान अनुरोध।' },
     settings: { nav: 'डिस्पैच', title: 'डिस्पैच सेटिंग', subtitle: 'ऑनलाइन स्थिति, सेवा क्षेत्र और डिस्पैच लोकेशन।' },
-    analytics: { nav: 'प्रदर्शन', title: 'प्रदर्शन रिपोर्ट', subtitle: 'आपके मौजूदा ऑर्डर से प्राप्त वास्तविक आंकड़े।' },
+    analytics: { nav: 'प्रदर्शन', title: 'स्थानीय प्रदर्शन और योजना', subtitle: 'ऑर्डर, स्टॉक अनुमान, डिलीवरी ग्रुप और सेवा क्षेत्र के अवसर।' },
     support: { nav: 'सहायता', title: 'सप्लायर सहायता', subtitle: 'डिस्पैच समस्या हल करें या एडमिन से संपर्क करें।' },
   };
   const copy = isHindi ? sectionCopy[section] : meta;
@@ -199,7 +199,7 @@ export default function SupplierSectionPage() {
           {section === 'inventory' && <Inventory obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'earnings' && <Earnings obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'settings' && <Settings obj={obj} online={online} radius={radius} setRadius={setRadius} busy={busy} send={send} setError={setError} />}
-          {section === 'analytics' && <Analytics rows={rows} />}
+          {section === 'analytics' && <Analytics insight={obj} />}
           {section === 'support' && <Support />}
         </>
       )}
@@ -472,19 +472,93 @@ function Settings(p: { obj: Row; online: boolean; radius: string; setRadius: (s:
 
 /* ───────────────────────── Analytics & support ───────────────────────── */
 
-function Analytics({ rows }: { rows: Row[] }) {
+type Intelligence = {
+  checked_at?: string;
+  supplier_online?: boolean;
+  stock?: { available: number; reserved: number; buffer: number; low_stock_alert: number };
+  forecast?: { estimated_cans: number | null; confirmed_cans: number; suggested_target: number;
+    free_stock: number; refill_suggestion: number; confidence: string; historical_deliveries: number } | null;
+  performance?: { completed_orders: number; completed_water_cans: number;
+    cancelled_orders: number; active_orders: number; accepted_offers: number;
+    rejected_or_expired_offers: number; offer_acceptance_pct: number | null } | null;
+  route_groups?: { date: string; slot: string; pincode: string; orders: number; cans: number }[];
+  coverage_opportunities?: { zone_id: string; zone_name: string; city: string; request_count_30d: number;
+    mapped_supplier_count: number; distance_km: number | null; already_mapped: boolean; action: string }[];
+  data_quality?: { own_history_complete: boolean; route_groups_complete: boolean; coverage_sample_complete: boolean;
+    forecast_note: string; coverage_note: string; route_note: string };
+};
+
+function Analytics({ insight }: { insight: Row }) {
   const { language } = useLanguage();
   const isHindi = language === 'hi';
-  const count = (set: string[]) => rows.filter((o) => set.includes(norm(o.status))).length;
+  const result = insight as Intelligence;
+  const summary = result.performance;
+  const forecast = result.forecast;
+  const quality = result.data_quality;
+  const groups = result.route_groups ?? [];
+  const opportunities = result.coverage_opportunities ?? [];
+
   return (
-    <section className="sp-grid">
-      <Metric name={isHindi ? 'सूची में ऑर्डर' : 'Orders in list'} value={String(rows.length)} />
-      <Metric name={isHindi ? 'पूरे हुए' : 'Completed'} value={String(count(['completed', 'delivered']))} />
-      <Metric name={isHindi ? 'सक्रिय' : 'Active'} value={String(count(['assigned', 'in_progress']))} />
-      <article className="sp-card sp-wide">
-        <h2 className="sp-h2">{isHindi ? 'इन आँकड़ों के बारे में' : 'About these numbers'}</h2>
-        <p className="sp-sub">{isHindi ? 'ये आँकड़े अभी ऑर्डर सूची में लौटाए गए ऑर्डर गिनते हैं। कमाई और भुगतान के लिए Earnings पेज खोलें, जो लेखा-स्रोत से डेटा पढ़ता है।' : 'These numbers count the orders currently returned by your orders list. For revenue and payouts, use the Earnings page, which reads from the accounting source.'}</p>
-        <Link href="/supplier/earnings" className="sp-link">{isHindi ? 'कमाई खोलें' : 'Open earnings'}</Link>
+    <section className="space-y-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Metric name={isHindi ? 'पूरा किए ऑर्डर' : 'Completed orders'} value={summary ? String(summary.completed_orders) : 'Not verified'} />
+        <Metric name={isHindi ? 'डिलीवर पानी कैन' : 'Delivered water cans'} value={summary ? String(summary.completed_water_cans) : 'Not verified'} />
+        <Metric name={isHindi ? 'सक्रिय ऑर्डर' : 'Active orders'} value={summary ? String(summary.active_orders) : 'Not verified'} />
+        <Metric name={isHindi ? 'स्वीकार किए ऑफर' : 'Accepted offers'} value={summary ? String(summary.accepted_offers) : 'Not verified'} />
+      </div>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'कल का स्टॉक प्लान' : 'Tomorrow’s stock plan'}</h2>
+        <p className="sp-sub">{isHindi ? 'पिछले 56 दिनों के पूरे ऑर्डर का सीमित अनुमान। यह पक्का ऑर्डर नहीं है।' : 'A conservative estimate from up to 56 days of your own completed deliveries. Not a promised order or purchase instruction.'}</p>
+        {forecast ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Metric name={isHindi ? 'कल का अनुमान' : 'Estimated cans'} value={forecast.estimated_cans === null ? 'Insufficient history' : String(forecast.estimated_cans)} />
+          <Metric name={isHindi ? 'पहले से निर्धारित' : 'Assigned for tomorrow'} value={String(forecast.confirmed_cans)} />
+          <Metric name={isHindi ? 'फ्री स्टॉक' : 'Free stock'} value={String(forecast.free_stock)} />
+          <Metric name={isHindi ? 'रीफिल सुझाव' : 'Suggested refill'} value={forecast.estimated_cans === null ? 'No forecast' : String(forecast.refill_suggestion)} />
+        </div> : <p className="text-sm text-amber-300">Order history is incomplete. Stock forecast is not available.</p>}
+        <p className="mt-3 text-xs text-slate-400">Forecast confidence: {forecast?.confidence ?? 'unverified'} · Stock changes require explicit Inventory updates. No automatic stock mutation.</p>
+        <Link href="/supplier/inventory" className="sp-link">{isHindi ? 'स्टॉक खोलें' : 'Open inventory'}</Link>
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'डिलीवरी बैच' : 'Accepted delivery batches'}</h2>
+        <p className="sp-sub">{isHindi ? 'केवल स्वीकार किए गए ऑर्डर, पिन कोड और समय के अनुसार ग्रुप। रूट की गारंटी नहीं।' : 'Only orders accepted by you, grouped by PIN and broad IST time window. This is not turn-by-turn navigation or an optimized route.'}</p>
+        {quality?.route_groups_complete === false ? <p className="text-sm text-amber-300">Routing sample incomplete; grouping withheld.</p>
+          : groups.length === 0 ? <p className="text-sm text-slate-300">No eligible accepted water deliveries in the next seven days.</p>
+          : <div className="grid gap-2 sm:grid-cols-2">
+            {groups.map(group => <div key={group.date + group.slot + group.pincode} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="font-bold">{group.date} · {group.slot} IST</p>
+              <p className="mt-1 text-sm text-slate-300">PIN {group.pincode} · {group.orders} orders · {group.cans} cans</p>
+              <Link href="/supplier/orders" className="sp-link">Open assigned orders</Link>
+            </div>)}
+          </div>}
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'नए क्षेत्र के अवसर' : 'Coverage gap opportunities'}</h2>
+        <p className="sp-sub">{isHindi ? 'सिर्फ पर्याप्त समूह मांग और कम मैपिंग वाले क्षेत्र दिखते हैं। एडमिन स्वीकृति ज़रूरी है।' : 'Recent 30-day demand with at least five distinct customers and limited supplier mappings. Suggestions do not grant permission to serve a new area.'}</p>
+        {!quality?.coverage_sample_complete ? <p className="text-sm text-amber-300">Area demand or supplier location could not be fully verified, so suggestions are hidden.</p>
+          : opportunities.length === 0 ? <p className="text-sm text-slate-300">No sufficiently evidenced nearby opportunities in your registered city.</p>
+          : <div className="grid gap-2 sm:grid-cols-2">
+            {opportunities.map(zone => <div key={zone.zone_id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <p className="font-bold">{zone.zone_name} · {zone.city}</p>
+              <p className="mt-1 text-sm text-slate-300">{zone.request_count_30d} zone water requests / 30 days · {zone.mapped_supplier_count} mapped suppliers</p>
+              <p className="mt-1 text-xs text-slate-400">{zone.distance_km !== null ? `Approx. ${zone.distance_km} km straight-line` : 'Distance not verified'}</p>
+              <Link href={`/supplier/coverage?zone=${encodeURIComponent(zone.zone_id)}`} className="sp-link">
+                {zone.already_mapped ? 'Review current coverage' : 'Request admin approval'}
+              </Link>
+            </div>)}
+          </div>}
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">Local performance and missed offers</h2>
+        <p className="sp-sub">
+          {summary ? `${summary.cancelled_orders} cancelled orders · ${summary.rejected_or_expired_offers} rejected or expired offers · ${summary.offer_acceptance_pct ?? '—'}% offer response acceptance` : 'Performance data could not be verified.'}
+        </p>
+        <p className="text-xs text-slate-400">A rejected/expired offer is not necessarily a missed sale. No competitor/customer private details are shared.</p>
+        {quality && <p className="mt-3 text-xs text-slate-400">{quality.forecast_note} {quality.coverage_note} {quality.route_note}</p>}
+        <Link href="/supplier/earnings" className="sp-link">Earnings & payouts</Link>
       </article>
     </section>
   );
