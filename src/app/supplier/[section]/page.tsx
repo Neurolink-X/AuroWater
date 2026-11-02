@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { formatSupplierSchedule } from '@/lib/supplier/schedule-display';
 import { DEFAULT_CONTACT, whatsappHref } from '@/lib/contact-shared';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
@@ -12,7 +14,7 @@ import { createClient } from '@/lib/supabase/client';
 
 /* ───────────────────────── Types & config ───────────────────────── */
 
-type Section = 'orders' | 'inventory' | 'earnings' | 'settings' | 'analytics' | 'support';
+type Section = 'orders' | 'inventory' | 'earnings' | 'dispatch' | 'settings' | 'analytics' | 'support';
 type Row = Record<string, unknown>;
 type Status = 'pending' | 'assigned' | 'in_progress' | 'completed' | 'delivered' | 'cancelled' | string;
 
@@ -20,7 +22,8 @@ const SECTIONS: Record<Section, { nav: string; title: string; subtitle: string; 
   orders: { nav: 'Orders', title: 'Order management', subtitle: 'Assigned water orders, schedules and status. New assignments appear when dispatch eligibility is met.', endpoint: '/api/supplier/orders' },
   inventory: { nav: 'Inventory', title: 'Inventory control', subtitle: 'Current stock and reservations.', endpoint: '/api/supplier/stock' },
   earnings: { nav: 'Earnings', title: 'Earnings & payouts', subtitle: 'This month’s earnings and payout requests.', endpoint: '/api/supplier/earnings?period=month' },
-  settings: { nav: 'Dispatch', title: 'Dispatch settings', subtitle: 'Your online status, service radius and dispatch location.', endpoint: '/api/supplier/settings' },
+  dispatch: { nav: 'Dispatch', title: 'Live dispatch control', subtitle: 'Availability, delivery coverage, location and order readiness.', endpoint: '/api/supplier/settings' },
+  settings: { nav: 'Settings', title: 'Supplier account & preferences', subtitle: 'Review verified account, payout responsibility, delivery preferences and support.', endpoint: '/api/supplier/settings' },
   analytics: { nav: 'Performance', title: 'Local performance & planning', subtitle: 'Your verified orders, conservative stock planning, accepted delivery batches and suggested coverage gaps.', endpoint: '/api/supplier/intelligence' },
   support: { nav: 'Support', title: 'Supplier support', subtitle: 'Fix common dispatch problems or contact your administrator.', endpoint: '/api/supplier/settings' },
 };
@@ -99,7 +102,7 @@ export default function SupplierSectionPage() {
         setData(payload);
         hasData.current = true;
         if (!silent) setError('');
-        if (section === 'settings' && payload && typeof payload === 'object') {
+        if ((section === 'settings' || section === 'dispatch') && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
           setRadius(String((payload as Row).zone_radius_km ?? 5));
         }
@@ -159,7 +162,8 @@ export default function SupplierSectionPage() {
     orders: { nav: 'ऑर्डर', title: 'ऑर्डर प्रबंधन', subtitle: 'आपको दिए गए ऑर्डर, समय और डिलीवरी की स्थिति। नए ऑर्डर उपलब्धता और पात्रता के अनुसार दिखते हैं।' },
     inventory: { nav: 'स्टॉक', title: 'स्टॉक प्रबंधन', subtitle: 'उपलब्ध स्टॉक और आरक्षित कैन की जानकारी।' },
     earnings: { nav: 'कमाई', title: 'कमाई और भुगतान', subtitle: 'इस महीने की कमाई और भुगतान अनुरोध।' },
-    settings: { nav: 'डिस्पैच', title: 'डिस्पैच सेटिंग', subtitle: 'ऑनलाइन स्थिति, सेवा क्षेत्र और डिस्पैच लोकेशन।' },
+    dispatch: { nav: 'डिस्पैच', title: 'लाइव डिस्पैच कंट्रोल', subtitle: 'ऑनलाइन स्थिति, सेवा क्षेत्र, लोकेशन और ऑर्डर पात्रता।' },
+    settings: { nav: 'सेटिंग', title: 'सप्लायर खाता और सुविधाएँ', subtitle: 'अपना प्रोफ़ाइल, भुगतान प्रक्रिया और सहायता देखें।' },
     analytics: { nav: 'प्रदर्शन', title: 'स्थानीय प्रदर्शन और योजना', subtitle: 'ऑर्डर, स्टॉक अनुमान, डिलीवरी ग्रुप और सेवा क्षेत्र के अवसर।' },
     support: { nav: 'सहायता', title: 'सप्लायर सहायता', subtitle: 'डिस्पैच समस्या हल करें या एडमिन से संपर्क करें।' },
   };
@@ -178,7 +182,7 @@ export default function SupplierSectionPage() {
         </div>
       </header>
 
-      <PartnerJourney role="supplier" isHindi={isHindi} />
+      {section === 'dispatch' && <PartnerJourney role="supplier" isHindi={isHindi} />}
 
       <div className="mt-4 flex justify-end">
         <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
@@ -186,7 +190,7 @@ export default function SupplierSectionPage() {
         </button>
       </div>
 
-      {section === 'settings' && <div className="mt-4"><PartnerPostalLookup label={isHindi ? 'पिन कोड डायरेक्टरी' : 'Delivery area PIN directory'} /></div>}
+      {section === 'dispatch' && <div className="mt-4"><PartnerPostalLookup label={isHindi ? 'पिन कोड डायरेक्टरी' : 'Delivery area PIN directory'} /></div>}
 
       <div aria-live="polite">
         {error && <div role="alert" className="sp-msg sp-msg--err">{error}</div>}
@@ -198,7 +202,8 @@ export default function SupplierSectionPage() {
           {section === 'orders' && <Orders rows={rows} busy={busy} send={send} language={language} />}
           {section === 'inventory' && <Inventory obj={obj} busy={busy} send={send} setError={setError} />}
           {section === 'earnings' && <Earnings obj={obj} busy={busy} send={send} setError={setError} />}
-          {section === 'settings' && <Settings obj={obj} online={online} radius={radius} setRadius={setRadius} busy={busy} send={send} setError={setError} />}
+          {section === 'dispatch' && <DispatchControl obj={obj} online={online} radius={radius} setRadius={setRadius} busy={busy} send={send} setError={setError} />}
+          {section === 'settings' && <AccountSettings obj={obj} />}
           {section === 'analytics' && <Analytics insight={obj} />}
           {section === 'support' && <Support />}
         </>
@@ -229,8 +234,6 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
     if (ok) markDecided(id);
   };
 
-  const [refs, setRefs] = useState<Record<string, string>>({}); // UPI transaction references by order id
-
   const advance = async (id: string, next: Status, okMessage: string, extra: Row = {}) => {
     setOverride((o) => ({ ...o, [id]: next }));
     const ok = await send(`/api/supplier/orders/${encodeURIComponent(id)}/status`, 'PUT', { status: next.toUpperCase(), ...extra }, okMessage);
@@ -243,8 +246,8 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
       <Empty
         title={language === 'hi' ? 'अभी कोई ऑर्डर नहीं मिला' : 'No assigned orders yet'}
         text={language === 'hi' ? 'ऑर्डर मिलने के लिए ऑनलाइन हों, लोकेशन, सेवा क्षेत्र और स्टॉक की पुष्टि करें, फिर रीफ्रेश करें।' : 'Orders arrive when dispatch assigns one to you. Go online, confirm your location, radius and stock, then refresh.'}
-        href="/supplier/settings"
-        cta={language === 'hi' ? 'डिस्पैच सेटिंग खोलें' : 'Open dispatch settings'}
+        href="/supplier/dispatch"
+        cta={language === 'hi' ? 'डिस्पैच खोलें' : 'Open dispatch'}
       />
     );
   }
@@ -273,7 +276,7 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
               <dt>{language === 'hi' ? 'ग्राहक' : 'Customer'}</dt><dd>{str(o.customer_name, language === 'hi' ? 'ग्राहक' : 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
               <dt>{language === 'hi' ? 'पता' : 'Address'}</dt><dd>{deliveryAddress || (language === 'hi' ? 'पता स्वीकार करने के बाद उपलब्ध होगा' : 'Address on order')}</dd>
               <dt>{language === 'hi' ? 'भुगतान' : 'Payment'}</dt><dd>{norm(o.payment_status) === 'paid' ? (language === 'hi' ? 'भुगतान हो गया' : 'Paid') : (language === 'hi' ? `डिलीवरी पर भुगतान (${str(o.payment_method, 'cash').toUpperCase()})` : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`)}</dd>
-              <dt>{language === 'hi' ? 'समय' : 'Slot'}</dt><dd>{str(o.scheduled_date ?? o.scheduled_at, language === 'hi' ? 'समय तय होना बाकी' : 'Schedule pending')} {str(o.time_slot ?? o.scheduled_slot)}</dd>
+              <dt>{language === 'hi' ? 'समय' : 'Slot'}</dt><dd>{formatSupplierSchedule(o.scheduled_at ?? o.scheduled_date, o.time_slot ?? o.scheduled_slot, language)}</dd>
             </dl>
             <p className="sp-amount">{money(o.final_amount ?? o.total_amount ?? o.amount)}</p>
 
@@ -285,30 +288,31 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
                 </button>
               )}
               {status === 'assigned' && (
-                <button className="sp-btn sp-btn--go" disabled={busy} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
+                <button className="sp-btn sp-btn--go" disabled={busy || !acceptedFlag} onClick={() => void advance(id, 'in_progress', language === 'hi' ? 'डिलीवरी शुरू हुई।' : 'Delivery started.')}>
                   {language === 'hi' ? 'डिलीवरी शुरू करें' : 'Start delivery'}
                 </button>
               )}
               {status === 'in_progress' && (() => {
                 const paid = norm(o.payment_status) === 'paid';
-                const upi = norm(o.payment_method) === 'upi';
-                const ref = (refs[id] ?? '').trim();
+                const method = norm(o.payment_method);
+                const platformUpiPending = !paid && method === 'upi';
                 const amount = money(o.final_amount ?? o.total_amount ?? o.amount);
                 return (
                   <>
-                    {!paid && upi && (
-                      <label className="sp-field" style={{ flexBasis: '100%', margin: 0 }} htmlFor={`ref-${id}`}>{language === 'hi' ? 'UPI लेन-देन संदर्भ' : 'UPI transaction reference'}
-                        <input id={`ref-${id}`} className="sp-input" autoComplete="off" value={refs[id] ?? ''} onChange={(e) => setRefs((r) => ({ ...r, [id]: e.target.value }))} />
-                      </label>
+                    {platformUpiPending && (
+                      <p role="status" className="sp-hint">
+                        UPI is collected through the payment method shown in the customer booking.
+                        AuroTap admin must verify the transaction. Do not collect to a personal UPI ID or mark this order paid.
+                      </p>
                     )}
-                    <Confirm
+                    {!platformUpiPending && <Confirm
                       className="sp-btn sp-btn--amber"
-                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} प्राप्त हुए` : `Tap again: ${amount} received`)}
-                      disabled={busy || (!paid && upi && !ref)}
-                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, ...(ref ? { payment_reference: ref } : {}) })}
+                      confirmText={paid ? (language === 'hi' ? 'डिलीवरी की पुष्टि के लिए फिर दबाएँ' : 'Tap again to confirm delivery') : (language === 'hi' ? `फिर दबाएँ: ${amount} नकद मिले` : `Tap again: ${amount} cash received`)}
+                      disabled={busy}
+                      onConfirm={() => void advance(id, 'completed', language === 'hi' ? 'ऑर्डर डिलीवर हो गया।' : 'Order delivered.', paid ? {} : { payment_confirmed: true, payment_collector: 'supplier' })}
                     >
                       <span className="sp-pulse" aria-hidden /> {language === 'hi' ? 'डिलीवरी पूरी करें' : 'Complete delivery'}
-                    </Confirm>
+                    </Confirm>}
                   </>
                 );
               })()}
@@ -381,10 +385,13 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
   const [upi, setUpi] = useState('');
   const [account, setAccount] = useState('');
   const [ifsc, setIfsc] = useState('');
+  const payoutReview = obj.balance_requires_review === true;
+  const verifiedBalance = typeof obj.pending_payout === 'number' && Number.isFinite(obj.pending_payout) ? obj.pending_payout : null;
 
   const submit = async () => {
+    if (payoutReview || verifiedBalance === null || verifiedBalance <= 0) return setError('No verified transferable balance. Check the settlement explanation below.');
     const n = Number(amount);
-    if (!Number.isFinite(n) || n <= 0) return setError(isHindi ? '₹0 से अधिक भुगतान राशि डालें।' : 'Enter a payout amount greater than ₹0.');
+    if (!Number.isFinite(n) || n <= 0 || n > verifiedBalance) return setError(isHindi ? 'सत्यापित उपलब्ध राशि से अधिक भुगतान का अनुरोध नहीं कर सकते।' : 'Payout amount must be positive and within the verified balance.');
     if (method === 'upi' && !UPI_RE.test(upi.trim())) return setError(isHindi ? 'सही UPI ID डालें, जैसे name@bank।' : 'Enter a valid UPI ID, for example name@bank.');
     if (method === 'bank' && !ACCOUNT_RE.test(account.trim())) return setError(isHindi ? 'बैंक खाता संख्या 9 से 18 अंकों की होनी चाहिए।' : 'Bank account numbers have 9 to 18 digits.');
     if (method === 'bank' && !IFSC_RE.test(ifsc.trim())) return setError(isHindi ? '11 अक्षरों का सही IFSC डालें, जैसे HDFC0001234।' : 'Enter a valid 11-character IFSC, for example HDFC0001234.');
@@ -398,12 +405,13 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
     <section className="sp-grid">
       <Metric name={isHindi ? 'पूरे हुए ऑर्डर' : 'Completed orders'} value={num(obj.order_count)} />
       <Metric name={isHindi ? 'कुल कमाई' : 'Gross earnings'} value={money(obj.gross_amount)} />
-      <Metric name={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={money(obj.pending_payout)} />
+      <Metric name={isHindi ? 'निकालने योग्य बैलेंस' : 'Available for payout'} value={payoutReview || verifiedBalance === null ? 'Needs review' : money(verifiedBalance)} />
       <article className="sp-card sp-wide">
         <h2 className="sp-h2">{isHindi ? 'भुगतान अनुरोध करें' : 'Request a payout'}</h2>
+        <p role="status" className="sp-sub">{str(obj.payout_message, 'Payout availability has not been verified.')}</p>
         <p className="sp-sub">{isHindi ? 'अनुरोध भेजने से पैसे ट्रांसफर नहीं होते। एडमिन बाद में इसे प्रोसेस करता है।' : 'Submitting a request does not move money. The administrator processes it afterwards.'}</p>
         <label className="sp-field" htmlFor="po-amount">{isHindi ? 'राशि (₹)' : 'Amount (₹)'}
-          <input id="po-amount" className="sp-input" type="number" min={1} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <input id="po-amount" className="sp-input" type="number" min={0.01} max={verifiedBalance ?? undefined} disabled={payoutReview || verifiedBalance === null || verifiedBalance <= 0} step="0.01" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
         </label>
         <label className="sp-field" htmlFor="po-method">{isHindi ? 'भुगतान का तरीका' : 'Payout method'}
           <select id="po-method" className="sp-input" value={method} onChange={(e) => setMethod(e.target.value as 'upi' | 'bank')}>
@@ -425,7 +433,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
             </label>
           </>
         )}
-        <button className="sp-btn" disabled={busy} onClick={() => void submit()}>{busy ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'भुगतान अनुरोध भेजें' : 'Submit payout request')}</button>
+        <button className="sp-btn" disabled={busy || payoutReview || verifiedBalance === null || verifiedBalance <= 0} onClick={() => void submit()}>{busy ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'भुगतान अनुरोध भेजें' : 'Submit payout request')}</button>
       </article>
     </section>
   );
@@ -433,7 +441,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
 
 /* ───────────────────────── Settings ───────────────────────── */
 
-function Settings(p: { obj: Row; online: boolean; radius: string; setRadius: (s: string) => void; busy: boolean; send: Send; setError: (s: string) => void }) {
+function DispatchControl(p: { obj: Row; online: boolean; radius: string; setRadius: (s: string) => void; busy: boolean; send: Send; setError: (s: string) => void }) {
   const { language } = useLanguage();
   const isHindi = language === 'hi';
   const saveRadius = () => {
@@ -459,12 +467,66 @@ function Settings(p: { obj: Row; online: boolean; radius: string; setRadius: (s:
         <p className="sp-hint">{isHindi ? 'डिस्पैच लोकेशन बदलने के लिए डैशबोर्ड पर लोकेशन बटन का उपयोग करें।' : 'To change your dispatch location, use the location button on the dashboard.'}</p>
       </article>
       <article className="sp-card">
-        <h2 className="sp-h2">{isHindi ? 'वर्तमान सेटिंग' : 'Current configuration'}</h2>
+        <h2 className="sp-h2">{isHindi ? 'ऑर्डर प्राप्त करने की तैयारी' : 'Ready to receive orders?'}</h2>
+        <p className="sp-sub">This checklist is operational guidance, not a guarantee. Matching also checks approved zones, workload, exact location and atomic stock reservation.</p>
+        {Array.isArray((p.obj.readiness as Row | undefined)?.checks) ?
+          <ul className="space-y-3">{((p.obj.readiness as Row).checks as { key:string; ok:boolean; label:string; fix:string }[])
+            .filter(c => !['price','payout'].includes(c.key)).map(c =>
+            <li key={c.key} className="rounded-xl border border-white/10 p-3">
+              <span className={c.ok ? 'text-emerald-300' : 'text-amber-300'}>{c.ok ? '✓ ' : 'Needs attention · '}</span>
+              <strong>{c.label}</strong>
+              {!c.ok && <p className="mt-1 text-xs text-slate-300">{c.fix}</p>}
+            </li>)}</ul> : <p className="text-amber-200">Readiness has not been verified.</p>}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link href="/supplier/coverage" className="sp-link">Approved service areas</Link>
+          <Link href="/supplier/inventory" className="sp-link">Available stock</Link>
+          <Link href="/supplier/orders" className="sp-link">Assigned orders</Link>
+          <Link href="/supplier/dashboard" className="sp-link">Update base location</Link>
+        </div>
+        <p className="mt-3 text-xs text-slate-300">Base: {p.obj.base_lat == null || p.obj.base_lng == null ? 'Not verified' : 'Location saved'} · Service radius {p.radius} km</p>
+      </article>
+      <article className="sp-card sp-wide">
+        <div className="flex flex-wrap items-center gap-4">
+          <Image src="/images/water_can.webp" width={176} height={116} alt="Water-can delivery service" className="h-28 w-44 rounded-xl object-cover" sizes="176px" />
+          <div><h2 className="sp-h2">Daily delivery workflow</h2>
+          <p className="sp-sub">1. Go online → 2. Confirm stock and service area → 3. Review assigned orders → 4. Accept → 5. Deliver and record actual payment → 6. Review verified earnings.</p>
+          <p className="text-xs text-amber-200">If you are online but do not receive orders, admin must inspect dispatch eligibility and unassigned backlog.</p></div>
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function AccountSettings({ obj }: { obj: Row }) {
+  const { language } = useLanguage();
+  const isHindi = language === 'hi';
+  const profile = obj.profile && typeof obj.profile === 'object' ? obj.profile as Row : {};
+  return (
+    <section className="sp-grid">
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'मेरा व्यावसायिक खाता' : 'Business profile'}</h2>
+        <p className="sp-sub">Account identity and approval are controlled through the verified supplier profile.</p>
         <dl className="sp-dl">
-          {Object.entries(p.obj).filter(([, v]) => typeof v !== 'object').map(([k, v]) => (
-            <FragmentRow key={k} k={label(k)} v={str(v, '—')} />
-          ))}
+          <dt>Name</dt><dd>{str(profile.full_name, 'Not set')}</dd>
+          <dt>City</dt><dd>{str(profile.city, 'Not set')}</dd>
+          <dt>Contact</dt><dd>{str(profile.phone, 'Not set')}</dd>
         </dl>
+        <Link href="/supplier/profile" className="sp-link">Manage profile and verification</Link>
+      </article>
+      <article className="sp-card">
+        <h2 className="sp-h2">Payment and payout policy</h2>
+        <p className="sp-sub">Customer prices are managed by AuroTap. Your own price-per-can field does not change customer checkout prices or dispatch ranking.</p>
+        <p className="text-sm">Payout destination: {obj.has_payout_details ? 'Details saved (masked)' : 'Not configured'}</p>
+        <p className="mt-2 text-sm">Supplier UPI/bank details are only payout destinations, not proof of payment. Customers should pay only via the method displayed on their confirmed order.</p>
+        <Link href="/supplier/earnings" className="sp-link">Payout requests and verified balance</Link>
+      </article>
+      <article className="sp-card sp-wide">
+        <h2 className="sp-h2">Useful supplier tools</h2>
+        <div className="flex flex-wrap gap-4">
+          <Link className="sp-link" href="/supplier/dispatch">Live dispatch controls</Link>
+          <Link className="sp-link" href="/supplier/coverage">PIN coverage and approval</Link>
+          <Link className="sp-link" href="/supplier/support">Support and troubleshooting</Link>
+        </div>
       </article>
     </section>
   );
@@ -616,7 +678,7 @@ function Support() {
           <li>{isHindi ? 'ऑर्डर पेज को रीफ़्रेश करें। यदि फिर भी ऑर्डर नहीं दिखता, तो संभव है कोई ऑर्डर अभी आपके खाते को असाइन न हुआ हो।' : 'Refresh Orders. If nothing appears, there may simply be no order assigned to your account yet.'}</li>
         </ol>
         <div className="sp-actions">
-          <Link href="/supplier/settings" className="sp-link">{isHindi ? 'डिस्पैच सेटिंग' : 'Dispatch settings'}</Link>
+          <Link href="/supplier/dispatch" className="sp-link">{isHindi ? 'डिस्पैच' : 'Dispatch'}</Link>
           <Link href="/supplier/coverage" className="sp-link">{isHindi ? 'सेवा क्षेत्र' : 'Service areas'}</Link>
           <Link href="/supplier/inventory" className="sp-link">{isHindi ? 'स्टॉक देखें' : 'Check inventory'}</Link>
           <Link href="/supplier/orders" className="sp-link">{isHindi ? 'ऑर्डर खोलें' : 'Open orders'}</Link>

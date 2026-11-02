@@ -30,12 +30,15 @@ const BRAND = 'AuroTap · Supplier';
 const NAV_ITEMS: readonly NavItem[] = [
   { href: '/supplier/dashboard', label: { en: 'Overview', hi: 'डैशबोर्ड' } },
   { href: '/supplier/orders', label: { en: 'Orders', hi: 'ऑर्डर' }, priority: true },
-  { href: '/supplier/coverage', label: { en: 'Service Areas', hi: 'सेवा क्षेत्र' } },
-  { href: '/supplier/inventory', label: { en: 'Inventory', hi: 'स्टॉक' } },
+  { href: '/supplier/dispatch', label: { en: 'Dispatch', hi: 'डिस्पैच' } },
+  { href: '/supplier/inventory', label: { en: 'Stock', hi: 'स्टॉक' } },
   { href: '/supplier/earnings', label: { en: 'Earnings', hi: 'कमाई' } },
-  { href: '/supplier/settings', label: { en: 'Dispatch', hi: 'डिस्पैच' } },
-  { href: '/supplier/profile', label: { en: 'My Profile', hi: 'मेरी प्रोफ़ाइल' } },
+];
+const MORE_ITEMS: readonly NavItem[] = [
+  { href: '/supplier/settings', label: { en: 'Account & settings', hi: 'खाता और सेटिंग' } },
+  { href: '/supplier/coverage', label: { en: 'Service areas', hi: 'सेवा क्षेत्र' } },
   { href: '/supplier/analytics', label: { en: 'Performance', hi: 'प्रदर्शन' } },
+  { href: '/supplier/referrals', label: { en: 'Customer network', hi: 'ग्राहक नेटवर्क' } },
   { href: '/supplier/support', label: { en: 'Support', hi: 'सहायता' } },
 ];
 
@@ -58,6 +61,8 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const rowRef = useRef<HTMLElement | null>(null);
   const activeRef = useRef<HTMLAnchorElement | null>(null);
+  const moreRef = useRef<HTMLDetailsElement | null>(null);
+  const moreActive = pathname.startsWith('/supplier/profile') || MORE_ITEMS.some(i => pathname === i.href || pathname.startsWith(`${i.href}/`));
 
   /* Centre the active tab inside the row (scrolls only the row, never the page) */
   useEffect(() => {
@@ -126,8 +131,7 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
           overflow-x:auto;overflow-y:hidden;white-space:nowrap;scrollbar-width:none;
           -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scroll-snap-type:x proximity;
           --fl:0px;--fr:0px;
-          -webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%);
-          mask-image:linear-gradient(to right,transparent 0,#000 var(--fl),#000 calc(100% - var(--fr)),transparent 100%)}
+          -webkit-mask-image:none;mask-image:none}
         .snav-row[data-fl='1']{--fl:28px}
         .snav-row[data-fr='1']{--fr:28px}
         .snav-row::-webkit-scrollbar{display:none}
@@ -141,6 +145,12 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
         .snav-link:focus-visible{outline:2px solid #34d399;outline-offset:2px}
         .snav-link[aria-current='page']{color:#ecfdf5;border-color:rgba(52,211,153,.5);
           background:linear-gradient(135deg,rgba(5,150,105,.35),rgba(13,148,136,.15))}
+        .snav-more{position:relative;flex:0 0 auto;display:flex;align-items:center;z-index:3}
+        .snav-more summary{list-style:none;cursor:pointer}
+        .snav-more summary::-webkit-details-marker{display:none}
+        .snav-more-list{position:fixed;top:calc(var(--supplier-nav-h, 100px) + 2px);right:max(12px,env(safe-area-inset-right,0px));z-index:100;display:grid;gap:4px;min-width:220px;max-width:calc(100vw - 24px);max-height:min(65dvh,430px);overflow-y:auto;padding:10px;background:#102336;border:1px solid rgba(148,163,184,.35);border-radius:14px;box-shadow:0 14px 32px rgba(0,0,0,.35)}
+        .snav-more-list a{min-height:44px;display:flex;align-items:center;padding:9px 12px;color:#e2e8f0;text-decoration:none;border-radius:8px;font-size:13px;font-weight:700}
+        .snav-more-list a:hover,.snav-more-list a[aria-current='page']{background:rgba(16,185,129,.2);color:#ecfdf5}
         .snav-badge{min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#34d399;color:#06281d;
           font-size:11px;font-weight:800;line-height:18px;text-align:center}
         .snav-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(236,253,245,.25);
@@ -181,6 +191,22 @@ export default function SupplierNav({ badges }: SupplierNavProps) {
                 </Link>
               );
             })}
+            <details className="snav-more" ref={moreRef}>
+              <summary className="snav-link" aria-label={language === 'hi' ? 'अन्य सप्लायर पेज' : 'More supplier pages'}
+                aria-current={moreActive ? 'page' : undefined}>
+                {language === 'hi' ? 'अन्य' : 'More'} <span aria-hidden="true">▾</span>
+              </summary>
+              <div className="snav-more-list" role="group" aria-label={language === 'hi' ? 'अन्य पेज' : 'Other supplier pages'}>
+                {MORE_ITEMS.map(item => {
+                  const active = pathname === item.href || pathname.startsWith(item.href + '/');
+                  return <Link key={item.href} href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => { if (moreRef.current) moreRef.current.open = false; }}>
+                    {item.label[language] ?? item.label.en}<Pending />
+                  </Link>;
+                })}
+              </div>
+            </details>
           </nav>
         </div>
       </div>

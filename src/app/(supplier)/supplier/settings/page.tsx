@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -11,24 +12,21 @@ import { getToken } from '@/lib/api-client';
 /* Supplier settings: business details, dispatch preferences and payouts.
    The server (/api/supplier/settings) enforces the supplier role; this page only reacts to a 403. */
 
-const CITIES = [
-  'Kanpur', 'Gorakhpur', 'Lucknow', 'Varanasi', 'Prayagraj', 'Agra', 'Meerut',
-  'Bareilly', 'Aligarh', 'Mathura', 'Delhi', 'Noida', 'Ghaziabad',
-];
+
 
 type Check = { key: string; ok: boolean; label: string; fix: string };
 type Snap = {
   is_online?: boolean;
   zone_radius_km?: number;
-  price_per_can?: number | null;
-  auto_accept?: boolean;
+  // Customer and supplier payout prices are centrally calculated; never edited here.
+
   base_lat?: number | null;
   base_lng?: number | null;
   upi_id?: string | null;
   bank_account?: string | null;
   has_payout_details?: boolean;
   profile?: { full_name: string | null; phone: string | null; city: string | null } | null;
-  readiness?: { ready_for_orders: boolean; checks: Check[] };
+  readiness?: { ready_for_orders: boolean; checks: Check[]; dispatch_base_city_check?: 'mismatch' | 'nearby' | 'not_verified'; dispatch_base_city_distance_km?: number | null };
 };
 
 const NU = 'bg-[#E3EDF6] shadow-[9px_9px_18px_#b7c8d9,-9px_-9px_18px_#ffffff]';
@@ -81,11 +79,10 @@ export default function SupplierSettingsPage() {
   const [state, setState] = useState<'loading' | 'ready' | 'forbidden' | 'error'>('loading');
   const [saving, setSaving] = useState<string | null>(null);
 
-  const [fullName, setFullName] = useState('');
-  const [city, setCity] = useState('');
+
+
   const [radius, setRadius] = useState(5);
-  const [price, setPrice] = useState('');
-  const [autoAccept, setAutoAccept] = useState(false);
+
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [upi, setUpi] = useState('');
@@ -95,11 +92,10 @@ export default function SupplierSettingsPage() {
   const applySnap = useCallback((s: Snap, resetForm: boolean) => {
     setSnap(s);
     if (!resetForm) return;
-    setFullName(s.profile?.full_name ?? '');
-    setCity(s.profile?.city ?? '');
+
+
     setRadius(Number(s.zone_radius_km) || 5);
-    setPrice(s.price_per_can ? String(s.price_per_can) : '');
-    setAutoAccept(Boolean(s.auto_accept));
+
     setLat(s.base_lat != null ? String(s.base_lat) : '');
     setLng(s.base_lng != null ? String(s.base_lng) : '');
   }, []);
@@ -146,6 +142,10 @@ export default function SupplierSettingsPage() {
   }, [applySnap]);
 
   const useMyLocation = () => {
+    const confirmed = window.confirm(
+      'Use your CURRENT device position as the PERMANENT dispatch base? Only confirm if you are physically at your supplier shop/warehouse. A wrong city or temporary travel location can prevent nearby orders from reaching you.'
+    );
+    if (!confirmed) return;
     if (!navigator.geolocation) return toast.error('Location is not available on this device.');
     toast.info('Getting your location…');
     navigator.geolocation.getCurrentPosition(
@@ -163,7 +163,7 @@ export default function SupplierSettingsPage() {
 
   const checks = snap?.readiness?.checks ?? [];
   const todo = useMemo(() => checks.filter((c) => !c.ok), [checks]);
-  const cityOptions = useMemo(() => (city && !CITIES.includes(city) ? [city, ...CITIES] : CITIES), [city]);
+
 
   if (!hydrated || state === 'loading') {
     return (
@@ -199,7 +199,7 @@ export default function SupplierSettingsPage() {
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-6 sm:px-6">
         <header>
           <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Settings</h1>
-          <p className="mt-1 text-sm text-slate-600">Your business details, where you deliver, and how you get paid.</p>
+          <p className="mt-1 text-sm text-slate-600">Verified account, delivery preferences, and payout destinations in one place.</p>
         </header>
 
         {/* Online switch + readiness */}
@@ -224,6 +224,7 @@ export default function SupplierSettingsPage() {
             </button>
           </div>
 
+          {snap?.readiness?.dispatch_base_city_check === 'mismatch' && <p role="alert" className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm font-bold text-rose-900">Dispatch location may be wrong: your saved business base is about {snap.readiness.dispatch_base_city_distance_km} km from the center of your registered city. Verify the real delivery base before accepting new orders.</p>}
           <div className={`mt-5 rounded-2xl p-4 ${NU_IN}`} aria-live="polite">
             <p className={`text-sm font-black ${ready ? 'text-emerald-700' : 'text-amber-800'}`}>
               {ready ? 'You can receive orders.' : `Fix ${todo.length} thing${todo.length === 1 ? '' : 's'} so orders can reach you`}
@@ -243,31 +244,20 @@ export default function SupplierSettingsPage() {
         </section>
 
         {/* Business details */}
-        <Card title="Business details" hint="Your city is used to match nearby orders when no service location is set.">
-          <Field label="Name" htmlFor="s-name">
-            <input id="s-name" className={INPUT} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" />
-          </Field>
-          <Field label="City" htmlFor="s-city">
-            <select id="s-city" className={INPUT} value={city} onChange={(e) => setCity(e.target.value)}>
-              <option value="">Choose your city</option>
-              {cityOptions.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Mobile number" htmlFor="s-phone" hint="Contact support to change">
-            <input id="s-phone" className={`${INPUT} opacity-70`} value={snap?.profile?.phone ?? ''} readOnly />
-          </Field>
-          <button
-            type="button"
-            className={BTN}
-            disabled={saving === 'profile' || fullName.trim().length < 2 || city.trim().length < 2}
-            onClick={() => void save('profile', { full_name: fullName.trim(), city: city.trim() }, 'Details saved.')}
-          >
-            {saving === 'profile' ? 'Saving…' : 'Save details'}
-          </button>
+        <Card title="Business profile & verification" hint="Your verified identity, address and city are managed by the admin-reviewed profile workflow.">
+          <div className="grid gap-3 rounded-2xl p-4 text-sm text-slate-800 sm:grid-cols-2">
+            <div><span className="text-slate-500">Name</span><p className="font-bold">{snap?.profile?.full_name || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Registered city</span><p className="font-bold">{snap?.profile?.city || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Registered phone</span><p className="font-bold">{snap?.profile?.phone || 'Not available'}</p></div>
+            <div><span className="text-slate-500">Profile changes</span><p className="font-bold">Admin approval required</p></div>
+          </div>
+          <Link href="/supplier/profile" className={BTN}>Manage profile & address</Link>
+          <Link href="/supplier/coverage" className="inline-flex min-h-11 items-center font-semibold text-emerald-800 underline">Review approved PIN service areas</Link>
         </Card>
 
         {/* Dispatch preferences */}
         <Card title="Where and how you deliver" hint="Orders are matched by distance from your base location.">
+          <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Your dispatch base must be your actual supplier shop or warehouse, not your phone&apos;s temporary travel location. An incorrect city can prevent new orders.</p>
           <Field label="Delivery radius" htmlFor="s-radius" hint={`${radius} km`}>
             <input id="s-radius" type="range" min={1} max={50} value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-sky-600" />
           </Field>
@@ -284,26 +274,19 @@ export default function SupplierSettingsPage() {
             📍 Use my current location
           </button>
 
-          <Field label="Price per can (₹)" htmlFor="s-price">
-            <input id="s-price" inputMode="decimal" className={`${INPUT} max-w-[180px]`} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="20" />
-          </Field>
+          <p className="rounded-xl bg-white/70 p-3 text-sm font-semibold text-slate-700">Water-can customer prices are managed by AuroTap. This account does not override checkout pricing.</p>
 
-          <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 rounded-2xl px-1 text-sm font-bold text-slate-700">
-            <span>Auto-accept orders<span className="block text-xs font-medium text-slate-500">Confirm new orders without tapping accept.</span></span>
-            <input type="checkbox" checked={autoAccept} onChange={(e) => setAutoAccept(e.target.checked)} className="h-5 w-5 accent-emerald-600" />
-          </label>
+          <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-950">
+            Orders are assigned by the AuroTap matching service, but your acceptance is always required.
+            Auto-accept is not enabled; it will not be advertised until the end-to-end workflow is verified.
+          </p>
 
           <button
             type="button"
             className={BTN}
             disabled={saving === 'service'}
             onClick={() => {
-              const body: Record<string, unknown> = { zone_radius_km: radius, auto_accept: autoAccept };
-              const p = Number(price);
-              if (price.trim()) {
-                if (!Number.isFinite(p) || p < 1 || p > 1000) return toast.error('Price per can must be between ₹1 and ₹1000.');
-                body.price_per_can = p;
-              }
+              const body: Record<string, unknown> = { zone_radius_km: radius };
               const la = Number(lat);
               const ln = Number(lng);
               if (lat.trim() || lng.trim()) {
@@ -325,6 +308,7 @@ export default function SupplierSettingsPage() {
               ? `Current: ${[snap.upi_id, snap.bank_account].filter(Boolean).join(' · ')}`
               : 'No payout details yet.'}
           </p>
+          <p className="text-xs text-slate-600">Payout details are destinations for admin/finance settlement; saving them does not initiate a transfer. Collect customer payments only as instructed on the confirmed order.</p>
           <Field label="UPI ID" htmlFor="s-upi">
             <input id="s-upi" className={INPUT} value={upi} onChange={(e) => setUpi(e.target.value)} autoCapitalize="none" autoComplete="off" placeholder="name@bank" />
           </Field>

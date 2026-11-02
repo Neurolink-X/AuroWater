@@ -11,7 +11,13 @@ export async function GET(req:NextRequest) {
  const client=createServiceClient();
  const {data:attributions,error}=await client.from('supplier_referral_attributions')
  .select('priority_expires_at').eq('supplier_id',auth.ctx.user.id).limit(1000);
- if(error)return jsonErr('Unable to load referral summary',503,'DB_ERROR');
+ if(error) {
+  if(error.code==='42P01'||error.code==='PGRST205') {
+    return jsonErr('Customer Network is not active yet. Referral setup is being completed; no invitations can be confirmed until activation.',503,'FEATURE_NOT_READY');
+  }
+  console.error('[supplier/referrals] summary failed',{code:error.code});
+  return jsonErr('Could not verify referral records. Try again or contact support.',503,'DB_ERROR');
+ }
  const rows=attributions??[];
  return jsonOk({referred:rows.length,active:rows.filter(r=>r.priority_expires_at>now).length,
  expired:rows.filter(r=>r.priority_expires_at<=now).length,
