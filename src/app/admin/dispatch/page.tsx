@@ -39,8 +39,7 @@ export default function AdminDispatchPage() {
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 sm:px-6">
       <div className="mx-auto max-w-4xl">
-        <a href="/admin/dashboard" className="text-sm text-cyan-300 hover:text-cyan-200">← Back to admin dashboard</a>
-        <header className="mt-5">
+        <header>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">AuroTap Operations</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight">Supplier dispatch diagnosis</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
@@ -57,7 +56,7 @@ export default function AdminDispatchPage() {
             spellCheck={false}
             autoComplete="off"
             className="mt-2 w-full rounded-xl border border-white/15 bg-slate-900 px-3 py-3 font-mono text-sm text-white outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20"
-            placeholder="AW-20261102-000001 or UUID"
+            placeholder="AW-38489240, #AW-38489240 or UUID"
           />
           <div className="mt-4 flex flex-wrap gap-3">
             <button
@@ -78,7 +77,7 @@ export default function AdminDispatchPage() {
             </button>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-400">
-            Retry runs the existing protected dispatch logic. It does not bypass supplier eligibility or stock reservation.
+            Retry runs the existing protected dispatch logic. It does not bypass supplier eligibility or stock reservation. If a retry times out, diagnose the order before trying again: a timeout does not prove the assignment failed.
           </p>
         </section>
 

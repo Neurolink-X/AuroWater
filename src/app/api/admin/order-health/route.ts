@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, count, error } = await query
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(pageRaw * limit, (pageRaw + 1) * limit - 1);
 
   if (error) {

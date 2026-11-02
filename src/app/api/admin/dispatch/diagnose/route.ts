@@ -5,6 +5,7 @@ import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireRole, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { diagnoseOrderDispatch, dispatchOrder } from '@/lib/dispatch';
 import { parseOrderIdentifier } from '@/lib/order-reference';
+import { createServiceClient } from '@/utils/supabase/server';
 
 /**
  * /api/admin/dispatch/diagnose        (ADMIN ONLY)
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   if (!requireRole(auth.ctx, 'admin')) return jsonErr('Forbidden', 403);
 
   const orderId = new URL(req.url).searchParams.get('orderId')?.trim() ?? '';
-  const resolvedId = await resolveOrderId(auth.ctx.supabase, orderId);
+  const resolvedId = await resolveOrderId(createServiceClient(), orderId);
   if (!resolvedId) return jsonErr('Send a valid existing order reference.', 400);
 
   const report = await diagnoseOrderDispatch(resolvedId);
@@ -61,7 +62,8 @@ export async function POST(req: NextRequest) {
   const resolvedId = await resolveOrderId(auth.ctx.supabase, orderId);
   if (!resolvedId) return jsonErr('Send a valid existing order reference.', 400);
 
+  // Dispatch is a mutation. Return its outcome promptly instead of re-running the
+  // potentially expensive diagnosis; a client timeout here could trigger unsafe retries.
   const result = await dispatchOrder(resolvedId);
-  const report = await diagnoseOrderDispatch(resolvedId);
-  return jsonOk({ result, report: report.ok ? report : null });
+  return jsonOk({ result, report: null, next_action: 'Run Diagnose order to refresh assignment and eligibility.' });
 }

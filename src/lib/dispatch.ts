@@ -429,6 +429,22 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
   }
 
+  // New PIN-directory zones may geographically overlap a previously approved
+  // pilot zone. Honour the existing approval's actual boundary, not just its UUID.
+  // Never extend a supplier into an unrelated area or city by this fallback.
+  const approvedZoneIds = [...new Set(((zoneRes.data ?? []) as { zone_id: string }[]).map(z => String(z.zone_id)))];
+  let approvedZoneById = new Map<string, { city: string; status: string; radius_km: number | null; center_lat: number | null; center_lng: number | null; services: string[] | null }>();
+  if (order.zone_id && approvedZoneIds.length && geo.hasCoords) {
+    const { data: approvedZones, error: approvedZoneError } = await db.from('service_zones')
+      .select('id, city, status, radius_km, center_lat, center_lng, services')
+      .in('id', approvedZoneIds);
+    if (approvedZoneError) {
+      console.error('[dispatch] approved zone boundary lookup failed', approvedZoneError.message);
+      return { kind: 'error', message: 'Could not verify approved supplier boundaries.', action: 'approved_zone_lookup_failed' };
+    }
+    approvedZoneById = new Map(((approvedZones ?? []) as any[]).map(z => [String(z.id), z]));
+  }
+
   const profById = new Map<string, any>(((profRes.data ?? []) as any[]).map((p) => [String(p.id), p]));
   const activeLoad = new Map<string, number>();
   for (const r of (loadRes.data ?? []) as { supplier_id: string }[]) {
@@ -465,10 +481,26 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
           continue;
         }
       } else {
-        // A supplier with explicitly approved coverage elsewhere must not be
-        // silently assigned outside those approved zones. Keep legacy unmapped
-        // suppliers eligible for the existing same-city fallback during rollout.
-        if (links.length > 0) {
+        // Only an already approved geographic service boundary can cover an
+        // overlapping PIN zone. Require verified customer GPS, a matching city,
+        // the permitted service, and a genuine positive-radius boundary.
+        const supplierCity = String(p.city ?? '').trim().toLowerCase();
+        const orderCity = geo.city.trim().toLowerCase();
+        const sameCity = Boolean(supplierCity && orderCity && supplierCity === orderCity);
+        const overlapsApprovedZone = links.some(link => {
+          const zone = approvedZoneById.get(link.zoneId);
+          if (!zone || !geo.hasCoords || !sameCity) return false;
+          if (String(zone.city ?? '').trim().toLowerCase() !== orderCity) return false;
+          if (!['AVAILABLE', 'LIMITED'].includes(String(zone.status).toUpperCase())) return false;
+          if (link.serviceKeys !== null && !link.serviceKeys.includes(serviceKey)) return false;
+          if (Array.isArray(zone.services) && !zone.services.includes(serviceKey)) return false;
+          const zoneLat = coord(zone.center_lat);
+          const zoneLng = coord(zone.center_lng);
+          const zoneRadius = Number(zone.radius_km);
+          if (!Number.isFinite(zoneLat) || !Number.isFinite(zoneLng) || !Number.isFinite(zoneRadius) || zoneRadius <= 0) return false;
+          return haversineKm(geo.lat, geo.lng, zoneLat, zoneLng) <= zoneRadius;
+        });
+        if (links.length > 0 && !overlapsApprovedZone) {
           reject('zone_not_approved', String(order.zone_id));
           continue;
         }
