@@ -98,7 +98,7 @@ export function useSupplierRealtime({
   useEffect(() => {
     if (!supplierId) return;
     const id = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void ordersCb.current();
+      if (document.visibilityState === 'visible' && navigator.onLine) void ordersCb.current();
     }, fallbackPollMs);
     return () => window.clearInterval(id);
   }, [supplierId, fallbackPollMs]);
