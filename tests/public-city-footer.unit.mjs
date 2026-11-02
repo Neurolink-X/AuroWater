@@ -54,8 +54,9 @@ test('footer displays two regions using canonical city status', () => {
   assert.match(footer, /Delhi/);
   // Variable names are implementation details: verify actual active-city predicate.\n  assert.match(footer, /\.status === 'active'/);\n  assert.match(footer, /cities\.some\(/);\n  assert.match(footer, /cities\.filter\(/);
 });
-test('footer has conservative offline city fallback', () => {
-  assert.match(footer, /mergePublicCityDirectory\(\[\], FALLBACK_CITIES\)/);
+test('footer never fabricates city availability while offline', () => {
+  assert.match(footer, /mergePublicCityDirectory\(\[\], \[\]\)/);
+  assert.doesNotMatch(footer, /FALLBACK_CITIES/);
 });
 test('footer status labels are derived from admin city directory', () => {
   assert.match(directory, /cityAvailabilityLabel/);
