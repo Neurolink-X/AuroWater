@@ -526,7 +526,7 @@ function Support() {
           <a className="sp-link" href={whatsappHref(DEFAULT_CONTACT.whatsappNumber, 'Hello AuroTap Support, I am a supplier. Issue: [orders/coverage/stock]. Order ID (if any): . Please help.')} target="_blank" rel="noopener noreferrer">{isHindi ? 'व्हाट्सऐप सहायता' : 'WhatsApp support'}</a>
           <Link className="sp-link" href="/contact?subject=supplier">{isHindi ? 'संपर्क फ़ॉर्म' : 'Contact form'}</Link>
         </div>
-        <p className="sp-hint">{isHindi ? 'ईमेल या WhatsApp खुलने के बाद संदेश भेजना ज़रूरी है। यह पेज अपने-आप टिकट नहीं बनाता।' : 'Send your message in the email or WhatsApp app after it opens. This page does not automatically create a ticket.'}</p>
+        <p className="sp-hint">{isHindi ? 'ईमेल या WhatsApp खुलने के बाद संदेश भेजना ज़रूरी है। यह पेज अपने-आप टिकट नहीं बनाता।' : 'Send your message in the email or WhatsApp app after it opens. This page does not create a support ticket automatically.'}</p>
       </article>
 
       <article className="sp-card">
