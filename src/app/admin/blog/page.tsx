@@ -179,6 +179,17 @@ export default function AdminBlogPage() {
           <button type="button" disabled={busy || uploading} onClick={()=>void save(false)} className="rounded-lg bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Save draft / Unpublish</button>
           <button type="button" disabled={busy} onClick={()=>void save(true)} className="rounded-lg bg-emerald-700 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Publish article</button>
         </div>
+        {selected && <button type="button" disabled={busy} className="rounded-lg border border-red-300 px-4 py-3 text-sm font-semibold text-red-700 disabled:opacity-50" onClick={async()=>{
+          if (!window.confirm('Permanently delete this article? This cannot be undone.')) return;
+          setBusy(true); setError('');
+          try {
+            const response = await fetch('/api/admin/blog/'+encodeURIComponent(selected), {method:'DELETE'});
+            if (!response.ok) throw new Error('Could not delete article.');
+            setPosts(previous=>previous.filter(post=>post.id!==selected));
+            setSelected(null); setEditor(blank()); setNotice('Article deleted.');
+          } catch (err) { setError(err instanceof Error ? err.message : 'Delete failed.'); }
+          finally { setBusy(false); }
+        }}>Delete article permanently</button>}
         <p className="text-xs text-slate-500">Publishing requires editorial review. Future publication dates remain hidden until scheduled. Existing file-based guides remain available.</p>
       </section>
     </div>

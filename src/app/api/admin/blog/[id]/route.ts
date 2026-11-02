@@ -40,3 +40,21 @@ export async function PUT(req:NextRequest, context:{params:Promise<{id:string}>}
   if (!data) return jsonErr('Article not found.',404);
   return jsonOk(data);
 }
+
+/** Admin-only deletion. File-based editorial guides are version controlled and
+ * intentionally cannot be deleted through this database endpoint. */
+export async function DELETE(req:NextRequest, context:{params:Promise<{id:string}>}) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden',403);
+  const { id } = await context.params;
+  if (!z.string().uuid().safeParse(id).success) return jsonErr('Invalid article ID.',400);
+  const { data, error } = await createServiceClient().from('blog_posts')
+    .delete().eq('id',id).select('id').maybeSingle();
+  if (error) {
+    console.error('[admin/blog] delete failed', { code:error.code });
+    return jsonErr('Unable to delete article.',503);
+  }
+  if (!data) return jsonErr('Article not found.',404);
+  return jsonOk({ deleted:true, id });
+}

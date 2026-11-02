@@ -1,7 +1,7 @@
 name: Free water-news discovery for editorial review
 on:
   schedule:
-    - cron: '13 */6 * * *'
+    - cron: '13 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -17,11 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Enable weekly or manual run
+        id: cadence
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        if: steps.cadence.outputs.run == 'true'
+      - if: steps.cadence.outputs.run == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Load any existing editorial queue before discovery
+      - if: steps.cadence.outputs.run == 'true'
+        name: Load any existing editorial queue before discovery
         shell: bash
         run: |
           set -euo pipefail
@@ -29,9 +35,11 @@ jobs:
           if git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch"; then
             git show "origin/$branch:content/water-news-candidates.json" > content/water-news-candidates.json || true
           fi
-      - name: Discover bounded public headlines (untrusted)
+      - if: steps.cadence.outputs.run == 'true'
+        name: Discover bounded public headlines (untrusted)
         run: node scripts/discover-water-news.mjs
-      - name: Propose review queue, never auto-publish
+      - if: steps.cadence.outputs.run == 'true'
+        name: Propose review queue, never auto-publish
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash

@@ -14,8 +14,9 @@ const date = (value: string) => new Date(value).toLocaleDateString('en-IN', { ti
 const readTime = (sections: readonly { paragraphs: readonly string[] }[]) => Math.max(1, Math.ceil(sections.reduce((n, s) => n + s.paragraphs.join(' ').split(/\s+/).length, 0) / 200));
 
 export default async function BlogIndex() {
-  const posts = await allPublishedGuides();
-  const news = publishedNews();
+  // Keep the landing page bounded; older article URLs remain available for SEO.
+  const posts = (await allPublishedGuides()).slice(0, 20);
+  const news = publishedNews().slice(0, 20);
   const [featured, ...others] = posts;
   return <main className="min-h-[70vh] bg-slate-50 text-slate-900">
     <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-cyan-900 px-4 py-16 text-white sm:px-6 sm:py-24">
@@ -59,13 +60,13 @@ export default async function BlogIndex() {
         </article>)}</div>}
       </section>
       {news.length > 0 && <section aria-labelledby="water-updates-title" className="mt-16 border-t border-slate-200 pt-12">
-        <p className="text-xs font-bold uppercase tracking-widest text-teal-700">Reviewed information</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-teal-700">Source-attributed information</p>
         <h2 id="water-updates-title" className="mt-2 text-2xl font-extrabold sm:text-3xl">Water updates</h2>
-        <p className="mt-3 text-slate-600">Source-attributed developments published after editorial review.</p>
+        <p className="mt-3 text-slate-600">Source-attributed updates; automated briefs are not independently fact-checked.</p>
         <div className="mt-7 grid gap-5 md:grid-cols-2">{news.map(item => <article key={item.slug} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-xl font-bold"><Link href={`/blog/news/${item.slug}`} className="hover:text-teal-700">{item.title}</Link></h3>
           <p className="mt-3 leading-7 text-slate-600">{item.summary}</p>
-          <p className="mt-4 text-xs text-slate-500">Reviewed source: {item.source_name}</p>
+          <p className="mt-4 text-xs text-slate-500">Source: {item.source_name}</p>
           <Link href={`/blog/news/${item.slug}`} className="mt-4 inline-flex min-h-11 items-center font-bold text-teal-700 hover:underline">Read update →</Link>
         </article>)}</div>
       </section>}
