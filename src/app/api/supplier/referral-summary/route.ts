@@ -8,13 +8,14 @@ export async function GET(req:NextRequest) {
  if(!auth.ok)return auth.response;
  if(auth.ctx.profile.role!=='supplier')return jsonErr('Supplier account required',403,'FORBIDDEN');
  const now=new Date().toISOString();
- const {data,error}=await createServiceClient().from('supplier_customer_relationships')
- .select('status,priority_expires_at,created_at').eq('supplier_id',auth.ctx.user.id).limit(1000);
+ const client=createServiceClient();
+ const {data:attributions,error}=await client.from('supplier_referral_attributions')
+ .select('priority_expires_at').eq('supplier_id',auth.ctx.user.id).limit(1000);
  if(error)return jsonErr('Unable to load referral summary',503,'DB_ERROR');
- const rows=data??[];
- return jsonOk({referred:rows.length,active:rows.filter(r=>r.status==='active' && r.priority_expires_at>now).length,
- expired:rows.filter(r=>r.status==='expired'||(r.priority_expires_at && r.priority_expires_at<=now)).length,
- // Never expose unassigned customers' contact details to suppliers.
+ const rows=attributions??[];
+ return jsonOk({referred:rows.length,active:rows.filter(r=>r.priority_expires_at>now).length,
+ expired:rows.filter(r=>r.priority_expires_at<=now).length,
+ referralUrl:`https://www.aurotap.in/customer/referral?supplier=${encodeURIComponent(auth.ctx.user.id)}`,
  privacy:'Customer contact details are available only on assigned orders.',
- policy:'Priority for 90 days after customer confirmation, subject to stock, service area, availability and customer choice.'});
+ policy:'First-time customers can confirm your referral before their first order. Eligible orders prioritize you for 90 days. Customer choice, stock, service area and availability always take precedence.'});
 }
