@@ -811,6 +811,12 @@ export default function BookingWizard() {
         base.canFrequency = allowedFrequencies.includes(frequencyParam) ? frequencyParam : 'weekly';
       }
     }
+    // City from the coverage card is a starting hint, not proof of serviceability.
+    // Final serviceability still uses the customer's exact saved address and PIN.
+    const cityParam = searchParams?.get('city')?.trim() ?? '';
+    if (serviceOk && /^[a-z][a-z .-]{1,59}$/i.test(cityParam) && base.newAddress) {
+      base.newAddress.city = cityParam;
+    }
     const cansParam = parseInt(searchParams?.get('cans') ?? '', 10);
     if (serviceOk && base.serviceKey === 'water_can' && Number.isFinite(cansParam) && cansParam >= 1 && cansParam <= MAX_CANS_ONE_TIME) {
       base.canQuantity = cansParam;
