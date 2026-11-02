@@ -662,6 +662,11 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
             p_distances:chosen.map(c=>Math.round((c.distance??0)*100)/100),
             p_duration_seconds:60,
           });
+          if(!issueError && Number(issued)===0) {
+            // A concurrent worker may have already issued an offer wave. Avoid
+            // assigning sequentially before its recipients have responded.
+            return {supplierId:null,reason:'not_pending'};
+          }
           if(!issueError && Number(issued)>0) {
             await Promise.all(chosen.slice(0,Number(issued)).map(c=>
               notify(c.id,'Nearby delivery opportunity','An eligible order is available. First confirmed supplier receives it.','system',orderId,'nearby_offer')
