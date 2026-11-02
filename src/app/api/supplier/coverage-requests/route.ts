@@ -189,6 +189,26 @@ export async function POST(req: NextRequest) {
 
   const db = createServiceClient();
 
+  // PIN expansion is a request, never automatic coverage. Validate every PIN
+  // against the indexed India Post directory before creating a review item.
+  // Each exact PIN is its own bounded indexed query (3 at most); this avoids
+  // another PIN's many post-office rows starving a shared list limit.
+  if (requestedPins.length) {
+    const postal = await Promise.all(requestedPins.map(pincode =>
+      db.from('pincode_directory').select('pincode').eq('pincode', pincode).limit(1),
+    ));
+    if (postal.some(result => result.error)) {
+      console.error('[supplier/coverage] postal verification failed', {
+        rid, codes: postal.map(result => result.error?.code).filter(Boolean),
+      });
+      return withMeta(jsonErr('Could not validate the requested PINs right now. No coverage request was submitted.', 503), rid);
+    }
+    const missing = requestedPins.filter((_pin, index) => !postal[index].data?.length);
+    if (missing.length) {
+      return withMeta(jsonErr(`PIN code ${missing.join(', ')} was not found in our postal directory. Check the digits before requesting coverage.`, 422), rid);
+    }
+  }
+
   // 1. Every selected zone must exist
   const [{ data: zones, error: zoneError }, { data: supplierProfile, error: supplierProfileError }] = await Promise.all([
     db.from('service_zones').select('id, city').in('id', zoneIds),
