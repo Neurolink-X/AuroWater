@@ -410,7 +410,7 @@ function Earnings({ obj, busy, send, setError }: { obj: Row; busy: boolean; send
         <h2 className="sp-h2">{isHindi ? 'ग्राहक भुगतान और आपकी सेटलमेंट में अंतर' : 'Customer paid vs supplier settlement'}</h2>
         <p className="sp-sub">{isHindi ? 'ग्राहक का भुगतान Paid होने का मतलब है कि ऑर्डर का पैसा दर्ज हो गया; इसका मतलब यह नहीं कि आपको AuroTap से अलग भुगतान ट्रांसफर हो गया।' : str(obj.customer_payment_explainer,'Customer paid means order collection was recorded, not that supplier settlement was transferred.')}</p>
         <p className="sp-sub">{isHindi ? 'Pending payout का मतलब है वित्तीय सेटलमेंट पूरा नहीं हुआ। अगर आपने नकद लिया, तो वह पैसा पहले से आपके पास है और सेटलमेंट बैलेंस में घटेगा।' : str(obj.supplier_settlement_explainer,'Supplier payout pending means finance has not recorded a transfer.')}</p>
-        {obj.wallet_breakdown && typeof obj.wallet_breakdown === 'object' && (
+        {Boolean(obj.wallet_breakdown) && typeof obj.wallet_breakdown === 'object' && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Metric name={isHindi ? 'लेज़र में कुल कमाई' : 'Ledger earnings'} value={money((obj.wallet_breakdown as Row).total_earned)} />
             <Metric name={isHindi ? 'आपके पास मिला कैश' : 'Cash received by you'} value={money((obj.wallet_breakdown as Row).cash_to_remit)} />
