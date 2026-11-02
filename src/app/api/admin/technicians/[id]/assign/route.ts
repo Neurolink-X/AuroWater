@@ -56,137 +56,22 @@ export async function PUT(
   const orderId = parsed.data.order_id;
   const supabase = auth.ctx.supabase;
 
-  // 1. Verify technician.
-  const {
-    data: technician,
-    error: technicianError,
-  } = await supabase
-    .from('profiles')
-    .select(
-      'id, role, full_name, is_active, status, is_online',
-    )
-    .eq('id', technicianId)
-    .maybeSingle();
-
-  if (technicianError) {
-    return jsonErr(technicianError.message, 502);
+  // Atomic SQL function checks exact service approval, verification, workload,
+  // city, offer ledger and row locks; never directly update orders in this route.
+  const { createServiceClient } = await import('@/utils/supabase/server');
+  const { data: result, error: assignmentError } = await createServiceClient().rpc('admin_assign_specialist', {
+    p_order_id: orderId,
+    p_technician_id: technicianId,
+    p_admin_id: auth.ctx.profile.id,
+  });
+  if (assignmentError) {
+    console.error('[admin/specialist-assign] atomic assignment failed', { code: assignmentError.code });
+    return jsonErr(assignmentError.code === 'P0001' ? assignmentError.message : 'Specialist assignment unavailable. No partial assignment was made.', assignmentError.code === 'P0001' ? 409 : 503);
   }
-
-  if (
-    !technician ||
-    String(technician.role).toLowerCase() !== 'technician'
-  ) {
-    return jsonErr('Technician not found', 404);
-  }
-
-  // Do not assign new jobs to disabled/suspended/banned technicians.
-  const technicianStatus = technician.status
-    ? String(technician.status).toLowerCase()
-    : 'active';
-
-  if (
-    technician.is_active === false ||
-    ['suspended', 'banned', 'rejected'].includes(
-      technicianStatus,
-    )
-  ) {
-    return jsonErr(
-      'This technician is not active and cannot receive new jobs',
-      409,
-    );
-  }
-
-  // 2. Read current order state first.
-  const {
-    data: currentOrder,
-    error: orderLookupError,
-  } = await supabase
-    .from('orders')
-    .select(
-      'id, status, technician_id, customer_id, service_type',
-    )
-    .eq('id', orderId)
-    .maybeSingle();
-
-  if (orderLookupError) {
-    return jsonErr(orderLookupError.message, 502);
-  }
-
-  if (!currentOrder) {
-    return jsonErr('Order not found', 404);
-  }
-
-  const { data: skill, error: skillError } = await supabase.from('technician_service_capabilities').select('status').eq('technician_id',technicianId).eq('service_key',String(currentOrder.service_type)).eq('status','approved').maybeSingle();
-  if(skillError)return jsonErr('Technician skill validation unavailable; assignment not changed.',503);
-  if(!skill)return jsonErr('Technician is not approved for this service. Review private capabilities first.',409);
-
-  const currentStatus = String(
-    currentOrder.status ?? '',
-  ).toUpperCase();
-
-  // Never reassign completed/cancelled/in-progress jobs
-  // through this endpoint.
-  if (!ASSIGNABLE_STATUSES.has(currentStatus)) {
-    return jsonErr(
-      `Order cannot be assigned while its status is ${
-        currentStatus || 'UNKNOWN'
-      }`,
-      409,
-    );
-  }
-
-  const currentTechnicianId =
-    currentOrder.technician_id != null
-      ? String(currentOrder.technician_id)
-      : '';
-
-  // Idempotent assignment.
-  if (
-    currentTechnicianId === technicianId &&
-    currentStatus === 'ASSIGNED'
-  ) {
-    const {
-      data: existingOrder,
-      error: existingOrderError,
-    } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
-      .maybeSingle();
-
-    if (existingOrderError) {
-      return jsonErr(existingOrderError.message, 502);
-    }
-
-    return jsonOk(existingOrder);
-  }
-
-  // 3. Conditional update prevents assigning an order
-  // that changed state between the read and update.
-  const {
-    data: order,
-    error: updateError,
-  } = await supabase
-    .from('orders')
-    .update({
-      technician_id: technicianId,
-      status: 'ASSIGNED',
-    })
-    .eq('id', orderId)
-    .in('status', ['PENDING', 'ASSIGNED'])
-    .select('*')
-    .maybeSingle();
-
-  if (updateError) {
-    return jsonErr(updateError.message, 502);
-  }
-
-  if (!order) {
-    return jsonErr(
-      'Order could not be assigned because its status changed. Please refresh and try again.',
-      409,
-    );
-  }
+  const { data: order, error: orderError } = await supabase.from('orders').select('id,customer_id').eq('id', orderId).single();
+  if (orderError) return jsonErr('Assignment saved; refresh to see order details.', 503);
+  const technician = { full_name: 'Your verified specialist' };
+  if ((result as { already_assigned?: boolean } | null)?.already_assigned) return jsonOk(result);
 
   // 4. Notify customer after successful assignment.
   // Notification failure must not undo the assignment.

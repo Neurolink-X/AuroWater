@@ -15,11 +15,12 @@ export async function PATCH(req:NextRequest){
  const {data:profile,error:profileError}=await db.from('profiles').select('id,role').eq('id',d.technician_id).maybeSingle();
  if(profileError)return jsonErr('Technician lookup unavailable',503);
  if(!profile||profile.role!=='technician')return jsonErr('Technician not found',404);
- const {data:current,error:readErr}=await db.from('technician_service_capabilities').select('status').eq('technician_id',d.technician_id).eq('service_key',d.service_key).maybeSingle();
- if(readErr)return jsonErr('Skill review unavailable',503);
- const {error}=await db.from('technician_service_capabilities').upsert({technician_id:d.technician_id,service_key:d.service_key,status:d.status,reviewed_by:g.adminId,reviewed_at:new Date().toISOString()},{onConflict:'technician_id,service_key'});
- if(error){console.error('[admin/capabilities] upsert failed',{code:error.code});return jsonErr('Skill review could not be saved',503)}
- const {error:auditError}=await db.from('audit_logs').insert({actor_id:g.adminId,action:'technician_skill_review',entity:'technician_service_capabilities',entity_id:d.technician_id,meta:{service_key:d.service_key,from:current?.status??null,to:d.status,reason:d.reason}});
- if(auditError){console.error('[admin/capabilities] audit failed',{code:auditError.code});return jsonErr('Skill saved, but audit failed. Escalate before further changes.',503)}
- return jsonOk({technician_id:d.technician_id,service_key:d.service_key,status:d.status});
+ const {data:reviewResult,error}=await db.rpc('review_technician_capability',{
+   p_admin_id:g.adminId,p_technician_id:d.technician_id,p_service_key:d.service_key,
+   p_status:d.status,p_reason:d.reason
+ });
+ if(error){console.error('[admin/capabilities] atomic review failed',{code:error.code});
+  return jsonErr(error.code==='P0001'?error.message:'Unable to review specialist qualification; no partial change saved.',error.code==='P0001'?409:503)}
+
+ return jsonOk(reviewResult);
 }
