@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
+import {PARTNER_ROLE_POLICY,registrationRoleMatchesSkills} from '@/lib/partner-onboarding-policy';
 
 import {
   jsonErr,
@@ -105,7 +106,10 @@ const technicianSchema =
       .int()
       .min(0)
       .max(60),
-    role:z.enum(['plumber','borewell','tank','ro']).optional(),
+    role:z.enum(['plumber','borewell','tank','ro']),
+    working_area:z.string().trim().min(3).max(150),
+    working_pincode:z.string().regex(/^\d{6}$/),
+    requested_radius_km:z.number().int().min(1).max(50),
   });
 
 const applicationSchema =
@@ -155,6 +159,13 @@ export async function POST(
 
   const body =
     parsed.data;
+
+  if (body.type === 'technician') {
+    const policy = PARTNER_ROLE_POLICY[body.role];
+    if (!registrationRoleMatchesSkills(body.role,body.skills) || body.requested_radius_km > policy.maxRadiusKm) {
+      return jsonErr('Selected role, qualifications and working radius do not match',422);
+    }
+  }
 
   const supabase =
     auth.ctx.supabase;
