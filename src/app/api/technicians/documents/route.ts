@@ -25,8 +25,14 @@ export async function GET(req: NextRequest) {
   }
 
   const latest: Record<string, unknown> = {};
+  // An approved credential remains valid while a replacement is pending.
+  // Keep the most recent approved file per slot when available.
   for (const file of data ?? []) {
-    if (file.document_slot && !latest[file.document_slot]) latest[file.document_slot] = file;
+    if (!file.document_slot) continue;
+    const current = latest[file.document_slot] as { review_status?: string } | undefined;
+    if (!current || (current.review_status !== 'approved' && file.review_status === 'approved')) {
+      latest[file.document_slot] = file;
+    }
   }
   const files = Object.fromEntries(ALLOWED.map((slot) => [slot, latest[slot] ?? null]));
   const requiredApproved = REQUIRED.every((slot) => (latest[slot] as { review_status?: string } | undefined)?.review_status === 'approved');
