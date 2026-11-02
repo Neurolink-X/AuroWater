@@ -21,6 +21,9 @@ export async function POST(req: NextRequest) {
  const {data: supplier,error: supplierError}=await client.from('profiles').select('id,role,is_active,status').eq('id',supplierId).maybeSingle();
  if(supplierError || !supplier || supplier.role!=='supplier' || supplier.is_active===false || (supplier.status && supplier.status!=='active')) return jsonErr('Supplier unavailable',404,'NOT_FOUND');
  const now=new Date(), expires=new Date(now.getTime()+90*86400000);
+ // One customer-selected supplier at a time; revocation precedes the new preference.
+ const {error: revokeError}=await client.from('supplier_customer_relationships').update({status:'revoked',updated_at:now.toISOString()}).eq('customer_id',customerId).eq('status','active').neq('supplier_id',supplierId);
+ if(revokeError)return jsonErr('Could not update supplier preference',503,'DB_ERROR');
  const {error}=await client.from('supplier_customer_relationships').upsert({
    customer_id:customerId,supplier_id:supplierId,referral_source:'customer_choice',
    status:'active',customer_confirmed_at:now.toISOString(),priority_expires_at:expires.toISOString(),updated_at:now.toISOString()
