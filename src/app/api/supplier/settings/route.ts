@@ -143,11 +143,31 @@ async function loadSnapshot(sb: AuthedContext['supabase'], userId: string): Prom
 
   const row = (settingsRes.data as Row | null) ?? null;
   const profile = (profileRes.data as Row | null) ?? null;
+  // A supplier may accidentally save their *current* GPS while travelling.
+  // Cross-check the saved base against their registered city. This does not
+  // change their location or alter the authoritative dispatch eligibility.
+  let locationCityDistanceKm: number | null = null;
+  let cityMatchVerified = false;
+  const registeredCity = clean(profile?.city);
+  if (registeredCity && hasCoord(row?.base_lat) && hasCoord(row?.base_lng)) {
+    const city = await service.from('cities').select('lat,lng').eq('name', registeredCity).limit(1).maybeSingle();
+    if (city.error) console.warn('[supplier/settings] city location validation failed', city.error.code);
+    else if (city.data && hasCoord(city.data.lat) && hasCoord(city.data.lng)) {
+      const rad = Math.PI / 180;
+      const a = Number(row?.base_lat) * rad, b = Number(city.data.lat) * rad;
+      const dLat = a - b, dLng = (Number(row?.base_lng) - Number(city.data.lng)) * rad;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a) * Math.cos(b) * Math.sin(dLng / 2) ** 2;
+      locationCityDistanceKm = Math.round(6371 * 2 * Math.asin(Math.min(1, Math.sqrt(h))));
+      cityMatchVerified = true;
+    }
+  }
+  const baseLocationMismatch = cityMatchVerified && locationCityDistanceKm !== null && locationCityDistanceKm > 100;
   const baseReadiness = buildReadiness(row, profile);
   const freeStock = stockRes.data ? Number(stockRes.data.cans_available ?? 0) - Number(stockRes.data.reserved_cans ?? 0) - Number(stockRes.data.reservation_buffer_cans ?? 0) : null;
   const complete = !profileRes.error && !coverageRes.error && !stockRes.error;
   const checks = [
     ...baseReadiness.checks,
+    { key: 'base_city', ok: !baseLocationMismatch, label: 'Dispatch base matches your registered city', fix: 'Your saved dispatch base appears over 100 km from your registered city. Confirm your real business base in the dashboard or request a city-profile correction.' },
     { key: 'stock', ok: freeStock !== null && freeStock > 0, label: 'Unreserved water-can stock available', fix: 'Update water-can inventory and reservation buffer.' },
     { key: 'coverage', ok: (coverageRes.data?.length ?? 0) > 0, label: 'Approved service zone linked', fix: 'Review your PIN coverage. Legacy same-city fallback may still apply.' },
   ];
