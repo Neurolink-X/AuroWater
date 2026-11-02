@@ -87,7 +87,7 @@ export async function PATCH(req: NextRequest) {
   // Optimistic lock: only update if nobody reviewed it since we read it (two admins, one click each).
   const { data: updated, error } = await db.from('user_files').update({
     review_status: decision, reviewed_by: gate.adminId, reviewed_at: reviewedAt, review_note: note ?? null, updated_at: reviewedAt,
-  }).eq('id', file.id).eq('review_status', file.review_status).select('id, owner_user_id, document_slot, review_status, reviewed_at, review_note').maybeSingle();
+  }).eq('id', file.id).eq('review_status', file.review_status).eq('updated_at', file.updated_at).select('id, owner_user_id, document_slot, review_status, reviewed_at, review_note').maybeSingle();
   if (error) { console.error('[admin/verification] review update failed', error); return jsonErr('Could not save the document review.', 503); }
   if (!updated) return jsonErr('This document was just reviewed by someone else. Refresh to see the latest.', 409, 'STALE');
 
@@ -101,7 +101,7 @@ export async function PATCH(req: NextRequest) {
     const { error: rollbackError } = await db.from('user_files').update({
       review_status: file.review_status, reviewed_by: file.reviewed_by, reviewed_at: file.reviewed_at,
       review_note: file.review_note, updated_at: file.updated_at,
-    }).eq('id', file.id);
+    }).eq('id', file.id).eq('reviewed_at', reviewedAt).eq('review_status', decision);
     if (rollbackError) {
       console.error('[admin/verification] ROLLBACK FAILED', file.id, rollbackError);
       return jsonErr('Review saved but its audit record failed. Contact an administrator before taking further action.', 503, 'AUDIT_ROLLBACK_FAILED');
