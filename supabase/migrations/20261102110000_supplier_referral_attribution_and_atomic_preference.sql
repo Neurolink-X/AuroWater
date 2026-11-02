@@ -13,7 +13,7 @@ ALTER TABLE public.supplier_referral_attributions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.supplier_referral_attributions FROM anon, authenticated;
 -- Transactional customer choice; prevents multiple simultaneously active choices.
 CREATE OR REPLACE FUNCTION public.set_customer_supplier_preference(p_customer uuid,p_supplier uuid,p_remove boolean DEFAULT false)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS void LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
 DECLARE v_now timestamptz := now();
 BEGIN
  IF current_user <> 'service_role' THEN RAISE EXCEPTION 'service role required'; END IF;
@@ -39,3 +39,35 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.set_customer_supplier_preference(uuid,uuid,boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.set_customer_supplier_preference(uuid,uuid,boolean) TO service_role;
+
+-- One-time attribution is transactionally serialized against other confirmations.
+-- Enforce this in the database rather than trusting an API's read-then-write sequence.
+CREATE OR REPLACE FUNCTION public.confirm_customer_supplier_referral(p_customer uuid,p_supplier uuid)
+RETURNS TABLE(supplier_id uuid, priority_expires_at timestamptz, already_confirmed boolean)
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
+DECLARE v_existing public.supplier_referral_attributions%ROWTYPE;
+BEGIN
+ IF current_user <> 'service_role' THEN RAISE EXCEPTION 'service role required'; END IF;
+ IF p_customer = p_supplier THEN RAISE EXCEPTION 'Self-referral not allowed'; END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended(p_customer::text, 19));
+ SELECT * INTO v_existing FROM public.supplier_referral_attributions a WHERE a.customer_id=p_customer;
+ IF FOUND THEN
+   RETURN QUERY SELECT v_existing.supplier_id,v_existing.priority_expires_at,true;
+   RETURN;
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=p_customer AND role='customer') THEN
+   RAISE EXCEPTION 'Customer unavailable';
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id=p_supplier AND role='supplier' AND COALESCE(is_active,true)=true AND status='active') THEN
+   RAISE EXCEPTION 'Supplier unavailable';
+ END IF;
+ IF EXISTS (SELECT 1 FROM public.orders WHERE customer_id=p_customer LIMIT 1) THEN
+   RAISE EXCEPTION 'Existing customer is not eligible';
+ END IF;
+ INSERT INTO public.supplier_referral_attributions(customer_id,supplier_id)
+ VALUES(p_customer,p_supplier) RETURNING supplier_referral_attributions.supplier_id,supplier_referral_attributions.priority_expires_at
+ INTO v_existing.supplier_id,v_existing.priority_expires_at;
+ RETURN QUERY SELECT v_existing.supplier_id,v_existing.priority_expires_at,false;
+END $$;
+REVOKE ALL ON FUNCTION public.confirm_customer_supplier_referral(uuid,uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.confirm_customer_supplier_referral(uuid,uuid) TO service_role;
