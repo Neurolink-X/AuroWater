@@ -463,7 +463,13 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
           continue;
         }
       } else {
-        // Mapped to another zone (or unmapped): only a same-city fallback, ranked after zone matches.
+        // A supplier with explicitly approved coverage elsewhere must not be
+        // silently assigned outside those approved zones. Keep legacy unmapped
+        // suppliers eligible for the existing same-city fallback during rollout.
+        if (links.length > 0) {
+          reject('zone_not_approved', String(order.zone_id));
+          continue;
+        }
         coverageTier = 1;
       }
     }
