@@ -77,6 +77,31 @@ test('supplier operations use real service media already present in public image
   assert.match(sections, /src="\/images\/water_can.webp"/);
 });
 
+test('real supplier Settings page preserves payouts and directs profile edits through admin approval', () => {
+  const page = read('src/app/(supplier)/supplier/settings/page.tsx');
+  assert.match(page, /Manage profile & address/);
+  assert.match(page, /href="\/supplier\/profile"/);
+  assert.match(page, /Admin approval required/);
+  assert.match(page, /useMyLocation/);
+  assert.match(page, /window\.confirm/);
+  assert.match(page, /dispatch_base_city_check/);
+  assert.match(page, /'payout'/);
+  assert.doesNotMatch(page, /body\.price_per_can/);
+  assert.doesNotMatch(page, /save\('profile'/);
+  assert.doesNotMatch(page, /auto_accept: autoAccept/);
+});
+
+test('supplier navigation makes customer referral visible without claiming uninstalled schema is ready', () => {
+  const nav = read('src/components/supplier/SupplierNav.tsx');
+  const api = read('src/app/api/supplier/referral-summary/route.ts');
+  assert.match(nav, /MORE_ITEMS/);
+  assert.match(nav, /'\/supplier\/referrals'/);
+  assert.match(nav, /'\/supplier\/settings'/);
+  assert.doesNotMatch(nav.split('MORE_ITEMS:')[1].split('];')[0], /'\/supplier\/profile'/);
+  assert.match(api, /FEATURE_NOT_READY/);
+  assert.match(api, /'42P01'/);
+});
+
 test('supplier orders remain scoped and payment mutations unchanged', () => {
   const orders = read('src/app/api/supplier/orders/route.ts');
   assert.match(orders, /eq\('supplier_id', auth\.ctx\.profile\.id\)/);
