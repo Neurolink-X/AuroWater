@@ -60,6 +60,8 @@ const EXPIRED_REOFFER_COOLDOWN_MS = 10 * 60_000; // an expired offer may be repe
 const TECHNICIAN_RETRY_WINDOW_MS = 72 * 60 * 60_000; // stop retrying technician jobs older than this
 /** Set DISPATCH_REOFFER_EXPIRED=false to restore the old "never re-offer to a supplier who timed out" rule. */
 const REOFFER_EXPIRED = process.env.DISPATCH_REOFFER_EXPIRED !== 'false';
+// Controlled rollout: concurrent offers require both env opt-in and DB approval.
+const PARALLEL_OFFERS_OPT_IN = process.env.PARALLEL_SUPPLIER_OFFERS === 'true';
 
 /** Services handled by technicians. Water cans (and tankers) go through supplier dispatch. */
 const TECHNICIAN_SERVICES = ['ro_service', 'plumbing', 'borewell', 'motor_pump', 'tank_cleaning'];
@@ -627,6 +629,37 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     };
 
     if (!ev.cands.length) return noCandidates();
+    // Optional bounded parallel offer wave. Nothing is assigned or stock-reserved
+    // before a supplier explicitly claims, and existing sequential flow remains
+    // the fallback when the feature is disabled.
+    if (PARALLEL_OFFERS_OPT_IN) {
+      const {data: mode,error:modeError}=await db.from('settings')
+        .select('value').eq('key','parallel_supplier_offers_enabled').maybeSingle();
+      if(!modeError && String(mode?.value).toLowerCase()==='true') {
+        const chosen=ev.cands.filter(c=>c.distance!==null).slice(0,3);
+        if(chosen.length>0) {
+          const {data:issued,error:issueError}=await db.rpc('issue_parallel_water_offers',{
+            p_order_id:orderId,
+            p_suppliers:chosen.map(c=>c.id),
+            p_distances:chosen.map(c=>Math.round((c.distance??0)*100)/100),
+            p_duration_seconds:60,
+          });
+          if(!issueError && Number(issued)>0) {
+            await Promise.all(chosen.slice(0,Number(issued)).map(c=>
+              notify(c.id,'Nearby delivery opportunity','An eligible order is available. First confirmed supplier receives it.','system',orderId,'nearby_offer')
+            ));
+            return {supplierId:null,reason:'not_pending'};
+          }
+          if(issueError) {
+            console.error('[dispatch] parallel offer rollout failed',issueError.code);
+            // Fail closed: keep PENDING and retry, do not race a different mode.
+            await markAttempt(db,orderId);
+            return {supplierId:null,reason:'error'};
+          }
+        }
+      }
+    }
+
 
     let declined = 0;
     for (const c of ev.cands) {
