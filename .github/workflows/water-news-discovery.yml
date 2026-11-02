@@ -1,7 +1,7 @@
 name: Free water-news discovery for editorial review
 on:
   schedule:
-    - cron: '13 3 * * *'
+    - cron: '13 3 * * 1'
   workflow_dispatch:
 
 permissions:
@@ -17,12 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Run discovery only on three-day UTC cadence
+      - name: Enable weekly or manual run
         id: cadence
-        shell: bash
-        run: |
-          day=$(( $(date -u +%s) / 86400 ))
-          if (( day % 3 == 0 )); then echo 'run=true' >> "$GITHUB_OUTPUT"; else echo 'run=false' >> "$GITHUB_OUTPUT"; fi
+        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         if: steps.cadence.outputs.run == 'true'
       - if: steps.cadence.outputs.run == 'true'
