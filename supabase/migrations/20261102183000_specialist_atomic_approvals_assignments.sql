@@ -21,7 +21,7 @@ BEGIN
   RAISE EXCEPTION 'Application is not pending technician review' USING ERRCODE='P0001';
  END IF;
  SELECT * INTO p FROM public.profiles WHERE id=a.user_id FOR UPDATE;
- IF NOT FOUND OR p.role <> 'technician' OR lower(coalesce(p.status,'')) IN ('suspended','banned') THEN
+ IF NOT FOUND OR p.role NOT IN ('customer','technician') OR lower(coalesce(p.status,'')) IN ('suspended','banned') THEN
   RAISE EXCEPTION 'Applicant is not an eligible technician account' USING ERRCODE='P0001';
  END IF;
  IF p_decision='approved' THEN
@@ -47,7 +47,7 @@ BEGIN
   IF approved_docs < 3 THEN
    RAISE EXCEPTION 'Approved identity and skill documents required' USING ERRCODE='P0001';
   END IF;
-  UPDATE public.profiles SET verification_status='approved', status='active',
+  UPDATE public.profiles SET role='technician', verification_status='approved', status='active',
     is_active=true, approved_at=now(), approved_by=p_admin_id, updated_at=now()
    WHERE id=a.user_id;
   INSERT INTO public.technician_service_capabilities(
