@@ -771,7 +771,7 @@
 //   const [loadingOrders, setLoadingOrders] = useState(true);
 //   const [ordersStale, setOrdersStale] = useState(false);
 //   const [networkOnline, setNetworkOnline] = useState(true);
-//   const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number } | null>(null);
+//   const [earningsSummary, setEarningsSummary] = useState<{ period: string; order_count: number; gross_amount: number; pending_payout: number | null; balance_requires_review?: boolean; payout_message?: string } | null>(null);
 //   const [ratingLoadState, setRatingLoadState] = useState<'loading' | 'loaded' | 'error'>('loading');
 //   const [updatingOrder, setUpdatingOrder] = useState<string | null>(null);
 //   const [signingOut, setSigningOut] = useState(false);
@@ -4183,7 +4183,7 @@ export default function SupplierDashboardPage() {
             </div>
             <div className="sd-stats" style={{ marginBottom: 16 }}>
               <StatCard icon={Icon.wallet(17)} label="This month" value={earningsSummary ? INR(earningsSummary.gross_amount) : '—'} sub={earningsSummary ? (isHindi ? `वित्तीय लेज़र में ${earningsSummary.order_count} ऑर्डर दर्ज` : `${earningsSummary.order_count} orders counted by finance ledger`) : (isHindi ? 'सारांश अस्थायी रूप से उपलब्ध नहीं' : 'Summary temporarily unavailable')} accent="#6D28D9" loading={loading} />
-              <StatCard icon={Icon.chart(17)} label={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={earningsSummary ? INR(earningsSummary.pending_payout) : '—'} sub={isHindi ? 'सप्लायर कमाई लेज़र से' : 'From the supplier earnings ledger'} accent="#9A5A06" loading={loading} />
+              <StatCard icon={Icon.chart(17)} label={isHindi ? 'लंबित भुगतान' : 'Pending payout'} value={earningsSummary?.balance_requires_review ? (isHindi ? 'समीक्षा जरूरी' : 'Needs review') : earningsSummary?.pending_payout != null ? INR(earningsSummary.pending_payout) : '—'} sub={earningsSummary?.payout_message || (isHindi ? 'सप्लायर कमाई लेज़र से' : 'From the supplier earnings ledger')} accent="#9A5A06" loading={loading} />
             </div>
           </section>
           {earnings.length > 0 && (
