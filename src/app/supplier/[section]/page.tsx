@@ -482,9 +482,10 @@ type Intelligence = {
     cancelled_orders: number; active_orders: number; accepted_offers: number;
     rejected_or_expired_offers: number; offer_acceptance_pct: number | null } | null;
   route_groups?: { date: string; slot: string; pincode: string; orders: number; cans: number }[];
+  area_performance?: { zone_id: string; zone_name: string; city: string; completed: number; cancelled: number; active: number; delivered_cans: number }[];
   coverage_opportunities?: { zone_id: string; zone_name: string; city: string; request_count_30d: number;
     mapped_supplier_count: number; distance_km: number | null; already_mapped: boolean; action: string }[];
-  data_quality?: { own_history_complete: boolean; route_groups_complete: boolean; coverage_sample_complete: boolean;
+  data_quality?: { own_history_complete: boolean; route_groups_complete: boolean; coverage_sample_complete: boolean; area_performance_complete: boolean;
     forecast_note: string; coverage_note: string; route_note: string };
 };
 
@@ -497,6 +498,7 @@ function Analytics({ insight }: { insight: Row }) {
   const quality = result.data_quality;
   const groups = result.route_groups ?? [];
   const opportunities = result.coverage_opportunities ?? [];
+  const areas = result.area_performance ?? [];
 
   return (
     <section className="space-y-5">
@@ -549,6 +551,22 @@ function Analytics({ insight }: { insight: Row }) {
               </Link>
             </div>)}
           </div>}
+      </article>
+
+      <article className="sp-card">
+        <h2 className="sp-h2">{isHindi ? 'क्षेत्र अनुसार प्रदर्शन' : 'Local performance by service area'}</h2>
+        <p className="sp-sub">Your own orders only: completed, cancelled, active, and delivered water cans by operational zone.</p>
+        {quality?.area_performance_complete === false
+          ? <p className="text-sm text-amber-300">Area mapping could not be fully verified.</p>
+          : areas.length === 0
+            ? <p className="text-sm text-slate-300">No zone-linked supplier orders in the current history.</p>
+            : <div className="grid gap-2 sm:grid-cols-2">
+              {areas.map(a => <div key={a.zone_id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <p className="font-semibold">{a.zone_name} · {a.city}</p>
+                <p className="mt-1 text-sm text-slate-300">Completed {a.completed} · Cancelled {a.cancelled} · Active {a.active}</p>
+                <p className="mt-1 text-xs text-slate-400">Water cans delivered: {a.delivered_cans}</p>
+              </div>)}
+            </div>}
       </article>
 
       <article className="sp-card">
