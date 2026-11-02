@@ -2150,7 +2150,7 @@ type EarningRow = {
   id: string;
   order_reference: string;
   amount: number;
-  status: 'pending' | 'paid' | 'review';
+  status: 'pending' | 'paid' | 'review' | 'cash_held';
   paid_at: string | null;
   created_at: string;
 };
@@ -3159,11 +3159,12 @@ export default function SupplierDashboardPage() {
       const needsReview = !financialsPosted || !Number.isFinite(amount) || amount <= 0;
       const isSettled = payoutStatus === 'paid' && Boolean(paidAt) && !needsReview;
       const settlementNeedsReview = needsReview || (payoutStatus === 'paid' && !paidAt);
+      const collectedBySupplier = String(row.payment_collector ?? '').toLowerCase() === 'supplier' || Boolean(row.payment_collected_by);
       return {
         id: String(row.id),
         order_reference: String(row.order_number ?? '—'),
         amount: Number.isFinite(amount) && amount > 0 ? amount : 0,
-        status: settlementNeedsReview ? 'review' as const : isSettled ? 'paid' as const : 'pending' as const,
+        status: settlementNeedsReview ? 'review' as const : isSettled ? 'paid' as const : collectedBySupplier ? 'cash_held' as const : 'pending' as const,
         paid_at: isSettled ? paidAt : null,
         created_at: String(row.completed_at ?? row.created_at ?? ''),
       };
@@ -4218,7 +4219,7 @@ export default function SupplierDashboardPage() {
                     <div style={{ fontSize: 13, fontWeight: 800, color: e.status === 'review' ? '#B91C1C' : 'var(--brand2)' }}>{e.amount > 0 ? INR(e.amount) : 'Unverified'}</div>
                     <div>
                       <span className={`sd-chip ${e.status === 'paid' ? 'sd-chip--ok' : e.status === 'review' ? 'sd-chip--bad' : 'sd-chip--warn'}`} style={{ fontSize: 10, padding: '2px 8px' }}>
-                        {e.status === 'paid' ? (isHindi ? 'सप्लायर सेटलमेंट भेजा' : 'Supplier settlement sent') : e.status === 'review' ? (isHindi ? 'फाइनेंस समीक्षा' : 'Finance review') : (isHindi ? 'सेटलमेंट बाकी' : 'Settlement not sent')}
+                        {e.status === 'paid' ? (isHindi ? 'सप्लायर सेटलमेंट भेजा' : 'Supplier settlement sent') : e.status === 'review' ? (isHindi ? 'फाइनेंस समीक्षा' : 'Finance review') : e.status === 'cash_held' ? (isHindi ? 'कैश आपके पास — हिसाब बाकी' : 'Cash with you — reconcile') : (isHindi ? 'सेटलमेंट बाकी' : 'Settlement not sent')}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--ink2)' }}>{e.paid_at ? fmtDate(e.paid_at) : fmtDate(e.created_at)}</div>
