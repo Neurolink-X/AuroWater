@@ -1,5 +1,6 @@
 import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
 import { withinSupplierRadius } from './dispatch-radius';
+import { matchApprovedSupplierCoverage, type SupplierZoneCoverage } from './dispatch-coverage';
 import { technicianRadius } from './technician-service-radius';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
@@ -416,10 +417,8 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
   }
 
-  // Prefer suppliers explicitly mapped to this service zone. If those cannot fulfil the order,
-  // allow an eligible same-city fallback from another zone (or with no mapping). The order must
-  // already have passed customer-side serviceability checks; fallback never enables an
-  // unavailable customer zone.
+  // Exact approved zone first, then explicit matching PIN or citywide approval.
+  // Never grant fallback from a geographic 25km zone radius alone.
   let coverageBySupplier: Map<string, { zoneId: string; serviceKeys: string[] | null }[]> | null = null;
   const serviceKey = String(typeRes.data?.key ?? order.service_type ?? '');
   if (order.zone_id) {
@@ -429,6 +428,33 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       const links = coverageBySupplier.get(id) ?? [];
       links.push({ zoneId: String(link.zone_id), serviceKeys: link.service_keys ?? null });
       coverageBySupplier.set(id, links);
+    }
+  }
+
+  const approvedIds = [...new Set(((zoneRes.data ?? []) as {zone_id:string}[]).map(z=>String(z.zone_id)))];
+  const approvedZonesById = new Map<string, SupplierZoneCoverage>();
+  if (approvedIds.length && order.zone_id) {
+    const {data: approvedZones,error: approvedZonesError} = await db.from('service_zones')
+      .select('id,city,status,is_catch_all,pincodes,services').in('id',approvedIds);
+    if (approvedZonesError) {
+      console.error('[dispatch] approved zone fallback lookup failed',approvedZonesError.code);
+      return {kind:'error',message:'Could not verify supplier PIN coverage.',action:'approved_zone_lookup_failed'};
+    }
+    for (const zone of (approvedZones??[]) as (SupplierZoneCoverage & {id:string})[]) {
+      approvedZonesById.set(String(zone.id),zone);
+    }
+  }
+  let customerPin = '';
+  if (order.zone_id) {
+    const addressSnapshot = order.address_snapshot && typeof order.address_snapshot==='object'
+      ? order.address_snapshot as Record<string,unknown> : null;
+    const snapshotPin = String(addressSnapshot?.pincode ?? '');
+    if (/^\\d{6}$/.test(snapshotPin)) customerPin = snapshotPin;
+    else if (order.address_id) {
+      const {data: address,error:addressError} = await db.from('addresses')
+        .select('pincode').eq('id',order.address_id).maybeSingle();
+      if (addressError) return {kind:'error',message:'Could not verify order PIN.',action:'pin_lookup_failed'};
+      customerPin = String(address?.pincode??'');
     }
   }
 
@@ -460,24 +486,15 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
 
     let coverageTier = 0;
     if (coverageBySupplier) {
-      const links = coverageBySupplier.get(id) ?? [];
-      const matching = links.find((link) => link.zoneId === String(order.zone_id));
-      if (matching) {
-        if (matching.serviceKeys !== null && !matching.serviceKeys.includes(serviceKey)) {
-          reject('service_not_covered', serviceKey);
-          continue;
-        }
-      } else {
-        // Explicit supplier approvals are zone-specific, not a blanket permission
-        // for every overlapping PIN or a zone center's radius. A different zone
-        // needs its own admin approval, even when customer and supplier are close.
-        // Preserve same-city legacy fallback only for suppliers with no mappings.
-        if (links.length > 0) {
-          reject('zone_not_approved', String(order.zone_id));
-          continue;
-        }
-        coverageTier = 1;
+      const decision = matchApprovedSupplierCoverage(
+        String(order.zone_id),customerPin,geo.city,serviceKey,
+        coverageBySupplier.get(id) ?? [],approvedZonesById,
+      );
+      if (!decision.allowed) {
+        reject(decision.reason,decision.reason==='zone_not_approved'?String(order.zone_id):serviceKey);
+        continue;
       }
+      coverageTier = decision.tier;
     }
 
     const load = activeLoad.get(id) ?? 0;
