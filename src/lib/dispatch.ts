@@ -1,3 +1,4 @@
+import { preferredSupplierId, rankSupplierCandidates } from './supplier-affinity';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServiceClient } from '@/utils/supabase/server';
 
@@ -514,19 +515,20 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       favourite: id === favourite,
       group,
       distance,
-      tier: TIER_RANK[String(p.milestone_tier ?? 'starter').toLowerCase()] ?? 0,
-      load,
-      coverageTier,
-    });
+      tier: TIER_RANK[String(p.milestone_ti  // Read customer-confirmed referral preference. Missing migration must not block dispatch.
+  let affinityId: string | null = null;
+  if (order.customer_id) {
+    const { data: affinities, error: affinityError } = await db
+      .from('supplier_customer_relationships')
+      .select('supplier_id,status,priority_expires_at,customer_confirmed_at')
+      .eq('customer_id', order.customer_id)
+      .eq('status', 'active')
+      .gt('priority_expires_at', new Date().toISOString())
+      .limit(10);
+    if (!affinityError) affinityId = preferredSupplierId(affinities ?? []);
   }
-
-  cands.sort(
-    (a, b) =>
-      a.coverageTier - b.coverageTier ||
-      a.group - b.group ||
-      (a.distance ?? Number.POSITIVE_INFINITY) - (b.distance ?? Number.POSITIVE_INFINITY) ||
-      Number(b.favourite) - Number(a.favourite) ||
-      b.tier - a.tier ||
+  const ranked = rankSupplierCandidates(cands, affinityId);
+  cands.splice(0, cands.length, ...ranked);    b.tier - a.tier ||
       a.load - b.load ||
       a.id.localeCompare(b.id)
   );
