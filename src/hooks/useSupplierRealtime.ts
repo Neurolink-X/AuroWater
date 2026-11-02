@@ -74,7 +74,7 @@ export function useSupplierRealtime({
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${supplierId}` },
-        (payload) => notifCb.current?.(payload.new as Record<string, unknown>),
+        (payload: import('@supabase/supabase-js').RealtimePostgresChangesPayload<Record<string, unknown>>) => notifCb.current?.(payload.new as Record<string, unknown>),
       )
       .subscribe((s: string) => {
         if (s === 'SUBSCRIBED') {

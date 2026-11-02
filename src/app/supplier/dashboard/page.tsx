@@ -817,7 +817,7 @@
 //     };
 //     void initialize();
 
-//     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+//     const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
 //       if (active && initialized && event === 'SIGNED_OUT' && !session) redirectToLogin();
 //     });
 
@@ -1036,10 +1036,10 @@
 //       console.warn('[supplier] earnings summary unavailable:', summaryError instanceof Error ? summaryError.message : summaryError);
 //     }
 //     // Filter status on the client: an enum filter with an unknown label makes PostgREST answer 400.
-//     const doneRows = (data ?? []).filter((row) =>
+//     const doneRows = (data ?? []).filter((row: Record<string, unknown>) =>
 //       ['completed', 'delivered'].includes(String(row.status ?? '').toLowerCase()),
 //     );
-//     setEarnings(doneRows.slice(0, 50).map((row) => {
+//     setEarnings(doneRows.slice(0, 50).map((row: Record<string, unknown>) => {
 //       const amount = Number(row.supplier_payout ?? 0);
 //       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
 //       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
@@ -2068,6 +2068,7 @@
 
 
 'use client';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 import React, {
   useCallback,
@@ -2903,7 +2904,7 @@ export default function SupplierDashboardPage() {
     };
     void initialize();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: import('@supabase/supabase-js').AuthChangeEvent, session: import('@supabase/supabase-js').Session | null) => {
       if (active && initialized && event === 'SIGNED_OUT' && !session) redirectToLogin();
     });
 
@@ -3135,10 +3136,10 @@ export default function SupplierDashboardPage() {
       console.warn('[supplier] earnings summary unavailable:', summaryError instanceof Error ? summaryError.message : summaryError);
     }
     // Filter status on the client: an enum filter with an unknown label makes PostgREST answer 400.
-    const doneRows = (data ?? []).filter((row) =>
+    const doneRows = (data ?? []).filter((row: Record<string, unknown>) =>
       ['completed', 'delivered'].includes(String(row.status ?? '').toLowerCase()),
     );
-    setEarnings(doneRows.slice(0, 50).map((row) => {
+    setEarnings(doneRows.slice(0, 50).map((row: Record<string, unknown>) => {
       const amount = Number(row.supplier_payout ?? 0);
       const payoutStatus = String(row.payout_status ?? 'pending').toLowerCase();
       const paidAt = typeof row.payout_paid_at === 'string' ? row.payout_paid_at : null;
