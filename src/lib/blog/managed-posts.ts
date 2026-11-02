@@ -22,7 +22,7 @@ export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost
         if (!s || typeof s !== 'object') return false;
         const section = s as { heading?:unknown; paragraphs?:unknown };
         return typeof section.heading === 'string' &&
-          Array.isArray(section.paragraphs) && section.paragraphs.every(p => typeof p === 'string');
+          Array.isArray(section.paragraphs) && section.paragraphs.every((p: unknown) => typeof p === 'string');
       })
     ).map(post => ({
       slug: post.slug,
