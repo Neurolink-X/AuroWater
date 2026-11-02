@@ -80,9 +80,13 @@ export async function POST(req: NextRequest) {
   const extension = PRIVATE_FILE_TYPES[detected];
 
   if (slotName) {
-    const { count } = await db.from('user_files').select('id', { count: 'exact', head: true })
+    const { count, error: pendingCountError } = await db.from('user_files').select('id', { count: 'exact', head: true })
       .eq('owner_user_id', userId).eq('document_slot', slotName).eq('review_status', 'pending');
-    if ((count ?? 0) >= MAX_PENDING_PER_SLOT) {
+    if (pendingCountError || count === null) {
+      console.error('[files/upload] pending count unavailable', { requestId, code: pendingCountError?.code });
+      return fail('Could not check existing documents. Please retry.', 503, 'PENDING_COUNT_UNAVAILABLE');
+    }
+    if (count >= MAX_PENDING_PER_SLOT) {
       return fail('You already have documents awaiting review for this type. Remove one or wait for review.', 409, 'TOO_MANY_PENDING');
     }
   }
