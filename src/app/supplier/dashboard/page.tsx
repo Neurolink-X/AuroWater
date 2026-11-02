@@ -1134,9 +1134,6 @@
 //   };
 
 //   const syncDispatchLocation = async () => {
-    toast.info('Shop location changes need admin approval. Open My profile & address.');
-    router.push('/supplier/profile');
-    return;
 
 //     if (locationBusy || typeof navigator === 'undefined' || !navigator.geolocation) {
 //       toast.error('Location is not available in this browser.');
@@ -3251,6 +3248,9 @@ export default function SupplierDashboardPage() {
   };
 
   const syncDispatchLocation = async () => {
+    toast.info('Shop location changes require admin approval. Open My profile & address.');
+    router.push('/supplier/profile');
+    return;
     if (locationBusy || typeof navigator === 'undefined' || !navigator.geolocation) {
       toast.error('Location is not available in this browser.');
       return;
