@@ -8,6 +8,7 @@ import Link from 'next/link';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
 import LanguageToggle from '@/components/LanguageToggle';
+import NearbyRoutePanel from '@/components/operations/NearbyRoutePanel';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 import {
@@ -352,6 +353,7 @@ export default function TechnicianJobs() {
       <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
 
         <PartnerJourney role="technician" isHindi={isHindi} />
+        <div className="my-4"><NearbyRoutePanel role="technician" /></div>
 
         <div className="mb-4"><PartnerPostalLookup label={isHindi ? 'काम की जगह का पिन कोड' : 'Job location PIN reference'} /></div>
 
