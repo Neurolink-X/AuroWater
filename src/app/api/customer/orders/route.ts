@@ -323,11 +323,14 @@ export async function POST(req: NextRequest) {
     return jsonErr(serviceability.message, 400);
   }
 
-  // A configured city/zone alone is insufficient for professional services.
-  // Before ANY order/financial write, require a local and separately approved specialist.
-  // Gorakhpur professionals must never confirm Kanpur work solely because a city is active.
+  // Do not convert a demand lead into a fictitious confirmed appointment.
+  // Only borewell and tank-cleaning may enter a verified-city, approved-zone
+  // PENDING intake without an available professional. Other roles retain their
+  // existing strict same-city readiness gate. A lookup outage is NEVER bypassed.
   const specialist = await checkLocalSpecialistBooking(service_type_key, a.city, geo.ok ? geo.lat : null, geo.ok ? geo.lng : null);
-  if (!specialist.ok) return jsonErr(specialist.message, specialist.unavailable ? 409 : 503, specialist.unavailable ? 'NO_LOCAL_SPECIALIST' : 'SPECIALIST_CHECK_UNAVAILABLE');
+  const manualIntake = !specialist.ok && specialist.unavailable &&
+    (service_type_key === 'borewell' || service_type_key === 'tank_cleaning');
+  if (!specialist.ok && !manualIntake) return jsonErr(specialist.message, specialist.unavailable ? 409 : 503, specialist.unavailable ? 'NO_LOCAL_SPECIALIST' : 'SPECIALIST_CHECK_UNAVAILABLE');
 
 
   // Self-heal: remember the derived point so this address works everywhere next time
@@ -788,7 +791,7 @@ export async function POST(req: NextRequest) {
       address: addressText || null,
       address_id: addr.id,
       is_emergency,
-      note: [...noteParts, ...(referralReward ? [`Referral reward: ${referralReward.reward_type}`] : [])].filter(Boolean).join(' | ') || null,
+      note: [...noteParts, ...(manualIntake ? ['Professional availability not confirmed; manual local dispatch follow-up required; no slot guarantee'] : []), ...(referralReward ? [`Referral reward: ${referralReward.reward_type}`] : [])].filter(Boolean).join(' | ') || null,
       scheduled_at: scheduledAt,
       ...(activePricingRow ? {
         pricing_version: Number(activePricingRow.version),
@@ -1028,8 +1031,8 @@ export async function POST(req: NextRequest) {
   after(async () => {
     const results = await Promise.allSettled([
       isWater ? dispatchOrder(orderId) : dispatchTechnicianJob(orderId),
-      safeNotify(customerId, isWater ? 'Order placed successfully' : 'Booking Confirmed',
-        `Your ${label} is booked for ${slotText}.`, 'booking', orderId, 'created'),
+      safeNotify(customerId, manualIntake ? 'Service request received - confirmation pending' : isWater ? 'Order request received' : 'Service request received',
+        manualIntake ? `We received your ${label} enquiry for ${slotText}. No professional or time slot is confirmed yet. We will contact you when local availability is verified.` : `Your ${label} request for ${slotText} was received. Assignment is subject to eligible local availability.`, 'booking', orderId, 'created'),
     ]);
     for (const result of results) {
       if (result.status === 'rejected') console.error('[orders] post-confirmation task failed', result.reason);
@@ -1047,7 +1050,7 @@ export async function POST(req: NextRequest) {
   return jsonOk(
     isWater
       ? { ...out, supplier_status: 'searching' }
-      : out,
+      : { ...out, fulfillment_status: manualIntake ? 'awaiting_local_professional' : 'awaiting_assignment', professional_confirmed: false },
     201
   );
 }

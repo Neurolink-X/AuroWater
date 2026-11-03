@@ -6,6 +6,7 @@ import { createServiceClient } from '@/utils/supabase/server';
 import {
   RECOVERY_STATUSES, UUID_PATTERN, firstIssue, reviewSchema, type RecoveryStatus,
 } from '@/lib/account-recovery/shared';
+import { workflowState } from '@/lib/account-recovery/workflow';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,30 @@ export async function GET(req: NextRequest) {
     console.error('[admin/account-recovery] list failed', error);
     return jsonErr('Could not load account recovery requests.', 502);
   }
-  return noStore(jsonOk(data ?? []));
+  // Admin-only enrichment. A matching address alone NEVER verifies ownership.
+  const requests = data ?? [];
+  const candidateEmails = [...new Set(requests.map((r) => String(r.contact_email ?? '').trim().toLowerCase()).filter(Boolean))];
+  const linkedIds = [...new Set(requests.map((r) => r.user_id).filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id)))];
+  const [emailProfiles, linkedProfiles] = await Promise.all([
+    candidateEmails.length ? db.from('profiles').select('id,email').in('email', candidateEmails) : Promise.resolve({ data: [], error: null }),
+    linkedIds.length ? db.from('profiles').select('id,email').in('id', linkedIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (emailProfiles.error || linkedProfiles.error) {
+    console.error('[admin/account-recovery] secure profile lookup unavailable');
+    return jsonErr('Could not verify registered account details.', 503);
+  }
+  const byEmail = new Map((emailProfiles.data ?? []).map((p) => [String(p.email ?? '').toLowerCase(), p]));
+  const byId = new Map((linkedProfiles.data ?? []).map((p) => [p.id, p]));
+  const enriched = requests.map((r) => {
+    const linked = r.user_id ? byId.get(r.user_id) : null;
+    const matched = byEmail.get(String(r.contact_email ?? '').toLowerCase());
+    return {
+      ...r,
+      registered_email: linked?.email ?? matched?.email ?? null,
+      account_match: linked ? 'linked' : matched ? 'email_match_unverified' : 'no_match',
+    };
+  });
+  return noStore(jsonOk(enriched));
 }
 
 /** Maps SQLSTATE codes raised by update_account_recovery_review() to precise HTTP responses. */
@@ -89,9 +113,28 @@ export async function PATCH(req: NextRequest) {
 
   const parsed = reviewSchema.safeParse(raw);
   if (!parsed.success) return jsonErr(firstIssue(parsed.error, 'Request ID and a valid status are required.'), 422);
-  const { request_id, status, admin_note, verify_ownership } = parsed.data;
+  const { request_id, status, admin_note, verify_ownership, resolution_confirmed } = parsed.data;
+  // The check is repeated on the server, never trust a client-side checkbox alone.
+  if (status === 'resolved' && (!resolution_confirmed || admin_note.trim().length < 10)) {
+    return jsonErr('Confirm that the problem was fixed, the customer was informed, and document the outcome.', 422);
+  }
 
   const db = createServiceClient();
+  if (verify_ownership) {
+    return jsonErr('Use the independent verification workflow before updating ownership.', 409);
+  }
+  if (status === 'resolved') {
+    const [ticketResult, evidenceResult] = await Promise.all([
+      db.from('account_recovery_requests').select('user_id,ownership_verified_at').eq('id', request_id).maybeSingle(),
+      db.from('account_recovery_audit').select('action,actor_user_id,details,created_at')
+        .eq('request_id', request_id).order('created_at', { ascending: false }).limit(100),
+    ]);
+    if (ticketResult.error || evidenceResult.error) return jsonErr('Recovery verification is currently unavailable.', 503);
+    if (!ticketResult.data?.user_id || !ticketResult.data.ownership_verified_at ||
+        !workflowState(evidenceResult.data ?? []).ready) {
+      return jsonErr('Verified identity, completed corrective action and customer confirmation are required before closure.', 409);
+    }
+  }
   const { data, error } = await db.rpc('update_account_recovery_review', {
     p_request_id: request_id, p_admin_id: gate.adminId, p_status: status,
     p_admin_note: admin_note, p_verify_ownership: verify_ownership,
@@ -101,7 +144,34 @@ export async function PATCH(req: NextRequest) {
     console.error('[admin/account-recovery] transactional update failed', error);
     return error ? mapReviewError(error) : jsonErr('Could not update the request. Refresh and try again.', 502);
   }
-  return noStore(jsonOk(updated));
+  // A resolved ticket also reaches the registered user's in-app inbox when
+  // a unique matching account exists. The customer's contact address is NEVER
+  // used as an arbitrary notification destination or proof of ownership.
+  let notification_delivery: 'stored' | 'no_linked_account' | 'failed' = 'no_linked_account';
+  if (status === 'resolved') {
+    const { data: request } = await db.from('account_recovery_requests')
+      .select('user_id,contact_email').eq('id', request_id).maybeSingle();
+    let recipient = request?.user_id ?? null;
+    if (!recipient && request?.contact_email) {
+      const { data: matches, error: matchError } = await db.from('profiles')
+        .select('id').eq('role', 'customer').eq('email', String(request.contact_email).trim().toLowerCase()).limit(2);
+      if (!matchError && matches?.length === 1) recipient = matches[0].id;
+    }
+    if (recipient) {
+      const { error: inboxError } = await db.from('notifications').insert({
+        user_id: recipient,
+        title: 'Account support request reviewed',
+        message: 'Your account help request has been marked resolved. If you still cannot access your account or did not request this, please contact support.',
+        type: 'system',
+        data: { request_id },
+        is_read: false,
+        dedup_key: `account_recovery_${request_id}_resolved_${recipient}`,
+      });
+      notification_delivery = !inboxError || inboxError.code === '23505' ? 'stored' : 'failed';
+      if (inboxError && inboxError.code !== '23505') console.error('[admin/account-recovery] inbox delivery failed', inboxError.code);
+    }
+  }
+  return noStore(jsonOk({ ...updated, notification_delivery }));
 }
 
 

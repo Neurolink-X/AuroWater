@@ -4,13 +4,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
+import AccountRecoveryWorkflow from '@/components/admin/AccountRecoveryWorkflow';
 import { isAbort, requestJson } from '@/lib/account-recovery/http';
 import {
   LIMITS, RECOVERY_STATUSES, categoryAdminLabel, firstIssue, isClosedStatus, reviewSchema, statusLabel,
   type RecoveryAudit, type RecoveryRequest, type RecoveryStatus, type StatusCounts,
 } from '@/lib/account-recovery/shared';
 
-type Draft = { status: string; note: string; verify: boolean };
+type Draft = { status: string; note: string; verify: boolean; resolvedConfirmed: boolean };
 const REFRESH_MS = 60_000;
 
 async function authed(): Promise<Record<string, string>> {
@@ -34,6 +35,8 @@ export default function AdminAccountRecoveryPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [sendingReset, setSendingReset] = useState<string | null>(null);
+  const [workflowExpanded, setWorkflowExpanded] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [auditRows, setAuditRows] = useState<Record<string, RecoveryAudit[]>>({});
   const [auditOpen, setAuditOpen] = useState<Record<string, boolean>>({});
@@ -41,12 +44,12 @@ export default function AdminAccountRecoveryPage() {
   const loadCtrl = useRef<AbortController | null>(null);
 
   const draftOf = useCallback((row: RecoveryRequest): Draft =>
-    drafts[row.id] ?? { status: row.status, note: row.admin_note ?? '', verify: false }, [drafts]);
+    drafts[row.id] ?? { status: row.status, note: row.admin_note ?? '', verify: false, resolvedConfirmed: false }, [drafts]);
   const patchDraft = (row: RecoveryRequest, p: Partial<Draft>) =>
     setDrafts((old) => ({ ...old, [row.id]: { ...draftOf(row), ...p } }));
   const isDirty = (row: RecoveryRequest) => {
     const d = drafts[row.id];
-    return !!d && (d.status !== row.status || d.note !== (row.admin_note ?? '') || d.verify);
+    return !!d && (d.status !== row.status || d.note !== (row.admin_note ?? '') || d.resolvedConfirmed);
   };
 
   /** Loads the list + tab counts. Cancels any in-flight load so stale responses can never overwrite fresh ones. */
@@ -115,20 +118,24 @@ export default function AdminAccountRecoveryPage() {
     const d = draftOf(row);
     const parsed = reviewSchema.safeParse({
       request_id: row.id, status: d.status, admin_note: d.note, verify_ownership: d.verify,
+      resolution_confirmed: d.resolvedConfirmed,
     });
     if (!parsed.success) { toast.error(firstIssue(parsed.error)); return; }
-    if (d.status === 'resolved' && !row.ownership_verified_at && !d.verify) {
+    if (d.status === 'resolved' && !row.ownership_verified_at) {
       toast.error('Confirm ownership was verified before resolving.'); return;
     }
     if (isClosedStatus(d.status) && !window.confirm(`Mark request #${row.request_number} as ${statusLabel(d.status)}? Closed requests cannot be reopened.`)) return;
 
     setBusy(row.id);
     try {
-      await requestJson('/api/admin/account-recovery', {
+      const result = await requestJson<{ notification_delivery?: 'stored' | 'no_linked_account' | 'failed' }>('/api/admin/account-recovery', {
         method: 'PATCH', headers: { ...(await authed()), 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),
       });
       toast.success('Request updated and audit event recorded.');
+      if (d.status === 'resolved' && result.data?.notification_delivery !== 'stored') {
+        toast.warning('No in-app notification could be confirmed. Ensure the customer is contacted through the verified channel.');
+      }
       setDrafts((old) => { const { [row.id]: _gone, ...rest } = old; return rest; });
       setAuditRows((old) => { const { [row.id]: _gone, ...rest } = old; return rest; });
       await load(true);
@@ -137,6 +144,23 @@ export default function AdminAccountRecoveryPage() {
       toast.error(e instanceof Error ? e.message : 'Update failed.');
       void load(true); // someone else may have changed it: resync
     } finally { setBusy(null); }
+  };
+
+  const sendReset = async (row: RecoveryRequest) => {
+    if (!row.registered_email || !['forgot_password', 'account_access'].includes(row.category)) return;
+    if (!window.confirm('Send a time-limited reset link only to the account registered email? This does not verify ownership or resolve the request.')) return;
+    setSendingReset(row.id);
+    try {
+      await requestJson('/api/admin/account-recovery/reset', {
+        method: 'POST', headers: { ...(await authed()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: row.id }),
+      });
+      toast.success('Reset requested for the registered email. Customer must complete recovery.');
+      setAuditRows((old) => { const copy = { ...old }; delete copy[row.id]; return copy; });
+      if (auditOpen[row.id]) void fetchAudit(row.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not request reset email.');
+    } finally { setSendingReset(null); }
   };
 
   const visible = useMemo(() => {
@@ -197,11 +221,33 @@ export default function AdminAccountRecoveryPage() {
                         {row.contact_phone ? ` · ${row.contact_phone}` : ''}
                       </p>
                       <p className="mt-2 text-sm font-semibold text-amber-200">{categoryAdminLabel(row.category)}</p>
+                      <p className="mt-2 break-all text-xs text-cyan-200">Registered email: {row.registered_email ?? 'No matching registered email found'}</p>
+                      <p className="text-xs text-slate-400">{row.account_match === 'linked' ? 'Signed-in account linked · verify identity independently' : row.account_match === 'email_match_unverified' ? 'Email matches an account · ownership NOT verified' : 'No verified account match · investigate manually'}</p>
                     </div>
                     <span className="rounded-lg border border-white/10 px-3 py-1 text-xs capitalize">{statusLabel(row.status)}</span>
                   </div>
 
                   <p className="mt-4 whitespace-pre-wrap break-words rounded-xl bg-black/20 p-3 text-sm leading-6 text-slate-200">{row.message}</p>
+                  {!closed && <div className="mt-3 space-y-2 rounded-xl border border-sky-400/20 bg-sky-400/5 p-3 text-xs text-slate-200">
+                    <p className="font-bold text-sky-200">Secure resolution workflow</p>
+                    <p>{row.category === 'forgot_password' ? 'Send a reset link to the registered inbox. Ask the customer to confirm successful sign-in; never request their password or OTP.' : row.category === 'lost_email_access' || row.category === 'change_email' ? 'Verify ownership using independent evidence. Do not replace the registered email from this ticket; escalate to an authorized identity-recovery process.' : row.category === 'account_blocked' ? 'Check the actual suspension reason in Users and applicable policy. Reactivate only through authorized user controls after verification.' : 'Diagnose account access, document the corrective action and verify the customer can sign in before closure.'}</p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {row.registered_email && ['forgot_password','account_access'].includes(row.category) && <button type="button" disabled={sendingReset === row.id} onClick={() => void sendReset(row)} className="rounded-lg border border-sky-400/40 px-3 py-2 font-semibold text-sky-100 hover:bg-sky-400/10 disabled:opacity-60">{sendingReset === row.id ? 'Requesting reset…' : 'Send secure reset link'}</button>}
+                      <a className="font-semibold text-sky-200 underline" href={`mailto:${encodeURIComponent(row.contact_email)}?subject=${encodeURIComponent('AuroTap account help request #' + row.request_number)}`}>Contact requester by email</a>
+                    </div>
+                    <p className="text-amber-200">Contact details supplied by the requester are unverified. Sending an email does not prove that the issue is resolved.</p>
+                  </div>}
+
+                  {!closed && (
+                    <div className="mt-3">
+                      <button type="button" onClick={() => setWorkflowExpanded(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+                        aria-expanded={!!workflowExpanded[row.id]}
+                        className="min-h-10 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-400/10">
+                        {workflowExpanded[row.id] ? 'Close secure resolution workflow' : 'Open secure resolution workflow'}
+                      </button>
+                      {workflowExpanded[row.id] && <AccountRecoveryWorkflow row={row} onUpdated={() => void load(true)} />}
+                    </div>
+                  )}
 
                   <div className="mt-3">
                     <button onClick={() => toggleAudit(row.id)} disabled={auditLoading === row.id} aria-expanded={!!auditOpen[row.id]}
@@ -243,11 +289,8 @@ export default function AdminAccountRecoveryPage() {
                           className="rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white">
                           {RECOVERY_STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
                         </select>
-                        {!row.ownership_verified_at && (
-                          <label className="flex items-center gap-2 text-xs text-slate-300">
-                            <input type="checkbox" checked={d.verify} onChange={(e) => patchDraft(row, { verify: e.target.checked })} /> Confirm ownership verified
-                          </label>
-                        )}
+                        {d.status === 'resolved' && <label className="flex items-start gap-2 text-xs text-amber-100"><input type="checkbox" checked={d.resolvedConfirmed} onChange={(e) => patchDraft(row, { resolvedConfirmed: e.target.checked })} /> I independently confirmed the actual issue is fixed AND informed the customer; resolution evidence is recorded in the note.</label>}
+                        {!row.ownership_verified_at && <p className="text-xs text-amber-200">Ownership verification must be recorded through the secure workflow above.</p>}
                         <button onClick={() => void save(row)} disabled={busy === row.id || !isDirty(row)}
                           className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-50">
                           {busy === row.id ? 'Saving…' : isDirty(row) ? 'Save review' : 'No changes'}

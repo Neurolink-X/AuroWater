@@ -133,6 +133,15 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/dashboard/account-recovery',
+    label: 'Account Recovery',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M12 3a7 7 0 1 0 7 7v2m0-9v6h-6M9 10l2 2 4-4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/dispatch',
     label: 'Dispatch',
     icon: (

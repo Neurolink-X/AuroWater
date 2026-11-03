@@ -74,10 +74,17 @@ export const reviewSchema = z
     status: z.enum(RECOVERY_STATUSES),
     admin_note: z.string().trim().max(LIMITS.noteMax).optional().default(''),
     verify_ownership: z.boolean().optional().default(false),
+    resolution_confirmed: z.boolean().optional().default(false),
   })
   .superRefine((v, ctx) => {
     if (v.verify_ownership && v.admin_note.length < LIMITS.noteMin) {
       ctx.addIssue({ code: 'custom', path: ['admin_note'], message: `Add a verification note (at least ${LIMITS.noteMin} characters) before confirming ownership.` });
+    }
+    if (v.status === 'resolved' && !v.resolution_confirmed) {
+      ctx.addIssue({ code: 'custom', path: ['resolution_confirmed'], message: 'Confirm the actual issue was fixed and the customer was informed before resolving.' });
+    }
+    if (v.status === 'resolved' && v.admin_note.length < LIMITS.noteMin) {
+      ctx.addIssue({ code: 'custom', path: ['admin_note'], message: 'Document the verified resolution and customer contact before closing.' });
     }
     if (v.verify_ownership && v.status === 'rejected') {
       ctx.addIssue({ code: 'custom', path: ['status'], message: 'Ownership cannot be verified on a rejected request.' });
@@ -89,6 +96,7 @@ export type RecoveryRequest = {
   contact_email: string; contact_phone: string | null; category: string; message: string;
   status: string; admin_note: string | null; ownership_verified_at: string | null;
   resolved_at?: string | null; created_at: string; updated_at?: string | null;
+  registered_email?: string | null; account_match?: 'linked' | 'email_match_unverified' | 'no_match';
 };
 export type RecoveryAudit = {
   id: number; request_id?: string; actor_user_id: string | null; action: string;
