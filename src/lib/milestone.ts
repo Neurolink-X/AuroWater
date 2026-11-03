@@ -95,9 +95,9 @@ export async function checkAndUpgradeMilestone(
     const { error: nErr } = await sb.from('notifications').insert({
       user_id: supplierId,
       title,
-      body,
+      message: body,
       type: 'system',
-      order_id: null,
+      data: { milestone: newTier },
       is_read: false,
       dedup_key: dedupKeyForMilestone(supplierId, newTier),
     });
