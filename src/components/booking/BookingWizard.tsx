@@ -1574,6 +1574,12 @@ export default function BookingWizard() {
 
   const confirmOrder = async () => {
     if (submitLock.current || createdOrder) return;
+    if (settings.maintenance_mode) {
+      const message = 'New bookings are paused for maintenance. Your saved address and draft are retained. Existing orders continue normally.';
+      setSubmitError(message);
+      toast.warning(message);
+      return;
+    }
     if (!draft.addressId || !session?.loggedIn) { toast.error('Missing address or session.'); return; }
     if (draft.serviceKey === 'borewell' && !['inspection', 'repair'].includes(draft.subOptionKey)) {
       toast.error('Select borewell inspection or repair before booking. Drilling needs a separate site quote.');
@@ -1725,6 +1731,13 @@ export default function BookingWizard() {
       <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
         {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Live prices are being verified. You can select a service and address now; payment confirmation waits for verified pricing.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
+        {pricingReady && settings.maintenance_mode && view < 4 && (
+          <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <p className="font-extrabold">New bookings temporarily paused</p>
+            <p className="mt-1">AuroTap is undergoing maintenance. Your addresses and draft are safe, and existing orders continue normally.</p>
+            <button type="button" className="mt-2 font-bold underline underline-offset-2" onClick={() => void refreshSettings()}>Check availability again</button>
+          </div>
+        )}
 
         <header className="text-center mb-6">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
@@ -4314,7 +4327,14 @@ export default function BookingWizard() {
 //             const errCode =
 //         (e as { code?: string; details?: { code?: string } } | null)?.code ??
 //         (e as { details?: { code?: string } } | null)?.details?.code;
-//       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
+//       if (e instanceof ApiError && errCode === 'BOOKING_MAINTENANCE') {
+         const message = 'New bookings are temporarily paused for maintenance. Existing orders continue normally. Your booking draft is saved.';
+         setSubmitError(message);
+         toast.warning(message);
+         await refreshSettings();
+         return;
+       }
+       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
 //         await refreshSettings();
 //         const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
 //         setSubmitError(m);
@@ -4829,6 +4849,9 @@ export default function BookingWizard() {
 //                           {serviceability.serviceable ? '✓ Service available' : 'Not currently available'}
 //                         </p>
 //                         <p className="mt-1 text-sm text-slate-600">{serviceability.message}</p>
+                         {serviceability.serviceable && addresses.find((address) => address.id === draft.addressId) && (
+                           <p className="mt-1 text-xs font-semibold text-emerald-900">Delivery to: {formatAddressCard(addresses.find((address) => address.id === draft.addressId)!)}</p>
+                         )
 //                         {serviceability.status === 'COMING_SOON' && (
 //                           <div className="mt-3">
 //                             <WaitlistPanel cityName={serviceability.zone?.name ?? 'your area'} cityId={null} role="customer" source="book-zone" />
