@@ -54,7 +54,7 @@ test('distributed claims enforce a global concurrency budget and SKIP LOCKED', (
 
 test('scheduled queue uses bounded demand-based fanout and has low-cost cleanup', () => {
   assert.ok(sql.includes("'*/2 * * * *'"));
-  assert.ok(sql.includes('LEAST(4, CEIL(b.n / 8.0)::integer)'));
+  assert.ok(sql.includes('LEAST(4, CEIL(b.n / 32.0)::integer)'));
   assert.ok(sql.includes("WHERE o.status <> 'PENDING'"));
   assert.ok(sql.includes("interval '14 days'"));
   assert.ok(sql.includes('LIMIT 250'));
@@ -66,9 +66,9 @@ test('only authenticated internal requests can launch bounded workers', () => {
   assert.ok(proxy.includes("'/api/internal/dispatch-work-sweep'"));
   assert.ok(endpoint.includes("process.env.CRON_SECRET"));
   assert.ok(endpoint.includes("'Bearer ' + secret"));
-  assert.ok(endpoint.includes('runDispatchWorkQueue(8, 22_000)'));
-  assert.ok(worker.includes('maxItems = 8'));
-  assert.ok(worker.includes('for (let i = 0; i < rows.length; i += 3)'));
+  assert.ok(endpoint.includes('runDispatchWorkQueue(32, 22_000)'));
+  assert.ok(worker.includes('maxItems = 32'));
+  assert.ok(worker.includes('p_limit: Math.min(3, cap - claimed)'));
   assert.ok(worker.includes("await Promise.allSettled"));
   assert.ok(worker.includes("finish_dispatch_work"));
   assert.ok(worker.includes("completionErrors += 1"));
@@ -117,7 +117,7 @@ for (const total of [100, 100_000]) {
       assert.ok(inFlight <= 24);
     }
     assert.equal(inFlight, 24);
-    const maxRecoveryPerMinute = (4 * 8) / 2;
-    assert.equal(maxRecoveryPerMinute, 16);
+    const maxRecoveryPerMinute = (4 * 32) / 2;
+    assert.equal(maxRecoveryPerMinute, 64);
   });
 }
