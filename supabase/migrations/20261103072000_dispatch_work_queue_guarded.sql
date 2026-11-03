@@ -42,13 +42,10 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog AS $function$
 DECLARE enabled boolean;
 BEGIN
-  IF TG_OP = 'UPDATE' AND NEW.status <> 'PENDING' THEN
-    DELETE FROM public.dispatch_work_items WHERE order_id = NEW.id;
-    RETURN NEW;
-  END IF;
-
+  -- If assigned, completed or cancelled, discard transport work immediately.
   IF NEW.status <> 'PENDING' OR NEW.supplier_id IS NOT NULL
        OR NEW.technician_id IS NOT NULL THEN
+    DELETE FROM public.dispatch_work_items WHERE order_id = NEW.id;
     RETURN NEW;
   END IF;
 
@@ -67,10 +64,11 @@ BEGIN
   ON CONFLICT (order_id) DO UPDATE
     SET lane = EXCLUDED.lane,
         priority = EXCLUDED.priority,
-        state = CASE WHEN q.state = 'dead' THEN 'ready' ELSE q.state END,
         due_at = LEAST(q.due_at, EXCLUDED.due_at),
         updated_at = clock_timestamp()
-  WHERE q.state <> 'leased';
+  WHERE q.state = 'ready';
+  -- Never implicitly reactivate dead letters; they require an explicit
+  -- privileged action after the underlying cause has been addressed.
   RETURN NEW;
 END;
 $function$;
@@ -179,7 +177,15 @@ BEGIN
   WHERE q.order_id = p_order_id AND q.state = 'leased'
     AND q.lease_token = p_claim_token
   FOR UPDATE;
-  IF NOT FOUND THEN RETURN false; END IF;
+  IF NOT FOUND THEN
+    -- Successful assignment may have already removed the queue item via the
+    -- order trigger. That is a valid acknowledgement, not a worker error.
+    RETURN NOT EXISTS (
+      SELECT 1 FROM public.orders o WHERE o.id = p_order_id
+        AND o.status = 'PENDING'
+        AND o.supplier_id IS NULL AND o.technician_id IS NULL
+    );
+  END IF;
 
   SELECT (o.status = 'PENDING' AND o.supplier_id IS NULL
           AND o.technician_id IS NULL)
