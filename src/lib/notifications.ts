@@ -4,6 +4,7 @@
  * authenticate via Bearer JWT (RLS bypass on insert).
  */
 import { createServiceClient } from '@/utils/supabase/server';
+import { after } from 'next/server';
 
 export type NotificationType = 'booking' | 'payment' | 'system' | 'promo';
 
@@ -60,7 +61,22 @@ export async function createNotification(
       return;
     }
     if (error) {
-      console.error('[createNotification]', error.message);
+      console.error('[createNotification]', error.code);
+      return;
+    }
+    // Deliver after the HTTP response so push encryption and network latency
+    // never block booking/dispatch. pg_cron separately recovers failed attempts.
+    try {
+      after(async () => {
+        try {
+          const { processDueWebPush } = await import('@/lib/web-push-worker');
+          await processDueWebPush(4);
+        } catch {
+          // The persisted outbox is recovered by the scheduled push worker.
+        }
+      });
+    } catch {
+      // Other invocation contexts have no after-response hook; cron handles it.
     }
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
