@@ -36,6 +36,7 @@ export default function AdminAccountRecoveryPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [sendingReset, setSendingReset] = useState<string | null>(null);
+  const [workflowExpanded, setWorkflowExpanded] = useState<Record<string, boolean>>({});
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [auditRows, setAuditRows] = useState<Record<string, RecoveryAudit[]>>({});
   const [auditOpen, setAuditOpen] = useState<Record<string, boolean>>({});
@@ -237,7 +238,16 @@ export default function AdminAccountRecoveryPage() {
                     <p className="text-amber-200">Contact details supplied by the requester are unverified. Sending an email does not prove that the issue is resolved.</p>
                   </div>}
 
-                  {!closed && <AccountRecoveryWorkflow row={row} onUpdated={() => void load(true)} />}
+                  {!closed && (
+                    <div className="mt-3">
+                      <button type="button" onClick={() => setWorkflowExpanded(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+                        aria-expanded={!!workflowExpanded[row.id]}
+                        className="min-h-10 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-400/10">
+                        {workflowExpanded[row.id] ? 'Close secure resolution workflow' : 'Open secure resolution workflow'}
+                      </button>
+                      {workflowExpanded[row.id] && <AccountRecoveryWorkflow row={row} onUpdated={() => void load(true)} />}
+                    </div>
+                  )}
 
                   <div className="mt-3">
                     <button onClick={() => toggleAudit(row.id)} disabled={auditLoading === row.id} aria-expanded={!!auditOpen[row.id]}
