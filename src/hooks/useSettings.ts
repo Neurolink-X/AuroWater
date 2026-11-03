@@ -313,17 +313,61 @@ export function mergeSettings(
 
 type ApiEnvelope<T> = { success?: boolean; data?: T; error?: string };
 
+// Share only in-flight network reads, never stale pricing data.
+// A separate key for each city prevents returning the wrong city override.
+const settingsInFlight = new Map<string, Promise<Partial<PlatformSettings>>>();
+function getSharedSettings(city?: string): Promise<Partial<PlatformSettings>> {
+  const normalized = city?.trim().toLowerCase() || '';
+  const current = settingsInFlight.get(normalized);
+  if (current) return current;
+
+  const promise = (async () => {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 4800);
+    try {
+      const query = normalized ? `?city=${encodeURIComponent(normalized)}` : '';
+      const res = await fetch(`/api/settings${query}`, {
+        signal: ctrl.signal, cache: 'no-store',
+      });
+      if (!res.ok) throw new Error(`Settings API ${res.status}: ${res.statusText}`);
+      const json = (await res.json()) as ApiEnvelope<Partial<PlatformSettings>>;
+      if (json?.success === false) throw new Error(json.error ?? 'Live settings unavailable');
+      return json?.data ?? (json as Partial<PlatformSettings>);
+    } finally {
+      clearTimeout(timeout);
+    }
+  })();
+
+  settingsInFlight.set(normalized, promise);
+  // Remove settled requests; never indefinitely retain old settings in memory.
+  void promise.then(
+    () => { if (settingsInFlight.get(normalized) === promise) settingsInFlight.delete(normalized); },
+    () => { if (settingsInFlight.get(normalized) === promise) settingsInFlight.delete(normalized); },
+  );
+  return promise;
+}
+
 async function apiFetchSettings(
   signal?: AbortSignal,
   city?: string,
 ): Promise<Partial<PlatformSettings>> {
-  const query = city?.trim() ? `?city=${encodeURIComponent(city.trim())}` : '';
-  const res = await fetch(`/api/settings${query}`, { signal, cache: 'no-store' });
-  if (!res.ok) throw new Error(`Settings API ${res.status}: ${res.statusText}`);
-  const json = (await res.json()) as ApiEnvelope<Partial<PlatformSettings>>;
-  if (json?.success === false) throw new Error(json.error ?? 'API returned success:false');
-  // Support both { data: {...} } and flat response shapes
-  return json?.data ?? (json as Partial<PlatformSettings>);
+  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+  const shared = getSharedSettings(city);
+  if (!signal) return shared;
+  // Component unmount aborts only its own listener, never the shared request
+  // required by other components. The server remains the source of truth.
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort);
+      reject(signal.reason ?? new DOMException('Aborted', 'AbortError'));
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) { onAbort(); return; }
+    void shared.then(
+      result => { signal.removeEventListener('abort', onAbort); resolve(result); },
+      error => { signal.removeEventListener('abort', onAbort); reject(error); },
+    );
+  });
 }
 
 async function apiSaveSettings(
