@@ -132,7 +132,7 @@ interface PaletteItem {
 
 const ORDER_LIMIT = 80;
 const PAGE_SIZE = 10;
-const POLL_BASE_MS = 90_000;
+const POLL_BASE_MS = 60_000;
 const POLL_MAX_MS = 300_000;
 const CACHE_KEY = 'aurotap:admin-dashboard:v2';
 const CACHE_MAX_AGE_MS = 15 * 60_000;
