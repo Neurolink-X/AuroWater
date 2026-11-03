@@ -48,3 +48,19 @@ export async function POST(req: NextRequest) {
   response.headers.set('Cache-Control', 'no-store');
   return response;
 }
+
+/** Only the account owner can list tickets that are awaiting their confirmation. */
+export async function GET(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (auth.ctx.profile.role !== 'customer') return jsonErr('Forbidden', 403);
+  const db = createServiceClient();
+  const { data, error } = await db.from('account_recovery_requests')
+    .select('id,request_number,category,status,created_at,ownership_verified_at')
+    .eq('user_id', auth.ctx.user.id).not('ownership_verified_at', 'is', null)
+    .in('status', ['in_review', 'waiting_customer']).order('created_at', { ascending: false }).limit(20);
+  if (error) return jsonErr('Could not load account recovery requests.', 503);
+  const response = jsonOk(data ?? []);
+  response.headers.set('Cache-Control', 'no-store');
+  return response;
+}
