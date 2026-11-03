@@ -46,3 +46,27 @@ export async function GET(request: NextRequest) {
     checked_at: new Date().toISOString(),
   });
 }
+
+
+/** Explicit privileged recovery ONLY. No order/payment changes or auto replay. */
+export async function POST(request: NextRequest) {
+  const auth = await requireSupabaseAuth(request);
+  if (!auth.ok) return auth.response;
+  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
+
+  let body: { order_id?: string };
+  try { body = (await request.json()) as { order_id?: string }; }
+  catch { return jsonErr('Invalid JSON request', 400); }
+  const orderId = body.order_id?.trim() ?? '';
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId)) {
+    return jsonErr('Invalid order identifier', 400);
+  }
+
+  // This merely schedules a fresh attempt. Eligibility, city, approval,
+  // capacity and stock are rechecked by the existing dispatch engine.
+  const { data, error } = await createServiceClient()
+    .rpc('requeue_dead_dispatch_work', { p_order_id: orderId });
+  if (error) return jsonErr('Queue recovery unavailable', 503);
+  if (data !== true) return jsonErr('Order is not an eligible dead-letter item', 409);
+  return jsonOk({ requeued: true });
+}
