@@ -126,11 +126,14 @@ export default function AdminAccountRecoveryPage() {
 
     setBusy(row.id);
     try {
-      await requestJson('/api/admin/account-recovery', {
+      const result = await requestJson<{ notification_delivery?: 'stored' | 'no_linked_account' | 'failed' }>('/api/admin/account-recovery', {
         method: 'PATCH', headers: { ...(await authed()), 'Content-Type': 'application/json' },
         body: JSON.stringify(parsed.data),
       });
       toast.success('Request updated and audit event recorded.');
+      if (d.status === 'resolved' && result.data?.notification_delivery !== 'stored') {
+        toast.warning('No in-app notification could be confirmed. Ensure the customer is contacted through the verified channel.');
+      }
       setDrafts((old) => { const { [row.id]: _gone, ...rest } = old; return rest; });
       setAuditRows((old) => { const { [row.id]: _gone, ...rest } = old; return rest; });
       await load(true);
