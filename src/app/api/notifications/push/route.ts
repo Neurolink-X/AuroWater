@@ -152,14 +152,26 @@ export async function POST(req: NextRequest) {
   if (!owner.data && (count.count ?? 0) >= 3)
     return noStore(jsonErr('Maximum 3 notification devices. Disable an older device first.', 409));
 
-  const { error: deviceError } = await db.from('web_push_subscriptions')
-    .upsert({
-      user_id: userId, endpoint: s.endpoint,
-      p256dh: s.keys.p256dh, auth_secret: s.keys.auth,
-      enabled: true, failure_count: 0,
-      revoked_at: null, last_seen_at: new Date().toISOString(),
-    }, { onConflict: 'endpoint' });
-  if (deviceError) return noStore(jsonErr('Could not register this device', 503));
+  // Never upsert by endpoint: two accounts racing to claim the same browser
+  // subscription must not be able to overwrite each other's device owner.
+  const device = {
+    p256dh: s.keys.p256dh, auth_secret: s.keys.auth,
+    enabled: true, failure_count: 0,
+    revoked_at: null, last_seen_at: new Date().toISOString(),
+  };
+  const { error: deviceError } = owner.data
+    ? await db.from('web_push_subscriptions').update(device)
+        .eq('endpoint', s.endpoint).eq('user_id', userId)
+    : await db.from('web_push_subscriptions')
+        .insert({ ...device, endpoint: s.endpoint, user_id: userId });
+  if (deviceError) {
+    return noStore(jsonErr(
+      deviceError.code === '23505' ? 'This device is already registered. Reset the subscription and retry.' :
+        deviceError.code === '23514' ? 'This account has reached the device limit.' :
+        'Could not register this device',
+      deviceError.code === '23505' || deviceError.code === '23514' ? 409 : 503,
+    ));
+  }
   const { error: consentError } = await db.from('web_push_preferences')
     .upsert({
       user_id: userId, push_enabled: true,
