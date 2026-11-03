@@ -128,7 +128,34 @@ export async function PATCH(req: NextRequest) {
     console.error('[admin/account-recovery] transactional update failed', error);
     return error ? mapReviewError(error) : jsonErr('Could not update the request. Refresh and try again.', 502);
   }
-  return noStore(jsonOk(updated));
+  // A resolved ticket also reaches the registered user's in-app inbox when
+  // a unique matching account exists. The customer's contact address is NEVER
+  // used as an arbitrary notification destination or proof of ownership.
+  let notification_delivery: 'stored' | 'no_linked_account' | 'failed' = 'no_linked_account';
+  if (status === 'resolved') {
+    const { data: request } = await db.from('account_recovery_requests')
+      .select('user_id,contact_email').eq('id', request_id).maybeSingle();
+    let recipient = request?.user_id ?? null;
+    if (!recipient && request?.contact_email) {
+      const { data: matches, error: matchError } = await db.from('profiles')
+        .select('id').eq('role', 'customer').ilike('email', String(request.contact_email)).limit(2);
+      if (!matchError && matches?.length === 1) recipient = matches[0].id;
+    }
+    if (recipient) {
+      const { error: inboxError } = await db.from('notifications').insert({
+        user_id: recipient,
+        title: 'Account support request reviewed',
+        message: 'Your account help request has been marked resolved. If you still cannot access your account or did not request this, please contact support.',
+        type: 'system',
+        data: { request_id },
+        is_read: false,
+        dedup_key: `account_recovery_${request_id}_resolved_${recipient}`,
+      });
+      notification_delivery = !inboxError || inboxError.code === '23505' ? 'stored' : 'failed';
+      if (inboxError && inboxError.code !== '23505') console.error('[admin/account-recovery] inbox delivery failed', inboxError.code);
+    }
+  }
+  return noStore(jsonOk({ ...updated, notification_delivery }));
 }
 
 
