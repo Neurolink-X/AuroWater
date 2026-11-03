@@ -3292,11 +3292,13 @@ export default function SupplierDashboardPage() {
 
     if (error) {
       console.error('[supplier] notifications load failed:', error);
-      setNotifications([]);
+      // Keep the last known inbox during a transient database outage.
       return;
     }
 
-    setNotifications((data as Notification[]) ?? []);
+    setNotifications(((data ?? []) as Array<Notification & { message?: string }>).map(
+      (item) => ({ ...item, body: item.message ?? item.body ?? '' }),
+    ));
   };
 
   const buildStats = (p: SupplierProfile) => {
@@ -3354,8 +3356,10 @@ export default function SupplierDashboardPage() {
       await Promise.all([fetchOrders(), fetchEarnings(profile.id)]);
     },
     onNotification: (row) => {
-      const notif = row as unknown as Notification;
-      setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
+      const incoming = row as unknown as Notification & { message?: string };
+      const notif: Notification = { ...incoming, body: incoming.message ?? incoming.body ?? '' };
+      setNotifications((prev) => prev.some((item) => item.id === notif.id)
+        ? prev : [notif, ...prev.slice(0, 19)]);
       toast.info(notif.title, { description: notif.body });
     },
   });

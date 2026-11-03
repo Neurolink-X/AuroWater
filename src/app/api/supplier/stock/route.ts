@@ -180,9 +180,9 @@ export async function PUT(req: NextRequest) {
       createServiceClient().from('notifications').insert({
         user_id: supplierId,
         title: 'Low stock alert',
-        body: `Your available cans are low (${cans}). Please restock soon.`,
+        message: `Your available cans are low (${cans}). Please restock soon.`,
         type: 'system',
-        order_id: null,
+        data: { stock_alert: true },
         is_read: false,
         dedup_key: `stock_low_${supplierId}_${day}`,
       }),

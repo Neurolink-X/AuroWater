@@ -196,9 +196,9 @@ async function alertAdmins(
       const { error } = await db.from('notifications').insert({
         user_id: a.id,
         title: 'Unassigned order',
-        body: `${message} (order ${orderId})`,
+        message: `${message} (order ${orderId})`,
         type: 'system',
-        order_id: orderId,
+        data: { order_id: orderId },
         is_read: false,
         dedup_key: `order_${orderId}_${action}_${a.id}`,
       });
