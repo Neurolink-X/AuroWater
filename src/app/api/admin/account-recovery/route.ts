@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest) {
     let recipient = request?.user_id ?? null;
     if (!recipient && request?.contact_email) {
       const { data: matches, error: matchError } = await db.from('profiles')
-        .select('id').eq('role', 'customer').ilike('email', String(request.contact_email)).limit(2);
+        .select('id').eq('role', 'customer').eq('email', String(request.contact_email).trim().toLowerCase()).limit(2);
       if (!matchError && matches?.length === 1) recipient = matches[0].id;
     }
     if (recipient) {
