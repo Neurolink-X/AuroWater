@@ -52,7 +52,13 @@ test('Web Push is encrypted server-side and provider endpoints are allowlisted',
   assert.match(sender, /new Uint8Array\(encrypted\)/);
   assert.match(sender, /redirect: 'error'/);
   assert.match(sender, /AbortSignal\.timeout\(7000\)/);
-  assert.match(sender, /fcm\.googleapis\.com/);
+  // Domain allowlist assertions are exact literals rather than unanchored URL
+  // regexes, so CodeQL can prove no arbitrary prefix/suffix matches.
+  assert.ok(sender.includes("'fcm.googleapis.com'"));
+  assert.ok(sender.includes("'updates.push.services.mozilla.com'"));
+  assert.ok(sender.includes("'web.push.apple.com'"));
+  assert.ok(sender.includes("url.hostname.toLowerCase()"));
+  assert.ok(sender.includes("url.protocol !== 'https:'"));
   assert.doesNotMatch(sender, /NEXT_PUBLIC_WEB_PUSH_VAPID_PRIVATE_KEY/);
   assert.match(sw, /self\.addEventListener\('push'/);
   assert.match(sw, /self\.addEventListener\('notificationclick'/);
