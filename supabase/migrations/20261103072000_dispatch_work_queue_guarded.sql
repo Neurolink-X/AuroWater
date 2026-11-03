@@ -287,7 +287,7 @@ SELECT cron.schedule(
 );
 
 -- No extra Vercel function invoked while the queue feature is OFF or idle.
--- At most 4 worker calls every 2 minutes; normal traffic remains on the old
+-- At most 4 worker calls every 2 minutes (32 claimed items each); normal traffic remains on the old
 -- working dispatch path. Horizontal throughput must still be load-tested.
 SELECT cron.schedule(
   'aurotap-dispatch-work-queue',
@@ -298,7 +298,7 @@ SELECT cron.schedule(
       SELECT 1 FROM public.dispatch_work_items q
       WHERE (q.state='ready' AND q.due_at <= now())
          OR (q.state='leased' AND q.lease_until <= now())
-      LIMIT 32
+      LIMIT 128
     ) bounded
   ), enabled AS (
     SELECT EXISTS (
@@ -320,7 +320,7 @@ SELECT cron.schedule(
   )
   FROM backlog b CROSS JOIN enabled e
   CROSS JOIN LATERAL generate_series(
-    1, CASE WHEN e.yes THEN LEAST(4, CEIL(b.n / 8.0)::integer) ELSE 0 END
+    1, CASE WHEN e.yes THEN LEAST(4, CEIL(b.n / 32.0)::integer) ELSE 0 END
   ) batch;
   $cron$
 );
