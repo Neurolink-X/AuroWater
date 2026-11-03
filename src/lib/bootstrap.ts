@@ -1,5 +1,4 @@
 import { queryOne, query } from '@/lib/db/connection';
-import { hashPassword } from '@/lib/auth/jwt';
 
 let bootstrapRun = false;
 
@@ -11,30 +10,17 @@ export async function runBootstrapOnce() {
   await ensureDefaultAppSettings();
 }
 
-async function ensureDefaultAdmin() {
-  const phone = '9889305803';
-  const email = 'Arjunchaurasiya1254@gmail.com';
-  const full_name = 'Admin';
-  const password = '@India#23';
-
-  const existing = await queryOne('SELECT id FROM users WHERE phone = $1 OR email = $2', [
-    phone,
-    email,
-  ]);
-  if (existing) return;
-
-  const password_hash = await hashPassword(password);
-  const user = await queryOne(
-    `INSERT INTO users (phone, email, password_hash, full_name, role, is_active)
-     VALUES ($1, $2, $3, $4, 'ADMIN', true)
-     RETURNING id`,
-    [phone, email, password_hash, full_name]
-  );
-
-  if (!user) {
-    // If this fails, we just log and continue; normal auth errors will surface.
-    console.error('Failed to create default admin user');
-  }
+/**
+ * Never seed an admin account using a source-controlled fixed password.
+ * Administrator creation must use the approved Supabase Auth/invitation flow
+ * and be explicitly authorized by an operator.
+ *
+ * This is legacy bootstrap code (no active imports found in the repository).
+ * Keeping this function as a no-op preserves the exported bootstrap signature
+ * without creating a privileged account through a known credential.
+ */
+async function ensureDefaultAdmin(): Promise<void> {
+  // Deliberately disabled: no implicit privileged user creation.
 }
 
 async function ensureDefaultAppSettings() {
