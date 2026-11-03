@@ -23,7 +23,7 @@ A hypothetical 100,000-item backlog would take more than 26 hours even at that i
 3. Stress duplicate enqueue, same-order race, max 24 leases, lease expiry, stale-token ack, crash recovery, no-provider backoff, dead-letter requeue and stock reservation races.
 4. Check authenticated API, service-only database privileges, rollback flag, and lack of PII in queue rows.
 5. Deploy schema with the flag still OFF; confirm no order behavior change and no unexpected compute billing.
-6. Before activating, call the service-role-only enqueue_existing_pending_dispatch(100) repeatedly on the staging/rollout system until it returns zero. It can prefill while the flag remains OFF. Activation will be rejected if any eligible PENDING order is still missing from the queue.
+6. Activation atomically backfills up to 100 existing eligible PENDING orders before the queue turns ON. If more are missing, the activation transaction rolls back safely. For larger backlogs, call the service-role-only enqueue_existing_pending_dispatch(100) repeatedly on staging/rollout while the flag remains OFF, then retry activation. No incomplete handoff is allowed.
 7. The low-cost per-minute reconciliation cron repairs orders committed during flag changes, without any HTTP call when the flag is OFF. Verify both its run history and the worker endpoint before activation.
 8. Test real customer / supplier / technician workflow in a safe staging environment.
 9. Monitor PENDING order age, oldest due work, dead letters, database CPU/locks, checkout 429 and API p95. Enable only a small monitored trial after acceptance.
