@@ -1731,19 +1731,26 @@ export default function Header() {
   }, [mobileOpen]);
 
   /** Real sign out: server cookies, Supabase session, local state, then home. */
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
     if (signingOut) return;
     setSigningOut(true);
     setMenuOpen(false);
     setMobileOpen(false);
 
-    // Clear local access immediately; do not wait for network round trips.
+    // Revoke this browser's push subscription before clearing its credentials.
+    // Dynamic import ensures no notification JS is added to initial page load.
+    // A 700ms upper bound preserves responsive logout even when offline.
+    try {
+      const { revokeLocalPushBeforeLogout } = await import('@/lib/push-device-client');
+      await Promise.race([
+        revokeLocalPushBeforeLogout(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 700)),
+      ]);
+    } catch { /* optional notifications must never block logout */ }
     clearSession();
-    window.location.replace('/');
-
-    // Best-effort server cookie and Supabase local-session cleanup.
     void authLogout();
     void createClient().auth.signOut({ scope: 'local' }).catch(() => undefined);
+    window.location.replace('/');
   }, [signingOut]);
 
   const initial = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase();
