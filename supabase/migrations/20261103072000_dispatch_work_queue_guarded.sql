@@ -135,6 +135,10 @@ BEGIN
     IF TG_OP = 'UPDATE' THEN
       IF OLD.value = 'true' THEN RETURN NEW; END IF;
     END IF;
+    -- Bounded in-transaction handoff for a small existing backlog. If more
+    -- work remains, abort activation atomically and require the privileged
+    -- pre-backfill in batches. No half-enabled queue or stranded orders.
+    PERFORM public.enqueue_existing_pending_dispatch(100);
     IF EXISTS (
       SELECT 1 FROM public.orders o
       WHERE o.status = 'PENDING'
