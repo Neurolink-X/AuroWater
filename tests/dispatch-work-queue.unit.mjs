@@ -43,6 +43,7 @@ test('activation cannot strand existing pending orders', () => {
   assert.ok(sql.includes('CREATE OR REPLACE FUNCTION private.guard_dispatch_work_queue_activation()'));
   assert.ok(sql.includes('CREATE TRIGGER guard_dispatch_work_queue_activation'));
   assert.ok(sql.includes("Backfill pending dispatch work before queue activation"));
+  assert.ok(sql.includes('PERFORM public.enqueue_existing_pending_dispatch(100)'));
   assert.ok(sql.includes('CREATE OR REPLACE FUNCTION public.enqueue_existing_pending_dispatch'));
   assert.ok(sql.includes("'aurotap-dispatch-work-reconcile'"));
   assert.ok(sql.includes("'* * * * *'"));
