@@ -22,6 +22,7 @@ const subscriptionSchema = z.object({
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('subscribe'), subscription: subscriptionSchema }),
   z.object({ action: z.literal('disable') }),
+  z.object({ action: z.literal('unsubscribe'), endpoint: z.string().url().max(2048) }),
   z.object({ action: z.literal('marketing'), enabled: z.boolean() }),
 ]);
 function eligibleEndpoint(raw: string) {
@@ -93,6 +94,28 @@ export async function POST(req: NextRequest) {
       ]);
     }
     return noStore(jsonOk({ enabled: false }));
+  }
+
+  if (parsed.action === 'unsubscribe') {
+    if (!eligibleEndpoint(parsed.endpoint)) {
+      return noStore(jsonErr('Invalid device endpoint', 400));
+    }
+    const { data: subscription, error: lookupError } = await db
+      .from('web_push_subscriptions').select('id').eq('endpoint', parsed.endpoint)
+      .eq('user_id', userId).maybeSingle();
+    if (lookupError) return noStore(jsonErr('Could not check device registration', 503));
+    if (subscription) {
+      const now = new Date().toISOString();
+      const { error } = await db.from('web_push_subscriptions')
+        .update({ enabled: false, revoked_at: now })
+        .eq('id', subscription.id).eq('user_id', userId);
+      if (error) return noStore(jsonErr('Could not unsubscribe this device', 503));
+      await db.from('web_push_deliveries')
+        .update({ state: 'revoked', leased_until: null, updated_at: now })
+        .eq('subscription_id', subscription.id)
+        .in('state', ['pending', 'leased']);
+    }
+    return noStore(jsonOk({ unsubscribed: true }));
   }
 
   if (parsed.action === 'marketing') {
