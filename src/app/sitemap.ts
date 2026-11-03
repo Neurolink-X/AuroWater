@@ -21,6 +21,7 @@ const publicPages = [
   '/water-delivery/kanpur',
   '/water-delivery/lucknow',
   '/water-delivery/gorakhpur',
+  '/water-delivery/noida',
   '/services',
   '/service-areas',
   '/pricing',
