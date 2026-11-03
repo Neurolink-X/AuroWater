@@ -11,6 +11,9 @@ const booking = file('src/app/api/customer/orders/route.ts');
 const oldSweep = file('src/app/api/internal/technician-dispatch-sweep/route.ts');
 const dispatch = file('src/lib/dispatch.ts');
 const admin = file('src/app/api/admin/dispatch/queue-health/route.ts');
+const rolloutSql = file('supabase/migrations/20261103111000_dispatch_queue_activation_readiness_and_stale_review.sql');
+const adminPage = file('src/app/admin/dispatch-queue/page.tsx');
+const adminSettings = file('src/app/api/admin/settings/route.ts');
 
 test('queue is feature-flagged OFF and persists only operational metadata', () => {
   assert.ok(sql.includes("VALUES ('dispatch_work_queue_enabled', 'false')"));
@@ -150,6 +153,38 @@ test('admin queue toggle is manual, admin-only and release-gated', () => {
   assert.ok(ui.includes("adminRequest('PATCH'"));
   assert.ok(ui.includes('Enable queue (release-gated)'));
   assert.ok(ui.includes('Disable queue / use legacy retries'));
+});
+
+test('queue rollout migration leaves orders intact and quarantines overdue appointments', () => {
+  assert.ok(rolloutSql.includes("stale_schedule_review"));
+  assert.ok(rolloutSql.includes("interval '24 hours'"));
+  assert.ok(rolloutSql.includes("CREATE OR REPLACE FUNCTION private.quarantine_stale_dispatch_work"));
+  assert.ok(rolloutSql.includes("FOR UPDATE OF q SKIP LOCKED"));
+  assert.ok(rolloutSql.includes("SET state='dead'"));
+  assert.ok(rolloutSql.includes("CASE WHEN c.scheduled_at < clock_timestamp()"));
+  assert.ok(rolloutSql.includes("AND (o.scheduled_at IS NULL OR o.scheduled_at >= clock_timestamp()"));
+  assert.ok(!rolloutSql.includes('UPDATE public.orders SET'));
+  assert.ok(!rolloutSql.includes('DELETE FROM public.orders'));
+  assert.ok(!rolloutSql.includes('DELETE FROM public.wallet_ledger'));
+});
+
+test('queue rollout is readiness-gated, admin-only and transparent in UI', () => {
+  assert.ok(rolloutSql.includes('CREATE OR REPLACE FUNCTION public.dispatch_queue_release_readiness'));
+  assert.ok(rolloutSql.includes("REVOKE ALL ON FUNCTION public.dispatch_queue_release_readiness() FROM PUBLIC,anon,authenticated"));
+  assert.ok(rolloutSql.includes('GRANT EXECUTE ON FUNCTION public.dispatch_queue_release_readiness() TO service_role'));
+  assert.ok(rolloutSql.includes("'queueCronReady'"));
+  assert.ok(rolloutSql.includes("'reconcileCronReady'"));
+  assert.ok(rolloutSql.includes("'secretReady'"));
+  assert.ok(rolloutSql.includes("'pendingWithoutQueue'"));
+  assert.ok(admin.includes("db.rpc('dispatch_queue_release_readiness')"));
+  assert.ok(admin.includes("AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED"));
+  assert.ok(admin.includes('if (enable)'));
+  assert.ok(admin.includes('requireAdmin(auth.ctx)'));
+  assert.ok(adminPage.includes('activation_ready'));
+  assert.ok(adminPage.includes('Stale appointments'));
+  assert.ok(adminSettings.includes('DISPATCH_QUEUE_GUARDED_SETTING'));
+  assert.ok(adminSettings.includes("'dispatch_work_queue_enabled'"));
+  assert.ok(adminSettings.includes("'dispatch_booking_admit_per_minute'"));
 });
 
 // A pure JavaScript admission/lease workload simulation is NOT a capacity test.
