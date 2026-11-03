@@ -39,6 +39,20 @@ test('outbox commit is atomic with a new booking and returns to safe legacy mode
   assert.ok(sql.includes('LIMIT LEAST(GREATEST(coalesce(p_limit, 1), 1), 100)'));
 });
 
+test('activation cannot strand existing pending orders', () => {
+  assert.ok(sql.includes('CREATE OR REPLACE FUNCTION private.guard_dispatch_work_queue_activation()'));
+  assert.ok(sql.includes('CREATE TRIGGER guard_dispatch_work_queue_activation'));
+  assert.ok(sql.includes("Backfill pending dispatch work before queue activation"));
+  assert.ok(sql.includes('CREATE OR REPLACE FUNCTION public.enqueue_existing_pending_dispatch'));
+  assert.ok(sql.includes("'aurotap-dispatch-work-reconcile'"));
+  assert.ok(sql.includes("'* * * * *'"));
+  assert.ok(sql.includes('SELECT public.enqueue_existing_pending_dispatch(100)'));
+  assert.ok(sql.includes("WHERE key='dispatch_work_queue_enabled' AND value='true'"));
+  const backfill = sql.split('CREATE OR REPLACE FUNCTION public.enqueue_existing_pending_dispatch')[1]
+    .split('CREATE OR REPLACE FUNCTION private.guard_dispatch_work_queue_activation')[0];
+  assert.ok(!backfill.includes("IS DISTINCT FROM 'true'"));
+});
+
 test('distributed claims enforce a global concurrency budget and SKIP LOCKED', () => {
   assert.ok(sql.includes('pg_advisory_xact_lock(843291739::bigint)'));
   assert.ok(sql.includes('FOR UPDATE OF q SKIP LOCKED'));
