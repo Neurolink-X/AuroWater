@@ -18,6 +18,38 @@ CREATE TABLE IF NOT EXISTS public.web_push_subscriptions (
   last_seen_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz
 );
+-- Limit subscriptions even during concurrent account/device registrations.
+-- Lock per user, not per table, and forbid changing a subscription owner.
+CREATE OR REPLACE FUNCTION private.guard_web_push_devices()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = pg_catalog
+AS $func$
+DECLARE active_count integer;
+BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.user_id <> OLD.user_id THEN
+    RAISE EXCEPTION 'Device owner cannot be changed' USING ERRCODE = '23514';
+  END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended(NEW.user_id::text, 421));
+  IF NEW.enabled AND (TG_OP = 'INSERT' OR NOT OLD.enabled) THEN
+    SELECT count(*) INTO active_count
+    FROM public.web_push_subscriptions
+    WHERE user_id = NEW.user_id AND enabled
+      AND (TG_OP = 'INSERT' OR id <> NEW.id);
+    IF active_count >= 3 THEN
+      RAISE EXCEPTION 'Maximum active notification devices reached'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$func$;
+REVOKE ALL ON FUNCTION private.guard_web_push_devices() FROM PUBLIC, anon, authenticated;
+CREATE TRIGGER guard_web_push_devices
+  BEFORE INSERT OR UPDATE ON public.web_push_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION private.guard_web_push_devices();
+
 CREATE INDEX IF NOT EXISTS idx_web_push_active_user
   ON public.web_push_subscriptions(user_id) WHERE enabled = true;
 
