@@ -18,6 +18,13 @@ const CITY_PAGES = {
     intro: 'Need a 20 litre water can delivered in Lucknow? Choose Normal RO for everyday home or office use, or select Chilled RO for a one-time gathering order when available.',
     localIntent: 'Enter your delivery address in the booking flow to confirm whether your Lucknow locality is serviceable and which delivery slots are available.',
   },
+  noida: {
+    name: 'Noida',
+    title: '20L RO Water Can Delivery in Noida',
+    description: 'Request 20L Normal RO drinking water or Chilled RO water cans for your home, office or event in eligible Noida areas. Check your PIN code, live price and available slots.',
+    intro: 'Find 20 litre RO water can delivery in Noida for home and office. AuroTap offers a request flow for Normal RO drinking water and one-time Chilled RO water cans, depending on local stock and coverage.',
+    localIntent: 'Enter your Noida PIN code and exact delivery address to check eligible zones, current pricing and nearby supplier readiness. An active city does not mean every sector or delivery slot is available.',
+  },
   gorakhpur: {
     name: 'Gorakhpur',
     title: '20L Water Can Delivery in Gorakhpur',
