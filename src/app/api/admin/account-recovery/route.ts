@@ -123,6 +123,18 @@ export async function PATCH(req: NextRequest) {
   if (verify_ownership) {
     return jsonErr('Use the independent verification workflow before updating ownership.', 409);
   }
+  if (status === 'resolved') {
+    const [ticketResult, evidenceResult] = await Promise.all([
+      db.from('account_recovery_requests').select('user_id,ownership_verified_at').eq('id', request_id).maybeSingle(),
+      db.from('account_recovery_audit').select('action,actor_user_id,details,created_at')
+        .eq('request_id', request_id).order('created_at', { ascending: false }).limit(100),
+    ]);
+    if (ticketResult.error || evidenceResult.error) return jsonErr('Recovery verification is currently unavailable.', 503);
+    if (!ticketResult.data?.user_id || !ticketResult.data.ownership_verified_at ||
+        !workflowState(evidenceResult.data ?? []).ready) {
+      return jsonErr('Verified identity, completed corrective action and customer confirmation are required before closure.', 409);
+    }
+  }
   const { data, error } = await db.rpc('update_account_recovery_review', {
     p_request_id: request_id, p_admin_id: gate.adminId, p_status: status,
     p_admin_note: admin_note, p_verify_ownership: verify_ownership,
