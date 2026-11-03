@@ -21,7 +21,8 @@
     "smoke:health": "node scripts/check-site-health.mjs",
     "seo:audit-public": "node scripts/audit-public-seo.mjs",
     "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
-    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs"
+    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs",
+    "test:dispatch:queue-bench": "node scripts/benchmark-dispatch-queue-isolated.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
