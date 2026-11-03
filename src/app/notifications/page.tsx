@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Check, RefreshCw, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -54,8 +54,12 @@ export default function NotificationSettingsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
+  const inFlightRef = useRef(false);
+  const lastSyncRef = useRef(0);
 
   const load = useCallback(async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       const [current, inbox] = await Promise.all([
         authedRequest<Preferences>('/api/notifications/push'),
@@ -63,15 +67,29 @@ export default function NotificationSettingsPage() {
       ]);
       setPrefs(current);
       setNotices(inbox);
+      lastSyncRef.current = Date.now();
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to load notifications.');
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    // Refresh only when the user returns; never start background polling.
+    const onReturn = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastSyncRef.current > 15_000) void load();
+    };
+    window.addEventListener('focus', onReturn);
+    document.addEventListener('visibilitychange', onReturn);
+    return () => {
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
+    };
+  }, [load]);
 
   const enable = async () => {
     if (!prefs?.configured || !prefs.vapid_public_key || busy) return;
