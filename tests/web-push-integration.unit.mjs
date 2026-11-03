@@ -66,7 +66,7 @@ test('background worker uses bounded concurrency and never changes orders', () =
   assert.match(worker, /index \+= 3/);
   assert.match(worker, /notification\.user_id === sub\.user_id/);
   assert.match(worker, /prefs\?\.push_enabled/);
-  assert.match(worker, /state: 'leased'/);
+  assert.match(worker, /\.eq\('state', 'leased'\)/);
   assert.doesNotMatch(worker, /\.from\('orders'\)\.(?:update|delete|insert)/);
   assert.match(cron, /process\.env\.CRON_SECRET/);
   assert.match(cron, /processDueWebPush\(8\)/);
