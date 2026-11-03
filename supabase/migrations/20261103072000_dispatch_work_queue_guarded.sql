@@ -130,8 +130,11 @@ CREATE OR REPLACE FUNCTION private.guard_dispatch_work_queue_activation()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog AS $function$
 BEGIN
-  IF NEW.key = 'dispatch_work_queue_enabled' AND NEW.value = 'true'
-     AND (TG_OP = 'INSERT' OR OLD.value IS DISTINCT FROM 'true') THEN
+  IF NEW.key = 'dispatch_work_queue_enabled' AND NEW.value = 'true' THEN
+    -- Avoid accessing OLD during INSERT; on UPDATE unchanged 'true' is safe.
+    IF TG_OP = 'UPDATE' THEN
+      IF OLD.value = 'true' THEN RETURN NEW; END IF;
+    END IF;
     IF EXISTS (
       SELECT 1 FROM public.orders o
       WHERE o.status = 'PENDING'
