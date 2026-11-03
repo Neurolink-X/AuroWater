@@ -6,6 +6,7 @@ import { createServiceClient } from '@/utils/supabase/server';
 import {
   RECOVERY_STATUSES, UUID_PATTERN, firstIssue, reviewSchema, type RecoveryStatus,
 } from '@/lib/account-recovery/shared';
+import { workflowState } from '@/lib/account-recovery/workflow';
 
 export const dynamic = 'force-dynamic';
 
