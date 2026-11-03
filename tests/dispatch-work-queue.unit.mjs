@@ -186,6 +186,10 @@ test('queue rollout is readiness-gated, admin-only and transparent in UI', () =>
   assert.ok(adminSettings.includes('DISPATCH_QUEUE_GUARDED_SETTING'));
   assert.ok(adminSettings.includes("'dispatch_work_queue_enabled'"));
   assert.ok(adminSettings.includes("'dispatch_booking_admit_per_minute'"));
+  assert.ok(admin.includes("body.action === 'prepare_backlog'"));
+  assert.ok(admin.includes("current.value !== 'false'"));
+  assert.ok(admin.includes("rpc('enqueue_existing_pending_dispatch'"));
+  assert.ok(adminPage.includes('Prepare next 100 pending orders (no dispatch)'));
   assert.ok(secureToggleSql.includes("CREATE OR REPLACE FUNCTION public.set_dispatch_queue_enabled"));
   assert.ok(secureToggleSql.includes("jwt_role <> 'service_role'"));
   assert.ok(secureToggleSql.includes('INSERT INTO public.audit_logs'));
