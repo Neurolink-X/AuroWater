@@ -120,6 +120,9 @@ export async function PATCH(req: NextRequest) {
   }
 
   const db = createServiceClient();
+  if (verify_ownership) {
+    return jsonErr('Use the independent verification workflow before updating ownership.', 409);
+  }
   const { data, error } = await db.rpc('update_account_recovery_review', {
     p_request_id: request_id, p_admin_id: gate.adminId, p_status: status,
     p_admin_note: admin_note, p_verify_ownership: verify_ownership,
