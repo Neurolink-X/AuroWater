@@ -1748,10 +1748,10 @@ export default function BookingWizard() {
 
         <header className="text-center mb-6">
           <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-emerald-800">
-            <span aria-hidden>💧</span> {view === 4 ? 'Order confirmed' : 'Book in under a minute'}
+            <span aria-hidden>💧</span> {view === 4 ? (supplierSearching ? 'Request received' : 'Professional assigned') : 'Book in under a minute'}
           </p>
           <h2 className="mt-3 text-[1.65rem] leading-tight sm:text-4xl font-extrabold tracking-tight text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
-            {view === 4 ? 'Thank you, your booking is confirmed' : 'Pure RO water, expert plumbing solutions - right at your door.'}
+            {view === 4 ? (supplierSearching ? 'Your request is received - confirmation is pending' : 'Your order has been assigned') : 'Pure RO water, expert plumbing solutions - right at your door.'}
           </h2>
           {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
@@ -2800,14 +2800,15 @@ export default function BookingWizard() {
         {view === 4 && createdOrder && (
           <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-7 sm:p-10 text-center space-y-6" role="status">
             <div className="mx-auto h-16 w-16 rounded-full bg-emerald-100 flex items-center justify-center text-3xl" aria-hidden>✓</div>
-            <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest">You&apos;re booked</p>
+            <p className="text-xs font-bold text-emerald-700 uppercase tracking-widest">{supplierSearching ? 'Request received - awaiting assignment' : 'Professional assigned'}</p>
             <div className="text-4xl sm:text-5xl font-extrabold text-[#0F172A]" style={{ fontFamily: DISPLAY_FONT }}>
               #{orderNo}
             </div>
             <div className="text-slate-600 space-y-1 text-sm">
               <p>{selectedServiceLabel(draft)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
               <p>Window: <span className="font-semibold text-slate-900">{windowText}</span></p>
-              <p>{supplierSearching ? 'Finding the nearest supplier…' : 'Supplier assigned. Tracking updates automatically.'}</p>
+              <p>{supplierSearching ? 'We are checking availability in your city. A professional and the requested time window are NOT yet confirmed.' : 'Professional assigned. Tracking updates automatically.'}</p>
+              {supplierSearching && <p className="font-semibold text-amber-800">No advance payment is required until a provider, service scope and applicable price are confirmed.</p>}
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href={ROUTES.track(createdOrder.id)} className={`${btnPrimary} text-center`}>Track order</Link>
@@ -2832,9 +2833,9 @@ export default function BookingWizard() {
 
             <ol className="mx-auto max-w-md space-y-3 text-left text-sm" aria-label="What happens next">
               {([
-                ['1', 'Supplier matched', 'We find the nearest supplier for your address.'],
-                ['2', 'On the way', 'Tracking updates automatically. Follow it in the app or on WhatsApp.'],
-                ['3', 'Delivered & paid', 'Pay by cash or UPI when your order arrives.'],
+                ['1', 'Request received', 'We saved the service request and will check eligible providers in your city.'],
+                ['2', 'Availability confirmation', 'Assignment and timing are confirmed only when a qualified local provider accepts.'],
+                ['3', 'Service and payment', 'Pay as agreed after the provider and final service details are confirmed.'],
               ] as const).map(([n, title, body]) => (
                 <li key={n} className="flex gap-3">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-extrabold text-white" aria-hidden>{n}</span>
