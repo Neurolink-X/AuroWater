@@ -577,6 +577,10 @@ export default function CustomerAccountPage() {
                       </div>
                       <Switch on={notif} onChange={setNotif} disabled={saving} label={t('notifications')} />
                     </div>
+                    <Link href="/notifications" prefetch={false}
+                      className="inline-block text-sm font-bold text-blue-700 underline underline-offset-2">
+                      Manage phone push permissions, devices and promotional alerts
+                    </Link>
                   </div>
 
                   <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-sm sm:px-6">
