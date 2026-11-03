@@ -44,3 +44,12 @@ test('settings requests are coalesced per city and never persist unverified pric
   assert.match(settings, /Number\.isInteger\(s\.pricing_version\)/);
   assert.doesNotMatch(settings, /localStorage\.setItem\('payment/);
 });
+
+test('postal name search performs only one bounded query and preserves strict city scope', () => {
+  const postal = src('src/app/api/geo/postal/route.ts');
+  assert.match(postal, /\.limit\(MAX_RESULTS\)/);
+  assert.match(postal, /query\.ilike\('office_name'/);
+  assert.match(postal, /strictCity && district/);
+  assert.equal((postal.match(/\.from\('pincode_directory'\)/g) ?? []).length, 1);
+  assert.doesNotMatch(postal, /const fallback = await db/);
+});
