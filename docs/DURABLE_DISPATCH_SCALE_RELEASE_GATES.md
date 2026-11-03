@@ -42,6 +42,16 @@ The test creates and drops ONLY its own dedicated aurotap_queue_bench schema.
 - Benchmark results describe SQL queue mechanics only, NOT full AuroTap bookings.
 - Do not enable new billable infrastructure or run production load traffic.
 
+## Admin-controlled ON/OFF (PR #246)
+
+The queue **never switches ON automatically when load increases**. An authorized admin may view queue status and request a manual ON/OFF change at **/admin/dispatch-queue**. This is not worker autoscaling.
+
+- **OFF:** returns to the existing legacy scheduled retry mechanism. Existing queued work and real customer records are preserved.
+- **ON:** requires explicit admin confirmation, server-only environment variable **AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED=true** and the database activation trigger's atomic pending-order backfill safety check. This flag is an operator approval after reviewing all release gates above, not something to enable simply to test the UI.
+- A missing database migration/configuration, failed backfill or absent server approval blocks activation. Error messages must be shown to the admin.
+- Set the server approval variable only in the approved environment after isolated DB concurrency, browser E2E, migration/cron validation and preview health checks pass. Remove approval after rollout if operators should no longer be able to re-enable without a new change review.
+- Queue ON/OFF controls do not scale Supabase, Vercel, database connections or worker concurrency dynamically. No production load-based auto-activation is implemented.
+
 ## Rollback
 Set dispatch_work_queue_enabled=false using approved admin configuration. Legacy dispatch retries continue. Do not drop the table or destroy queued/customer records; collect diagnostics and inspect /admin/order-health.
 
