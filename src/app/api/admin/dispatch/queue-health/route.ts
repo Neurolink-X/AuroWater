@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
 
   const db = createServiceClient();
-  const [flag, ready, leased, dead, oldest, agedPending, deadLetters] = await Promise.all([
+  const [flag, ready, leased, dead, oldest, agedPending, deadLetters, releaseCheck] = await Promise.all([
     db.from('settings').select('value')
       .eq('key', 'dispatch_work_queue_enabled').maybeSingle(),
     db.from('dispatch_work_items').select('order_id', { head: true, count: 'exact' })
@@ -32,13 +32,27 @@ export async function GET(request: NextRequest) {
       .select('order_id,last_result_code,attempts,updated_at')
       .eq('state', 'dead')
       .order('updated_at', { ascending: false }).limit(20),
+    db.rpc('dispatch_queue_release_readiness'),
   ]);
-  if ([flag, ready, leased, dead, oldest, agedPending, deadLetters].some(result => result.error)) {
+  if ([flag, ready, leased, dead, oldest, agedPending, deadLetters, releaseCheck].some(result => result.error)) {
     return jsonErr('Dispatch queue health is temporarily unavailable.', 503);
   }
 
+  const readiness = (releaseCheck.data ?? {}) as {
+    queueCronReady?: boolean; reconcileCronReady?: boolean; secretReady?: boolean;
+    autoAssignEnabled?: boolean; pendingWithoutQueue?: number;
+    staleOrdersAwaitingReview?: number;
+  };
+  const operationalReady = Boolean(
+    readiness.queueCronReady && readiness.reconcileCronReady &&
+    readiness.secretReady && readiness.autoAssignEnabled &&
+    Number(readiness.pendingWithoutQueue ?? 1000) <= 100
+  );
   return jsonOk({
     enabled: flag.data?.value === 'true',
+    release_approved: process.env.AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED === 'true',
+    activation_ready: operationalReady && process.env.AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED === 'true',
+    readiness,
     ready: ready.count ?? 0,
     leased: leased.count ?? 0,
     dead: dead.count ?? 0,
@@ -111,6 +125,23 @@ export async function PATCH(request: NextRequest) {
   }
 
   const db = createServiceClient();
+  if (enable) {
+    const { data: releaseData, error: releaseError } = await db.rpc('dispatch_queue_release_readiness');
+    if (releaseError || !releaseData || typeof releaseData !== 'object') {
+      return jsonErr('Queue readiness check is unavailable. Verify the safe rollout migration.', 503, 'QUEUE_READINESS_UNAVAILABLE');
+    }
+    const readiness = releaseData as {
+      queueCronReady?: boolean; reconcileCronReady?: boolean; secretReady?: boolean;
+      autoAssignEnabled?: boolean; pendingWithoutQueue?: number;
+    };
+    if (!readiness.queueCronReady || !readiness.reconcileCronReady ||
+        !readiness.secretReady || !readiness.autoAssignEnabled) {
+      return jsonErr('Queue activation blocked: scheduler, vault or assignment checks are not ready.', 409, 'QUEUE_NOT_READY');
+    }
+    if (Number(readiness.pendingWithoutQueue ?? Infinity) > 100) {
+      return jsonErr('Queue activation blocked: prefill pending jobs in controlled batches before enabling.', 409, 'QUEUE_BACKFILL_REQUIRED');
+    }
+  }
   const { data: current, error: readError } = await db.from('settings')
     .select('value').eq('key', 'dispatch_work_queue_enabled').maybeSingle();
   if (readError || !current) {
