@@ -20,7 +20,7 @@ const FILTER_STATUS: Record<OrderFilter, string | undefined> = {
 /**
  * One place that loads a customer's orders.
  *  - No refetch loop (the loader only changes when the filter changes)
- *  - Realtime updates + 15s polling while an order is active + refresh on tab focus
+ *  - Realtime-first updates, 60s safety polling when connected, 15s fallback for active orders when disconnected
  *  - Silent refreshes never blank the screen
  *  - Stale responses are ignored
  */
@@ -43,9 +43,17 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
 
   const reqId = useRef(0);
   const countRef = useRef(0);
+  const silentInFlight = useRef(false);
+  const lastRefreshAt = useRef(0);
+  const liveRef = useRef(false);
 
   const load = useCallback(
     async (mode: 'initial' | 'silent') => {
+      // Several events may arrive together (focus, realtime, polling).
+      // Coalesce silent refreshes and throttle only periodic/event refreshes;
+      // explicit user refreshes can still request a fresh read via reload.
+      if (mode === 'silent' && silentInFlight.current) return;
+      if (mode === 'silent') silentInFlight.current = true;
       const id = ++reqId.current;
       if (mode === 'initial') {
         setLoading(true);
@@ -73,9 +81,11 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
         // A failed background refresh keeps the data on screen.
         if (mode === 'initial' || countRef.current === 0) setError(getApiErrorMessage(e));
       } finally {
+        if (mode === 'silent') silentInFlight.current = false;
         if (id === reqId.current) {
           setLoading(false);
           setRefreshing(false);
+          lastRefreshAt.current = Date.now();
         }
       }
     },
@@ -109,9 +119,15 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
 
   /* Initial load / filter change */
   useEffect(() => {
-    if (!ready) return;
+    if (!ready) {
+      // Late responses from a previous account must not populate a new session.
+      reqId.current += 1;
+      return;
+    }
+    liveRef.current = false;
     void load('initial');
-  }, [ready, load]);
+    return () => { reqId.current += 1; };
+  }, [ready, load, session?.userId]);
 
   /* Logged-out visitors: stop the spinner */
   useEffect(() => {
@@ -120,24 +136,24 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
 
   const hasActive = orders.some((o) => isActiveStatus(o.status));
 
-  /* Polling + refresh when the tab becomes visible again */
+  /* Realtime-first safety polling. No background traffic while hidden/offline. */
   useEffect(() => {
     if (!ready) return;
     const tick = () => {
-      // Realtime already keeps the list current. Only refresh on tab
-      // return while an order is actively moving through the workflow.
-      if (
-        hasActive &&
-        document.visibilityState === 'visible'
-      ) {
-        void load('silent');
-      }
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      // A subscribed socket does not need a second 15-second polling stream.
+      // Keep a slow safety poll in case a database change event was missed.
+      const period = hasActive && !liveRef.current ? 15_000 : 60_000;
+      if (Date.now() - lastRefreshAt.current >= period) void load('silent');
     };
-    const t = window.setInterval(tick, hasActive ? 15_000 : 60_000);
-    document.addEventListener('visibilitychange', tick);
+    const t = window.setInterval(tick, 15_000);
+    const onReturn = () => { if (document.visibilityState === 'visible') tick(); };
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('online', tick);
     return () => {
       window.clearInterval(t);
-      document.removeEventListener('visibilitychange', tick);
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('online', tick);
     };
   }, [ready, hasActive, load]);
 
@@ -154,11 +170,17 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
         { event: '*', schema: 'public', table: 'orders', filter: `customer_id=eq.${session.userId}` },
         () => {
           window.clearTimeout(timer);
-          timer = window.setTimeout(() => void load('silent'), 400);
+          timer = window.setTimeout(() => {
+            if (document.visibilityState === 'visible' && navigator.onLine) void load('silent');
+          }, 400);
         }
       )
-      .subscribe((s) => setLive(s === 'SUBSCRIBED'));
+      .subscribe((s) => {
+        liveRef.current = s === 'SUBSCRIBED';
+        setLive(liveRef.current);
+      });
     return () => {
+      liveRef.current = false;
       window.clearTimeout(timer);
       void sb.removeChannel(channel);
     };
