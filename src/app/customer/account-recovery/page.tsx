@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '@/lib/api-client';
 import { requestJson } from '@/lib/account-recovery/http';
@@ -14,7 +14,7 @@ export default function CustomerAccountRecoveryPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const token = await getToken();
@@ -26,8 +26,8 @@ export default function CustomerAccountRecoveryPage() {
       setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load recovery cases.'); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void refresh(); }, []);
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
   const confirm = async (ticket: Ticket) => {
     if (busy) return;
     setBusy(ticket.id);
