@@ -82,7 +82,7 @@ REVOKE ALL ON FUNCTION private.dispatch_work_order_transition()
   FROM PUBLIC, anon, authenticated;
 DROP TRIGGER IF EXISTS dispatch_work_order_transition ON public.orders;
 CREATE TRIGGER dispatch_work_order_transition
-  AFTER INSERT OR UPDATE OF status, supplier_id, technician_id
+  AFTER INSERT OR UPDATE OF status, supplier_id, technician_id, service_type
   ON public.orders
   FOR EACH ROW EXECUTE FUNCTION private.dispatch_work_order_transition();
 
