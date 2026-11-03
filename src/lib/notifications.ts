@@ -21,9 +21,9 @@ export type OrderNotificationEventType =
 interface NotificationInsertRow {
   user_id: string;
   title: string;
-  body: string;
+  message: string;
   type: NotificationType;
-  order_id: string;
+  data: { order_id: string };
   is_read: boolean;
   dedup_key: string;
 }
@@ -40,16 +40,17 @@ export async function createNotification(
   orderId: string,
   eventType: OrderNotificationEventType
 ): Promise<void> {
-  const dedup_key = `order_${orderId}_${eventType}`;
+  // dedup_key is unique globally; recipient ID is essential for multi-partner offers.
+  const dedup_key = `order_${orderId}_${eventType}_${userId}`;
 
   try {
     const sb = createServiceClient();
     const payload: NotificationInsertRow = {
       user_id: userId,
       title,
-      body,
+      message: body,
       type,
-      order_id: orderId,
+      data: { order_id: orderId },
       is_read: false,
       dedup_key,
     };
