@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS public.dispatch_work_items (
   lease_token uuid,
   lease_until timestamptz,
   attempts integer NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 1000000),
+  internal_error_streak smallint NOT NULL DEFAULT 0 CHECK (internal_error_streak BETWEEN 0 AND 8),
   last_result_code text NOT NULL DEFAULT 'queued' CHECK (length(last_result_code) <= 64),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -42,16 +43,21 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog AS $function$
 DECLARE enabled boolean;
 BEGIN
-  -- If assigned, completed or cancelled, discard transport work immediately.
-  IF NEW.status <> 'PENDING' OR NEW.supplier_id IS NOT NULL
-       OR NEW.technician_id IS NOT NULL THEN
-    DELETE FROM public.dispatch_work_items WHERE order_id = NEW.id;
-    RETURN NEW;
-  END IF;
-
+  -- Zero queue reads/writes when rollout is OFF: preserve legacy booking speed.
   SELECT s.value = 'true' INTO enabled
   FROM public.settings s WHERE s.key = 'dispatch_work_queue_enabled';
   IF NOT coalesce(enabled, false) THEN RETURN NEW; END IF;
+
+  -- Only water cans use supplier dispatch. Only these five services use the
+  -- technician engine. Tankers and future service types stay on their
+  -- existing workflows until explicitly supported in dispatch logic.
+  IF NEW.status <> 'PENDING' OR NEW.supplier_id IS NOT NULL
+       OR NEW.technician_id IS NOT NULL
+       OR NEW.service_type NOT IN
+          ('water_can','ro_service','plumbing','borewell','motor_pump','tank_cleaning') THEN
+    DELETE FROM public.dispatch_work_items WHERE order_id = NEW.id;
+    RETURN NEW;
+  END IF;
 
   INSERT INTO public.dispatch_work_items AS q
     (order_id, lane, priority, due_at)
@@ -94,6 +100,8 @@ BEGIN
     FROM public.orders o
     WHERE o.status = 'PENDING' AND o.supplier_id IS NULL
       AND o.technician_id IS NULL
+      AND o.service_type IN
+        ('water_can','ro_service','plumbing','borewell','motor_pump','tank_cleaning')
       AND NOT EXISTS (
         SELECT 1 FROM public.dispatch_work_items q WHERE q.order_id = o.id
       )
@@ -174,9 +182,9 @@ CREATE OR REPLACE FUNCTION public.finish_dispatch_work(
   p_order_id uuid, p_claim_token uuid, p_result_code text DEFAULT 'unknown'
 )
 RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $function$
-DECLARE current_attempts integer; still_pending boolean; delay_seconds integer;
+DECLARE current_attempts integer; current_errors smallint; still_pending boolean; delay_seconds integer;
 BEGIN
-  SELECT q.attempts INTO current_attempts
+  SELECT q.attempts, q.internal_error_streak INTO current_attempts, current_errors
   FROM public.dispatch_work_items q
   WHERE q.order_id = p_order_id AND q.state = 'leased'
     AND q.lease_token = p_claim_token
@@ -203,9 +211,11 @@ BEGIN
   -- A temporary missing supplier is NEVER treated as a permanently failed
   -- booking. Persistent internal errors go to an admin-visible dead-letter state.
   IF p_result_code = 'max_attempts'
-     OR (p_result_code = 'error' AND current_attempts >= 8) THEN
+     OR (p_result_code = 'error' AND current_errors >= 7) THEN
     UPDATE public.dispatch_work_items q
     SET state = 'dead', lease_token = NULL, lease_until = NULL,
+        internal_error_streak = CASE WHEN p_result_code = 'error'
+          THEN LEAST(q.internal_error_streak + 1, 8) ELSE q.internal_error_streak END,
         last_result_code = CASE WHEN p_result_code = 'max_attempts'
           THEN 'assignment_attempts_exhausted' ELSE 'internal_error_exhausted' END,
         updated_at = clock_timestamp()
@@ -216,10 +226,14 @@ BEGIN
   delay_seconds := CASE
     WHEN p_result_code = 'busy' THEN 45
     WHEN p_result_code = 'not_pending' THEN 60
+    WHEN p_result_code = 'error' THEN
+      LEAST(3600, 120 * power(2, LEAST(current_errors, 5)))::integer
     ELSE LEAST(3600, 120 * power(2, LEAST(current_attempts - 1, 5)))::integer
   END;
   UPDATE public.dispatch_work_items q
   SET state = 'ready', lease_token = NULL, lease_until = NULL,
+      internal_error_streak = CASE WHEN p_result_code = 'error'
+        THEN LEAST(q.internal_error_streak + 1, 8) ELSE 0 END,
       due_at = GREATEST(
         clock_timestamp() + make_interval(secs => delay_seconds),
         coalesce((SELECT r.next_retry_at FROM public.dispatch_retry_state r
@@ -243,9 +257,11 @@ DECLARE changed uuid;
 BEGIN
   UPDATE public.dispatch_work_items q
   SET state = 'ready', due_at = clock_timestamp(), attempts = 0,
+      internal_error_streak = 0,
       lease_until = NULL, lease_token = NULL, updated_at = clock_timestamp(),
       last_result_code = 'admin_requeued'
   WHERE q.order_id = p_order_id AND q.state = 'dead'
+    AND q.last_result_code <> 'assignment_attempts_exhausted'
     AND EXISTS (
       SELECT 1 FROM public.orders o WHERE o.id = p_order_id
         AND o.status = 'PENDING' AND o.supplier_id IS NULL
