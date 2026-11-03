@@ -23,7 +23,7 @@ type Health = {
   dead_letters: DeadLetter[];
 };
 
-async function adminRequest<T>(method: 'GET' | 'POST', payload?: object): Promise<T> {
+async function adminRequest<T>(method: 'GET' | 'POST' | 'PATCH', payload?: object): Promise<T> {
   const token = await getToken();
   if (!token) throw new Error('Admin sign-in required.');
   const response = await fetch('/api/admin/dispatch/queue-health', {
@@ -48,6 +48,7 @@ export default function DispatchQueuePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState('');
+  const [busyToggle, setBusyToggle] = useState(false);
   const lastSync = useRef(0);
   const fetching = useRef(false);
 
@@ -79,6 +80,26 @@ export default function DispatchQueuePage() {
     document.addEventListener('visibilitychange', onReturn);
     return () => document.removeEventListener('visibilitychange', onReturn);
   }, [refresh]);
+
+  const setQueueEnabled = async (enable: boolean) => {
+    if (busyToggle || !health) return;
+    const prompt = enable
+      ? 'Activate the new dispatch queue only after migrations, staging tests, cron and backlog handoff have been verified. Continue?'
+      : 'Disable queue recovery and return to the existing legacy retry path? Pending orders are preserved.';
+    if (!window.confirm(prompt)) return;
+    setBusyToggle(true);
+    try {
+      await adminRequest('PATCH', {
+        enabled: enable,
+        ...(enable ? { confirmation: 'ENABLE_DISPATCH_QUEUE' } : {}),
+      });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not update queue mode.');
+    } finally {
+      setBusyToggle(false);
+    }
+  };
 
   const retry = async (orderId: string) => {
     if (busyOrder || !window.confirm('Requeue this order after checking its eligibility and dispatch failure?')) return;
@@ -117,6 +138,22 @@ export default function DispatchQueuePage() {
             Database global concurrency cap: {health.global_concurrency_cap}; per-worker cap: {health.local_concurrency_cap}.
             Last checked: {new Date(health.checked_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}.
           </p>
+          <p className="mt-3 text-sm text-slate-600">
+            Queue mode never switches ON automatically when traffic rises. Enabling requires verified
+            release gates and server-side operational approval. Disabling preserves pending orders.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" disabled={busyToggle || refreshing || health.enabled}
+              onClick={() => void setQueueEnabled(true)}
+              className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-40">
+              {busyToggle && !health.enabled ? 'Applying…' : 'Enable queue (release-gated)'}
+            </button>
+            <button type="button" disabled={busyToggle || refreshing || !health.enabled}
+              onClick={() => void setQueueEnabled(false)}
+              className="rounded-lg border border-slate-400 px-3 py-2 text-sm font-semibold text-slate-800 disabled:opacity-40">
+              {busyToggle && health.enabled ? 'Disabling…' : 'Disable queue / use legacy retries'}
+            </button>
+          </div>
         </section>
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-5" aria-label="Dispatch queue metrics">
           {([

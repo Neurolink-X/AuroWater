@@ -75,3 +75,61 @@ export async function POST(request: NextRequest) {
   if (data !== true) return jsonErr('Order is not an eligible dead-letter item', 409);
   return jsonOk({ requeued: true });
 }
+
+/**
+ * Manually controlled queue rollout. It MUST NOT auto-enable based on traffic.
+ * Even a privileged admin cannot activate it until an operator has passed
+ * the release gates and explicitly configured the server-only approval flag.
+ * The database activation trigger performs the final pending-order handoff check.
+ */
+export async function PATCH(request: NextRequest) {
+  const auth = await requireSupabaseAuth(request);
+  if (!auth.ok) return auth.response;
+  if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
+
+  let body: { enabled?: unknown; confirmation?: unknown };
+  try {
+    body = (await request.json()) as { enabled?: unknown; confirmation?: unknown };
+  } catch {
+    return jsonErr('Invalid JSON request', 400);
+  }
+  if (typeof body.enabled !== 'boolean') return jsonErr('Specify true or false for enabled', 400);
+  const enable = body.enabled;
+
+  // Opt-in requires a deliberate release approval, not current load.
+  if (enable) {
+    if (body.confirmation !== 'ENABLE_DISPATCH_QUEUE') {
+      return jsonErr('Explicit queue activation confirmation required', 400);
+    }
+    if (process.env.AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED !== 'true') {
+      return jsonErr(
+        'Queue activation is locked. Complete migration, staging tests, cron and capacity release gates first.',
+        409,
+        'QUEUE_RELEASE_NOT_APPROVED',
+      );
+    }
+  }
+
+  const db = createServiceClient();
+  const { data: current, error: readError } = await db.from('settings')
+    .select('value').eq('key', 'dispatch_work_queue_enabled').maybeSingle();
+  if (readError || !current) {
+    return jsonErr('Dispatch queue configuration unavailable. Verify its database migration.', 503);
+  }
+  if (current.value === String(enable)) return jsonOk({ enabled: enable, changed: false });
+
+  const { data, error } = await db.from('settings')
+    .update({ value: String(enable) })
+    .eq('key', 'dispatch_work_queue_enabled')
+    .select('value').maybeSingle();
+  if (error || !data) {
+    // The SQL activation trigger blocks incomplete pre-existing order handoff.
+    return jsonErr(
+      enable ? 'Queue activation blocked by database release checks. Verify pending-order backfill.' :
+        'Could not disable queue; check database settings availability.',
+      409,
+      'QUEUE_TRANSITION_FAILED',
+    );
+  }
+  return jsonOk({ enabled: data.value === 'true', changed: true });
+}
