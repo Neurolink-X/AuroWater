@@ -2704,7 +2704,7 @@ export default function BookingWizard() {
                 <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800">
                   Subscription billing is per delivery. Automatic debit is not enabled.
                 </p>
-              ) : draft.paymentMethod === 'upi' ? (
+              ) : draft.paymentMethod === 'upi' && !settings.maintenance_mode ? (
                 <section className="overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5" aria-label="Pay securely with UPI">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -2786,8 +2786,8 @@ export default function BookingWizard() {
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
-                    <button type="button" disabled={submitting || pricingLoading || !pricingReady || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
-                      {submitting ? 'Placing your order…' : 'Confirm booking →'}
+                    <button type="button" disabled={submitting || pricingLoading || !pricingReady || settings.maintenance_mode || !draft.addressId || (draft.serviceKey === 'water_tanker' && draft.subOptionKey === 'custom')} onClick={() => void confirmOrder()} className={btnPrimary}>
+                      {submitting ? 'Placing your order…' : settings.maintenance_mode ? 'Bookings paused · try later' : 'Confirm booking →'}
                     </button>
                   )}
                 </div>
