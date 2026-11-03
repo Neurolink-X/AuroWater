@@ -296,8 +296,13 @@ SELECT cron.schedule(
   WITH backlog AS (
     SELECT count(*) AS n FROM (
       SELECT 1 FROM public.dispatch_work_items q
-      WHERE (q.state='ready' AND q.due_at <= now())
-         OR (q.state='leased' AND q.lease_until <= now())
+      JOIN public.orders o ON o.id = q.order_id
+      LEFT JOIN public.dispatch_retry_state r ON r.order_id = q.order_id
+      WHERE ((q.state='ready' AND q.due_at <= now())
+         OR (q.state='leased' AND q.lease_until <= now()))
+        AND o.status = 'PENDING'
+        AND o.supplier_id IS NULL AND o.technician_id IS NULL
+        AND (r.next_retry_at IS NULL OR r.next_retry_at <= now())
       LIMIT 128
     ) bounded
   ), enabled AS (
