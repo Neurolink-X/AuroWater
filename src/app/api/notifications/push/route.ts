@@ -115,12 +115,14 @@ export async function POST(req: NextRequest) {
   if (!eligibleEndpoint(s.endpoint))
     return noStore(jsonErr('Unsupported push provider', 400));
 
-  const [owner, count] = await Promise.all([
+  const [owner, count, existingPrefs] = await Promise.all([
     db.from('web_push_subscriptions').select('user_id').eq('endpoint', s.endpoint).maybeSingle(),
     db.from('web_push_subscriptions').select('id', { count: 'exact', head: true })
       .eq('user_id', userId).eq('enabled', true),
+    db.from('web_push_preferences').select('marketing_enabled')
+      .eq('user_id', userId).maybeSingle(),
   ]);
-  if (owner.error || count.error)
+  if (owner.error || count.error || existingPrefs.error)
     return noStore(jsonErr('Could not validate device registration', 503));
   if (owner.data && owner.data.user_id !== userId)
     return noStore(jsonErr('This device is registered to another account. Reset its browser push subscription first.', 409));
@@ -138,6 +140,7 @@ export async function POST(req: NextRequest) {
   const { error: consentError } = await db.from('web_push_preferences')
     .upsert({
       user_id: userId, push_enabled: true,
+      marketing_enabled: existingPrefs.data?.marketing_enabled === true,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' });
   if (consentError) return noStore(jsonErr('Could not store notification permission', 503));
