@@ -60,3 +60,10 @@ test('the database re-derives commission and ignores client-provided rates', () 
   assert.match(commissionMigration, /NEW\.supplier_payout := 0/);
   assert.match(commissionMigration, /NEW\.payment_verified_at := NULL/);
 });
+
+test('commission migration is one complete stored procedure with no trailing SQL fragments', () => {
+  assert.equal(commissionMigration.split('CREATE OR REPLACE FUNCTION public.guard_orders_client_insert()').length, 2);
+  assert.equal(commissionMigration.split('$function$').length, 3);
+  assert.ok(commissionMigration.trimEnd().endsWith('$function$;'));
+  assert.match(commissionMigration, /v_commission_text ~ '\^\[0-9\]\+\(\[\.\]\[0-9\]\+\)\?\$'/);
+});
