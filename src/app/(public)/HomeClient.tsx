@@ -556,7 +556,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     <div className="flex flex-wrap gap-2 mb-6">
                       {s.features.map(f => <span key={f} className="text-xs font-semibold rounded-full border border-emerald-400/25 bg-emerald-400/10 text-emerald-300 px-3 py-1">✓ {f}</span>)}
                     </div>
-                    <Link href={s.href} className="aw-btn px-7 py-3 text-sm">{s.cta} →</Link>
+                    <BookingIntentLink href={s.href} className="aw-btn px-7 py-3 text-sm">{s.cta} →</BookingIntentLink>
                   </div>
                 </div>
               </motion.div>
