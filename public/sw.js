@@ -180,3 +180,52 @@ self.addEventListener('fetch', event => {
     event.respondWith(publicImage(event));
   }
 });
+
+
+/**
+ * Browser/OS-delivered push works when the PWA tab is closed (permission
+ * permitting). This handler never fetches a private API or caches user data.
+ */
+function safePushPath(value) {
+  try {
+    const url = new URL(String(value || '/'), self.location.origin);
+    if (url.origin !== self.location.origin || url.username || url.password) return '/';
+    if (!/^\/(?:customer|supplier|technician|admin)(?:\/|$)/.test(url.pathname)) return '/';
+    return url.pathname + url.search;
+  } catch {
+    return '/';
+  }
+}
+
+self.addEventListener('push', event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { /* generic fallback */ }
+  const title = typeof data.title === 'string' ? data.title.slice(0, 80) : 'AuroTap update';
+  const body = typeof data.body === 'string' ? data.body.slice(0, 160) : 'Open AuroTap to view your update.';
+  const tag = typeof data.tag === 'string' ? data.tag.slice(0, 100) : 'aurotap-update';
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
+    tag,
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
+    data: { url: safePushPath(data.url) },
+  }));
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const target = safePushPath(event.notification.data && event.notification.data.url);
+  event.waitUntil((async () => {
+    const url = new URL(target, self.location.origin);
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if (new URL(client.url).origin !== url.origin) continue;
+      try {
+        await client.navigate(url.href);
+        await client.focus();
+        return;
+      } catch { /* fallback to a new PWA window */ }
+    }
+    await self.clients.openWindow(url.href);
+  })());
+});

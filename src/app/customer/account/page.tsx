@@ -402,6 +402,13 @@ export default function CustomerAccountPage() {
       if (fullName.trim()) body.full_name = fullName.trim();
       if (city.trim()) body.city = city.trim();
       if (digits(phoneInput)) body.phone = digits(phoneInput);
+      // A deliberate opt-out also disables registered browser push devices.
+      // This is a separate, server-side permission from SMS/email preferences.
+      if (!notif && origNotif) {
+        await api<{ enabled: boolean }>('/api/notifications/push', {
+          method: 'POST', body: JSON.stringify({ action: 'disable' }),
+        }, token, 0);
+      }
       const saved = await api<Profile>('/api/customer/profile', { method: 'PUT', body: JSON.stringify(body) }, token, 1);
       const next: Profile = saved?.id ? saved : ({ ...prev, ...body, phone: body.phone ?? prev?.phone ?? null } as unknown as Profile);
       dirtyRef.current = false;
@@ -577,6 +584,10 @@ export default function CustomerAccountPage() {
                       </div>
                       <Switch on={notif} onChange={setNotif} disabled={saving} label={t('notifications')} />
                     </div>
+                    <Link href="/notifications" prefetch={false}
+                      className="inline-block text-sm font-bold text-blue-700 underline underline-offset-2">
+                      Manage phone push permissions, devices and promotional alerts
+                    </Link>
                   </div>
 
                   <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-sm sm:px-6">

@@ -1731,19 +1731,26 @@ export default function Header() {
   }, [mobileOpen]);
 
   /** Real sign out: server cookies, Supabase session, local state, then home. */
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
     if (signingOut) return;
     setSigningOut(true);
     setMenuOpen(false);
     setMobileOpen(false);
 
-    // Clear local access immediately; do not wait for network round trips.
+    // Revoke this browser's push subscription before clearing its credentials.
+    // Dynamic import ensures no notification JS is added to initial page load.
+    // A 700ms upper bound preserves responsive logout even when offline.
+    try {
+      const { revokeLocalPushBeforeLogout } = await import('@/lib/push-device-client');
+      await Promise.race([
+        revokeLocalPushBeforeLogout(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 700)),
+      ]);
+    } catch { /* optional notifications must never block logout */ }
     clearSession();
-    window.location.replace('/');
-
-    // Best-effort server cookie and Supabase local-session cleanup.
     void authLogout();
     void createClient().auth.signOut({ scope: 'local' }).catch(() => undefined);
+    window.location.replace('/');
   }, [signingOut]);
 
   const initial = (user?.full_name || user?.email || 'U').charAt(0).toUpperCase();
@@ -1980,6 +1987,9 @@ export default function Header() {
                     ) : null}
                     <Link role="menuitem" href={dashboardHref} className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5">
                       Dashboard
+                    </Link>
+                    <Link role="menuitem" href="/notifications" prefetch={false} className={menuItem}>
+                      Notifications & alerts
                     </Link>
                     {role === 'admin' && (
                       <Link role="menuitem" href="/admin/zones" prefetch={false} className={menuItem}>
@@ -2235,12 +2245,16 @@ export default function Header() {
         <div className="shrink-0 space-y-2 border-t border-white/5 bg-[#0A1628] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
           {!hydrated ? null : isLoggedIn ? (
             <>
-              <div className={`grid gap-2 ${isCustomer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="grid grid-cols-2 gap-2">
                 <Link
                   href={dashboardHref}
                   className="block rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-white transition-colors hover:border-cyan-500/30"
                 >
                   Dashboard
+                </Link>
+                <Link href="/notifications" prefetch={false}
+                  className="block rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-white transition-colors hover:border-cyan-500/30">
+                  Notifications
                 </Link>
                 {isCustomer && (
                   <Link
