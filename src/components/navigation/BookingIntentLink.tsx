@@ -1,0 +1,80 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useRef, useState, type ComponentProps, type MouseEvent } from 'react';
+
+/**
+ * Booking-entry link with immediate, accessible navigation feedback.
+ *
+ * Keep Next Link's native semantics (middle-click, long-press, modifier-click,
+ * scroll restoration) instead of routing through an expensive custom handler.
+ * A bounded intent-only prefetch warms the booking chunk without causing a
+ * fetch for every service card visible on slow mobile networks.
+ */
+type BookingIntentLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & {
+  href: string;
+};
+
+const warmedLinks = new Set<string>();
+const MAX_WARMED_BOOKING_ROUTES = 8;
+
+export default function BookingIntentLink({
+  href, children, className, onClick, onPointerEnter, onTouchStart, onFocus,
+  prefetch, ...rest
+}: BookingIntentLinkProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [opening, setOpening] = useState(false);
+  const resetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setOpening(false);
+    return () => {
+      if (resetRef.current) clearTimeout(resetRef.current);
+    };
+  }, [pathname]);
+
+  const warm = () => {
+    if (!href.startsWith('/book') || warmedLinks.has(href) ||
+        warmedLinks.size >= MAX_WARMED_BOOKING_ROUTES) return;
+    warmedLinks.add(href);
+    // Next prefetch is best-effort; a failed speculative fetch must never
+    // block an actual click or trigger a booking API mutation.
+    try { router.prefetch(href); } catch { /* native Link navigation remains */ }
+  };
+
+  const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(event);
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey ||
+        event.ctrlKey || event.altKey || event.shiftKey ||
+        event.currentTarget.target === '_blank') return;
+    setOpening(true);
+    if (resetRef.current) clearTimeout(resetRef.current);
+    // In case a navigation is blocked by a browser extension or network error,
+    // do not leave a permanently spinning CTA. Never auto-retry/order-submit.
+    resetRef.current = setTimeout(() => setOpening(false), 8000);
+  };
+
+  return (
+    <Link
+      {...rest}
+      href={href}
+      prefetch={prefetch ?? false}
+      className={className}
+      onPointerEnter={event => { onPointerEnter?.(event); warm(); }}
+      onTouchStart={event => { onTouchStart?.(event); warm(); }}
+      onFocus={event => { onFocus?.(event); warm(); }}
+      onClick={handleClick}
+      aria-busy={opening}
+    >
+      {children}
+      {opening && (
+        <span className="ml-2 inline-flex shrink-0 items-center gap-1.5 text-xs font-bold" role="status" aria-live="polite">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
+          Opening…
+        </span>
+      )}
+    </Link>
+  );
+}
