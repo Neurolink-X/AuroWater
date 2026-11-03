@@ -641,7 +641,7 @@ export async function POST(req: NextRequest) {
   // Persist the server-calculated amount, never the client-provided total.
   const total = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate).total;
   // Record partner commission selected by admin without changing payout settlement.
-  const commissionKey = isWater && qty >= Number(activePricingConfig.bulk_threshold) ? 'bulk_commission' : 'supplier_commission';
+  const commissionKey = isWater && Number(qty ?? 0) >= Number(activePricingConfig.bulk_threshold) ? 'bulk_commission' : 'supplier_commission';
   const rawCommission = flat[commissionKey];
   const parsedCommission = Number(rawCommission);
   const commissionRatePct = isWater && typeof rawCommission === 'string' && rawCommission.trim() !== '' && Number.isFinite(parsedCommission) && parsedCommission >= 0 && parsedCommission <= 50 ? parsedCommission : null;
