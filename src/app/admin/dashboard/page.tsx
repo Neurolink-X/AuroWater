@@ -29,7 +29,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -1592,7 +1591,6 @@ export default function AdminDashboardPage() {
   const [online, setOnline] = useState(true);
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [, startTransition] = useTransition();
 
   const mountedRef = useRef(false);
   const inFlightRef = useRef(false);
@@ -1687,7 +1685,7 @@ export default function AdminDashboardPage() {
 
   const changeTab = useCallback((key: TabKey) => {
     activeTabRef.current = key;
-    startTransition(() => setTab(key));
+    setTab(key);
     try {
       window.history.replaceState(null, '', `#${key}`);
     } catch {
