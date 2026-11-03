@@ -22,7 +22,8 @@ test('retention runs once daily in bounded batches without modifying critical da
   assert.match(migration, /LIMIT 500/);
   const deletedFrom = [...migration.matchAll(/DELETE FROM\s+([\w.]+)/gi)].map((item) => item[1]).sort();
   assert.deepEqual(deletedFrom, ['cron.job_run_details', 'public.account_recovery_rate_limits', 'public.otp_requests']);
-  assert.doesNotMatch(migration, /VACUUM FULL|TRUNCATE\s|DROP\s+TABLE/i);
+  const executableSql = migration.split('\n').filter((line) => !line.trimStart().startsWith('--')).join('\n');
+  assert.doesNotMatch(executableSql, /VACUUM FULL|TRUNCATE\s|DROP\s+TABLE/i);
 });
 
 test('client roles cannot invoke private cleanup via public endpoints', () => {
