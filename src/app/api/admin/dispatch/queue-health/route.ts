@@ -149,18 +149,21 @@ export async function PATCH(request: NextRequest) {
   }
   if (current.value === String(enable)) return jsonOk({ enabled: enable, changed: false });
 
-  const { data, error } = await db.from('settings')
-    .update({ value: String(enable) })
-    .eq('key', 'dispatch_work_queue_enabled')
-    .select('value').maybeSingle();
-  if (error || !data) {
-    // The SQL activation trigger blocks incomplete pre-existing order handoff.
+  // Atomic database toggle + audit; the DB trigger checks authorization,
+  // cron configuration, shared secret and pending-order backfill.
+  const actorId = auth.ctx.user?.id;
+  if (!actorId) return jsonErr('Verified admin identity is unavailable', 401);
+  const { data, error } = await db.rpc('set_dispatch_queue_enabled', {
+    p_enabled: enable,
+    p_actor_id: actorId,
+  });
+  if (error || data !== enable) {
     return jsonErr(
-      enable ? 'Queue activation blocked by database release checks. Verify pending-order backfill.' :
-        'Could not disable queue; check database settings availability.',
+      enable ? 'Queue activation blocked by database release checks. Review readiness and pending orders.' :
+        'Could not disable queue safely. Check the database and audit log.',
       409,
       'QUEUE_TRANSITION_FAILED',
     );
   }
-  return jsonOk({ enabled: data.value === 'true', changed: true });
+  return jsonOk({ enabled: data, changed: true });
 }
