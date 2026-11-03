@@ -52,6 +52,28 @@ test('distributed claims enforce a global concurrency budget and SKIP LOCKED', (
   assert.ok(sql.includes("state = 'dead'"));
 });
 
+test('repeated supplier shortage cannot consume the internal error budget', () => {
+  assert.ok(sql.includes('internal_error_streak smallint NOT NULL DEFAULT 0'));
+  assert.ok(sql.includes("p_result_code = 'error' AND current_errors >= 7"));
+  assert.ok(sql.includes("p_result_code = 'error'"));
+  assert.ok(sql.includes('ELSE 0 END,'));
+  assert.ok(sql.includes('internal_error_streak = 0'));
+  assert.ok(!sql.includes("p_result_code = 'error' AND current_attempts >= 8"));
+});
+
+test('only supported services enter the queue', () => {
+  const services = ['water_can','ro_service','plumbing','borewell','motor_pump','tank_cleaning'];
+  for (const service of services) assert.ok(sql.includes(service));
+  assert.ok(sql.includes('NEW.service_type NOT IN'));
+  assert.ok(sql.includes('o.service_type IN'));
+});
+
+test('returned dispatch errors trigger worker and endpoint failures', () => {
+  assert.ok(worker.includes("if (outcome === 'error')"));
+  assert.ok(worker.includes('failed += 1'));
+  assert.ok(endpoint.includes('data.failed === 0 && data.completionErrors === 0'));
+});
+
 test('scheduled queue uses bounded demand-based fanout and has low-cost cleanup', () => {
   assert.ok(sql.includes("'*/2 * * * *'"));
   assert.ok(sql.includes('LEAST(4, CEIL(b.n / 32.0)::integer)'));
