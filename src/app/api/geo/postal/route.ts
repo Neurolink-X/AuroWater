@@ -63,8 +63,7 @@ export async function GET(req: NextRequest) {
       if (strictCity && district) query = query.ilike('district', `%${district}%`);
     }
 
-    const { data: initialData, error } = await query;
-    let data = initialData;
+    const { data, error } = await query;
     if (error) {
       console.error('[geo/postal] directory lookup failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: 'Postal lookup is temporarily unavailable' }, { status: 503 });
