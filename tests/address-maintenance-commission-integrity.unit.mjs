@@ -56,7 +56,7 @@ test('new water-can orders snapshot the configured partner rate independently of
 test('the database re-derives commission and ignores client-provided rates', () => {
   assert.match(commissionMigration, /NEW\.commission_rate_pct := NULL/);
   assert.match(commissionMigration, /NEW\.commission_rate_pct := v_commission_pct/);
-  assert.match(commissionMigration, /FROM public\.settings WHERE key = v_commission_key/);
+  assert.match(commissionMigration, /FROM public\.settings\s+WHERE key = v_commission_key/);
   assert.match(commissionMigration, /NEW\.supplier_payout := 0/);
   assert.match(commissionMigration, /NEW\.payment_verified_at := NULL/);
 });
