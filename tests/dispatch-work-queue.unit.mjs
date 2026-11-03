@@ -109,7 +109,7 @@ test('checkout admission is fail-closed, idempotent and disabled by default', ()
   const admission = booking.indexOf('dispatch-checkout-admission');
   assert.ok(oldOrderLookup > 0 && admission > oldOrderLookup);
   assert.ok(booking.includes("flat.dispatch_work_queue_enabled ?? 'false'"));
-  assert.ok(booking.includes('Math.min(configured, 3000) : 600'));
+  assert.ok(booking.includes('Math.min(configured, 3000) : 48'));
   assert.ok(booking.includes("'BOOKING_CAPACITY_BUSY'"));
   assert.ok(booking.includes("response.headers.set('Retry-After'"));
   assert.ok(booking.includes('if (!gate.allowed)'));
