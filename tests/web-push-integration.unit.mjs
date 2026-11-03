@@ -73,7 +73,7 @@ test('background worker uses bounded concurrency and never changes orders', () =
   assert.match(db, /WHERE EXISTS \(/);
 });
 
-test('secure cross-role inbox reads only signed-in user's messages', () => {
+test('secure cross-role inbox reads only authenticated user messages', () => {
   assert.match(inbox, /requireSupabaseAuth\(req\)/g);
   assert.match(inbox, /\.eq\('user_id', auth\.ctx\.profile\.id\)/g);
   assert.match(inbox, /\.limit\(25\)/);
