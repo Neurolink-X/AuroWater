@@ -38,13 +38,14 @@ async function authedRequest<T>(
   return json.data as T;
 }
 
-function publicKeyToBytes(encoded: string): Uint8Array {
+function publicKeyToBytes(encoded: string): ArrayBuffer {
   const padded = (encoded.replace(/-/g, '+').replace(/_/g, '/') + '===').slice(0,
     Math.ceil(encoded.length / 4) * 4);
   const raw = atob(padded);
-  const key = new Uint8Array(raw.length);
+  const buffer = new ArrayBuffer(raw.length);
+  const key = new Uint8Array(buffer);
   for (let index = 0; index < raw.length; index++) key[index] = raw.charCodeAt(index);
-  return key;
+  return buffer;
 }
 
 export default function NotificationSettingsPage() {
