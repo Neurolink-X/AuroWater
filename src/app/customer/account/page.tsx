@@ -635,6 +635,7 @@ export default function CustomerAccountPage() {
                 <Heading title={t('support')} />
                 <Card>
                   <Row href="/customer/support" icon="🎧" title={t('getSupport')} />
+                  <Row href="/customer/account-recovery" icon="🔐" title="Confirm recovered account access" hint="Review and confirm a verified account recovery case" />
                   <Row external href={wa('Hi AuroTap! I need help with my account.')} icon="💬" title={t('whatsapp')} />
                   <Row external href={`tel:${PHONE}`} icon="📞" title={t('call')} hint={PHONE} />
                   <Row href="/terms" icon="📄" title={t('terms')} />
