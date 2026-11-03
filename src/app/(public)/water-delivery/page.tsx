@@ -15,6 +15,7 @@ export const metadata: Metadata = {
     '20 litre drinking water jar delivery', 'RO water supply for homes and offices',
     'online water can booking', 'water can delivery Kanpur',
     'water can delivery Lucknow', 'water can delivery Gorakhpur',
+    '20 litre water can delivery Noida', 'RO drinking water supply Noida',
   ],
   alternates: { canonical: '/water-delivery' },
   openGraph: {
@@ -30,7 +31,7 @@ export const metadata: Metadata = {
   },
 };
 
-const DETAILED_CITY_PAGES = new Set(['kanpur', 'lucknow', 'gorakhpur']);
+const DETAILED_CITY_PAGES = new Set(['kanpur', 'lucknow', 'gorakhpur', 'noida']);
 
 function CityCard({ city }: { city: City }) {
   const hasLocalPage = DETAILED_CITY_PAGES.has(city.slug);
