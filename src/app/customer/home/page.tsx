@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 import Link from 'next/link';
+import BookingIntentLink from '@/components/navigation/BookingIntentLink';
 import { usePathname, useRouter } from 'next/navigation';
 
 import BottomNav from '@/components/customer/BottomNav';
@@ -454,7 +455,7 @@ function EmptyOrderCard() {
           </p>
         </div>
 
-        <Link
+        <BookingIntentLink
           href="/book"
           className={`inline-flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-6 py-2.5 text-sm font-black text-white shadow-[6px_6px_14px_#b7c8d9,-6px_-6px_14px_#ffffff] transition hover:brightness-110 sm:w-auto ${FOCUS}`}
         >
@@ -462,7 +463,7 @@ function EmptyOrderCard() {
           <span className="ml-1.5" aria-hidden="true">
             →
           </span>
-        </Link>
+        </BookingIntentLink>
       </div>
     </div>
   );
@@ -1226,7 +1227,7 @@ export default function CustomerHomePage() {
                 </span>
               </Link>
             ) : (
-              <Link
+              <BookingIntentLink
                 href="/book"
                 className="inline-flex min-h-12 items-center justify-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-sm font-black text-white shadow-lg shadow-cyan-500/25 transition hover:opacity-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/40"
               >
@@ -1234,16 +1235,16 @@ export default function CustomerHomePage() {
                 <span className="ml-1.5" aria-hidden="true">
                   →
                 </span>
-              </Link>
+              </BookingIntentLink>
             )}
 
             {primary || lastDelivered ? (
-              <Link
+              <BookingIntentLink
                 href="/book"
                 className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 text-sm font-bold text-white transition hover:bg-white/10 focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300/30"
               >
                 Book something else
-              </Link>
+              </BookingIntentLink>
             ) : null}
           </div>
         </header>
@@ -1400,7 +1401,7 @@ export default function CustomerHomePage() {
             <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {SERVICES.map((service) => (
                 <li key={service.key}>
-                  <Link
+                  <BookingIntentLink
                     href={bookHref(service.key)}
                     prefetch={false}
                     className={`group flex h-full min-h-[84px] items-center gap-3 rounded-2xl p-3.5 transition duration-300 hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${NU_SM} ${FOCUS}`}
@@ -1420,7 +1421,7 @@ export default function CustomerHomePage() {
                         {service.hint}
                       </span>
                     </span>
-                  </Link>
+                  </BookingIntentLink>
                 </li>
               ))}
             </ul>
@@ -1472,13 +1473,13 @@ export default function CustomerHomePage() {
                     </ul>
 
                     <div className="mt-5 flex flex-wrap gap-3">
-                      <Link
+                      <BookingIntentLink
                         href={bookHref(item.key)}
                         prefetch={false}
                         className={`inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-5 text-sm font-black text-white shadow-[5px_5px_12px_#b7c8d9,-5px_-5px_12px_#ffffff] transition hover:brightness-110 active:scale-[.98] ${FOCUS}`}
                       >
                         Book {item.title.toLowerCase()}
-                      </Link>
+                      </BookingIntentLink>
                       <Link
                         href={item.browse}
                         className={`inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl px-5 text-sm font-extrabold text-slate-700 transition active:shadow-[inset_4px_4px_8px_#b7c8d9,inset_-4px_-4px_8px_#ffffff] ${NU_SM} ${FOCUS}`}
@@ -1587,7 +1588,7 @@ export default function CustomerHomePage() {
                   </p>
 
                   {orders.length === 0 ? (
-                    <Link
+                    <BookingIntentLink
                       href="/book"
                       className={`mt-4 inline-flex min-h-12 items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 px-6 py-2.5 text-sm font-black text-white hover:brightness-110 ${FOCUS}`}
                     >
@@ -1595,7 +1596,7 @@ export default function CustomerHomePage() {
                       <span className="ml-1.5" aria-hidden="true">
                         →
                       </span>
-                    </Link>
+                    </BookingIntentLink>
                   ) : null}
                 </div>
               ) : (
@@ -1696,7 +1697,7 @@ export default function CustomerHomePage() {
               </div>
 
               <div className="flex shrink-0 flex-col gap-3 sm:items-end">
-                <Link
+                <BookingIntentLink
                   href="/book"
                   className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-900 px-6 py-2.5 text-sm font-black text-white transition hover:bg-slate-800 ${FOCUS}`}
                 >
@@ -1704,7 +1705,7 @@ export default function CustomerHomePage() {
                   <span className="ml-1.5" aria-hidden="true">
                     →
                   </span>
-                </Link>
+                </BookingIntentLink>
 
                 <button
                   type="button"
@@ -2149,7 +2150,7 @@ export default function CustomerHomePage() {
 //           </p>
 //         </div>
 
-//         <Link
+//         <BookingIntentLink
 //           href="/book"
 //           className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-100 sm:w-auto"
 //         >
@@ -2157,7 +2158,7 @@ export default function CustomerHomePage() {
 //           <span className="ml-1.5" aria-hidden="true">
 //             →
 //           </span>
-//         </Link>
+//         </BookingIntentLink>
 //       </div>
 //     </div>
 //   );

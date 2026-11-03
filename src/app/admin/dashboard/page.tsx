@@ -29,7 +29,6 @@ import React, {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -130,7 +129,7 @@ interface PaletteItem {
 
 /* ───────────────────────────── Constants ───────────────────────────── */
 
-const ORDER_LIMIT = 200;
+const ORDER_LIMIT = 80;
 const PAGE_SIZE = 10;
 const POLL_BASE_MS = 60_000;
 const POLL_MAX_MS = 300_000;
@@ -1235,8 +1234,8 @@ const FinancePanel = memo(function FinancePanel({
   return (
     <>
       <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-950">
-        The top section uses finance API figures for the last 30 days. Figures under “Loaded orders” are calculated
-        from the latest {ORDER_LIMIT} orders only, so treat them as a sample. Commission and supplier payouts are not
+        The top section uses finance API figures for the last 30 days, loaded only when needed. Figures under “Loaded orders” are calculated
+        from up to the latest {ORDER_LIMIT} orders only, so treat them as a sample. Commission and supplier payouts are not
         estimated here.
       </div>
 
@@ -1592,13 +1591,15 @@ export default function AdminDashboardPage() {
   const [online, setOnline] = useState(true);
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [, startTransition] = useTransition();
 
   const mountedRef = useRef(false);
   const inFlightRef = useRef(false);
   const failuresRef = useRef(0);
   const snapRef = useRef<Snapshot>(EMPTY_SNAPSHOT);
   const lastFetchRef = useRef(0);
+  const activeTabRef = useRef<TabKey>('overview');
+  const financeInFlightRef = useRef(false);
+  const financeLastFetchRef = useRef(0);
 
   /* Data loading: progressive, resilient, cache-backed */
   const run = useCallback(async (mode: 'initial' | 'silent' | 'manual') => {
@@ -1620,12 +1621,17 @@ export default function AdminDashboardPage() {
         return value;
       });
 
+      // Overview needs only a bounded sample; finance is loaded when actually
+      // opened instead of being downloaded on every background refresh.
+      const shouldRefreshFinance = activeTabRef.current === 'finance' && !financeInFlightRef.current;
+      if (shouldRefreshFinance) financeInFlightRef.current = true;
       const [d, o, p, f] = await Promise.allSettled([
         dashboardPromise,
         getAdminOrders(undefined, ORDER_LIMIT, 0),
         getPricingRules(),
-        adminFinance('30d'),
+        shouldRefreshFinance ? adminFinance('30d') : Promise.resolve(null),
       ]);
+      if (shouldRefreshFinance) financeInFlightRef.current = false;
 
       if (!mountedRef.current) return;
 
@@ -1638,8 +1644,11 @@ export default function AdminDashboardPage() {
       if (p.status === 'fulfilled') patch.pricingCount = Array.isArray(p.value) ? p.value.length : 0;
       else failed.push('pricing rules');
 
-      if (f.status === 'fulfilled') patch.finance = f.value ? (f.value as FinanceSnapshot) : null;
-      else failed.push('finance');
+      if (f.status === 'fulfilled' && f.value) {
+        patch.finance = f.value as FinanceSnapshot;
+        financeLastFetchRef.current = Date.now();
+      }
+      else if (f.status === 'rejected') failed.push('finance');
 
       commit(patch);
 
@@ -1675,7 +1684,8 @@ export default function AdminDashboardPage() {
   }, []);
 
   const changeTab = useCallback((key: TabKey) => {
-    startTransition(() => setTab(key));
+    activeTabRef.current = key;
+    setTab(key);
     try {
       window.history.replaceState(null, '', `#${key}`);
     } catch {
@@ -1689,7 +1699,10 @@ export default function AdminDashboardPage() {
     setOnline(navigator.onLine);
 
     const hash = window.location.hash.slice(1) as TabKey;
-    if (TAB_KEYS.includes(hash)) setTab(hash);
+    if (TAB_KEYS.includes(hash)) {
+      activeTabRef.current = hash;
+      setTab(hash);
+    }
 
     const cached = readCache();
     if (cached) {
@@ -1734,6 +1747,27 @@ export default function AdminDashboardPage() {
       window.removeEventListener('offline', onOffline);
     };
   }, [run]);
+
+  // Financial aggregation can page through many orders. Never call it merely
+  // because an admin opened Overview or Operations. Keep the data available
+  // after switching tabs, and coalesce quick repeated tab presses.
+  useEffect(() => {
+    if (tab !== 'finance' || !online || !mountedRef.current || financeInFlightRef.current) return;
+    if (snapRef.current.finance && financeLastFetchRef.current &&
+        Date.now() - financeLastFetchRef.current < 90_000) return;
+    financeInFlightRef.current = true;
+    let active = true;
+    void adminFinance('30d').then(value => {
+      if (!active || !mountedRef.current) return;
+      financeLastFetchRef.current = Date.now();
+      snapRef.current = { ...snapRef.current, finance: value as FinanceSnapshot };
+      setSnap(snapRef.current);
+    }).catch(() => {
+      if (active && mountedRef.current) setPartial(existing =>
+        existing.includes('finance') ? existing : [...existing, 'finance']);
+    }).finally(() => { financeInFlightRef.current = false; });
+    return () => { active = false; };
+  }, [tab, online]);
 
   /* Keyboard shortcuts */
   useEffect(() => {

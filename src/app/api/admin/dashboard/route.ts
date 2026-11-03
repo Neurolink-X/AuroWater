@@ -17,6 +17,7 @@ import { NextRequest } from 'next/server';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createServiceClient } from '@/utils/supabase/server';
 
 /* ── Types ───────────────────────────────────────────────────────────────── */
 
@@ -39,10 +40,6 @@ interface OrderRow {
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-
-/** Safely sum total_amount from any result set */
-const revSum = (rows: Array<{ total_amount: unknown }> | null): number =>
-  (rows ?? []).reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
 
 /** ISO start-of-day N days ago */
 function daysAgoISO(n: number): string {
@@ -219,9 +216,7 @@ export async function GET(req: NextRequest) {
       cTotalOrders,
       cTodayOrders,
       cPrevWeekOrders,
-      dTotalRevenue,
-      dRevenueToday,
-      dRevenuePrevWeek,
+      revenueAggregate,
       cActiveJobs,
       cEmergencyToday,
       cTotalCustomers,
@@ -233,16 +228,19 @@ export async function GET(req: NextRequest) {
       cOpenQualityCases,
       cUnacceptedTechnicianOffers,
       cUnacceptedAssignments,
-      cUnpaidCompleted,
       cActiveEmergencies,
       cStaleActiveOrders,
     ] = await Promise.all([
       sb.from('orders').select('*', { count: 'exact', head: true }),
       sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', todayISO),
       sb.from('orders').select('*', { count: 'exact', head: true }).gte('created_at', twoWeekISO).lt('created_at', weekAgoISO),
-      sb.from('orders').select('total_amount').eq('status', 'COMPLETED'),
-      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', todayISO),
-      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').gte('created_at', twoWeekISO).lt('created_at', weekAgoISO),
+      // One DB aggregate instead of shipping all historical completed orders
+      // to the server and issuing three repeated reads for their totals.
+      createServiceClient().rpc('admin_dashboard_revenue_aggregate', {
+        p_today: todayISO,
+        p_previous_start: twoWeekISO,
+        p_previous_end: weekAgoISO,
+      }),
       sb.from('orders').select('*', { count: 'exact', head: true }).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']),
       sb.from('orders').select('*', { count: 'exact', head: true }).eq('is_emergency', true).gte('created_at', todayISO),
       sb.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
@@ -254,7 +252,6 @@ export async function GET(req: NextRequest) {
       sb.from('service_quality_cases').select('*', { count: 'exact', head: true }).in('status', ['OPEN','ASSIGNED','INVESTIGATING','ACTION_REQUIRED','ESCALATED']),
     sb.from('technician_job_dispatch').select('*', { count: 'exact', head: true }).eq('status', 'OFFERED'),
     sb.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'ASSIGNED').is('accepted_at', null),
-      sb.from('orders').select('total_amount').eq('status', 'COMPLETED').eq('payment_status', 'unpaid'),
       sb.from('orders').select('*', { count: 'exact', head: true }).eq('is_emergency', true).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']),
       sb.from('orders').select('*', { count: 'exact', head: true }).in('status', ['PENDING', 'ASSIGNED', 'IN_PROGRESS']).lt('updated_at', new Date(Date.now() - 30 * 60 * 1000).toISOString()),
     ]);
@@ -263,9 +260,7 @@ export async function GET(req: NextRequest) {
       cTotalOrders,
       cTodayOrders,
       cPrevWeekOrders,
-      dTotalRevenue,
-      dRevenueToday,
-      dRevenuePrevWeek,
+      revenueAggregate,
       cActiveJobs,
       cEmergencyToday,
       cTotalCustomers,
@@ -275,7 +270,6 @@ export async function GET(req: NextRequest) {
       cPendingKyc,
       cFraudFlags,
       cUnacceptedAssignments,
-      cUnpaidCompleted,
       cActiveEmergencies,
       cStaleActiveOrders,
     ];
@@ -290,9 +284,25 @@ export async function GET(req: NextRequest) {
     if (!details.ok) throw details.error;
     const [ordersDaily, revenueDaily, topSuppliers, recentOrders] = details.result;
 
-    const totalRev = revSum(dTotalRevenue.data as Array<{ total_amount: unknown }> | null);
-    const revToday = revSum(dRevenueToday.data as Array<{ total_amount: unknown }> | null);
-    const revPrevWeek = revSum(dRevenuePrevWeek.data as Array<{ total_amount: unknown }> | null);
+    const revenueRow = (
+      (revenueAggregate.data ?? []) as Array<{
+        total_revenue: number | string;
+        revenue_today: number | string;
+        revenue_previous_week: number | string;
+        unpaid_completed_orders: number | string;
+        unpaid_completed_amount: number | string;
+      }>
+    )[0];
+    if (!revenueRow) return jsonErr('Admin revenue summary unavailable', 503);
+    const totalRev = Number(revenueRow.total_revenue);
+    const revToday = Number(revenueRow.revenue_today);
+    const revPrevWeek = Number(revenueRow.revenue_previous_week);
+    const unpaidCount = Number(revenueRow.unpaid_completed_orders);
+    const unpaidAmount = Number(revenueRow.unpaid_completed_amount);
+    if (![totalRev, revToday, revPrevWeek, unpaidCount, unpaidAmount]
+      .every((n) => Number.isFinite(n) && n >= 0)) {
+      return jsonErr('Admin revenue summary invalid', 503);
+    }
 
     const payload = {
       kpis: {
@@ -314,8 +324,8 @@ export async function GET(req: NextRequest) {
           open_quality_cases: cOpenQualityCases.count ?? 0,
       unaccepted_technician_offers: cUnacceptedTechnicianOffers.count ?? 0,
       unaccepted_assignments: cUnacceptedAssignments.count ?? 0,
-          unpaid_completed_orders: cUnpaidCompleted.data?.length ?? 0,
-          unpaid_completed_amount: revSum(cUnpaidCompleted.data as Array<{ total_amount: unknown }> | null),
+          unpaid_completed_orders: unpaidCount,
+          unpaid_completed_amount: unpaidAmount,
           active_emergencies: cActiveEmergencies.count ?? 0,
           stale_active_orders: cStaleActiveOrders.count ?? 0,
         },

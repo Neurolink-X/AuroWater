@@ -147,6 +147,16 @@ const NAV = [
     ),
   },
   {
+    href: '/admin/dispatch-queue',
+    label: 'Queue Management',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <rect x="4" y="4" width="16" height="16" rx="2" strokeWidth="1.8" />
+        <path d="M8 9h8M8 13h5M8 17h8" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
     href: '/admin/coverage-requests',
     label: 'Coverage',
     icon: (
@@ -249,7 +259,7 @@ const NAV = [
 const PRIMARY_NAV_HREFS = new Set([
   '/admin/dashboard', '/admin/orders', '/admin/dispatch', '/admin/finance',
   '/admin/verification', '/admin/users', '/admin/expansion', '/admin/pricing',
-  '/admin/blog', '/admin/settings',
+  '/admin/blog', '/admin/settings', '/admin/dispatch-queue',
 ]);
 const PRIMARY_NAV = NAV.filter(item => PRIMARY_NAV_HREFS.has(item.href));
 const MORE_TOOLS = NAV.filter(item => !PRIMARY_NAV_HREFS.has(item.href));

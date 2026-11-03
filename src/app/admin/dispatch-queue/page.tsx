@@ -140,24 +140,24 @@ export default function DispatchQueuePage() {
   };
 
   return (
-    <main className="mx-auto max-w-5xl space-y-5 px-4 py-8 text-slate-900 sm:px-6">
-      <Link href="/admin/order-health" className="text-sm font-semibold text-blue-700 hover:underline">
+    <main className="mx-auto max-w-5xl space-y-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-slate-950 shadow-sm sm:rounded-3xl sm:px-7 sm:py-8">
+      <Link href="/admin/order-health" className="inline-flex min-h-11 items-center text-sm font-bold text-blue-800 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">
         Back to order health
       </Link>
       <header className="space-y-2">
-        <h1 className="text-2xl font-black sm:text-3xl">Dispatch queue health</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl">Dispatch queue health</h1>
         <p className="text-sm text-slate-600">Review durable recovery, backlog and dead letters. The queue does not change customer orders or payment status by itself.</p>
       </header>
       <button type="button" onClick={() => void refresh()} disabled={refreshing}
-        className="rounded-lg border border-slate-300 px-4 py-2 font-semibold hover:bg-slate-50">
+        className="min-h-11 rounded-xl border border-slate-400 bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
         Refresh current data
       </button>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900">{error}</p>}
       {loading && <p role="status">Loading operational statistics…</p>}
       {health && <>
         <section className="rounded-xl border border-slate-200 bg-white p-4" aria-label="Queue configuration">
-          <p className="text-sm font-bold">
-            Queue rollout: {health.enabled ? 'Enabled' : 'Off — existing dispatch remains active'}
+          <p className="text-base font-extrabold text-slate-950 sm:text-lg">
+            Queue status: {health.enabled ? 'ON — controlled dispatch recovery active' : 'OFF — existing dispatch retries continue'}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             Database global concurrency cap: {health.global_concurrency_cap}; per-worker cap: {health.local_concurrency_cap}.
@@ -167,7 +167,7 @@ export default function DispatchQueuePage() {
             Queue mode never switches ON automatically when traffic rises. Enabling requires verified
             release gates and server-side operational approval. Disabling preserves pending orders.
           </p>
-          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" aria-label="Queue activation readiness">
+          <div className="mt-4 rounded-xl border border-slate-300 bg-slate-100 p-4 text-sm leading-6" aria-label="Queue activation readiness">
             <p className="font-semibold text-slate-900">Activation checks</p>
             <dl className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
               {([
@@ -178,15 +178,15 @@ export default function DispatchQueuePage() {
                 ['Operator release approval', health.release_approved],
                 ['Pending backlog within safe handoff limit', health.readiness.pendingWithoutQueue <= 100],
               ] as const).map(([label, ok]) => (
-                <div key={label} className="flex items-center justify-between gap-2">
-                  <dt className="text-slate-600">{label}</dt>
-                  <dd className={ok ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-800'}>
-                    {ok ? 'Ready' : 'Not ready'}
+                <div key={label} className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2.5 shadow-sm">
+                  <dt className="font-medium text-slate-800">{label}</dt>
+                  <dd className={ok ? 'font-bold text-emerald-800' : 'font-bold text-amber-900'}>
+                    {ok ? 'Ready' : label === 'Operator release approval' ? 'Approval pending' : 'Needs attention'}
                   </dd>
                 </div>
               ))}
             </dl>
-            <p className="mt-2 text-xs text-slate-600">
+            <p className="mt-3 text-sm font-medium text-slate-700">
               Pending orders awaiting queue handoff: {health.readiness.pendingWithoutQueue}. Stale appointments
               needing manual schedule/customer review: {health.readiness.staleOrdersAwaitingReview}.
               Missed slots over 24 hours are never automatically offered to a new provider.
@@ -205,21 +205,26 @@ export default function DispatchQueuePage() {
               </div>
             )}
             {!health.enabled && !health.activation_ready && (
-              <p className="mt-2 text-xs font-semibold text-amber-800" role="status">
-                Queue activation is locked until the operator validates staging tests and approves release.
-                Existing dispatch remains active.
-              </p>
+              <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="status">
+                <p className="font-bold">Why is Enable disabled?</p>
+                {!health.release_approved ? (
+                  <p className="mt-1">Operator release approval is still pending. This is a deliberate production safety lock, not a failed database installation. The deployment owner must verify staging assignment, stock/idempotency, cron responses and rollback before configuring the server-only release approval in Vercel. A new deployment must pick up that setting.</p>
+                ) : (
+                  <p className="mt-1">One or more live database readiness checks need attention. Review the checks above and prepare any outstanding pending order references before activation.</p>
+                )}
+                <p className="mt-2 font-semibold">The existing booking and legacy retry system stays active. Do not bypass this release lock simply to enable the button.</p>
+              </div>
             )}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" disabled={busyToggle || refreshing || health.enabled || !health.activation_ready}
               onClick={() => void setQueueEnabled(true)}
-              className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-40">
+              className="min-h-11 rounded-xl border border-emerald-700 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-950 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-600">
               {busyToggle && !health.enabled ? 'Applying…' : 'Enable queue (release-gated)'}
             </button>
             <button type="button" disabled={busyToggle || refreshing || !health.enabled}
               onClick={() => void setQueueEnabled(false)}
-              className="rounded-lg border border-slate-400 px-3 py-2 text-sm font-semibold text-slate-800 disabled:opacity-40">
+              className="min-h-11 rounded-xl border border-slate-400 bg-white px-4 py-2 text-sm font-bold text-slate-950 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50">
               {busyToggle && health.enabled ? 'Disabling…' : 'Disable queue / use legacy retries'}
             </button>
           </div>

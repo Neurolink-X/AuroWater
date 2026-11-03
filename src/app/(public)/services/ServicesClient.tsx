@@ -5,6 +5,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import ServiceMedia from '@/components/services/ServiceMedia';
 import Link from 'next/link';
+import BookingIntentLink from '@/components/navigation/BookingIntentLink';
 import { useSettings } from '@/hooks/useSettings';
 import {
   CATEGORIES,
@@ -116,10 +117,10 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
           <IconArrow />
         </Link>
 
-        <Link href={`/book?service=${encodeURIComponent(s.key)}`} className="sv-cta sv-cta-book">
+        <BookingIntentLink href={`/book?service=${encodeURIComponent(s.key)}`} className="sv-cta sv-cta-book">
           <span>Book Now</span>
           <IconArrow />
-        </Link>
+        </BookingIntentLink>
       </div>
     </article>
   );
@@ -208,12 +209,12 @@ export default function ServicesClient({ cityLine }: { cityLine: string }) {
 
           <p className="mt-3 text-sm text-white/80">Service availability and final pricing depend on your address, selected service and checkout details.</p>
           <div className="sv-hero-actions">
-            <Link href="/book?service=water_can" className="sv-hero-btn-primary">
+            <BookingIntentLink href="/book?service=water_can" className="sv-hero-btn-primary">
               Order 20L Water
-            </Link>
-            <Link href="/book?service=plumbing" className="sv-hero-btn-ghost">
+            </BookingIntentLink>
+            <BookingIntentLink href="/book?service=plumbing" className="sv-hero-btn-ghost">
               Find a Plumber
-            </Link>
+            </BookingIntentLink>
           </div>
         </div>
 
@@ -281,12 +282,12 @@ export default function ServicesClient({ cityLine }: { cityLine: string }) {
             </div>
           </div>
           <div className="sv-help-actions">
-            <Link href="/book?service=plumbing" className="sv-banner-btn">
+            <BookingIntentLink href="/book?service=plumbing" className="sv-banner-btn">
               Find a Plumber <IconArrow />
-            </Link>
-            <Link href="/book?service=ro_service" className="sv-pill">
+            </BookingIntentLink>
+            <BookingIntentLink href="/book?service=ro_service" className="sv-pill">
               RO / Pump Service
-            </Link>
+            </BookingIntentLink>
           </div>
         </section>
 

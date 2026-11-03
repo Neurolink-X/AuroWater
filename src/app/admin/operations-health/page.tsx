@@ -53,7 +53,7 @@ export default function OperationsHealthPage() {
   }, [refresh]);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 text-slate-900">
+    <main className="mx-auto max-w-5xl space-y-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-slate-950 shadow-sm sm:rounded-3xl sm:px-7 sm:py-8">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">Operations health & recovery</h1>
@@ -65,7 +65,7 @@ export default function OperationsHealthPage() {
         </button>
       </header>
 
-      <nav aria-label="Operations links" className="flex flex-wrap gap-3 text-sm font-semibold text-cyan-800">
+      <nav aria-label="Operations links" className="flex flex-wrap gap-3 text-sm font-bold text-cyan-900">
         <Link href="/admin/dispatch">Dispatch center</Link>
         <Link href="/admin/orders">Orders</Link>
         <Link href="/admin/city-readiness">City readiness</Link>

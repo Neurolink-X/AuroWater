@@ -1,6 +1,7 @@
 'use client';
 
 import type React from 'react';
+import { useRef, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -64,6 +65,20 @@ function IconUser({ active }: { active: boolean }) {
  */
 export default function BottomNav({ activeOrderId }: { activeOrderId?: string | null } = {}) {
   const pathname = usePathname() ?? '';
+  const [pending, setPending] = useState<{ key: NavItem['key']; origin: string } | null>(null);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+  }, []);
+
+  const onNavigate = (event: React.MouseEvent<HTMLAnchorElement>, key: NavItem['key'], active: boolean) => {
+    if (active || event.defaultPrevented || event.button !== 0 || event.metaKey ||
+        event.ctrlKey || event.shiftKey || event.altKey) return;
+    setPending({ key, origin: pathname });
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setPending(null), 8000);
+  };
 
   const items: NavItem[] = [
     {
@@ -106,21 +121,24 @@ export default function BottomNav({ activeOrderId }: { activeOrderId?: string | 
       <div className="grid h-16 grid-cols-4">
         {items.map((it) => {
           const active = it.isActive(pathname);
+          const opening = !active && pending?.key === it.key && pending.origin === pathname;
           return (
             <Link
               key={it.key}
               href={it.href}
               aria-current={active ? 'page' : undefined}
+              aria-busy={opening}
+              onClick={(event) => onNavigate(event, it.key, active)}
               className="relative flex flex-col items-center justify-center gap-1 rounded-xl transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
             >
               <span className="relative">
-                {it.icon(active)}
+                {opening ? <span className="block h-5 w-5 animate-spin rounded-full border-2 border-sky-700 border-t-transparent motion-reduce:animate-none" aria-hidden="true" /> : it.icon(active)}
                 {it.badge ? (
                   <span className="absolute -right-1 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
                 ) : null}
               </span>
               <span className="text-[11px] font-semibold" style={{ color: active ? on : off }}>
-                {it.label}
+                {opening ? 'Opening…' : it.label}
               </span>
               {active ? <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-sky-600" /> : null}
             </Link>
