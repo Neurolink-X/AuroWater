@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
-import { UUID_PATTERN, RECOVERY_CATEGORIES } from '@/lib/account-recovery/shared';
+import { UUID_PATTERN } from '@/lib/account-recovery/shared';
 import { OWNERSHIP_METHODS, workflowState } from '@/lib/account-recovery/workflow';
 
 export const dynamic = 'force-dynamic';
