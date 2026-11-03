@@ -1601,6 +1601,7 @@ export default function AdminDashboardPage() {
   const lastFetchRef = useRef(0);
   const activeTabRef = useRef<TabKey>('overview');
   const financeInFlightRef = useRef(false);
+  const financeLastFetchRef = useRef(0);
 
   /* Data loading: progressive, resilient, cache-backed */
   const run = useCallback(async (mode: 'initial' | 'silent' | 'manual') => {
@@ -1624,12 +1625,15 @@ export default function AdminDashboardPage() {
 
       // Overview needs only a bounded sample; finance is loaded when actually
       // opened instead of being downloaded on every background refresh.
+      const shouldRefreshFinance = activeTabRef.current === 'finance' && !financeInFlightRef.current;
+      if (shouldRefreshFinance) financeInFlightRef.current = true;
       const [d, o, p, f] = await Promise.allSettled([
         dashboardPromise,
         getAdminOrders(undefined, ORDER_LIMIT, 0),
         getPricingRules(),
-        activeTabRef.current === 'finance' ? adminFinance('30d') : Promise.resolve(null),
+        shouldRefreshFinance ? adminFinance('30d') : Promise.resolve(null),
       ]);
+      if (shouldRefreshFinance) financeInFlightRef.current = false;
 
       if (!mountedRef.current) return;
 
@@ -1642,7 +1646,10 @@ export default function AdminDashboardPage() {
       if (p.status === 'fulfilled') patch.pricingCount = Array.isArray(p.value) ? p.value.length : 0;
       else failed.push('pricing rules');
 
-      if (f.status === 'fulfilled' && f.value) patch.finance = f.value as FinanceSnapshot;
+      if (f.status === 'fulfilled' && f.value) {
+        patch.finance = f.value as FinanceSnapshot;
+        financeLastFetchRef.current = Date.now();
+      }
       else if (f.status === 'rejected') failed.push('finance');
 
       commit(patch);
@@ -1748,12 +1755,13 @@ export default function AdminDashboardPage() {
   // after switching tabs, and coalesce quick repeated tab presses.
   useEffect(() => {
     if (tab !== 'finance' || !online || !mountedRef.current || financeInFlightRef.current) return;
-    if (snapRef.current.finance && lastFetchRef.current &&
-        Date.now() - lastFetchRef.current < 90_000) return;
+    if (snapRef.current.finance && financeLastFetchRef.current &&
+        Date.now() - financeLastFetchRef.current < 90_000) return;
     financeInFlightRef.current = true;
     let active = true;
     void adminFinance('30d').then(value => {
       if (!active || !mountedRef.current) return;
+      financeLastFetchRef.current = Date.now();
       snapRef.current = { ...snapRef.current, finance: value as FinanceSnapshot };
       setSnap(snapRef.current);
     }).catch(() => {
