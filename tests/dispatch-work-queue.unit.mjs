@@ -29,7 +29,7 @@ test('queue is feature-flagged OFF and persists only operational metadata', () =
 });
 
 test('outbox commit is atomic with a new booking and returns to safe legacy mode', () => {
-  assert.ok(sql.includes('AFTER INSERT OR UPDATE OF status, supplier_id, technician_id'));
+  assert.ok(sql.includes('AFTER INSERT OR UPDATE OF status, supplier_id, technician_id, service_type'));
   assert.ok(sql.includes("RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER"));
   assert.ok(sql.includes('INSERT INTO public.dispatch_work_items AS q'));
   assert.ok(sql.includes("WHERE q.state = 'ready'"));
