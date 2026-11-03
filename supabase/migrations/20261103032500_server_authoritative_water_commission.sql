@@ -66,7 +66,29 @@ BEGIN
     SELECT value INTO v_commission_text
       FROM public.settings WHERE key = v_commission_key LIMIT 1;
 
-    IF v_commission_text ~ '^[0-9]+(\\.[0-9]+)?$' THEN
+    IF v_commission_text ~ '^[0-9]+([.][0-9]+)? THEN
+      v_commission_pct := v_commission_text::numeric;
+      IF v_commission_pct BETWEEN 0 AND 50 THEN
+        NEW.commission_rate_pct := v_commission_pct;
+      END IF;
+    END IF;
+  END IF;
+
+  NEW.otp_verified := FALSE;
+  NEW.service_otp_verified := FALSE;
+  NEW.accepted_at := NULL;
+  NEW.completed_at := NULL;
+  NEW.started_at := NULL;
+  NEW.stock_reservation_status := 'none';
+  NEW.stock_reserved_quantity := 0;
+  NEW.stock_reserved_supplier_id := NULL;
+  NEW.stock_reserved_at := NULL;
+  NEW.stock_released_at := NULL;
+  NEW.stock_consumed_at := NULL;
+  RETURN NEW;
+END;
+$$;
+ THEN
       v_commission_pct := v_commission_text::numeric;
       IF v_commission_pct BETWEEN 0 AND 50 THEN
         NEW.commission_rate_pct := v_commission_pct;
