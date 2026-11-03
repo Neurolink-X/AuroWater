@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ApiError, adminDispatchDiagnose, adminDispatchRetry } from '@/lib/api-client';
 
 export default function AdminDispatchPage() {
