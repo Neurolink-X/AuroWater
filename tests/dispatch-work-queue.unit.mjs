@@ -138,6 +138,20 @@ test('dead-letter recovery requires an admin and cannot modify payments', () => 
   assert.ok(!admin.includes(".from('orders').update"));
 });
 
+test('admin queue toggle is manual, admin-only and release-gated', () => {
+  const ui = file('src/app/admin/dispatch-queue/page.tsx');
+  assert.ok(admin.includes('export async function PATCH'));
+  assert.ok(admin.includes('requireAdmin(auth.ctx)'));
+  assert.ok(admin.includes("AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED"));
+  assert.ok(admin.includes("body.confirmation !== 'ENABLE_DISPATCH_QUEUE'"));
+  assert.ok(admin.includes("eq('key', 'dispatch_work_queue_enabled')"));
+  assert.ok(admin.includes("QUEUE_TRANSITION_FAILED"));
+  assert.ok(!admin.includes('setInterval('));
+  assert.ok(ui.includes("adminRequest('PATCH'"));
+  assert.ok(ui.includes('Enable queue (release-gated)'));
+  assert.ok(ui.includes('Disable queue / use legacy retries'));
+});
+
 // A pure JavaScript admission/lease workload simulation is NOT a capacity test.
 // It verifies bounded memory accounting for 100 and 100,000 mock order IDs,
 // WITHOUT connecting to production and WITHOUT changing any real order.
