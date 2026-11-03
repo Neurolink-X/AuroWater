@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
 
   const db = createServiceClient();
-  const [flag, ready, leased, dead, oldest, agedPending] = await Promise.all([
+  const [flag, ready, leased, dead, oldest, agedPending, deadLetters] = await Promise.all([
     db.from('settings').select('value')
       .eq('key', 'dispatch_work_queue_enabled').maybeSingle(),
     db.from('dispatch_work_items').select('order_id', { head: true, count: 'exact' })
@@ -28,8 +28,12 @@ export async function GET(request: NextRequest) {
     db.from('orders').select('id', { head: true, count: 'exact' })
       .eq('status', 'PENDING')
       .lt('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()),
+    db.from('dispatch_work_items')
+      .select('order_id,last_result_code,attempts,updated_at')
+      .eq('state', 'dead')
+      .order('updated_at', { ascending: false }).limit(20),
   ]);
-  if ([flag, ready, leased, dead, oldest, agedPending].some(result => result.error)) {
+  if ([flag, ready, leased, dead, oldest, agedPending, deadLetters].some(result => result.error)) {
     return jsonErr('Dispatch queue health is temporarily unavailable.', 503);
   }
 
@@ -41,6 +45,7 @@ export async function GET(request: NextRequest) {
     oldest_wait_seconds: oldest.data?.created_at
       ? Math.max(0, Math.round((Date.now() - Date.parse(oldest.data.created_at)) / 1000)) : 0,
     pending_orders_over_2h: agedPending.count ?? 0,
+    dead_letters: deadLetters.data ?? [],
     global_concurrency_cap: 24,
     local_concurrency_cap: 3,
     checked_at: new Date().toISOString(),
