@@ -26,19 +26,13 @@ type WorkResult = {
  * All assignment safety remains in existing stock/job RPCs.
  */
 export async function runDispatchWorkQueue(
-  maxItems = 8,
+  maxItems = 32,
   budgetMs = 22_000,
 ): Promise<WorkResult> {
   const start = Date.now();
   const db = createServiceClient();
-
-  const { data, error } = await db.rpc('claim_dispatch_work', {
-    p_limit: Math.max(1, Math.min(8, maxItems)),
-    p_lease_seconds: 90,
-  });
-  if (error) throw new Error('Dispatch queue claim failed: ' + error.code);
-
-  const rows = (data ?? []) as QueueClaim[];
+  const cap = Math.max(1, Math.min(32, maxItems));
+  let claimed = 0;
   let assigned = 0;
   let delayed = 0;
   let failed = 0;
@@ -93,11 +87,20 @@ export async function runDispatchWorkQueue(
     }
   }
 
-  // Each function has its own small concurrency cap; the RPC also enforces a
-  // GLOBAL cap across all Vercel function instances to protect Supabase.
-  for (let i = 0; i < rows.length; i += 3) {
-    if (Date.now() - start > budgetMs - 1500) break;
-    const completed = await Promise.allSettled(rows.slice(i, i + 3).map(processOne));
+  // Claim ONLY a batch that we can immediately process. No unstarted jobs
+  // are left on a 90-second lease when the function reaches its time budget.
+  // This opportunistically drains up to 32 items per serverless invocation,
+  // and remains limited to three concurrent dispatch requests per instance.
+  while (claimed < cap && Date.now() - start < budgetMs - 9_000) {
+    const { data, error } = await db.rpc('claim_dispatch_work', {
+      p_limit: Math.min(3, cap - claimed),
+      p_lease_seconds: 90,
+    });
+    if (error) throw new Error('Dispatch queue claim failed: ' + error.code);
+    const jobs = (data ?? []) as QueueClaim[];
+    if (!jobs.length) break;
+    claimed += jobs.length;
+    const completed = await Promise.allSettled(jobs.map(processOne));
     for (const result of completed) {
       if (result.status === 'rejected') {
         failed += 1;
@@ -106,7 +109,7 @@ export async function runDispatchWorkQueue(
     }
   }
   return {
-    claimed: rows.length,
+    claimed,
     assigned,
     delayed,
     failed,
