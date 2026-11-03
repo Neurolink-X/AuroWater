@@ -52,6 +52,32 @@ The queue **never switches ON automatically when load increases**. An authorized
 - Set the server approval variable only in the approved environment after isolated DB concurrency, browser E2E, migration/cron validation and preview health checks pass. Remove approval after rollout if operators should no longer be able to re-enable without a new change review.
 - Queue ON/OFF controls do not scale Supabase, Vercel, database connections or worker concurrency dynamically. No production load-based auto-activation is implemented.
 
+## PR #247: production readiness and stale-order quarantine
+
+The initial queue schema is installed on the production Supabase project **with its flag OFF**. The hardening migration `20261103111000_dispatch_queue_activation_readiness_and_stale_review.sql` must be applied after review to add:
+
+- Readiness RPC (`dispatch_queue_release_readiness`) usable only by the service-role server and verified admin API. It reports only booleans/counts: queue/reconcile cron active, Vault token present, auto-assign setting and number of eligible pending orders not yet handed off.
+- Admin Queue page activation checklist; **ON button disabled** without server operator approval and the required database prerequisites.
+- Explicit generic Admin Settings rejection of `dispatch_work_queue_enabled` and the queue admission limit; these must not bypass the controlled rollout.
+- Queue backlog reconciliation and **manual review for missed appointments older than 24 hours**, preserving the original order. Old slots must be reconfirmed and rescheduled using the legitimate order-management flow before an admin requeues.
+- Claim/auto-retry must exclude stale slots, even if the maintenance scheduler has not quarantined them yet.
+- Secure failure on missing cron, Vault secret or disabled assignment, including direct SQL setting activation.
+
+### Last observed backlog (source check, 3 Nov 2026)
+The production database had 12 unassigned eligible PENDING orders, of which 11 had appointments more than 24 hours overdue. They must not be silently offered again when the queue turns ON. This is a historical snapshot, not a live counter. The readiness RPC shows current counts without returning customer information.
+
+### Staged enable procedure (no automatic activation)
+
+1. Deploy PR #247 with green CI, CodeQL and Vercel production READY; apply the reviewed SQL migration separately, still OFF.
+2. Query the new readiness RPC, verify row permissions and existing cron jobs, check the Admin page.
+3. Verify `vault.aurotap_cron_secret` matches the Vercel internal worker secret with a safe authenticated no-work probe while queue OFF; cron-job scheduling success alone does **not** prove the HTTP request returned 200.
+4. Validate test supplier/specialist assignments and duplicate race/stock, pending-order age, failed token and dead-letter recovery in an isolated database, including a correct fresh appointment.
+5. Only then set server-only Vercel production env `AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED=true`; it requires a deployment to become effective.
+6. Use Admin → Dispatch Queue to explicitly enable; activation backfills existing pending work (up to 100 in the same transaction), quarantine old overdue slots, and switches the legacy retry off.
+7. Monitor actual HTTP worker responses and claim/assignment count, 429, oldest PENDING age and successful booking on real devices. Roll back by Admin Queue OFF if anomalies occur.
+
+**Do not confuse** schema installed, GitHub green, Vercel READY and verified end-to-end activation. Do not change payment/ledger/orders to force traffic or run a production 100k load test.
+
 ## Rollback
 Set dispatch_work_queue_enabled=false using approved admin configuration. Legacy dispatch retries continue. Do not drop the table or destroy queued/customer records; collect diagnostics and inspect /admin/order-health.
 
