@@ -63,24 +63,16 @@ export async function GET(req: NextRequest) {
       if (strictCity && district) query = query.ilike('district', `%${district}%`);
     }
 
-    const { data: initialData, error } = await query;
-    let data = initialData;
+    const { data, error } = await query;
     if (error) {
       console.error('[geo/postal] directory lookup failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: 'Postal lookup is temporarily unavailable' }, { status: 503 });
     }
 
-    // Strict mode prevents a similarly named office in another district from
-    // filling an address. Non-strict autocomplete can fall back to all matches.
-    if (!pincode && !strictCity && (!data || data.length === 0) && DISTRICT_BY_CITY[city]) {
-      const fallback = await db
-        .from('pincode_directory')
-        .select('office_name, pincode, district, state')
-        .ilike('office_name', `%${office}%`)
-        .order('office_name', { ascending: true })
-        .limit(MAX_RESULTS);
-      if (!fallback.error) data = fallback.data;
-    }
+    // The first query is already city-unrestricted in non-strict mode.
+    // Repeating the exact same wildcard search on a zero-result response
+    // adds database load without finding new addresses.
+    // Strict city matching remains unchanged.
 
     const seen = new Set<string>();
     const results = (data ?? [])

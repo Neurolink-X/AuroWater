@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/utils/supabase/server';
-import { dispatchOrder, releaseTechnicianAssignment, dispatchTechnicianJob } from '@/lib/dispatch';
+import { dispatchOrder, releaseTechnicianAssignment, dispatchTechnicianJob, claimDispatchRetry } from '@/lib/dispatch';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -167,6 +167,7 @@ async function executeSweep(startedAt: number) {
     if (Date.now() - startedAt >= MAX_RUNTIME_MS) break;
 
     try {
+      if (!await claimDispatchRetry(db, String(order.id))) continue;
       const result = await dispatchTechnicianJob(String(order.id));
       if (result.technicianId) retried += 1;
     } catch (error) {
@@ -223,6 +224,7 @@ async function executeSweep(startedAt: number) {
     if (Date.now() - startedAt >= MAX_RUNTIME_MS) break;
 
     try {
+      if (!await claimDispatchRetry(db, String(order.id))) continue;
       const result = await dispatchOrder(String(order.id));
       supplierDispatchReasons[result.reason] = (supplierDispatchReasons[result.reason] ?? 0) + 1;
       if (result.supplierId) supplierRetried += 1;

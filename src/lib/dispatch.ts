@@ -252,9 +252,30 @@ async function orderGeo(db: any, order: any) {
   };
 }
 
+// Failed dispatch is operational retry metadata, not a supplier assignment attempt.
+// Preserve the order status and all existing atomic acceptance/stock safeguards.
 async function markAttempt(db: any, orderId: string) {
-  const { error } = await db.from('orders').update({ last_dispatch_at: new Date().toISOString() }).eq('id', orderId);
-  if (error) console.error('[dispatch] markAttempt failed', error.message);
+  const { error } = await db.rpc('record_dispatch_failure', {
+    p_order_id: orderId, p_reason: 'no_candidates',
+  });
+  if (error) {
+    console.error('[dispatch] retry-state record failed:', error.code);
+    // Compatibility path for a still-unmigrated deployment.
+    const fallback = await db.from('orders')
+      .update({ last_dispatch_at: new Date().toISOString() })
+      .eq('id', orderId).eq('status', 'PENDING');
+    if (fallback.error) console.error('[dispatch] markAttempt failed:', fallback.error.code);
+  }
+}
+
+/** A single scheduled worker owns a pending order for the duration of one retry. */
+export async function claimDispatchRetry(db: any, orderId: string): Promise<boolean> {
+  const { data, error } = await db.rpc('claim_dispatch_retry', { p_order_id: orderId });
+  if (error) {
+    console.error('[dispatch] retry lease unavailable:', error.code);
+    return false;
+  }
+  return data === true;
 }
 
 /* ───────────────────────── Supplier eligibility (single source of truth) ───────────────────────── */
@@ -1227,7 +1248,7 @@ async function retryPendingOrders(db: any, cfg: Cfg, limit: number, customerId?:
   for (const o of (pending ?? []) as { id: string; last_dispatch_at: string | null; dispatch_attempts: number | null }[]) {
     if (Number(o.dispatch_attempts ?? 0) >= cfg.maxAttempts) continue;
     const last = o.last_dispatch_at ? new Date(o.last_dispatch_at).getTime() : 0;
-    if (last < retryBefore) {
+    if (last < retryBefore && await claimDispatchRetry(db, String(o.id))) {
       await dispatchOrder(String(o.id));
       n += 1;
     }
@@ -1261,7 +1282,7 @@ async function retryPendingTechnicianOrders(db: any, cfg: Cfg, limit: number, cu
   for (const o of (pending ?? []) as { id: string; last_dispatch_at: string | null; technician_dispatch_attempts: number | null }[]) {
     if (Number(o.technician_dispatch_attempts ?? 0) >= maxAttempts) continue;
     const last = o.last_dispatch_at ? new Date(o.last_dispatch_at).getTime() : 0;
-    if (last < retryBefore) {
+    if (last < retryBefore && await claimDispatchRetry(db, String(o.id))) {
       await dispatchTechnicianJob(String(o.id));
       n += 1;
     }
