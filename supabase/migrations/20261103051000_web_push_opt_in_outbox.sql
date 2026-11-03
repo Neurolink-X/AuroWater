@@ -198,3 +198,14 @@ SELECT cron.schedule(
 -- Duplicate unique indexes add write amplification without strengthening
 -- deduplication. Retain notifications_dedup_key_unique for compatibility.
 DROP INDEX IF EXISTS public.notifications_dedup_key_idx;
+
+-- Read-only index inventory on 2026-11-03 confirmed the following are exact
+-- duplicate btree definitions with no attached UNIQUE/FK constraints.
+-- Retain the equivalent indexes already selected by the query planner.
+-- This reduces write amplification on orders and customer profile updates.
+DROP INDEX IF EXISTS public.idx_orders_created;
+DROP INDEX IF EXISTS public.idx_orders_customer;
+DROP INDEX IF EXISTS public.idx_orders_status;
+DROP INDEX IF EXISTS public.idx_orders_supplier;
+DROP INDEX IF EXISTS public.profiles_referral_code_unique;
+
