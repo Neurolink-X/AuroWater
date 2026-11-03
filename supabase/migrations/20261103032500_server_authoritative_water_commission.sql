@@ -1,12 +1,10 @@
--- New water-can orders must snapshot an admin-controlled commission rate.
--- Never trust a customer's proposed commission_rate_pct.
--- Preserve guard_orders_client_insert's existing payment/status protection.
--- Supplier payout ledger rules are deliberately unchanged.
+-- Snapshot water supplier commission from trusted admin settings, not customer inputs.
+-- Preserve the existing insert guard, finance protection, and payout rules.
 CREATE OR REPLACE FUNCTION public.guard_orders_client_insert()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path TO 'public'
-AS $$
+AS $function$
 DECLARE
   v_active_pricing jsonb;
   v_city_key text;
@@ -40,13 +38,15 @@ BEGIN
   NEW.payment_collected_amount := NULL;
   NEW.payment_collected_at := NULL;
 
-  -- Override whatever a client supplied, even if it looks valid.
+  -- A customer cannot supply financial commission fields, even on signed-in
+  -- requests. Calculate only the server-authorized commission-rate snapshot.
   NEW.commission_rate_pct := NULL;
   IF NEW.service_type = 'water_can' THEN
     SELECT config INTO v_active_pricing
       FROM public.pricing_versions
       WHERE effective_from <= now()
-      ORDER BY effective_from DESC, version DESC LIMIT 1;
+      ORDER BY effective_from DESC, version DESC
+      LIMIT 1;
 
     v_city_key := trim(both '-' from regexp_replace(
       lower(coalesce(NEW.address_snapshot->>'city', '')),
@@ -60,13 +60,16 @@ BEGIN
       v_bulk_threshold := greatest(2, least(200, v_threshold_text::integer));
     END IF;
 
-    v_commission_key := CASE WHEN coalesce(NEW.can_count, 0) >= v_bulk_threshold
-      THEN 'bulk_commission' ELSE 'supplier_commission' END;
-
+    v_commission_key := CASE
+      WHEN coalesce(NEW.can_count, 0) >= v_bulk_threshold THEN 'bulk_commission'
+      ELSE 'supplier_commission'
+    END;
     SELECT value INTO v_commission_text
-      FROM public.settings WHERE key = v_commission_key LIMIT 1;
+      FROM public.settings
+      WHERE key = v_commission_key
+      LIMIT 1;
 
-    IF v_commission_text ~ '^[0-9]+([.][0-9]+)? THEN
+    IF v_commission_text ~ '^[0-9]+([.][0-9]+)?$' THEN
       v_commission_pct := v_commission_text::numeric;
       IF v_commission_pct BETWEEN 0 AND 50 THEN
         NEW.commission_rate_pct := v_commission_pct;
@@ -87,26 +90,4 @@ BEGIN
   NEW.stock_consumed_at := NULL;
   RETURN NEW;
 END;
-$$;
- THEN
-      v_commission_pct := v_commission_text::numeric;
-      IF v_commission_pct BETWEEN 0 AND 50 THEN
-        NEW.commission_rate_pct := v_commission_pct;
-      END IF;
-    END IF;
-  END IF;
-
-  NEW.otp_verified := FALSE;
-  NEW.service_otp_verified := FALSE;
-  NEW.accepted_at := NULL;
-  NEW.completed_at := NULL;
-  NEW.started_at := NULL;
-  NEW.stock_reservation_status := 'none';
-  NEW.stock_reserved_quantity := 0;
-  NEW.stock_reserved_supplier_id := NULL;
-  NEW.stock_reserved_at := NULL;
-  NEW.stock_released_at := NULL;
-  NEW.stock_consumed_at := NULL;
-  RETURN NEW;
-END;
-$$;
+$function$;
