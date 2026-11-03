@@ -2271,6 +2271,9 @@ export default function BookingWizard() {
                           {serviceability.serviceable ? '✓ Service available' : 'Not currently available'}
                         </p>
                         <p className="mt-1 text-sm text-slate-600">{serviceability.message}</p>
+                        {serviceability.serviceable && addresses.find((address) => address.id === draft.addressId) && (
+                          <p className="mt-1 text-xs font-semibold text-emerald-900">Delivery to: {formatAddressCard(addresses.find((address) => address.id === draft.addressId)!)}</p>
+                        )}
                         {serviceability.status === 'COMING_SOON' && (
                           <div className="mt-3">
                             <WaitlistPanel cityName={serviceability.zone?.name ?? 'your area'} cityId={null} role="customer" source="book-zone" />
@@ -4849,9 +4852,6 @@ export default function BookingWizard() {
 //                           {serviceability.serviceable ? '✓ Service available' : 'Not currently available'}
 //                         </p>
 //                         <p className="mt-1 text-sm text-slate-600">{serviceability.message}</p>
-                         {serviceability.serviceable && addresses.find((address) => address.id === draft.addressId) && (
-                           <p className="mt-1 text-xs font-semibold text-emerald-900">Delivery to: {formatAddressCard(addresses.find((address) => address.id === draft.addressId)!)}</p>
-                         )
 //                         {serviceability.status === 'COMING_SOON' && (
 //                           <div className="mt-3">
 //                             <WaitlistPanel cityName={serviceability.zone?.name ?? 'your area'} cityId={null} role="customer" source="book-zone" />
