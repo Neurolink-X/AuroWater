@@ -70,18 +70,25 @@ export async function runDispatchWorkQueue(
     } finally {
       // The token prevents a worker whose lease expired from overwriting a
       // newer worker's result. Unfinished jobs are retried after lease expiry.
-      const { data: finished, error: finishError } = await db.rpc(
-        'finish_dispatch_work', {
-          p_order_id: job.order_id,
-          p_claim_token: job.claim_token,
-          p_result_code: outcome,
-        },
-      );
-      if (finishError || finished !== true) {
+      try {
+        const { data: finished, error: finishError } = await db.rpc(
+          'finish_dispatch_work', {
+            p_order_id: job.order_id,
+            p_claim_token: job.claim_token,
+            p_result_code: outcome,
+          },
+        );
+        if (finishError || finished !== true) {
+          completionErrors += 1;
+          console.error('[dispatch-queue] ack rejected', {
+            code: finishError?.code ?? 'LEASE_EXPIRED',
+          });
+        }
+      } catch {
         completionErrors += 1;
-        console.error('[dispatch-queue] ack rejected', {
-          code: finishError?.code ?? 'LEASE_EXPIRED',
-        });
+        // Safe failure: the visibility lease expires and another worker
+        // rechecks canonical order state. No speculative state mutation.
+        console.error('[dispatch-queue] ack transport unavailable');
       }
     }
   }
@@ -90,7 +97,13 @@ export async function runDispatchWorkQueue(
   // GLOBAL cap across all Vercel function instances to protect Supabase.
   for (let i = 0; i < rows.length; i += 3) {
     if (Date.now() - start > budgetMs - 1500) break;
-    await Promise.allSettled(rows.slice(i, i + 3).map(processOne));
+    const completed = await Promise.allSettled(rows.slice(i, i + 3).map(processOne));
+    for (const result of completed) {
+      if (result.status === 'rejected') {
+        failed += 1;
+        console.error('[dispatch-queue] unhandled job promise rejected');
+      }
+    }
   }
   return {
     claimed: rows.length,
