@@ -64,7 +64,30 @@ export async function GET(req: NextRequest) {
     console.error('[admin/account-recovery] list failed', error);
     return jsonErr('Could not load account recovery requests.', 502);
   }
-  return noStore(jsonOk(data ?? []));
+  // Admin-only enrichment. A matching address alone NEVER verifies ownership.
+  const requests = data ?? [];
+  const candidateEmails = [...new Set(requests.map((r) => String(r.contact_email ?? '').trim().toLowerCase()).filter(Boolean))];
+  const linkedIds = [...new Set(requests.map((r) => r.user_id).filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id)))];
+  const [emailProfiles, linkedProfiles] = await Promise.all([
+    candidateEmails.length ? db.from('profiles').select('id,email').in('email', candidateEmails) : Promise.resolve({ data: [], error: null }),
+    linkedIds.length ? db.from('profiles').select('id,email').in('id', linkedIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (emailProfiles.error || linkedProfiles.error) {
+    console.error('[admin/account-recovery] secure profile lookup unavailable');
+    return jsonErr('Could not verify registered account details.', 503);
+  }
+  const byEmail = new Map((emailProfiles.data ?? []).map((p) => [String(p.email ?? '').toLowerCase(), p]));
+  const byId = new Map((linkedProfiles.data ?? []).map((p) => [p.id, p]));
+  const enriched = requests.map((r) => {
+    const linked = r.user_id ? byId.get(r.user_id) : null;
+    const matched = byEmail.get(String(r.contact_email ?? '').toLowerCase());
+    return {
+      ...r,
+      registered_email: linked?.email ?? matched?.email ?? null,
+      account_match: linked ? 'linked' : matched ? 'email_match_unverified' : 'no_match',
+    };
+  });
+  return noStore(jsonOk(enriched));
 }
 
 /** Maps SQLSTATE codes raised by update_account_recovery_review() to precise HTTP responses. */
@@ -89,7 +112,11 @@ export async function PATCH(req: NextRequest) {
 
   const parsed = reviewSchema.safeParse(raw);
   if (!parsed.success) return jsonErr(firstIssue(parsed.error, 'Request ID and a valid status are required.'), 422);
-  const { request_id, status, admin_note, verify_ownership } = parsed.data;
+  const { request_id, status, admin_note, verify_ownership, resolution_confirmed } = parsed.data;
+  // The check is repeated on the server, never trust a client-side checkbox alone.
+  if (status === 'resolved' && (!resolution_confirmed || admin_note.trim().length < 10)) {
+    return jsonErr('Confirm that the problem was fixed, the customer was informed, and document the outcome.', 422);
+  }
 
   const db = createServiceClient();
   const { data, error } = await db.rpc('update_account_recovery_review', {
