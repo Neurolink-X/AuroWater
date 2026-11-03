@@ -9,7 +9,7 @@ PR #243 adds a PostgreSQL-backed work queue for pending supplier and specialist 
 - Conditional Supabase Cron can invoke up to four workers every two minutes based on pending work.
 - Completed or assigned orders leave the queue; unresolved internal errors remain for admin review.
 - Admin operations: /admin/dispatch-queue, with explicit dead-letter requeue.
-- A global checkout admission limiter is used only when queue mode is enabled, with 429 + Retry-After and a safe fail-closed 503. Same-UUID idempotent retries are checked first.
+- A global checkout admission limiter is used only when queue mode is enabled, with 429 + Retry-After and a safe fail-closed 503. Same-UUID idempotent retries are checked first. Initial default is 48 new bookings/minute to leave headroom under the theoretical 64-claim/minute recovery ceiling; raise only after measured production-safe staging throughput supports it.
 - No paid queue vendor or new persistent full-order payload copies.
 
 ## Critical capacity limitation
