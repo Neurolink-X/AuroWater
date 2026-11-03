@@ -6,7 +6,7 @@ test('professional booking fails closed before order and financial creation when
  const orders=read('../src/app/api/customer/orders/route.ts');
  const lookup=read('../src/lib/booking/local-specialist-readiness.ts');
  const position=orders.indexOf('await checkLocalSpecialistBooking(');
- const payment=orders.indexOf('const settingsResult = await settingsMap(');
+ const payment=orders.indexOf(".from('pricing_versions')");
  assert.ok(position>0 && payment>position, 'Readiness must run before price and order writes');
  assert.match(orders,/NO_LOCAL_SPECIALIST/);
  assert.match(lookup,/\.eq\('service_key',service\)\.eq\('status','approved'\)/);
