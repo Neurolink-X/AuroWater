@@ -10,7 +10,7 @@ type Subscription = {
   auth_secret: string; enabled: boolean; revoked_at: string | null;
 };
 type Alert = {
-  id: string; user_id: string; type: string; data: Record<string, unknown> | null;
+  id: string; user_id: string; type: string; dedup_key: string | null; data: Record<string, unknown> | null;
 };
 type Preference = {
   user_id: string; push_enabled: boolean; marketing_enabled: boolean;
@@ -51,7 +51,7 @@ export async function processDueWebPush(requested = 8) {
       .select('id,user_id,endpoint,p256dh,auth_secret,enabled,revoked_at')
       .in('id', [...new Set(jobs.map(j => j.subscription_id))]),
     db.from('notifications')
-      .select('id,user_id,type,data')
+      .select('id,user_id,type,dedup_key,data')
       .in('id', [...new Set(jobs.map(j => j.notification_id))]),
   ]);
   if (subscriptionsResult.error || notificationsResult.error)
@@ -95,9 +95,18 @@ export async function processDueWebPush(requested = 8) {
     let outcome: 'revoked' | 'delivered' | 'retry' | 'failed' = 'revoked';
     let code = 'DISABLED_OR_MISSING';
     if (authorized && sub && notification && role) {
+      const hasOffer = /_(?:nearby_offer|assigned|technician_assigned)_/.test(notification.dedup_key ?? '');
+      const heading = hasOffer && role === 'supplier'
+        ? 'New delivery order available'
+        : hasOffer && (role === 'technician' || role === 'plumber')
+          ? 'New job offer available'
+          : role === 'admin' ? 'AuroTap operations alert'
+          : notification.type === 'payment' ? 'AuroTap payment update'
+          : notification.type === 'booking' ? 'AuroTap booking update' : 'AuroTap update';
       const result = await sendWebPush(sub, {
-        title: 'AuroTap update',
-        body: 'You have a new update. Open AuroTap to see the details.',
+        title: heading,
+        body: hasOffer ? 'Tap to review an eligible offer before it expires.'
+          : 'You have a new update. Open AuroTap to see the details.',
         url: destination(role, notification),
         tag: 'aurotap-' + notification.id,
       });
