@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
   if (!ticket || ticket.user_id !== auth.ctx.user.id) return jsonErr('Recovery request not found.', 404);
   if (['resolved', 'rejected'].includes(String(ticket.status))) return jsonErr('This request is already closed.', 409);
   if (!ticket.ownership_verified_at) return jsonErr('Independent ownership verification is required first.', 409);
+  const { data: identityAudit, error: identityError } = await db.from('account_recovery_audit')
+    .select('id').eq('request_id', id).eq('action', 'ownership_evidence_verified').limit(1);
+  if (identityError || !identityAudit?.length) return jsonErr('Independent verification evidence must be recorded before confirming.', 409);
 
   const { data: existing, error: historyError } = await db.from('account_recovery_audit')
     .select('id').eq('request_id', id).eq('action', 'customer_recovery_confirmed').limit(1);
