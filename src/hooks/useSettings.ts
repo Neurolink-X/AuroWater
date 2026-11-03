@@ -75,6 +75,7 @@ export interface PlatformSettings extends PricingConfig, ContactConfig {
   /** Active immutable price version; null means legacy launch-safe fallback. */
   pricing_version?: number | null;
   pricing_effective_from?: string | null;
+  maintenance_mode: boolean;
 }
 
 /** Breakdown returned by calcOrderTotal() */
@@ -168,6 +169,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
   whatsapp_enabled: true,
   pricing_version: null,
   pricing_effective_from: null,
+  maintenance_mode: false,
 };
 
 /* ═══════════════════════════════════════════════════════════════
@@ -221,6 +223,7 @@ export function mergeSettings(
       bulk_commission?:            number;
       technician_commission_rate?: number;
       supplier_commission_rate?:   number;
+       supplier_commission?: number;
     }
   > | null | undefined
 ): PlatformSettings {
@@ -242,7 +245,7 @@ export function mergeSettings(
   const commissions: CommissionRates = {
     bulk:       toRate(raw.commissions?.bulk       ?? raw.bulk_commission),
     technician: toRate(raw.commissions?.technician ?? raw.technician_commission_rate),
-    supplier:   toRate(raw.commissions?.supplier   ?? raw.supplier_commission_rate),
+    supplier:   toRate(raw.commissions?.supplier   ?? raw.supplier_commission_rate ?? raw.supplier_commission),
   };
 
   // If any rate parsed to 0 (e.g. missing field), fall back to default
@@ -300,6 +303,7 @@ export function mergeSettings(
     whatsapp_enabled: raw.whatsapp_enabled ?? DEFAULT_SETTINGS.whatsapp_enabled,
     pricing_version: hasVersionedPricing ? Number(raw.pricing_version) : null,
     pricing_effective_from: hasVersionedPricing && typeof raw.pricing_effective_from === 'string' ? raw.pricing_effective_from : null,
+    maintenance_mode: raw.maintenance_mode === true,
   };
 }
 

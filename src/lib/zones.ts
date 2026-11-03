@@ -61,7 +61,7 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
 }
 
 const STATUS_MESSAGE: Record<ZoneStatus, (zone: string) => string> = {
-  AVAILABLE: (z) => `AuroWater is available in ${z}.`,
+  AVAILABLE: () => 'AuroTap is available at your selected delivery address.',
   LIMITED: () => 'Limited availability in your area. Delivery may take a little longer.',
   TEMPORARILY_UNAVAILABLE: (z) => `Service is temporarily unavailable in ${z}. Please try again later.`,
   COMING_SOON: (z) => `AuroWater is coming soon to ${z}. Join the waitlist and we will tell you first.`,
@@ -131,11 +131,12 @@ export async function resolveServiceability(
 
   if (!zones.length) return legacy();
 
-  // 1) pincode, 2) nearest zone by coordinates, 3) catch-all
-  let zone: ZoneRow | null =
-    zones.find((z) => !z.is_catch_all && (z.pincodes ?? []).includes(pincode)) ?? null;
-
-  if (!zone && hasCoords) {
+  // A postal-office label does not necessarily identify the delivery sector.
+  // Prefer a verified saved map point for radius routing, but never bypass an
+  // explicitly paused postal zone with an overlapping available radius.
+  const pinZone = zones.find((z) => !z.is_catch_all && (z.pincodes ?? []).includes(pincode)) ?? null;
+  const nearestRadiusZone = (): ZoneRow | null => {
+    if (!hasCoords) return null;
     let best: { z: ZoneRow; d: number } | null = null;
     for (const z of zones) {
       if (z.is_catch_all) continue;
@@ -146,9 +147,14 @@ export async function resolveServiceability(
       const d = haversineKm(lat, lng, zl, zg);
       if (d <= r && (!best || d < best.d)) best = { z, d };
     }
-    zone = best?.z ?? null;
-  }
+    return best?.z ?? null;
+  };
 
+  let zone: ZoneRow | null = pinZone;
+  if (addr.prefer_precise_coordinates === true && (!pinZone || isBookableZoneStatus(pinZone.status))) {
+    zone = nearestRadiusZone() ?? pinZone;
+  }
+  if (!zone) zone = nearestRadiusZone();
   if (!zone) zone = zones.find((z) => z.is_catch_all) ?? null;
 
   if (!zone) {
