@@ -131,12 +131,12 @@ const FIELD_META: Record<ManagedKey, FieldMeta> = {
   },
   convenience_fee: {
     label: 'Order handling fee',
-    description: 'Flat fee for eligible non-water-can bookings. Water-can orders currently have no separate handling fee.',
+    description: 'Legacy setting. Customer checkout instead uses convenience_fee and delivery_fee from the active published Pricing version, for all services. Edit /admin/pricing to change customer charges.',
     kind: 'currency', section: 'fees', prefix: '₹',
   },
   platform_fee: {
     label: 'Platform fee',
-    description: 'Platform fee added to eligible orders.',
+    description: 'Legacy accounting setting; NOT added to current customer checkout. The live order fee is the published Pricing version convenience plus delivery fees. Publish changes under /admin/pricing.',
     kind: 'currency', section: 'fees', prefix: '₹',
   },
   plumber_booking_fee: {
@@ -151,12 +151,12 @@ const FIELD_META: Record<ManagedKey, FieldMeta> = {
   },
   supplier_commission: {
     label: 'Supplier commission',
-    description: 'Standard commission percentage taken from supplier orders.',
+    description: 'Commission rate used for a snapshot on new water-can orders, separate from customer fees. Existing financial settlement and supplier payouts are not changed by editing this setting.',
     kind: 'percent', section: 'commissions', suffix: '%',
   },
   bulk_commission: {
     label: 'Bulk commission',
-    description: 'Commission percentage used for bulk orders.',
+    description: 'Bulk water-can commission-rate snapshot for new orders meeting the published bulk threshold. Does not retroactively recalculate supplier payouts.',
     kind: 'percent', section: 'commissions', suffix: '%',
   },
   service_radius_km: {
