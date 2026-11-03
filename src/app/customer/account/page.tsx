@@ -402,6 +402,13 @@ export default function CustomerAccountPage() {
       if (fullName.trim()) body.full_name = fullName.trim();
       if (city.trim()) body.city = city.trim();
       if (digits(phoneInput)) body.phone = digits(phoneInput);
+      // A deliberate opt-out also disables registered browser push devices.
+      // This is a separate, server-side permission from SMS/email preferences.
+      if (!notif && origNotif) {
+        await api<{ enabled: boolean }>('/api/notifications/push', {
+          method: 'POST', body: JSON.stringify({ action: 'disable' }),
+        }, token, 0);
+      }
       const saved = await api<Profile>('/api/customer/profile', { method: 'PUT', body: JSON.stringify(body) }, token, 1);
       const next: Profile = saved?.id ? saved : ({ ...prev, ...body, phone: body.phone ?? prev?.phone ?? null } as unknown as Profile);
       dirtyRef.current = false;
