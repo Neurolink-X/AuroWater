@@ -128,6 +128,8 @@ DECLARE in_flight integer;
 BEGIN
   IF (SELECT s.value FROM public.settings s
       WHERE s.key = 'dispatch_work_queue_enabled') IS DISTINCT FROM 'true'
+     OR (SELECT s.value FROM public.settings s
+         WHERE s.key = 'auto_assign_orders') = 'false'
   THEN RETURN; END IF;
 
   PERFORM pg_advisory_xact_lock(843291739::bigint);
@@ -140,10 +142,12 @@ BEGIN
   WITH picked AS (
     SELECT q.order_id FROM public.dispatch_work_items q
     JOIN public.orders o ON o.id = q.order_id
+    LEFT JOIN public.dispatch_retry_state r ON r.order_id = q.order_id
     WHERE ((q.state = 'ready' AND q.due_at <= clock_timestamp())
         OR (q.state = 'leased' AND q.lease_until <= clock_timestamp()))
       AND o.status = 'PENDING'
       AND o.supplier_id IS NULL AND o.technician_id IS NULL
+      AND (r.next_retry_at IS NULL OR r.next_retry_at <= clock_timestamp())
     ORDER BY q.due_at, q.priority DESC, q.created_at, q.order_id
     FOR UPDATE OF q SKIP LOCKED
     LIMIT LEAST(GREATEST(coalesce(p_limit, 8), 1), 8, 24 - in_flight)
@@ -198,10 +202,12 @@ BEGIN
 
   -- A temporary missing supplier is NEVER treated as a permanently failed
   -- booking. Persistent internal errors go to an admin-visible dead-letter state.
-  IF p_result_code = 'error' AND current_attempts >= 8 THEN
+  IF p_result_code = 'max_attempts'
+     OR (p_result_code = 'error' AND current_attempts >= 8) THEN
     UPDATE public.dispatch_work_items q
     SET state = 'dead', lease_token = NULL, lease_until = NULL,
-        last_result_code = 'internal_error_exhausted',
+        last_result_code = CASE WHEN p_result_code = 'max_attempts'
+          THEN 'assignment_attempts_exhausted' ELSE 'internal_error_exhausted' END,
         updated_at = clock_timestamp()
     WHERE q.order_id = p_order_id AND q.lease_token = p_claim_token;
     RETURN true;
