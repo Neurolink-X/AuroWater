@@ -73,9 +73,24 @@ export async function POST(request: NextRequest) {
   if (!auth.ok) return auth.response;
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden', 403);
 
-  let body: { order_id?: string };
-  try { body = (await request.json()) as { order_id?: string }; }
+  let body: { order_id?: string; action?: string };
+  try { body = (await request.json()) as { order_id?: string; action?: string }; }
   catch { return jsonErr('Invalid JSON request', 400); }
+
+  // Prepares only minimal outbox metadata while the queue is OFF.
+  // Never creates, edits, assigns or cancels a customer order.
+  if (body.action === 'prepare_backlog') {
+    const db = createServiceClient();
+    const { data: current, error: flagError } = await db.from('settings')
+      .select('value').eq('key', 'dispatch_work_queue_enabled').maybeSingle();
+    if (flagError || !current) return jsonErr('Queue settings unavailable', 503);
+    if (current.value !== 'false') return jsonErr('Backlog preparation is only available with the queue OFF', 409);
+    const { data, error } = await db.rpc('enqueue_existing_pending_dispatch', { p_limit: 100 });
+    if (error || typeof data !== 'number') {
+      return jsonErr('Unable to prepare a safe batch. Review migration and permissions.', 503);
+    }
+    return jsonOk({ prepared: data });
+  }
   const orderId = body.order_id?.trim() ?? '';
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(orderId)) {
     return jsonErr('Invalid order identifier', 400);
