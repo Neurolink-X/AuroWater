@@ -26,15 +26,15 @@ export default function BookingIntentLink({
 }: BookingIntentLinkProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [opening, setOpening] = useState(false);
+  // Derive pending from the originating path. A successful route change clears
+  // the indicator immediately without setState inside an effect.
+  const [openingFrom, setOpeningFrom] = useState<string | null>(null);
+  const opening = openingFrom === pathname;
   const resetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    setOpening(false);
-    return () => {
-      if (resetRef.current) clearTimeout(resetRef.current);
-    };
-  }, [pathname]);
+  useEffect(() => () => {
+    if (resetRef.current) clearTimeout(resetRef.current);
+  }, []);
 
   const warm = () => {
     if (!href.startsWith('/book') || warmedLinks.has(href) ||
@@ -50,11 +50,11 @@ export default function BookingIntentLink({
     if (event.defaultPrevented || event.button !== 0 || event.metaKey ||
         event.ctrlKey || event.altKey || event.shiftKey ||
         event.currentTarget.target === '_blank') return;
-    setOpening(true);
+    setOpeningFrom(pathname);
     if (resetRef.current) clearTimeout(resetRef.current);
     // In case a navigation is blocked by a browser extension or network error,
     // do not leave a permanently spinning CTA. Never auto-retry/order-submit.
-    resetRef.current = setTimeout(() => setOpening(false), 8000);
+    resetRef.current = setTimeout(() => setOpeningFrom(null), 8000);
   };
 
   return (
