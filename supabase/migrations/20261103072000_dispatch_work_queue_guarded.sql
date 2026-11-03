@@ -92,9 +92,9 @@ CREATE OR REPLACE FUNCTION public.enqueue_existing_pending_dispatch(p_limit inte
 RETURNS integer LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $function$
 DECLARE added integer;
 BEGIN
-  IF (SELECT s.value FROM public.settings s
-      WHERE s.key = 'dispatch_work_queue_enabled') IS DISTINCT FROM 'true'
-  THEN RETURN 0; END IF;
+  -- A privileged rollout may prefill the queue while it remains OFF.
+  -- Activation is refused until eligible pending work has been backfilled.
+  -- Once active, scheduled reconciliation closes any cross-transaction races.
   WITH candidates AS (
     SELECT o.id, o.service_type, o.is_emergency
     FROM public.orders o
@@ -122,6 +122,54 @@ $function$;
 REVOKE ALL ON FUNCTION public.enqueue_existing_pending_dispatch(integer)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.enqueue_existing_pending_dispatch(integer) TO service_role;
+
+-- Fail closed on rollout activation if pre-existing pending orders have not
+-- been handed off. Existing orders must not silently lose their legacy retry
+-- when dispatch_work_queue_enabled becomes true.
+CREATE OR REPLACE FUNCTION private.guard_dispatch_work_queue_activation()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog AS $function$
+BEGIN
+  IF NEW.key = 'dispatch_work_queue_enabled' AND NEW.value = 'true'
+     AND (TG_OP = 'INSERT' OR OLD.value IS DISTINCT FROM 'true') THEN
+    IF EXISTS (
+      SELECT 1 FROM public.orders o
+      WHERE o.status = 'PENDING'
+        AND o.supplier_id IS NULL AND o.technician_id IS NULL
+        AND o.service_type IN
+          ('water_can','ro_service','plumbing','borewell','motor_pump','tank_cleaning')
+        AND NOT EXISTS (
+          SELECT 1 FROM public.dispatch_work_items q WHERE q.order_id = o.id
+        )
+      LIMIT 1
+    ) THEN
+      RAISE EXCEPTION 'Backfill pending dispatch work before queue activation'
+        USING ERRCODE = '23514';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+REVOKE ALL ON FUNCTION private.guard_dispatch_work_queue_activation()
+  FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS guard_dispatch_work_queue_activation ON public.settings;
+CREATE TRIGGER guard_dispatch_work_queue_activation
+  BEFORE INSERT OR UPDATE OF value ON public.settings
+  FOR EACH ROW EXECUTE FUNCTION private.guard_dispatch_work_queue_activation();
+
+-- Cheap ongoing reconciliation guards against orders committed concurrently
+-- with the settings switch or scheduler downtime. No writes when disabled.
+SELECT cron.schedule(
+  'aurotap-dispatch-work-reconcile',
+  '* * * * *',
+  $cron$
+  SELECT public.enqueue_existing_pending_dispatch(100)
+  WHERE EXISTS (
+    SELECT 1 FROM public.settings
+    WHERE key='dispatch_work_queue_enabled' AND value='true'
+  );
+  $cron$
+);
 
 -- Atomic lease with a GLOBAL concurrency budget, enforced by an advisory
 -- transaction lock only during the short claiming transaction, not while doing
