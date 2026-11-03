@@ -752,6 +752,20 @@ export async function PUT(
     }
   }
 
+  // Queue control is safety-critical: a generic settings save must not
+  // bypass the dedicated release-approved, database-guarded admin endpoint.
+  const protectedQueueKeys = new Set([
+    'dispatch_work_queue_enabled', 'dispatch_booking_admit_per_minute',
+  ]);
+  const blockedQueueKeys = entries.map(([key]) => key).filter((key) => protectedQueueKeys.has(key));
+  if (blockedQueueKeys.length) {
+    return jsonErr(
+      'Dispatch queue controls require the dedicated Admin → Dispatch Queue release workflow: ' + blockedQueueKeys.join(', '),
+      409,
+      'DISPATCH_QUEUE_GUARDED_SETTING',
+    );
+  }
+
   // Monetary settings are versioned through /api/admin/pricing. A successful
   // legacy write would otherwise be shadowed by the published checkout price.
   const versionedPriceKeys = new Set([
