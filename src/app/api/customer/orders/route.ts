@@ -224,10 +224,17 @@ export async function POST(req: NextRequest) {
     return data;
   };
 
-  // Check before rewards or loyalty points are reserved.
+  // An idempotent retry may return its original order, even during maintenance.
   if (checkoutKey) {
     const existing = await findExistingCheckout();
     if (existing) return jsonOk(withCompat(existing), 200);
+  }
+
+  const settingsResult = await settingsMap(auth.ctx.supabase);
+  if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
+  const flat = settingsResult.map;
+  if (String(flat.maintenance_mode ?? 'false').trim().toLowerCase() === 'true') {
+    return jsonErr('New bookings are temporarily paused for maintenance. Previously placed orders continue to be processed. Please try again later.', 503, 'BOOKING_MAINTENANCE');
   }
 
   // service_types has: id, key, label, description, base_price, is_active
@@ -271,7 +278,7 @@ export async function POST(req: NextRequest) {
 
   // Resolve serviceability before creating the order.
   const serviceability = await resolveServiceability(
-    geo.ok ? { ...a, lat: geo.lat, lng: geo.lng } : a,
+    geo.ok ? { ...a, lat: geo.lat, lng: geo.lng, prefer_precise_coordinates: isValidCoord(a.lat, a.lng) } : a,
     service_type_key
   );
 
@@ -307,10 +314,6 @@ export async function POST(req: NextRequest) {
   //     ? getServiceZone(addrLat, addrLng) !== null
   //     : isCityServed(String(a.city ?? ''));
   // if (!inZone) return jsonErr(OUT_OF_ZONE_MESSAGE, 400);
-
-  const settingsResult = await settingsMap(auth.ctx.supabase);
-  if (!settingsResult.ok) return jsonErr(settingsResult.message, settingsResult.status);
-  const flat = settingsResult.map;
 
   // Require the authoritative effective pricing version for every new order.
   const { data: activePricingRow, error: activePricingError } = await auth.ctx.supabase
@@ -637,6 +640,11 @@ export async function POST(req: NextRequest) {
 
   // Persist the server-calculated amount, never the client-provided total.
   const total = computeExpectedTotal(netBaseAmount, convenience, emergency_charge, gstRate).total;
+  // Record partner commission selected by admin without changing payout settlement.
+  const commissionKey = isWater && qty >= Number(activePricingConfig.bulk_threshold) ? 'bulk_commission' : 'supplier_commission';
+  const rawCommission = flat[commissionKey];
+  const parsedCommission = Number(rawCommission);
+  const commissionRatePct = isWater && typeof rawCommission === 'string' && rawCommission.trim() !== '' && Number.isFinite(parsedCommission) && parsedCommission >= 0 && parsedCommission <= 50 ? parsedCommission : null;
   const referralPromoPaidAt = referralReward?.reward_type === 'free_water_can'
     ? new Date().toISOString()
     : null;
@@ -725,6 +733,7 @@ export async function POST(req: NextRequest) {
       subscription_id: null,
       total_amount: total,
       platform_fee: convenience,
+      commission_rate_pct: commissionRatePct,
       final_amount: total,
       base_amount: netBaseAmount,
       ...(referralReward ? {
