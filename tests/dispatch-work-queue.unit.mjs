@@ -14,6 +14,7 @@ const admin = file('src/app/api/admin/dispatch/queue-health/route.ts');
 const rolloutSql = file('supabase/migrations/20261103111000_dispatch_queue_activation_readiness_and_stale_review.sql');
 const adminPage = file('src/app/admin/dispatch-queue/page.tsx');
 const adminSettings = file('src/app/api/admin/settings/route.ts');
+const secureToggleSql = file('supabase/migrations/20261103113000_dispatch_queue_service_role_atomic_audit.sql');
 
 test('queue is feature-flagged OFF and persists only operational metadata', () => {
   assert.ok(sql.includes("VALUES ('dispatch_work_queue_enabled', 'false')"));
@@ -185,6 +186,13 @@ test('queue rollout is readiness-gated, admin-only and transparent in UI', () =>
   assert.ok(adminSettings.includes('DISPATCH_QUEUE_GUARDED_SETTING'));
   assert.ok(adminSettings.includes("'dispatch_work_queue_enabled'"));
   assert.ok(adminSettings.includes("'dispatch_booking_admit_per_minute'"));
+  assert.ok(secureToggleSql.includes("CREATE OR REPLACE FUNCTION public.set_dispatch_queue_enabled"));
+  assert.ok(secureToggleSql.includes("jwt_role <> 'service_role'"));
+  assert.ok(secureToggleSql.includes('INSERT INTO public.audit_logs'));
+  assert.ok(secureToggleSql.includes('FOR UPDATE'));
+  assert.ok(secureToggleSql.includes("GRANT EXECUTE ON FUNCTION public.set_dispatch_queue_enabled(boolean,uuid) TO service_role"));
+  assert.ok(admin.includes("db.rpc('set_dispatch_queue_enabled'"));
+  assert.ok(!admin.includes(".update({ value: String(enable) })"));
 });
 
 // A pure JavaScript admission/lease workload simulation is NOT a capacity test.
