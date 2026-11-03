@@ -2,6 +2,7 @@
 import { pricingFaqs } from '@/lib/pricing/presentation';
 
 import Link from 'next/link';
+import BookingIntentLink from '@/components/navigation/BookingIntentLink';
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -179,7 +180,7 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
                 )}
               </div>
             )}
-            <Link href={`/book?service=water_can&type=${type}`} className="aw-btn mt-5 px-6 py-3 text-sm justify-center">Start this plan →</Link>
+            <BookingIntentLink href={`/book?service=water_can&type=${type}`} className="aw-btn mt-5 px-6 py-3 text-sm justify-center">Start this plan →</BookingIntentLink>
           </div>
         </div>
 
@@ -191,13 +192,13 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
               <li className="flex justify-between py-2.5 text-sm"><span className="text-slate-600">Base service estimate</span><span className="font-bold text-slate-900">from ₹{fmt(tankFee)}</span></li>
             </ul>
             <p className="mt-2 text-xs text-slate-500">Larger or heavily soiled tanks are quoted before work starts.</p>
-            <Link href="/book?service=tank_cleaning" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book tank cleaning →</Link>
+            <BookingIntentLink href="/book?service=tank_cleaning" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book tank cleaning →</BookingIntentLink>
           </div>
           <div className="rounded-3xl bg-white border border-slate-100 p-6 shadow-sm">
             <h3 className="font-display font-extrabold text-slate-900">🔧 Plumber</h3>
             <p className="mt-3 text-3xl font-extrabold text-slate-900">₹{plumberFee}<span className="text-sm font-medium text-slate-400"> visit charge</span></p>
             <p className="mt-2 text-sm text-slate-600">See actual service and visit charges before confirming your booking.</p>
-            <Link href="/book?service=plumbing" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book a plumber →</Link>
+            <BookingIntentLink href="/book?service=plumbing" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book a plumber →</BookingIntentLink>
           </div>
         </div>
         <p className="mt-6 text-center text-xs text-slate-500">Plan prices are per can. Any delivery or convenience fee and GST are shown at checkout before you confirm. Delivery is confirmed for your address at booking. Savings shown are against the price you enter, not an assumed competitor price.</p>
@@ -430,9 +431,9 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     Order 20L RO cans, book a plumber or schedule water tank cleaning. See the price before you confirm, and lock your price with a monthly plan.
                   </p>
                   <div className="flex flex-wrap gap-3 mb-8">
-                    <Link href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base">💧 Order Water</Link>
-                    <Link href="/book?service=plumbing" className="aw-btn-ol px-6 py-3.5 text-sm sm:text-base">🔧 Book Plumber</Link>
-                    <Link href="/book?service=tank_cleaning" className="aw-btn-ol px-6 py-3.5 text-sm sm:text-base">🧽 Clean My Tank</Link>
+                    <BookingIntentLink href="/book?service=water_can" className="aw-btn px-7 py-3.5 text-sm sm:text-base">💧 Order Water</BookingIntentLink>
+                    <BookingIntentLink href="/book?service=plumbing" className="aw-btn-ol px-6 py-3.5 text-sm sm:text-base">🔧 Book Plumber</BookingIntentLink>
+                    <BookingIntentLink href="/book?service=tank_cleaning" className="aw-btn-ol px-6 py-3.5 text-sm sm:text-base">🧽 Clean My Tank</BookingIntentLink>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
@@ -490,27 +491,27 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
               <span className="text-xs text-slate-500">Swipe to explore →</span>
             </div>
             <div className="aw-campaign-rail" role="region" aria-label="Swipeable service highlights" tabIndex={0}>
-              <Link href="/book?service=water_can" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-sky-900 to-cyan-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
+              <BookingIntentLink href="/book?service=water_can" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-sky-900 to-cyan-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
                 <span className="aw-campaign-spark" aria-hidden="true">💧</span>
                 <p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Everyday essential</p>
                 <h3 className="mt-2 text-xl font-extrabold">RO water to your doorstep</h3>
                 <p className="mt-2 max-w-[240px] text-sm text-sky-100">20L normal from {displayPrice(currentNormal)}. Confirm availability and final price at checkout.</p>
                 <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-sky-900">Order water →</span>
-              </Link>
-              <Link href="/book?service=plumbing" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-indigo-900 to-violet-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
+              </BookingIntentLink>
+              <BookingIntentLink href="/book?service=plumbing" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-indigo-900 to-violet-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">
                 <span className="aw-campaign-spark" aria-hidden="true">🔧</span>
                 <p className="text-xs font-bold uppercase tracking-widest text-violet-200">Home maintenance</p>
                 <h3 className="mt-2 text-xl font-extrabold">A plumber when you need one</h3>
                 <p className="mt-2 max-w-[240px] text-sm text-indigo-100">Tell us the problem. Check serviceability and charges before confirming.</p>
                 <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-indigo-900">Find a plumber →</span>
-              </Link>
-              <Link href="/book?service=tank_cleaning" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-emerald-900 to-teal-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+              </BookingIntentLink>
+              <BookingIntentLink href="/book?service=tank_cleaning" className="aw-campaign-card rounded-2xl bg-gradient-to-br from-emerald-900 to-teal-700 p-5 text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
                 <span className="aw-campaign-spark" aria-hidden="true">✨</span>
                 <p className="text-xs font-bold uppercase tracking-widest text-teal-200">Seasonal home care</p>
                 <h3 className="mt-2 text-xl font-extrabold">Refresh your water tank</h3>
                 <p className="mt-2 max-w-[240px] text-sm text-emerald-100">Book a cleaning visit with transparent pricing and area checks.</p>
                 <span className="mt-4 inline-block rounded-full bg-white px-4 py-2 text-xs font-bold text-emerald-900">Explore cleaning →</span>
-              </Link>
+              </BookingIntentLink>
             </div>
           </div>
         </section>
@@ -542,8 +543,8 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                 <button key={x.title} type="button" role="tab" aria-selected={svc === i} onClick={() => setSvc(i)} className={`aw-tab ${svc === i ? 'active' : ''}`}>{x.icon} {x.title}</button>
               ))}
             </div>
-            <AnimatePresence mode="wait">
-              <motion.div key={svc} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="aw-glass max-w-3xl mx-auto p-8 sm:p-10" role="tabpanel">
+            <AnimatePresence mode="sync">
+              <motion.div key={svc} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.12 }} className="aw-glass max-w-3xl mx-auto p-8 sm:p-10" role="tabpanel">
                 <div className="flex flex-col sm:flex-row items-start gap-6">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style={{ background: `${s.accent}22`, border: `1.5px solid ${s.accent}55` }}>{s.icon}</div>
                   <div className="flex-1">
@@ -595,7 +596,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">Live</span>
                   </div>
                   <p className="mt-2 text-sm text-slate-600">Check coverage for your exact address in {c.name}. Availability depends on approved zones, service type and eligible partners.</p>
-                  <Link href={`/book?service=water_can&city=${c.slug}`} className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Order in {c.name} →</Link>
+                  <BookingIntentLink href={`/book?service=water_can&city=${c.slug}`} className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Order in {c.name} →</BookingIntentLink>
                 </div>
               ))}
             </div>
@@ -820,7 +821,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
             <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight mb-5">Water shouldn&apos;t be a daily headache.</h2>
             <p className="text-base sm:text-lg text-slate-300/80 mb-8 max-w-2xl mx-auto leading-relaxed">Cans filled, taps fixed, tanks cleaned. One platform, clear prices, price-locked monthly plans.</p>
             <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/book" className="aw-btn px-8 py-4 text-base">💧 Start in 30 seconds →</Link>
+              <BookingIntentLink href="/book" className="aw-btn px-8 py-4 text-base">💧 Start in 30 seconds →</BookingIntentLink>
               <Link href="#pricing" className="aw-btn-ol px-8 py-4 text-base">See pricing &amp; savings</Link>
             </div>
           </div>
