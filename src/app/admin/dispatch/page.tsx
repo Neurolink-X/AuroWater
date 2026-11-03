@@ -47,6 +47,17 @@ export default function AdminDispatchPage() {
           </p>
         </header>
 
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link href="/admin/dispatch-queue"
+            className="inline-flex min-h-11 items-center rounded-xl border border-cyan-400 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-100 transition hover:bg-cyan-400/20">
+            Open Queue Management (ON/OFF and health)
+          </Link>
+          <Link href="/admin/order-health"
+            className="inline-flex min-h-11 items-center rounded-xl border border-slate-500 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10">
+            Review overdue orders
+          </Link>
+        </div>
+
         <section className="mt-7 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <label htmlFor="order-id" className="block text-sm font-medium text-slate-200">Order reference or UUID</label>
           <input
