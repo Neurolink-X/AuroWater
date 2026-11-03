@@ -61,7 +61,7 @@ async function executeSweep(startedAt: number) {
   const { data: settings, error: settingError } = await db
     .from('settings')
     .select('key, value')
-    .in('key', ['dispatch_response_seconds', 'dispatch_max_attempts']);
+    .in('key', ['dispatch_response_seconds', 'dispatch_max_attempts', 'dispatch_work_queue_enabled']);
 
   if (settingError) {
     console.error('[technician-dispatch-sweep] settings lookup failed:', settingError);
@@ -74,6 +74,8 @@ async function executeSweep(startedAt: number) {
   const settingMap = new Map(
     (settings ?? []).map((setting) => [String(setting.key), String(setting.value ?? '')]),
   );
+  // Queue mode owns pending retries; keep this legacy sweep for stale offer expiry.
+  const queueEnabled = settingMap.get('dispatch_work_queue_enabled') === 'true';
   const responseSeconds = Math.max(
     60,
     Number(settingMap.get('dispatch_response_seconds') ?? 300) || 300,
@@ -135,8 +137,9 @@ async function executeSweep(startedAt: number) {
     Date.now() - RECENT_ORDER_GRACE_MS,
   ).toISOString();
 
-  const { data: pending, error: pendingError } = await db
-    .from('orders')
+  const { data: pending, error: pendingError } = queueEnabled
+    ? { data: [] as { id: string }[], error: null }
+    : await db.from('orders')
     .select('id')
     .eq('status', 'PENDING')
     .is('technician_id', null)
@@ -186,8 +189,9 @@ async function executeSweep(startedAt: number) {
     Date.now() - SUPPLIER_RETRY_INTERVAL_MS,
   ).toISOString();
 
-  const { data: pendingSupplierOrders, error: supplierPendingError } = await db
-    .from('orders')
+  const { data: pendingSupplierOrders, error: supplierPendingError } = queueEnabled
+    ? { data: [] as { id: string }[], error: null }
+    : await db.from('orders')
     .select('id')
     .eq('status', 'PENDING')
     .is('supplier_id', null)

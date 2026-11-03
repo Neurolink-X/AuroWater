@@ -15,6 +15,7 @@ import { getServiceZone, isCityServed, OUT_OF_ZONE_MESSAGE } from '@/lib/geo';
 import { dispatchOrder, dispatchTechnicianJob } from '@/lib/dispatch';
 import { checkLocalSpecialistBooking } from '@/lib/booking/local-specialist-readiness';
 import { createServiceClient } from '@/utils/supabase/server';
+import { consumeRateLimit } from '@/lib/api/rate-limit';
 import { addSubscriptionFrequency, isSubscriptionFrequency, parseTimeSlot, scheduledAtIST } from '@/lib/subscription-schedule';
 
 /*
@@ -235,6 +236,34 @@ export async function POST(req: NextRequest) {
   const flat = settingsResult.map;
   if (String(flat.maintenance_mode ?? 'false').trim().toLowerCase() === 'true') {
     return jsonErr('New bookings are temporarily paused for maintenance. Previously placed orders continue to be processed. Please try again later.', 503, 'BOOKING_MAINTENANCE');
+  }
+
+  // Shared, database-backed admission control is enabled only when operators
+  // explicitly activate the durable queue. It returns 429/Retry-After BEFORE
+  // any order/financial write; an idempotent retry was checked above.
+  // Avoid an unbounded serverless stampede on the existing Supabase pool.
+  if (String(flat.dispatch_work_queue_enabled ?? 'false').toLowerCase() === 'true') {
+    // The initial queue recovery ceiling is only 64 claims/minute in ideal
+    // conditions, not 600 successful assignments. Leave retry headroom until
+    // isolated load tests justify higher admission capacity. Operators may
+    // configure a higher cap after confirming sustained throughput.
+    const configured = Number(flat.dispatch_booking_admit_per_minute);
+    const perMinute = Number.isSafeInteger(configured) && configured >= 1
+      ? Math.min(configured, 3000) : 48;
+    const gate = await consumeRateLimit(
+      createServiceClient(), 'dispatch-checkout-admission', 'global', perMinute, 60,
+    );
+    if (!gate.allowed) {
+      const response = jsonErr(
+        gate.unavailable
+          ? 'Booking capacity check is temporarily unavailable. Please retry; no order was placed.'
+          : 'Many orders are arriving together. Please retry shortly; no order was placed.',
+        gate.unavailable ? 503 : 429,
+        gate.unavailable ? 'ADMISSION_UNAVAILABLE' : 'BOOKING_CAPACITY_BUSY',
+      );
+      response.headers.set('Retry-After', String(Math.max(1, gate.retryAfter)));
+      return response;
+    }
   }
 
   // service_types has: id, key, label, description, base_price, is_active

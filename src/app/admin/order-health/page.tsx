@@ -76,6 +76,7 @@ export default function OrderHealthPage() {
       </select>
       <button onClick={() => setVersion(v => v + 1)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 font-semibold text-slate-900 hover:bg-slate-100">Refresh</button>
       <Link href="/admin/finance" className="inline-flex min-h-11 items-center font-semibold text-cyan-800 hover:underline">Open finance →</Link>
+      <Link href="/admin/dispatch-queue" className="inline-flex min-h-11 items-center font-semibold text-cyan-800 hover:underline">Dispatch queue health →</Link>
     </div>
     {loading && <p role="status" className="rounded-xl border bg-white p-5">Checking orders…</p>}
     {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-900"><p>{error}</p><button type="button" onClick={() => setVersion(v => v + 1)} className="mt-3 rounded-lg bg-red-800 px-4 py-2 text-sm font-bold text-white">Retry loading</button></div>}

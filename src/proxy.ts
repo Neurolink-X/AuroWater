@@ -100,6 +100,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
 
   /* Server-authenticated scheduler API; route validates CRON_SECRET. */
   '/api/internal/technician-dispatch-sweep',
+  '/api/internal/dispatch-work-sweep',
   // Public, bounded telemetry intake; the handler enforces same-origin and payload validation.
   '/api/internal/telemetry/web-vitals',
 

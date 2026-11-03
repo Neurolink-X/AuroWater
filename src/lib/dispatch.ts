@@ -43,6 +43,7 @@ export type AcceptResult = 'accepted' | 'already_accepted' | 'not_assigned' | 'e
 
 type Cfg = {
   enabled: boolean;
+  queueEnabled: boolean;
   responseSeconds: number;
   maxAttempts: number;
   maxActive: number;
@@ -111,12 +112,14 @@ async function loadCfg(db: any): Promise<Cfg> {
       'dispatch_max_attempts',
       'supplier_max_active_orders',
       'service_radius_km',
+      'dispatch_work_queue_enabled',
     ]);
   if (error) console.error('[dispatch] settings load failed, using defaults', error.message);
   const m: Record<string, string> = {};
   for (const r of (data ?? []) as { key: string; value: unknown }[]) m[r.key] = String(r.value);
   const cfg: Cfg = {
     enabled: String(m.auto_assign_orders ?? 'true').toLowerCase() !== 'false',
+    queueEnabled: m.dispatch_work_queue_enabled === 'true',
     responseSeconds: posNum(m.dispatch_response_seconds, 300),
     maxAttempts: Math.floor(posNum(m.dispatch_max_attempts, 5)),
     maxActive: Math.floor(posNum(m.supplier_max_active_orders, 5)),
@@ -1220,6 +1223,7 @@ async function expireStaleAssignments(db: any, cfg: Cfg, limit: number, customer
 
 /** Re-offers PENDING water orders that no supplier holds, at most once per PENDING_RETRY_AFTER_MS each. */
 async function retryPendingOrders(db: any, cfg: Cfg, limit: number, customerId?: string): Promise<number> {
+  if (cfg.queueEnabled) return 0; // durable queue owns scheduled retries
   let q = db
     .from('orders')
     .select('id, last_dispatch_at, dispatch_attempts')
@@ -1258,6 +1262,7 @@ async function retryPendingOrders(db: any, cfg: Cfg, limit: number, customerId?:
 
 /** Re-offers PENDING technician jobs nobody holds (these were never retried before). */
 async function retryPendingTechnicianOrders(db: any, cfg: Cfg, limit: number, customerId?: string): Promise<number> {
+  if (cfg.queueEnabled) return 0; // prevent overlap with leased work
   const since = new Date(Date.now() - TECHNICIAN_RETRY_WINDOW_MS).toISOString();
   let q = db
     .from('orders')

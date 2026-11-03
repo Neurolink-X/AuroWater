@@ -10,7 +10,7 @@
     "db:setup": "node scripts/setup-db.js",
     "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
     "smoke": "node scripts/smoke-test.mjs",
-    "test:regression": "node tests/routes-and-access.regression.mjs && node --test tests/admin-reflection.regression.mjs tests/address-maintenance-commission-integrity.unit.mjs tests/notification-retention-integrity.unit.mjs tests/web-push-integration.unit.mjs tests/dispatch-retry-settings-efficiency.unit.mjs",
+    "test:regression": "node tests/routes-and-access.regression.mjs && node --test tests/admin-reflection.regression.mjs tests/address-maintenance-commission-integrity.unit.mjs tests/notification-retention-integrity.unit.mjs tests/web-push-integration.unit.mjs tests/dispatch-retry-settings-efficiency.unit.mjs tests/dispatch-work-queue.unit.mjs",
     "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
     "verify:env": "node scripts/verify-env.mjs",
     "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs tests/unit/*.test.mjs",
@@ -21,7 +21,8 @@
     "smoke:health": "node scripts/check-site-health.mjs",
     "seo:audit-public": "node scripts/audit-public-seo.mjs",
     "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
-    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs"
+    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs",
+    "test:dispatch:queue-bench": "node scripts/benchmark-dispatch-queue-isolated.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
