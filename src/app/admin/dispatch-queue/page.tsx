@@ -12,6 +12,16 @@ type DeadLetter = {
 };
 type Health = {
   enabled: boolean;
+  release_approved: boolean;
+  activation_ready: boolean;
+  readiness: {
+    queueCronReady: boolean;
+    reconcileCronReady: boolean;
+    secretReady: boolean;
+    autoAssignEnabled: boolean;
+    pendingWithoutQueue: number;
+    staleOrdersAwaitingReview: number;
+  };
   ready: number;
   leased: number;
   dead: number;
@@ -142,8 +152,39 @@ export default function DispatchQueuePage() {
             Queue mode never switches ON automatically when traffic rises. Enabling requires verified
             release gates and server-side operational approval. Disabling preserves pending orders.
           </p>
+          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm" aria-label="Queue activation readiness">
+            <p className="font-semibold text-slate-900">Activation checks</p>
+            <dl className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+              {([
+                ['Database queue scheduler', health.readiness.queueCronReady],
+                ['Reconciliation scheduler', health.readiness.reconcileCronReady],
+                ['Secure scheduled-worker token configured', health.readiness.secretReady],
+                ['Automatic assignment allowed', health.readiness.autoAssignEnabled],
+                ['Operator release approval', health.release_approved],
+                ['Pending backlog within safe handoff limit', health.readiness.pendingWithoutQueue <= 100],
+              ] as const).map(([label, ok]) => (
+                <div key={label} className="flex items-center justify-between gap-2">
+                  <dt className="text-slate-600">{label}</dt>
+                  <dd className={ok ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-800'}>
+                    {ok ? 'Ready' : 'Not ready'}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 text-xs text-slate-600">
+              Pending orders awaiting queue handoff: {health.readiness.pendingWithoutQueue}. Stale appointments
+              needing manual schedule/customer review: {health.readiness.staleOrdersAwaitingReview}.
+              Missed slots over 24 hours are never automatically offered to a new provider.
+            </p>
+            {!health.enabled && !health.activation_ready && (
+              <p className="mt-2 text-xs font-semibold text-amber-800" role="status">
+                Queue activation is locked until the operator validates staging tests and approves release.
+                Existing dispatch remains active.
+              </p>
+            )}
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" disabled={busyToggle || refreshing || health.enabled}
+            <button type="button" disabled={busyToggle || refreshing || health.enabled || !health.activation_ready}
               onClick={() => void setQueueEnabled(true)}
               className="rounded-lg border border-emerald-600 px-3 py-2 text-sm font-semibold text-emerald-800 disabled:opacity-40">
               {busyToggle && !health.enabled ? 'Applying…' : 'Enable queue (release-gated)'}
@@ -169,9 +210,9 @@ export default function DispatchQueuePage() {
             </div>
           ))}
         </section>
-        {(health.dead > 0 || health.pending_orders_over_2h > 0) &&
+        {(health.dead > 0 || health.pending_orders_over_2h > 0 || health.readiness.staleOrdersAwaitingReview > 0) &&
           <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            Orders need investigation. Review supplier availability, coverage, approved professionals and customer schedule. Do not auto-cancel pending bookings.
+            Orders need investigation. Review supplier availability, coverage, approved professionals and customer schedule. Overdue appointments must be reconfirmed/rescheduled before retrying. Do not auto-cancel pending bookings.
           </p>}
         <section className="rounded-xl border border-slate-200 bg-white p-5">
           <h2 className="font-bold">Dead-letter recovery</h2>
