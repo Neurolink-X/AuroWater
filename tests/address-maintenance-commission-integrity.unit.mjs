@@ -9,6 +9,7 @@ const serviceability = source('src/app/api/customer/serviceability/route.ts');
 const wizard = source('src/components/booking/BookingWizard.tsx');
 const settings = source('src/hooks/useSettings.ts');
 const adminSettings = source('src/app/admin/settings/page.tsx');
+const commissionMigration = source('supabase/migrations/20261103032500_server_authoritative_water_commission.sql');
 
 test('maintenance rejects only new customer checkouts before any reward reservation or insert', () => {
   const newCheckout = orders.split('export async function POST(req: NextRequest)')[1];
@@ -50,4 +51,12 @@ test('new water-can orders snapshot the configured partner rate independently of
   assert.match(orders, /commissionKey = isWater/);
   assert.match(orders, /commission_rate_pct: commissionRatePct/);
   assert.match(settings, /raw\.supplier_commission_rate \?\? raw\.supplier_commission/);
+});
+
+test('the database re-derives commission and ignores client-provided rates', () => {
+  assert.match(commissionMigration, /NEW\.commission_rate_pct := NULL/);
+  assert.match(commissionMigration, /NEW\.commission_rate_pct := v_commission_pct/);
+  assert.match(commissionMigration, /FROM public\.settings WHERE key = v_commission_key/);
+  assert.match(commissionMigration, /NEW\.supplier_payout := 0/);
+  assert.match(commissionMigration, /NEW\.payment_verified_at := NULL/);
 });
