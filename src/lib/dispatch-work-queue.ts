@@ -53,8 +53,14 @@ export async function runDispatchWorkQueue(
         outcome = 'assigned';
       } else {
         outcome = typeof result.reason === 'string'
-          ? result.reason.slice(0, 64) : 'not_assigned';
-        delayed += 1;
+          ? result.reason.slice(0, 64) : 'error';
+        if (outcome === 'error') {
+          // Dispatch functions intentionally return errors instead of throwing.
+          // Counting only thrown exceptions masked full outages as healthy.
+          failed += 1;
+        } else {
+          delayed += 1;
+        }
       }
     } catch (cause) {
       failed += 1;
