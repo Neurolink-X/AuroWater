@@ -59,6 +59,7 @@ export default function DispatchQueuePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState('');
   const [busyToggle, setBusyToggle] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const lastSync = useRef(0);
   const fetching = useRef(false);
 
@@ -108,6 +109,20 @@ export default function DispatchQueuePage() {
       setError(cause instanceof Error ? cause.message : 'Could not update queue mode.');
     } finally {
       setBusyToggle(false);
+    }
+  };
+
+  const prepareBacklog = async () => {
+    if (preparing || !health || health.enabled) return;
+    if (!window.confirm('Prepare up to 100 pending order references for safe queue activation? Existing customer orders and payments are untouched; overdue appointments will require manual review.')) return;
+    setPreparing(true);
+    try {
+      await adminRequest<{ prepared: number }>('POST', { action: 'prepare_backlog' });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not prepare the backlog.');
+    } finally {
+      setPreparing(false);
     }
   };
 
@@ -176,6 +191,19 @@ export default function DispatchQueuePage() {
               needing manual schedule/customer review: {health.readiness.staleOrdersAwaitingReview}.
               Missed slots over 24 hours are never automatically offered to a new provider.
             </p>
+            {!health.enabled && health.readiness.pendingWithoutQueue > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button type="button"
+                  disabled={preparing || busyToggle || refreshing}
+                  onClick={() => void prepareBacklog()}
+                  className="rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-800 disabled:opacity-40">
+                  {preparing ? 'Preparing…' : 'Prepare next 100 pending orders (no dispatch)'}
+                </button>
+                <p className="text-xs text-slate-600">
+                  Repeat if more than 100 are waiting. Old overdue slots move to manual review, not supplier assignment.
+                </p>
+              </div>
+            )}
             {!health.enabled && !health.activation_ready && (
               <p className="mt-2 text-xs font-semibold text-amber-800" role="status">
                 Queue activation is locked until the operator validates staging tests and approves release.
