@@ -27,6 +27,19 @@ A hypothetical 100,000-item backlog would take more than 26 hours even at that i
 7. Monitor PENDING order age, oldest due work, dead letters, database CPU/locks, checkout 429 and API p95. Enable only a small monitored trial after acceptance.
 8. Escalate worker frequency/concurrency only when real measurements justify it.
 
+## Disposable queue throughput benchmark
+Run only against a separate, disposable TEST/STAGING database, never production.
+The test creates and drops ONLY its own dedicated aurotap_queue_bench schema.
+
+- Set AUROTAP_TEST_DATABASE_URL to the isolated PostgreSQL test database URL.
+- Set AUROTAP_ALLOW_QUEUE_BENCH to DISPOSABLE_DB_QUEUE_BENCHMARK_ONLY.
+- Set AUROTAP_BENCH_ITEMS to 100, 1000, 10000 or 100000.
+- Execute npm run test:dispatch:queue-bench.
+- Record queue inserts/sec, claim p50/p95/p99, max simultaneous leases and DB CPU.
+- Separately run existing test:dispatch:db with disposable supplier/technician fixtures.
+- Benchmark results describe SQL queue mechanics only, NOT full AuroTap bookings.
+- Do not enable new billable infrastructure or run production load traffic.
+
 ## Rollback
 Set dispatch_work_queue_enabled=false using approved admin configuration. Legacy dispatch retries continue. Do not drop the table or destroy queued/customer records; collect diagnostics and inspect /admin/order-health.
 
