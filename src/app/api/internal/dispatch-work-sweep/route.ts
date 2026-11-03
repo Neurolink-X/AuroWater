@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const data = await runDispatchWorkQueue(8, 22_000);
+    const data = await runDispatchWorkQueue(32, 22_000);
     const healthy = data.failed === 0 && data.completionErrors === 0;
     return Response.json({ ok: healthy, ...data }, {
       status: healthy ? 200 : 503,
