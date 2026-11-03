@@ -62,15 +62,17 @@ The initial queue schema is installed on the production Supabase project **with 
 - Queue backlog reconciliation and **manual review for missed appointments older than 24 hours**, preserving the original order. Old slots must be reconfirmed and rescheduled using the legitimate order-management flow before an admin requeues.
 - Claim/auto-retry must exclude stale slots, even if the maintenance scheduler has not quarantined them yet.
 - Secure failure on missing cron, Vault secret or disabled assignment, including direct SQL setting activation.
+- Additional migration `20261103113000_dispatch_queue_service_role_atomic_audit.sql` denies browser-authenticated direct SQL queue activation; only a trusted service-role server request is accepted. The dedicated `set_dispatch_queue_enabled` RPC writes the queue flag and an `audit_logs` entry in **one transaction**. A failed audit rolls back activation. This keeps generic Admin Settings and direct RLS-authorized edits from bypassing release gates.
+
 
 ### Last observed backlog (source check, 3 Nov 2026)
 The production database had 12 unassigned eligible PENDING orders, of which 11 had appointments more than 24 hours overdue. They must not be silently offered again when the queue turns ON. This is a historical snapshot, not a live counter. The readiness RPC shows current counts without returning customer information.
 
 ### Staged enable procedure (no automatic activation)
 
-1. Deploy PR #247 with green CI, CodeQL and Vercel production READY; apply the reviewed SQL migration separately, still OFF.
+1. Deploy PR #247 with green CI, CodeQL and Vercel production READY; apply both reviewed SQL hardening migrations separately, still OFF. Both SQL migrations were already installed on the production Supabase project during development with the flag confirmed OFF; reconcile the recorded migration history before a fresh environment deployment.
 2. Query the new readiness RPC, verify row permissions and existing cron jobs, check the Admin page.
-3. Verify `vault.aurotap_cron_secret` matches the Vercel internal worker secret with a safe authenticated no-work probe while queue OFF; cron-job scheduling success alone does **not** prove the HTTP request returned 200.
+3. Verify `vault.aurotap_cron_secret` matches the Vercel internal worker secret with a safe authenticated no-work probe while queue OFF; cron-job scheduling success alone does **not** prove the HTTP request returned 200. **Observed:** a single authenticated OFF-queue probe returned HTTP 200 with zero claims and zero worker errors on 3 Nov 2026. This does not prove a real supplier assignment.
 4. Validate test supplier/specialist assignments and duplicate race/stock, pending-order age, failed token and dead-letter recovery in an isolated database, including a correct fresh appointment.
 5. Only then set server-only Vercel production env `AUROTAP_DISPATCH_QUEUE_RELEASE_APPROVED=true`; it requires a deployment to become effective.
 6. Use Admin → Dispatch Queue to explicitly enable; activation backfills existing pending work (up to 100 in the same transaction), quarantine old overdue slots, and switches the legacy retry off.
