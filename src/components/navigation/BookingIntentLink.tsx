@@ -9,8 +9,9 @@ import { useEffect, useRef, useState, type ComponentProps, type MouseEvent } fro
  *
  * Keep Next Link's native semantics (middle-click, long-press, modifier-click,
  * scroll restoration) instead of routing through an expensive custom handler.
- * A bounded intent-only prefetch warms the booking chunk without causing a
- * fetch for every service card visible on slow mobile networks.
+ * Preserve each caller's Next Link prefetch policy. Default visible CTAs
+ * retain Next's automatic prefetch; large lists that pass prefetch={false}
+ * can still warm a bounded selection on pointer, focus or touch intent.
  */
 type BookingIntentLinkProps = Omit<ComponentProps<typeof Link>, 'href'> & {
   href: string;
@@ -60,7 +61,7 @@ export default function BookingIntentLink({
     <Link
       {...rest}
       href={href}
-      prefetch={prefetch ?? false}
+      prefetch={prefetch}
       className={className}
       onPointerEnter={event => { onPointerEnter?.(event); warm(); }}
       onTouchStart={event => { onTouchStart?.(event); warm(); }}
