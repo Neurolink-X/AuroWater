@@ -852,23 +852,26 @@ To improve speed, focus on demonstrated bottlenecks, measure before/after, keep 
 
 ---
 
-# Git hygiene, disposable files and runtime memory
+# Aging-file audit: update what actually affects the application
 
-The repository's **.gitignore** intentionally keeps local-only secrets and generated output out of new commits:
+**File age alone is not a performance problem.** Compare source change history, current imports, API traces, actual queries, mobile browser profiler, CI and error logs before touching a file. Replacing a long-standing but correct utility may worsen stability. Audited path history as of 3 November 2026:
 
-| Ignored locally | Examples |
-|---|---|
-| Dependencies and build output | node_modules, .next, out, dist, build, .vercel, TypeScript build metadata |
-| Test reports and caches | coverage, Playwright/test-results, .turbo, .cache, .eslintcache |
-| Secrets and local environment | .env, .env.local, .env.production, *.pem, *.p12, *.pfx, *.key |
-| Diagnostic and disposable data | logs, CPU/heap profiles, local DB files, *.dump, *.backup |
-| Editor/OS noise | .DS_Store, Thumbs.db, .idea and swap files |
+| Path | Last source change found | Finding and next step |
+|---|---|---|
+| src/lib/db/connection.ts | 22 Apr 2026 | Legacy PostgreSQL helper still used by old pricing/bootstrap modules. Do not increase connection pool blindly. Trace live imports and remove obsolete use of database fallback pricing after verification. |
+| src/lib/i18n/LanguageContext.tsx | 1 Sep 2026 | Language provider runs in the root layout; test font swapping and hydration. Only optimize if profiling shows render/layout cost. |
+| src/components/layout/SiteNav.tsx | 1 Sep 2026 | Old alternate navigation implementation with dynamic style and font import. Search found no active importing site layout; do not refactor until actual usage/dead-code proof. |
+| src/components/layout/AnnouncementBar.tsx | 1 Sep 2026 | Old announcement banner with hardcoded founding-member claim. Verify active import and claim accuracy before showing or deleting. |
+| src/hooks/useAuth.ts | 6 Oct 2026 | Large central compatibility hook; security-sensitive. Profile auth listener/session refresh and cross-tab events rather than rewriting. |
+| src/hooks/useCustomerOrders.ts | 6 Oct 2026 | Redundant 15-second polling continued while live updates connected. Isolated request-reduction change is proposed separately in PR #245, not proven in production. |
+| src/lib/api/settings-map.ts | 12 Oct 2026 | Legacy settings mapper still exists. Validate against published pricing contract before consolidating duplicate configuration. |
+| src/app/api/cron/dispatch-sweep/route.ts | 12 Oct 2026 | Historical cron endpoint. Confirm actual scheduler integration and avoid simultaneous overlapping dispatch jobs. |
 
-**Do not globally ignore source files, SQL migrations, tests, package-lock.json, deliberate public images/assets, .env.example or public/images/aurotap-service-images.zip.** The versioned .env.example contains placeholders only; private environment values must be configured outside the repository.
+**Recently updated critical paths:** Header, homepage, booking, supplier/technician dashboards, API transport and PWA service worker saw source changes on 1–3 November 2026. Their speed still needs live measurements; recency is not proof of correctness.
 
-**.gitignore does not make production pages faster, clean the service worker/browser cache or delete previously tracked secrets.** To improve speed, measure bundle size, navigation, LCP, API p95, slow queries, duplicate requests and memory use; fix the observed bottleneck without deleting financial or customer history.
+**High-value fix strategy:** optimize authenticated order polling, slow database query plans, LCP/client hydration and duplicate requests with before/after measurements; preserve financial, booking and provider status consistency. Verify standalone retired modules before pruning and do not globally ignore or delete historical business data.
 
-Git may already track a file even after adding it to .gitignore. A maintainer should audit **git ls-files** and remove *verified accidental* tracking deliberately using **git rm --cached**, with secret rotation if needed. Never delete or hide required migrations, public assets or business records to reduce repository size.
+The **.gitignore** was intentionally left unchanged after clarifying that “ignored files” meant neglected source modules rather than Git ignore patterns. It does not control runtime latency.
 
 ---
 
