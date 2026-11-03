@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
+import AccountRecoveryWorkflow from '@/components/admin/AccountRecoveryWorkflow';
 import { isAbort, requestJson } from '@/lib/account-recovery/http';
 import {
   LIMITS, RECOVERY_STATUSES, categoryAdminLabel, firstIssue, isClosedStatus, reviewSchema, statusLabel,
@@ -47,7 +48,7 @@ export default function AdminAccountRecoveryPage() {
     setDrafts((old) => ({ ...old, [row.id]: { ...draftOf(row), ...p } }));
   const isDirty = (row: RecoveryRequest) => {
     const d = drafts[row.id];
-    return !!d && (d.status !== row.status || d.note !== (row.admin_note ?? '') || d.verify);
+    return !!d && (d.status !== row.status || d.note !== (row.admin_note ?? '') || d.resolvedConfirmed);
   };
 
   /** Loads the list + tab counts. Cancels any in-flight load so stale responses can never overwrite fresh ones. */
@@ -119,7 +120,7 @@ export default function AdminAccountRecoveryPage() {
       resolution_confirmed: d.resolvedConfirmed,
     });
     if (!parsed.success) { toast.error(firstIssue(parsed.error)); return; }
-    if (d.status === 'resolved' && !row.ownership_verified_at && !d.verify) {
+    if (d.status === 'resolved' && !row.ownership_verified_at) {
       toast.error('Confirm ownership was verified before resolving.'); return;
     }
     if (isClosedStatus(d.status) && !window.confirm(`Mark request #${row.request_number} as ${statusLabel(d.status)}? Closed requests cannot be reopened.`)) return;
@@ -236,6 +237,8 @@ export default function AdminAccountRecoveryPage() {
                     <p className="text-amber-200">Contact details supplied by the requester are unverified. Sending an email does not prove that the issue is resolved.</p>
                   </div>}
 
+                  {!closed && <AccountRecoveryWorkflow row={row} onUpdated={() => void load(true)} />}
+
                   <div className="mt-3">
                     <button onClick={() => toggleAudit(row.id)} disabled={auditLoading === row.id} aria-expanded={!!auditOpen[row.id]}
                       className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-white/5 disabled:opacity-50">
@@ -277,11 +280,7 @@ export default function AdminAccountRecoveryPage() {
                           {RECOVERY_STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
                         </select>
                         {d.status === 'resolved' && <label className="flex items-start gap-2 text-xs text-amber-100"><input type="checkbox" checked={d.resolvedConfirmed} onChange={(e) => patchDraft(row, { resolvedConfirmed: e.target.checked })} /> I independently confirmed the actual issue is fixed AND informed the customer; resolution evidence is recorded in the note.</label>}
-                        {!row.ownership_verified_at && (
-                          <label className="flex items-center gap-2 text-xs text-slate-300">
-                            <input type="checkbox" checked={d.verify} onChange={(e) => patchDraft(row, { verify: e.target.checked })} /> Confirm ownership verified
-                          </label>
-                        )}
+                        {!row.ownership_verified_at && <p className="text-xs text-amber-200">Ownership verification must be recorded through the secure workflow above.</p>}
                         <button onClick={() => void save(row)} disabled={busy === row.id || !isDirty(row)}
                           className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-50">
                           {busy === row.id ? 'Saving…' : isDirty(row) ? 'Save review' : 'No changes'}
