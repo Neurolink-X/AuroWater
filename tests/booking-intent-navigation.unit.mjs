@@ -6,6 +6,7 @@ const source = path => readFileSync(path, 'utf8');
 const link = source('src/components/navigation/BookingIntentLink.tsx');
 const home = source('src/app/(public)/HomeClient.tsx');
 const customer = source('src/app/customer/home/page.tsx');
+const bottomNav = source('src/components/customer/BottomNav.tsx');
 const services = source('src/app/(public)/services/ServicesClient.tsx');
 const admin = source('src/app/admin/dashboard/page.tsx');
 const booking = source('src/app/(public)/book/page.tsx');
@@ -35,6 +36,16 @@ test('booking entry points on key screens have instant feedback', () => {
   assert.ok(services.includes('<BookingIntentLink href={`/book?service='));
   assert.ok(booking.includes('dynamic(() => import('));
   assert.ok(loading.includes('aria-busy="true"'));
+});
+
+test('mobile bottom navigation acknowledges taps before route content arrives', () => {
+  assert.ok(bottomNav.includes('aria-busy={opening}'));
+  assert.ok(bottomNav.includes("opening ? 'Opening…' : it.label"));
+  assert.ok(bottomNav.includes('setPending({ key, origin: pathname })'));
+  assert.ok(bottomNav.includes('event.defaultPrevented'));
+  assert.ok(bottomNav.includes('event.ctrlKey'));
+  assert.ok(bottomNav.includes('<Link'));
+  assert.ok(!bottomNav.slice(0, bottomNav.indexOf("// 'use client';")).includes('router.push('));
 });
 
 test('service and admin tab selection does not wait for exit or low priority state', () => {
