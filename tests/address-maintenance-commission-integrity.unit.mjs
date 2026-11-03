@@ -11,7 +11,7 @@ const settings = source('src/hooks/useSettings.ts');
 const adminSettings = source('src/app/admin/settings/page.tsx');
 
 test('maintenance rejects only new customer checkouts before any reward reservation or insert', () => {
-  const newCheckout = orders.split('export async function POST(req: NextRequest)')[1].split('/*')[0];
+  const newCheckout = orders.split('export async function POST(req: NextRequest)')[1];
   const idempotent = newCheckout.indexOf('const existing = await findExistingCheckout();');
   const guard = newCheckout.indexOf("flat.maintenance_mode");
   const addressRead = newCheckout.indexOf(".from('addresses')");
