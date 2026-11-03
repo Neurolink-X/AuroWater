@@ -1,82 +1,43 @@
-# AuroTap / AuroWater — repository hygiene
-# Ignore ONLY local secrets, generated output and disposable development data.
-# Keep source, migrations, tests, docs, lockfiles and public assets in Git.
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Dependencies and package-manager generated files
-node_modules/
-.pnp
+# dependencies
+/node_modules
+/.pnp
 .pnp.*
 .yarn/*
-!.yarn/patches/
-!.yarn/plugins/
-!.yarn/releases/
-!.yarn/versions/
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Next.js / Vercel / compiled build output
+# testing
+/coverage
+
+# next.js
 /.next/
 /out/
-/build/
-/dist/
-/.vercel/
-next-env.d.ts
-*.tsbuildinfo
 
-# Test reports and tool caches (not test source/fixtures)
-/coverage/
-/.nyc_output/
-/playwright-report/
-/test-results/
-/blob-report/
-/.turbo/
-/.cache/
-/.parcel-cache/
-.eslintcache
+# production
+/build
 
-# Local secrets and environment overlays
-# Explicit exceptions permit reviewed, placeholder-only templates in Git.
-.env
-.env.*
-!.env.example
-!.env.*.example
-!.env.template
-!.env.*.template
+# misc
+.DS_Store
 *.pem
-*.p12
-*.pfx
-*.key
 
-# Logs, local diagnostics, profiles and crash dumps
-*.log
-*.log.*
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-*.heapsnapshot
-*.heapprofile
-*.cpuprofile
-*.prof
 
-# Disposable database copies/backups — NEVER blanket-ignore migrations/*.sql
-*.db
-*.sqlite
-*.sqlite3
-*.dump
-*.backup
-*.bak
-*.sql.gz
+# env files (can opt-in for committing if needed)
+.env*
 
-# Editor and operating-system noise
-.DS_Store
-Thumbs.db
-.idea/
-.history/
-*.swp
-*.swo
-*~
+# vercel
+.vercel
 
-# IMPORTANT:
-# - Do NOT add public/images/*.zip, *.sql, *.json, *.csv, or *.md here globally.
-#   They may contain intentional product assets, migrations or source fixtures.
-# - .gitignore does not remove previously tracked files or clear runtime caches.
-#   Audit tracked sensitive files separately before removing them from Git.
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.env.local
