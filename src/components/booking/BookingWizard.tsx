@@ -1663,6 +1663,13 @@ export default function BookingWizard() {
             const errCode =
         (e as { code?: string; details?: { code?: string } } | null)?.code ??
         (e as { details?: { code?: string } } | null)?.details?.code;
+      if (e instanceof ApiError && errCode === 'BOOKING_MAINTENANCE') {
+        const message = 'New bookings are temporarily paused for maintenance. Existing orders continue normally. Your booking draft is saved.';
+        setSubmitError(message);
+        toast.warning(message);
+        await refreshSettings();
+        return;
+      }
       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
         await refreshSettings();
         const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
@@ -4327,14 +4334,7 @@ export default function BookingWizard() {
 //             const errCode =
 //         (e as { code?: string; details?: { code?: string } } | null)?.code ??
 //         (e as { details?: { code?: string } } | null)?.details?.code;
-//       if (e instanceof ApiError && errCode === 'BOOKING_MAINTENANCE') {
-         const message = 'New bookings are temporarily paused for maintenance. Existing orders continue normally. Your booking draft is saved.';
-         setSubmitError(message);
-         toast.warning(message);
-         await refreshSettings();
-         return;
-       }
-       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
+//       if (e instanceof ApiError && errCode === 'PRICE_CHANGED') {
 //         await refreshSettings();
 //         const m = 'Pricing was updated while this checkout was open. Review the refreshed total before confirming again.';
 //         setSubmitError(m);
