@@ -15,7 +15,7 @@ const loading = source('src/app/(public)/book/loading.tsx');
 test('booking CTA retains real Next Link navigation and immediate visual feedback', () => {
   assert.ok(link.includes("import Link from 'next/link'"));
   assert.ok(link.includes("href={href}"));
-  assert.ok(link.includes('setOpening(true)'));
+  assert.ok(link.includes('setOpeningFrom(pathname)'));
   assert.ok(link.includes('role="status"'));
   assert.ok(link.includes('aria-busy={opening}'));
   assert.ok(link.includes('event.defaultPrevented'));
