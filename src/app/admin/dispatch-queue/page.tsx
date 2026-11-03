@@ -46,6 +46,7 @@ export default function DispatchQueuePage() {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyOrder, setBusyOrder] = useState('');
   const lastSync = useRef(0);
   const fetching = useRef(false);
@@ -53,6 +54,7 @@ export default function DispatchQueuePage() {
   const refresh = useCallback(async () => {
     if (fetching.current) return;
     fetching.current = true;
+    setRefreshing(true);
     try {
       const value = await adminRequest<Health>('GET');
       setHealth(value);
@@ -62,6 +64,7 @@ export default function DispatchQueuePage() {
       setError(cause instanceof Error ? cause.message : 'Could not load queue health.');
     } finally {
       fetching.current = false;
+      setRefreshing(false);
       setLoading(false);
     }
   }, []);
@@ -99,7 +102,7 @@ export default function DispatchQueuePage() {
         <h1 className="text-2xl font-black sm:text-3xl">Dispatch queue health</h1>
         <p className="text-sm text-slate-600">Review durable recovery, backlog and dead letters. The queue does not change customer orders or payment status by itself.</p>
       </header>
-      <button type="button" onClick={() => void refresh()} disabled={fetching.current}
+      <button type="button" onClick={() => void refresh()} disabled={refreshing}
         className="rounded-lg border border-slate-300 px-4 py-2 font-semibold hover:bg-slate-50">
         Refresh current data
       </button>
