@@ -43,3 +43,28 @@ test('account recovery is linked from real Users and Noida is in canonical sitem
   assert.match(src('src/app/sitemap.ts'), /'\/water-delivery\/noida'/);
   assert.match(src('src/app/(public)/water-delivery/[city]/page.tsx'), /noida: \{/);
 });
+
+test('recovery closure requires actual three-stage evidence instead of an admin checkbox', () => {
+  const route = src('src/app/api/admin/account-recovery/route.ts');
+  assert.match(route, /if \(verify_ownership\)/);
+  assert.match(route, /workflowState\(evidenceResult\.data \?\? \[\]\)\.ready/);
+  assert.match(route, /p_verify_ownership: verify_ownership/); // rejected before RPC
+  const admin = src('src/app/admin/dashboard/account-recovery/page.tsx');
+  assert.match(admin, /<AccountRecoveryWorkflow/);
+  assert.doesNotMatch(admin, /Confirm ownership verified<\/label>/);
+});
+test('customer confirmation is restricted to the original authenticated account', () => {
+  const route = src('src/app/api/customer/account-recovery/confirm/route.ts');
+  assert.match(route, /ticket\.user_id !== auth\.ctx\.user\.id/);
+  assert.match(route, /ticket\.ownership_verified_at/);
+  assert.match(route, /action: 'customer_recovery_confirmed'/);
+  const page = src('src/app/customer/account-recovery/page.tsx');
+  assert.match(page, /I can sign in and my issue is fixed/);
+});
+test('sensitive categories cannot be silently marked fixed', () => {
+  const workflow = src('src/app/api/admin/account-recovery/workflow/route.ts');
+  assert.match(workflow, /auth\.admin\.getUserById/);
+  assert.match(workflow, /authEmail === baseline/);
+  assert.match(workflow, /profile\.status !== 'active'/);
+  assert.match(workflow, /second independent admin/);
+});
