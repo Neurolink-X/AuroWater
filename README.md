@@ -15,99 +15,48 @@ The platform combines customer booking, serviceability, pricing, order tracking,
 
 ---
 
-## Product at a glance
+## Product overview: every important workflow
 
-AuroWater is built around two closely related operational models:
+AuroTap serves two business models: **water delivery** and **local home water-system services**. Customer discovery, booking, operational fulfillment and admin management belong to the same Next.js / Supabase application.
 
-### Water delivery
+## Core services and actual fulfillment
 
-Customer → address/serviceability → water order → supplier selection → stock reservation → supplier acceptance → fulfillment → completion
+| Service | Customer flow | Fulfillment requirement |
+|---|---|---|
+| 20L RO water can (Normal and Chilled) | Address, quantity, delivery slot, checkout, tracking | Eligible local supplier with approved coverage and stock |
+| Water tanker | Select volume/options, request confirmation or quote where needed | Suitable supplier, volume readiness, valid quote before any custom payment |
+| RO service, filters, installation | Select service/options, address and appointment | Approved local specialist with capabilities and availability |
+| Plumbing, borewell, motor/submersible pump and tank cleaning | Choose specialist service, location and schedule | Approved technician/plumber serving the same customer area |
 
-### Home water-system services
+Server-side eligibility and effective-date published pricing govern order creation. A UI card or marketing price alone is not evidence that an order can be fulfilled.
 
-Customer → address/serviceability → service booking → technician dispatch → technician acceptance → OTP/service execution → payment confirmation → completion → review
+## Role-by-role product features
 
-The platform is designed so that business-critical assignment and state transitions are enforced on the server/database rather than trusted to browser state.
+| Role | Core features | Server-side protection |
+|---|---|---|
+| Customer | Login/Google auth, saved addresses, booking wizard, orders, live tracking, subscriptions, reviews, loyalty/referrals, notifications and support | User-owned records, address validation, published price, duplicate protection |
+| Supplier | Verification, stock/online state, approved PIN coverage, dispatch offers, accept/reject, service updates, earnings/payouts, referrals | Active/approved state, stock and local assignment checks |
+| Technician / plumber | Application, documents, service skills, locality and radius, availability, jobs, acceptance, OTP, completion and earnings | Approved credentials and matching same-city service coverage |
+| Admin | Settings, pricing versions, city/zone expansion, approvals, finance, orders, dispatch/queue health, intelligence, content and auditing | Admin auth, auditability and privileged action validation |
 
----
+Account registration does **not** automatically establish operational approval.
 
-## Current service areas
+## Cities and operating coverage
 
-The current source lists **Kanpur, Lucknow, Noida and Gorakhpur** as configured service cities. **This is not proof every PIN or service is live.** A new booking depends on runtime database zones, service availability, valid location, approved in-city supplier/specialist capacity, provider coverage and stock. A Gorakhpur plumber must not be assigned to Kanpur solely because both city names exist.
+**Kanpur, Lucknow, Noida and Gorakhpur** are represented in code. The **active database city/zone configuration**, actual supplier coverage and eligible local professional capacity determine what can be booked at any given address. A plumber based in Gorakhpur must not be offered a Kanpur booking just because both cities are configured. Location fallback must never bypass the authoritative serviceability checks.
 
-Coming-soon and waitlist locations do not automatically become bookable. Never bypass server-side serviceability based on a hardcoded city list.
+## Pricing, payments, subscriptions and finance
 
----
+- Published, effective pricing versions must agree across public landing/service pages, booking, checkout and server order validation, including city overrides.
+- Current code checks minimum configured Normal RO **₹20/20L** and Chilled RO **₹25/20L**. Chilled recurring subscriptions are disallowed.
+- Current default water-can caps: **50** in a one-time order and **200** for a recurring delivery; authorized settings and server validation determine live caps.
+- Dynamic option charges, convenience/delivery fees, emergency charges and tax are validated server-side; legacy admin settings do not supersede effective published prices.
+- Recurring subscriptions require deduplicated delivery generation, pause/resume concurrency safety, matching supplier eligibility and payment/reward synchronization.
+- COD/UPI manual confirmation is not equivalent to a reconciled payment-gateway settlement. Wallet ledger, payouts, payment state and order completion must remain consistent and auditable.
 
-## Core services
+## Marketing, trust and customer support
 
-- Water can delivery
-- Water tanker delivery
-- RO service and repair
-- Plumbing services
-- Borewell services
-- Submersible pump services
-- Motor pump repair
-- Water tank cleaning
-- Related technician-based home water-system services
-
-The service catalogue is database-backed and the booking flow uses service keys rather than relying only on hardcoded frontend pricing.
-
----
-
-## Platform capabilities
-
-### Customer
-
-- Registration and authentication
-- Address management
-- Serviceability checks
-- Water-can ordering
-- Scheduled bookings
-- Subscription/recurring water delivery
-- Order history
-- Order tracking
-- Customer support
-- Reviews and feedback
-- Account management
-
-### Supplier
-
-- Supplier account and approval lifecycle
-- Supplier dashboard
-- Online/offline operational state
-- Service area configuration
-- Water inventory/stock management
-- Stock-aware order assignment
-- Order acceptance/rejection
-- Supplier dispatch records
-- Earnings/payout workflows
-
-### Technician
-
-- Technician onboarding and verification
-- Technician dashboard
-- Availability and service-area information
-- Job queue
-- Assignment offers
-- Atomic job acceptance
-- Job start/completion lifecycle
-- Service OTP generation/verification
-- Payment confirmation during completion
-- Quality/review-related operational data
-
-### Admin
-
-- Admin-only authentication
-- Dashboard and operational metrics
-- Customer/supplier/technician oversight
-- Order oversight
-- Applications and approval workflows
-- Quality cases
-- Fraud flags
-- Settings
-- Finance/payout visibility
-- Audit-oriented operational controls
+Service/area landing pages, real customer reviews, blogs, FAQ, service contact details and social links support discovery. Admin-managed content must not block customer booking or make unverifiable claims about rankings, market prices or current coverage.
 
 ---
 
@@ -179,81 +128,40 @@ Client-side auth state, local storage, and routing cookies must never be treated
 
 ---
 
-# Technology stack
+# Technology stack and repository layout
 
-| Layer | Technology |
+| Layer | Current repository |
 |---|---|
-| Framework | Next.js 16.4.3 |
-| UI | React 19.3.1 |
-| Language | TypeScript |
-| Styling | Tailwind CSS 4 |
-| Database | PostgreSQL via Supabase |
-| Authentication | Supabase Auth |
-| SSR auth | @supabase/ssr |
-| Client data/API | Native fetch + project API utilities |
-| Validation/forms | React Hook Form + Zod |
-| Charts | Recharts |
-| Animation | Framer Motion |
-| Notifications | Sonner |
-| Icons | Lucide React |
-| Hosting | Vercel |
-| Database scheduling | Supabase pg_cron / pg_net |
-| PWA | Web App Manifest + Service Worker |
-| Source control | GitHub |
-
-The repository intentionally avoids adding infrastructure unless the operational requirement justifies it.
-
----
-
-# Repository structure
+| Framework | Next.js **16.4.3** App Router on Vercel |
+| UI | React **19.3.1**, TypeScript, Tailwind CSS 4 |
+| Components | Lucide, Sonner, Framer Motion, React Hook Form, Zod |
+| Auth and data | Supabase Auth, PostgreSQL, RLS, trusted server APIs, atomic RPCs |
+| Scheduled operations | Supabase pg_cron/pg_net and protected worker API routes |
+| PWA/SEO | Service Worker, manifest, offline page, JSON-LD, sitemap, robots, Open Graph |
+| Quality | GitHub Actions, CodeQL, ESLint, unit/regression, database and preview checks |
 
 ~~~text
-AuroWater/
-├── src/
-│   ├── app/
-│   │   ├── (public)/          Public SEO/customer acquisition pages
-│   │   ├── auth/              Authentication flows
-│   │   ├── customer/          Customer workspace
-│   │   ├── supplier/          Supplier workspace
-│   │   ├── technician/        Technician workspace
-│   │   ├── admin/             Admin workspace
-│   │   └── api/               Server/API endpoints
-│   │
-│   ├── components/
-│   │   ├── auth/
-│   │   ├── booking/
-│   │   ├── geo/
-│   │   ├── layout/
-│   │   └── ui/
-│   │
-│   ├── hooks/                 Shared client hooks
-│   ├── lib/                   Domain/business utilities
-│   ├── types/                 TypeScript/database types
-│   ├── utils/                 Server/Supabase utilities
-│   └── proxy.ts               Request routing/security proxy
-│
-├── sql/
-│   ├── 001_core_schema.sql
-│   ├── 002_rls_policies.sql
-│   ├── ...
-│   ├── 015_atomic_supplier_stock_dispatch.sql
-│   ├── 016_atomic_technician_dispatch.sql
-│   ├── 017_align_orders_payment_status_constraint.sql
-│   ├── 018_supplier_dispatch_recovery.sql
-│   └── ALL_MIGRATIONS_ORDERED.sql
-│
-├── supabase/                  Schema/reference SQL
-├── scripts/                   Operational and verification scripts
-├── tests/                     Regression tests
-├── public/                    Static assets, PWA assets and SEO files
-├── .github/workflows/         Operational GitHub Actions
-├── DEPLOY.md                  Deployment/runbook documentation
-├── CLAUDE.md                  Agent/developer context
-├── next.config.ts             Next.js/security configuration
-├── vercel.json                Vercel build/cron configuration
-├── package.json
-└── package-lock.json
+src/app/(public)/          Marketing, service discovery and booking
+src/app/customer/          Customer home, orders, subscriptions and account
+src/app/supplier/          Supplier operational dashboard and coverage
+src/app/technician/        Technician dashboard and jobs
+src/app/plumber/           Specialist-specific flow
+src/app/admin/             Admin settings, orders, finance, pricing and dispatch
+src/app/api/               Public, role-authenticated and internal APIs
+src/components/            Shared layout, booking, role UI, PWA and telemetry
+src/hooks/                 Auth, settings, orders and live role updates
+src/lib/                   Business rules, pricing, dispatch and database helpers
+src/proxy.ts               App route gating (not the ultimate auth boundary)
+supabase/migrations/       Timestamped database migrations
+sql/                      Legacy numbered migrations and generated bundle
+scripts/                  Audits, benchmarking, health and regression tooling
+tests/                    Automated tests and integration guardrails
+public/                   Images, manifest, service worker and SEO assets
+docs/                     Operational, security and performance runbooks
+.github/workflows/         CI, security analysis and manual fallback workflows
 ~~~
+
+Old modules and compatibility paths are present; their age alone does not prove they are unused or broken. Verify imports, deployed traffic and tests before removing them.
 
 ---
 
@@ -551,41 +459,35 @@ There is currently no requirement for a full third-party payment gateway in the 
 
 ---
 
-# PWA and offline strategy
+# PWA, SEO, UX and performance
 
-The application includes:
+## PWA and offline reliability
 
-- Web App Manifest
-- AuroTap branding for installed app experience
-- Service worker
-- Offline fallback
-- Cached application shell assets
-- Progressive enhancement for installation
+The site provides installable AuroTap branding, service-worker registration, a manifest, offline fallback and disposable-cache housekeeping. Safe offline caching is limited to suitable public/static assets. Never publicly cache authenticated order, supplier, admin, financial or personalized API responses, and never show an expired price version as current.
 
-The service worker is intentionally lightweight.
+## Search engine optimization
 
-Sensitive authenticated application data should not be blindly cached as offline public content.
+Public city/service pages, blog/knowledge content, canonical metadata, Open Graph, robots, sitemap and JSON-LD support discovery. Private login, account, checkout, order and admin flows must not be indexed as public marketing content. Preview/staging URLs must not become duplicate production search results.
 
----
+## Speed and latency targets
 
-# SEO and public web
+Targets are engineering budgets, **not measured customer experience or capacity guarantees**:
 
-Public pages are designed for search visibility while private application routes remain operational/authenticated.
+| Metric | Budget |
+|---|---:|
+| LCP | ≤ 2.5s |
+| INP | ≤ 200ms |
+| CLS | ≤ 0.10 |
+| FCP | ≤ 1.8s |
+| TTFB | ≤ 800ms |
+| Customer order detail API | ≤ 600ms |
+| Supplier orders API | ≤ 800ms |
+| Technician jobs API | ≤ 800ms |
+| Admin dashboard API | ≤ 1,000ms |
 
-The repository includes:
+The platform samples privacy-safe performance telemetry by role. Measure real mobile startup, navigation, initial JS, long animations, concurrent dashboard API calls, database locks, query plans and p95 latency before claiming an improvement. Use realtime updates and bounded fallback polling rather than constantly reloading entire dashboards.
 
-- Metadata
-- Canonical URLs
-- Open Graph metadata
-- Twitter/X metadata
-- robots.txt generation
-- sitemap generation
-- JSON-LD organization/site schemas
-- city/service landing pages
-- public service pages
-- crawl controls for private flows
-
-Booking/private routes should not be treated as normal SEO landing pages.
+Read **docs/DATABASE_DISPATCH_PERFORMANCE_VERIFICATION.md**, **docs/RESILIENCE_SPEED_SEO_RUNBOOK.md** and **docs/mobile-performance-verification.md**.
 
 ---
 
@@ -926,6 +828,27 @@ These should be introduced based on actual production requirements rather than a
 | supabase/migrations/ | Timestamped schema changes; includes the guarded dispatch queue SQL |
 | scripts/ | Verification, smoke tests and migration tooling |
 | tests/ | Regression tests |
+
+---
+
+# Current engineering risks and production release gates
+
+| Priority | Area | Required evidence, not just merged code |
+|---|---|---|
+| P0 | Migration history | Reconcile legacy numbered and timestamped migrations with actual production schema; prove clean disposable DB setup |
+| P0 | Reliability at scale | Measure staging bookings/second, successful assignments/minute, queue backlog, DB locks/connections and p95/p99 |
+| P0 | Security | Review account bootstrap, credential rotation, authorization, RLS and abuse protection across all entry points |
+| P0 | Transaction correctness | Verify order idempotency, stock races, subscription duplicate prevention, payment/ledger and payout reconciliation |
+| P1 | Customer/order speed | Eliminate redundant polling and stale responses; measure initial page and live tracking |
+| P1 | Legacy APIs and modules | Trace imports/traffic, consolidate duplicate pricing paths carefully and remove only verified dead code |
+| P1 | Query efficiency | Replace unbounded dashboard row scans with verified indexed aggregates; compare SQL counts |
+| P1 | Frontend performance | Reduce client-side JS and animation cost without removing useful workflows or degrading UI |
+| P1 | Incident readiness | Verify cron heartbeat, Vercel deployment, logs, backups/restoration and rollback |
+| P2 | SEO/content claims | Verify published city/service/pricing content, schema, canonical URLs and search coverage |
+
+**Historical DB retention snapshot:** The 3 November 2026 runbook reported about 93 MB total allocated PostgreSQL data and ~55 MB public application tables; it is not a concurrent-user benchmark. PIN staging and active directories contain different curated content even when counts match. Never delete them, business records, ledger, pricing history, audit logs or customer data to chase cache/memory improvements. See **docs/DB_RETENTION_RUNBOOK_2026-11-03.md**.
+
+To improve speed, focus on demonstrated bottlenecks, measure before/after, keep CI green and perform staging tests. A stale file timestamp is a clue for review, not proof that editing it will improve performance.
 
 ---
 
