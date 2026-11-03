@@ -1981,6 +1981,9 @@ export default function Header() {
                     <Link role="menuitem" href={dashboardHref} className="block rounded-xl px-3 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/5">
                       Dashboard
                     </Link>
+                    <Link role="menuitem" href="/notifications" prefetch={false} className={menuItem}>
+                      Notifications & alerts
+                    </Link>
                     {role === 'admin' && (
                       <Link role="menuitem" href="/admin/zones" prefetch={false} className={menuItem}>
                         Service zones
@@ -2235,12 +2238,16 @@ export default function Header() {
         <div className="shrink-0 space-y-2 border-t border-white/5 bg-[#0A1628] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
           {!hydrated ? null : isLoggedIn ? (
             <>
-              <div className={`grid gap-2 ${isCustomer ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="grid grid-cols-2 gap-2">
                 <Link
                   href={dashboardHref}
                   className="block rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-white transition-colors hover:border-cyan-500/30"
                 >
                   Dashboard
+                </Link>
+                <Link href="/notifications" prefetch={false}
+                  className="block rounded-xl border border-white/10 py-3 text-center text-sm font-medium text-white transition-colors hover:border-cyan-500/30">
+                  Notifications
                 </Link>
                 {isCustomer && (
                   <Link
