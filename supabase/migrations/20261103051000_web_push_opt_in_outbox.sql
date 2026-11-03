@@ -118,6 +118,14 @@ BEGIN
   )
   DELETE FROM public.web_push_deliveries d USING old_rows r WHERE d.id = r.id;
   GET DIAGNOSTICS v_count = ROW_COUNT;
+  -- Revoked/invalid browser subscriptions are disposable; active devices
+  -- and unread notifications are never included.
+  WITH old_devices AS (
+    SELECT id FROM public.web_push_subscriptions
+    WHERE enabled = false AND revoked_at < now() - interval '30 days'
+    ORDER BY revoked_at, id LIMIT 100
+  )
+  DELETE FROM public.web_push_subscriptions s USING old_devices o WHERE s.id = o.id;
   RETURN v_count;
 END;
 $func$;
@@ -127,3 +135,34 @@ SELECT cron.schedule(
   '24 3 * * *',
   'SELECT private.prune_web_push_delivery_history()'
 );
+
+-- Reuse the project's existing pg_cron + encrypted vault secret.
+-- Only make a serverless HTTP call when queued work is actually due.
+SELECT cron.schedule(
+  'aurotap-web-push-recovery',
+  '*/2 * * * *',
+  $cron$
+  SELECT net.http_post(
+    url := 'https://www.aurotap.in/api/internal/web-push-sweep',
+    headers := jsonb_build_object(
+      'Authorization',
+      'Bearer ' || (
+        SELECT decrypted_secret FROM vault.decrypted_secrets
+        WHERE name = 'aurotap_cron_secret' LIMIT 1
+      ),
+      'Content-Type', 'application/json'
+    ),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 25000
+  )
+  WHERE EXISTS (
+    SELECT 1 FROM public.web_push_deliveries
+    WHERE (state = 'pending' AND next_attempt_at <= now())
+       OR (state = 'leased' AND leased_until < now())
+  );
+  $cron$
+);
+
+-- Duplicate unique indexes add write amplification without strengthening
+-- deduplication. Retain notifications_dedup_key_unique for compatibility.
+DROP INDEX IF EXISTS public.notifications_dedup_key_idx;
