@@ -1,6 +1,8 @@
-# AuroWater
+# AuroTap (AuroWater)
 
-> Technology platform for water delivery and essential home water-system services.
+> AuroTap is the customer PWA. AuroWater is the Next.js/Supabase platform behind bookings, dispatch, fulfillment, finance and administration.
+>
+> **Docs audited: 3 November 2026.** Code merged into GitHub does not mean it is deployed, its database migration has been applied, or its feature flag has been enabled. Do not claim tested 100,000-user capacity without a staging end-to-end load test.
 
 AuroWater is a production-oriented marketplace platform designed to connect customers with water suppliers and field technicians through a single digital workflow.
 
@@ -13,99 +15,48 @@ The platform combines customer booking, serviceability, pricing, order tracking,
 
 ---
 
-## Product at a glance
+## Product overview: every important workflow
 
-AuroWater is built around two closely related operational models:
+AuroTap serves two business models: **water delivery** and **local home water-system services**. Customer discovery, booking, operational fulfillment and admin management belong to the same Next.js / Supabase application.
 
-### Water delivery
+## Core services and actual fulfillment
 
-Customer → address/serviceability → water order → supplier selection → stock reservation → supplier acceptance → fulfillment → completion
+| Service | Customer flow | Fulfillment requirement |
+|---|---|---|
+| 20L RO water can (Normal and Chilled) | Address, quantity, delivery slot, checkout, tracking | Eligible local supplier with approved coverage and stock |
+| Water tanker | Select volume/options, request confirmation or quote where needed | Suitable supplier, volume readiness, valid quote before any custom payment |
+| RO service, filters, installation | Select service/options, address and appointment | Approved local specialist with capabilities and availability |
+| Plumbing, borewell, motor/submersible pump and tank cleaning | Choose specialist service, location and schedule | Approved technician/plumber serving the same customer area |
 
-### Home water-system services
+Server-side eligibility and effective-date published pricing govern order creation. A UI card or marketing price alone is not evidence that an order can be fulfilled.
 
-Customer → address/serviceability → service booking → technician dispatch → technician acceptance → OTP/service execution → payment confirmation → completion → review
+## Role-by-role product features
 
-The platform is designed so that business-critical assignment and state transitions are enforced on the server/database rather than trusted to browser state.
+| Role | Core features | Server-side protection |
+|---|---|---|
+| Customer | Login/Google auth, saved addresses, booking wizard, orders, live tracking, subscriptions, reviews, loyalty/referrals, notifications and support | User-owned records, address validation, published price, duplicate protection |
+| Supplier | Verification, stock/online state, approved PIN coverage, dispatch offers, accept/reject, service updates, earnings/payouts, referrals | Active/approved state, stock and local assignment checks |
+| Technician / plumber | Application, documents, service skills, locality and radius, availability, jobs, acceptance, OTP, completion and earnings | Approved credentials and matching same-city service coverage |
+| Admin | Settings, pricing versions, city/zone expansion, approvals, finance, orders, dispatch/queue health, intelligence, content and auditing | Admin auth, auditability and privileged action validation |
 
----
+Account registration does **not** automatically establish operational approval.
 
-## Current service areas
+## Cities and operating coverage
 
-The application currently exposes Gorakhpur, Kanpur, and Lucknow as active service cities.
+**Kanpur, Lucknow, Noida and Gorakhpur** are represented in code. The **active database city/zone configuration**, actual supplier coverage and eligible local professional capacity determine what can be booked at any given address. A plumber based in Gorakhpur must not be offered a Kanpur booking just because both cities are configured. Location fallback must never bypass the authoritative serviceability checks.
 
-Additional cities can be represented as coming-soon or waitlist locations without opening them for production fulfillment.
+## Pricing, payments, subscriptions and finance
 
----
+- Published, effective pricing versions must agree across public landing/service pages, booking, checkout and server order validation, including city overrides.
+- Current code checks minimum configured Normal RO **₹20/20L** and Chilled RO **₹25/20L**. Chilled recurring subscriptions are disallowed.
+- Current default water-can caps: **50** in a one-time order and **200** for a recurring delivery; authorized settings and server validation determine live caps.
+- Dynamic option charges, convenience/delivery fees, emergency charges and tax are validated server-side; legacy admin settings do not supersede effective published prices.
+- Recurring subscriptions require deduplicated delivery generation, pause/resume concurrency safety, matching supplier eligibility and payment/reward synchronization.
+- COD/UPI manual confirmation is not equivalent to a reconciled payment-gateway settlement. Wallet ledger, payouts, payment state and order completion must remain consistent and auditable.
 
-## Core services
+## Marketing, trust and customer support
 
-- Water can delivery
-- Water tanker delivery
-- RO service and repair
-- Plumbing services
-- Borewell services
-- Submersible pump services
-- Motor pump repair
-- Water tank cleaning
-- Related technician-based home water-system services
-
-The service catalogue is database-backed and the booking flow uses service keys rather than relying only on hardcoded frontend pricing.
-
----
-
-## Platform capabilities
-
-### Customer
-
-- Registration and authentication
-- Address management
-- Serviceability checks
-- Water-can ordering
-- Scheduled bookings
-- Subscription/recurring water delivery
-- Order history
-- Order tracking
-- Customer support
-- Reviews and feedback
-- Account management
-
-### Supplier
-
-- Supplier account and approval lifecycle
-- Supplier dashboard
-- Online/offline operational state
-- Service area configuration
-- Water inventory/stock management
-- Stock-aware order assignment
-- Order acceptance/rejection
-- Supplier dispatch records
-- Earnings/payout workflows
-
-### Technician
-
-- Technician onboarding and verification
-- Technician dashboard
-- Availability and service-area information
-- Job queue
-- Assignment offers
-- Atomic job acceptance
-- Job start/completion lifecycle
-- Service OTP generation/verification
-- Payment confirmation during completion
-- Quality/review-related operational data
-
-### Admin
-
-- Admin-only authentication
-- Dashboard and operational metrics
-- Customer/supplier/technician oversight
-- Order oversight
-- Applications and approval workflows
-- Quality cases
-- Fraud flags
-- Settings
-- Finance/payout visibility
-- Audit-oriented operational controls
+Service/area landing pages, real customer reviews, blogs, FAQ, service contact details and social links support discovery. Admin-managed content must not block customer booking or make unverifiable claims about rankings, market prices or current coverage.
 
 ---
 
@@ -177,81 +128,40 @@ Client-side auth state, local storage, and routing cookies must never be treated
 
 ---
 
-# Technology stack
+# Technology stack and repository layout
 
-| Layer | Technology |
+| Layer | Current repository |
 |---|---|
-| Framework | Next.js 16.1.6 |
-| UI | React 19.2.3 |
-| Language | TypeScript |
-| Styling | Tailwind CSS 4 |
-| Database | PostgreSQL via Supabase |
-| Authentication | Supabase Auth |
-| SSR auth | @supabase/ssr |
-| Client data/API | Native fetch + project API utilities |
-| Validation/forms | React Hook Form + Zod |
-| Charts | Recharts |
-| Animation | Framer Motion |
-| Notifications | Sonner |
-| Icons | Lucide React |
-| Hosting | Vercel |
-| Database scheduling | Supabase pg_cron / pg_net |
-| PWA | Web App Manifest + Service Worker |
-| Source control | GitHub |
-
-The repository intentionally avoids adding infrastructure unless the operational requirement justifies it.
-
----
-
-# Repository structure
+| Framework | Next.js **16.4.3** App Router on Vercel |
+| UI | React **19.3.1**, TypeScript, Tailwind CSS 4 |
+| Components | Lucide, Sonner, Framer Motion, React Hook Form, Zod |
+| Auth and data | Supabase Auth, PostgreSQL, RLS, trusted server APIs, atomic RPCs |
+| Scheduled operations | Supabase pg_cron/pg_net and protected worker API routes |
+| PWA/SEO | Service Worker, manifest, offline page, JSON-LD, sitemap, robots, Open Graph |
+| Quality | GitHub Actions, CodeQL, ESLint, unit/regression, database and preview checks |
 
 ~~~text
-AuroWater/
-├── src/
-│   ├── app/
-│   │   ├── (public)/          Public SEO/customer acquisition pages
-│   │   ├── auth/              Authentication flows
-│   │   ├── customer/          Customer workspace
-│   │   ├── supplier/          Supplier workspace
-│   │   ├── technician/        Technician workspace
-│   │   ├── admin/             Admin workspace
-│   │   └── api/               Server/API endpoints
-│   │
-│   ├── components/
-│   │   ├── auth/
-│   │   ├── booking/
-│   │   ├── geo/
-│   │   ├── layout/
-│   │   └── ui/
-│   │
-│   ├── hooks/                 Shared client hooks
-│   ├── lib/                   Domain/business utilities
-│   ├── types/                 TypeScript/database types
-│   ├── utils/                 Server/Supabase utilities
-│   └── proxy.ts               Request routing/security proxy
-│
-├── sql/
-│   ├── 001_core_schema.sql
-│   ├── 002_rls_policies.sql
-│   ├── ...
-│   ├── 015_atomic_supplier_stock_dispatch.sql
-│   ├── 016_atomic_technician_dispatch.sql
-│   ├── 017_align_orders_payment_status_constraint.sql
-│   ├── 018_supplier_dispatch_recovery.sql
-│   └── ALL_MIGRATIONS_ORDERED.sql
-│
-├── supabase/                  Schema/reference SQL
-├── scripts/                   Operational and verification scripts
-├── tests/                     Regression tests
-├── public/                    Static assets, PWA assets and SEO files
-├── .github/workflows/         Operational GitHub Actions
-├── DEPLOY.md                  Deployment/runbook documentation
-├── CLAUDE.md                  Agent/developer context
-├── next.config.ts             Next.js/security configuration
-├── vercel.json                Vercel build/cron configuration
-├── package.json
-└── package-lock.json
+src/app/(public)/          Marketing, service discovery and booking
+src/app/customer/          Customer home, orders, subscriptions and account
+src/app/supplier/          Supplier operational dashboard and coverage
+src/app/technician/        Technician dashboard and jobs
+src/app/plumber/           Specialist-specific flow
+src/app/admin/             Admin settings, orders, finance, pricing and dispatch
+src/app/api/               Public, role-authenticated and internal APIs
+src/components/            Shared layout, booking, role UI, PWA and telemetry
+src/hooks/                 Auth, settings, orders and live role updates
+src/lib/                   Business rules, pricing, dispatch and database helpers
+src/proxy.ts               App route gating (not the ultimate auth boundary)
+supabase/migrations/       Timestamped database migrations
+sql/                      Legacy numbered migrations and generated bundle
+scripts/                  Audits, benchmarking, health and regression tooling
+tests/                    Automated tests and integration guardrails
+public/                   Images, manifest, service worker and SEO assets
+docs/                     Operational, security and performance runbooks
+.github/workflows/         CI, security analysis and manual fallback workflows
 ~~~
+
+Old modules and compatibility paths are present; their age alone does not prove they are unused or broken. Verify imports, deployed traffic and tests before removing them.
 
 ---
 
@@ -380,45 +290,66 @@ This protects critical state transitions from race conditions between multiple r
 
 ---
 
-# Automated recovery and scheduling
+# Automated recovery, bounded queue and capacity (PR #243)
 
-## Supplier recovery
+**PR #243 was merged on 3 November 2026, but its durable queue defaults to OFF.** Existing supplier/technician retries continue to operate while it is disabled. The new queue cannot be called live merely because the pull request is merged.
 
-Pending water orders that cannot immediately find an eligible supplier can be retried by the existing scheduler.
+## Explain it simply
 
-Recovery is bounded and uses the existing dispatch engine rather than creating a second supplier-dispatch implementation.
+A pending order enters a small, database-backed queue entry. A worker temporarily claims it, checks real provider eligibility and stock using the existing atomic dispatch logic, and removes the entry when assigned or completed. If a provider is temporarily unavailable, recovery retries after a delay. If repeated internal errors prevent dispatch, the queue records a dead letter for admin investigation rather than deleting the customer's order.
 
-## Technician dispatch sweep
+The new design includes:
 
-The production technician sweep runs through:
+- A single idempotent work item per order UUID; no copied customer address, phone or payment payload
+- Database row locking, lease tokens, a shared in-flight cap and retry backoff
+- Stale-lease recovery, controlled dead-letter requeue and a reconciliation sweep
+- Admin monitoring at **/admin/dispatch-queue** with Ready / In progress / Needs review and aging pending orders
+- An optional shared checkout admission limiter when the queue is ON; overloaded new bookings receive **429 + Retry-After**; unavailability of the admission check fails safely with **503** before order/payment creation
+- Existing checkout UUID replay checked before new-booking admission, protecting legitimate retries
+- Flag-based rollback to legacy retry without deleting order, payment, stock or payout records
 
-~~~text
-Supabase pg_cron
-      ↓
-Every 5 minutes
-      ↓
-Secure HTTP request
-      ↓
-/api/internal/technician-dispatch-sweep
-      ↓
-CRON_SECRET validation
-      ↓
-Stale offer release
-      ↓
-Technician retry
-      ↓
-Pending non-water technician dispatch
-~~~
+Supplier and technician background jobs still require internal secret authorization. The new queue is **not** a replacement for normal synchronous booking or atomic supplier/technician assignment.
 
-The endpoint has bounded batch size and runtime controls.
+## Min / max: actual limits in merged code
 
-GitHub Actions currently provides a **manual emergency fallback** rather than being the primary 5-minute scheduler.
+| Constraint | Minimum / normal default | Maximum in current code | Important caveat |
+|---|---|---|---|
+| Queue feature flag | OFF by default; zero new queue worker calls when OFF/idle | Enabled only after release gates | Legacy retry remains active when OFF |
+| New checkout admission when queue ON | Valid configured value **1 booking/min**; default **48/min** | Input clamped to **3,000/min** | 3,000 is a configuration ceiling, **not certified safe capacity** |
+| Items per worker HTTP invocation | 0 if queue empty | **32 claims per call** | Runtime budget and supply may reduce this |
+| Parallel assignment work per worker | 0 when idle | **3 concurrent dispatches** | Local to an instance |
+| Shared leased jobs across workers | 0 when idle | **24 simultaneous leases** | Enforced by the database |
+| Supabase scheduler | 0 calls when disabled or no due work | **4 worker calls per 2 minutes** | Depends on the installed migration and successful cron/HTTP execution |
+| Theoretical claim rate | 0 when OFF/idle | **128 claims/2 min = 64/min = 3,840/hour** | Ideal arithmetic ceiling; **not** guaranteed successful order assignments |
+| Individual queue lease | **90-second default** | Database clamp **60–180 seconds** | Retry/lease duration, not customer booking SLA |
+| Isolated synthetic queue benchmark | **100 test records** | **100,000 test records** | Synthetic DB mechanics only; no production customer load |
 
-## Vercel
+**Example:** Even at an unrealistic perfect 64 successful, distinct first-try claims per minute, 100,000 waiting orders would require **more than 26 hours** to be touched once. Provider unavailability, retry attempts, serverless scheduling and DB/network constraints can make the real time longer. This design **does NOT certify 100,000 simultaneous users/bookings**.
 
-Vercel remains responsible for the normal Next.js application deployment and the scheduled subscription job configured in vercel.json.
+**The current minimum and maximum safe number of concurrent users is UNKNOWN** because the system lacks a verified, representative full-stack load test. Homepage visits, browsing users, checkout writes and dispatch assignments are different workloads and must not share one invented capacity figure.
 
-This separation avoids depending on Vercel Hobby's cron frequency for the 5-minute dispatch requirement.
+**Documentation correction:** PR #243's summary once said 16 claims/minute. The reviewed migration defines up to **4 × 32 claims every two minutes**, which yields the **64/minute theoretical upper bound** above. It must not be confused with real measured throughput. Raising booking admission alone creates backlog unless measured queue capacity scales with it.
+
+## Activation and safety gates
+
+Do not enable the flag in production until all of these are verified:
+
+1. Apply/reconcile the reviewed timestamped migration in an isolated environment; validate global leases, RLS, idempotency and safe rollback.
+2. Complete SQL concurrency checks and duplicate checkout, supplier stock and specialist-offer race tests.
+3. Run staging browser E2E for customer booking → supplier/specialist dispatch → payment and completion.
+4. Observe database CPU/connections, worker errors, claim and **successful assignment** rate, backlog age, dead letters, API p95/p99 and 429/503 rates.
+5. Verify the **CRON_SECRET**-authenticated endpoint, cron job installation, reconciliation and backfill of every pre-existing eligible PENDING order.
+6. Use a monitored low-volume canary. Never run a 100k test against production or enable new paid resources without approval.
+
+The migration refuses enabling the queue with an incomplete pending-order backfill. For larger backlogs, authorized service-role operators must prefill in bounded batches before activation. Roll back by setting **dispatch_work_queue_enabled=false**; do not delete the queue, order, ledger or audit history.
+
+See [Durable queue release gates](docs/DURABLE_DISPATCH_SCALE_RELEASE_GATES.md), which also documents a **disposable, explicitly opt-in** database benchmark.
+
+## Existing scheduler and Vercel
+
+When queue mode is OFF, existing legacy retry paths remain responsible for pending orders and stale technician-offer recovery continues. The queue mode uses **Supabase pg_cron / pg_net** for conditional worker invocations. Vercel runs the Next.js app/API, including the authenticated internal endpoint; the **vercel.json** subscription cron remains a separate job.
+
+GitHub Actions is not an unlimited autoscaling worker pool. A script with a 100,000-item mock simulation is not a live load test.
 
 ---
 
@@ -528,41 +459,35 @@ There is currently no requirement for a full third-party payment gateway in the 
 
 ---
 
-# PWA and offline strategy
+# PWA, SEO, UX and performance
 
-The application includes:
+## PWA and offline reliability
 
-- Web App Manifest
-- AuroTap branding for installed app experience
-- Service worker
-- Offline fallback
-- Cached application shell assets
-- Progressive enhancement for installation
+The site provides installable AuroTap branding, service-worker registration, a manifest, offline fallback and disposable-cache housekeeping. Safe offline caching is limited to suitable public/static assets. Never publicly cache authenticated order, supplier, admin, financial or personalized API responses, and never show an expired price version as current.
 
-The service worker is intentionally lightweight.
+## Search engine optimization
 
-Sensitive authenticated application data should not be blindly cached as offline public content.
+Public city/service pages, blog/knowledge content, canonical metadata, Open Graph, robots, sitemap and JSON-LD support discovery. Private login, account, checkout, order and admin flows must not be indexed as public marketing content. Preview/staging URLs must not become duplicate production search results.
 
----
+## Speed and latency targets
 
-# SEO and public web
+Targets are engineering budgets, **not measured customer experience or capacity guarantees**:
 
-Public pages are designed for search visibility while private application routes remain operational/authenticated.
+| Metric | Budget |
+|---|---:|
+| LCP | ≤ 2.5s |
+| INP | ≤ 200ms |
+| CLS | ≤ 0.10 |
+| FCP | ≤ 1.8s |
+| TTFB | ≤ 800ms |
+| Customer order detail API | ≤ 600ms |
+| Supplier orders API | ≤ 800ms |
+| Technician jobs API | ≤ 800ms |
+| Admin dashboard API | ≤ 1,000ms |
 
-The repository includes:
+The platform samples privacy-safe performance telemetry by role. Measure real mobile startup, navigation, initial JS, long animations, concurrent dashboard API calls, database locks, query plans and p95 latency before claiming an improvement. Use realtime updates and bounded fallback polling rather than constantly reloading entire dashboards.
 
-- Metadata
-- Canonical URLs
-- Open Graph metadata
-- Twitter/X metadata
-- robots.txt generation
-- sitemap generation
-- JSON-LD organization/site schemas
-- city/service landing pages
-- public service pages
-- crawl controls for private flows
-
-Booking/private routes should not be treated as normal SEO landing pages.
+Read **docs/DATABASE_DISPATCH_PERFORMANCE_VERIFICATION.md**, **docs/RESILIENCE_SPEED_SEO_RUNBOOK.md** and **docs/mobile-performance-verification.md**.
 
 ---
 
@@ -653,7 +578,7 @@ Never expose SUPABASE_SERVICE_ROLE_KEY or other server secrets through NEXT_PUBL
 
 Recommended:
 
-- Node.js 20.x LTS
+- Node.js 20+ (compatible with the pinned Next.js release)
 - npm
 - Supabase project or development database
 - Git
@@ -744,9 +669,9 @@ The authenticated smoke test reads the development user's profile/address data a
 
 # Database migrations
 
-Migration source files live in sql/.
+Legacy numbered migration sources exist under sql/. **New timestamped, reviewable migrations also live in supabase/migrations/** (including PR #243). A live deployment must reconcile both tracks with the actual production schema before applying anything. The generated legacy bundle is **not** a complete snapshot of all current timestamped migrations.
 
-The ordered bundle is:
+The older ordered bundle is:
 
 ~~~text
 sql/ALL_MIGRATIONS_ORDERED.sql
@@ -762,16 +687,7 @@ to regenerate the ordered bundle from the migration sources included by the migr
 
 ## Important migration audit note
 
-The current repository's generated ALL_MIGRATIONS_ORDERED.sql includes the technician migration through 016.
-
-Production compatibility/recovery patches 017 and 018 are tracked as standalone migration files:
-
-~~~text
-017_align_orders_payment_status_constraint.sql
-018_supplier_dispatch_recovery.sql
-~~~
-
-Therefore, when provisioning a new environment, verify that the environment has all migrations through the current production state rather than assuming the generated bundle alone contains every later operational patch.
+**Do not blindly replay sql/ALL_MIGRATIONS_ORDERED.sql in an existing production database.** Its historical scope cannot substitute for complete schema and migration-history reconciliation. Run **npm run db:audit-migrations**, inspect the current production schema, review timestamped Supabase migrations and apply only planned, verified changes. Queue mode stays OFF until its SQL, authorization, backfill, cron and staging workflows pass.
 
 After DDL changes, reload PostgREST:
 
@@ -909,9 +825,53 @@ These should be introduced based on actual production requirements rather than a
 | .env.example | Safe environment-variable template |
 | sql/ | Database migration source |
 | sql/ALL_MIGRATIONS_ORDERED.sql | Generated ordered SQL bundle |
-| supabase/ | Reference Supabase schema assets |
+| supabase/migrations/ | Timestamped schema changes; includes the guarded dispatch queue SQL |
 | scripts/ | Verification, smoke tests and migration tooling |
 | tests/ | Regression tests |
+
+---
+
+# Current engineering risks and production release gates
+
+| Priority | Area | Required evidence, not just merged code |
+|---|---|---|
+| P0 | Migration history | Reconcile legacy numbered and timestamped migrations with actual production schema; prove clean disposable DB setup |
+| P0 | Reliability at scale | Measure staging bookings/second, successful assignments/minute, queue backlog, DB locks/connections and p95/p99 |
+| P0 | Security | Review account bootstrap, credential rotation, authorization, RLS and abuse protection across all entry points |
+| P0 | Transaction correctness | Verify order idempotency, stock races, subscription duplicate prevention, payment/ledger and payout reconciliation |
+| P1 | Customer/order speed | Eliminate redundant polling and stale responses; measure initial page and live tracking |
+| P1 | Legacy APIs and modules | Trace imports/traffic, consolidate duplicate pricing paths carefully and remove only verified dead code |
+| P1 | Query efficiency | Replace unbounded dashboard row scans with verified indexed aggregates; compare SQL counts |
+| P1 | Frontend performance | Reduce client-side JS and animation cost without removing useful workflows or degrading UI |
+| P1 | Incident readiness | Verify cron heartbeat, Vercel deployment, logs, backups/restoration and rollback |
+| P2 | SEO/content claims | Verify published city/service/pricing content, schema, canonical URLs and search coverage |
+
+**Historical DB retention snapshot:** The 3 November 2026 runbook reported about 93 MB total allocated PostgreSQL data and ~55 MB public application tables; it is not a concurrent-user benchmark. PIN staging and active directories contain different curated content even when counts match. Never delete them, business records, ledger, pricing history, audit logs or customer data to chase cache/memory improvements. See **docs/DB_RETENTION_RUNBOOK_2026-11-03.md**.
+
+To improve speed, focus on demonstrated bottlenecks, measure before/after, keep CI green and perform staging tests. A stale file timestamp is a clue for review, not proof that editing it will improve performance.
+
+---
+
+# Aging-file audit: update what actually affects the application
+
+**File age alone is not a performance problem.** Compare source change history, current imports, API traces, actual queries, mobile browser profiler, CI and error logs before touching a file. Replacing a long-standing but correct utility may worsen stability. Audited path history as of 3 November 2026:
+
+| Path | Last source change found | Finding and next step |
+|---|---|---|
+| src/lib/db/connection.ts | 22 Apr 2026 | Legacy PostgreSQL helper still used by old pricing/bootstrap modules. Do not increase connection pool blindly. Trace live imports and remove obsolete use of database fallback pricing after verification. |
+| src/lib/i18n/LanguageContext.tsx | 1 Sep 2026 | Language provider runs in the root layout; test font swapping and hydration. Only optimize if profiling shows render/layout cost. |
+| src/components/layout/SiteNav.tsx | 1 Sep 2026 | Old alternate navigation implementation with dynamic style and font import. Search found no active importing site layout; do not refactor until actual usage/dead-code proof. |
+| src/components/layout/AnnouncementBar.tsx | 1 Sep 2026 | Old announcement banner with hardcoded founding-member claim. Verify active import and claim accuracy before showing or deleting. |
+| src/hooks/useAuth.ts | 6 Oct 2026 | Large central compatibility hook; security-sensitive. Profile auth listener/session refresh and cross-tab events rather than rewriting. |
+| src/hooks/useCustomerOrders.ts | 6 Oct 2026 | Redundant 15-second polling continued while live updates connected. Isolated request-reduction change is proposed separately in PR #245, not proven in production. |
+| src/lib/api/settings-map.ts | 12 Oct 2026 | Legacy settings mapper still exists. Validate against published pricing contract before consolidating duplicate configuration. |
+| src/app/api/cron/dispatch-sweep/route.ts | 12 Oct 2026 | Historical cron endpoint. Confirm actual scheduler integration and avoid simultaneous overlapping dispatch jobs. |
+
+**Recently updated critical paths:** Header, homepage, booking, supplier/technician dashboards, API transport and PWA service worker saw source changes on 1–3 November 2026. Their speed still needs live measurements; recency is not proof of correctness.
+
+**High-value fix strategy:** optimize authenticated order polling, slow database query plans, LCP/client hydration and duplicate requests with before/after measurements; preserve financial, booking and provider status consistency. Verify standalone retired modules before pruning and do not globally ignore or delete historical business data.
+
+The **.gitignore** was intentionally left unchanged after clarifying that “ignored files” meant neglected source modules rather than Git ignore patterns. It does not control runtime latency.
 
 ---
 
@@ -938,10 +898,10 @@ AuroWater development follows these rules:
 
 The current repository is production-oriented, but it is not represented as a mature enterprise engineering organization yet.
 
-The audit identified these areas for continued improvement:
+The audit identified these areas for continued verification and improvement:
 
-- Add a required CI pipeline for lint, type/build verification and regression tests.
-- Add pull-request checks before merging to main.
+- Keep the existing GitHub Actions checks mandatory; fix lint, type/build, regression and security failures before merge.
+- Verify PR-required checks and production deployment separately from a successful merge.
 - Add dedicated integration/e2e coverage for critical booking and dispatch flows.
 - Add a formal SECURITY.md security reporting policy.
 - Add CONTRIBUTING.md and CODE_OF_CONDUCT.md if the repository becomes externally collaborative.
