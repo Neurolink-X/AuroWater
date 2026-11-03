@@ -16,7 +16,7 @@ test('queue activation stays guarded and explains missing release approval', () 
   assert.ok(queuePage.includes('Approval pending'));
   assert.ok(queuePage.includes('Why is Enable disabled?'));
   assert.ok(queuePage.includes('health.activation_ready'));
-  assert.ok(queuePage.includes('Queue activation is locked'));
+  assert.ok(queuePage.includes('Operator release approval is still pending'));
   assert.ok(queuePage.includes('bg-slate-50'));
   assert.ok(queuePage.includes('bg-white'));
   assert.ok(queuePage.includes('text-slate-950'));
