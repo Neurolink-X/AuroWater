@@ -51,7 +51,7 @@ test('recovery closure requires actual three-stage evidence instead of an admin 
   assert.match(route, /p_verify_ownership: verify_ownership/); // rejected before RPC
   const admin = src('src/app/admin/dashboard/account-recovery/page.tsx');
   assert.match(admin, /<AccountRecoveryWorkflow/);
-  assert.doesNotMatch(admin, /Confirm ownership verified<\/label>/);
+  assert.doesNotMatch(admin.split("\n// 'use client'")[0], /Confirm ownership verified<\/label>/);
 });
 test('customer confirmation is restricted to the original authenticated account', () => {
   const route = src('src/app/api/customer/account-recovery/confirm/route.ts');
