@@ -2274,9 +2274,11 @@ export default function BookingWizard() {
                         {serviceability.serviceable && addresses.find((address) => address.id === draft.addressId) && (
                           <p className="mt-1 text-xs font-semibold text-emerald-900">Delivery to: {formatAddressCard(addresses.find((address) => address.id === draft.addressId)!)}</p>
                         )}
-                        {serviceability.status === 'COMING_SOON' && (
-                          <div className="mt-3">
-                            <WaitlistPanel cityName={serviceability.zone?.name ?? 'your area'} cityId={null} role="customer" source="book-zone" />
+                        {!serviceability.serviceable && serviceability.status !== 'ERROR' && serviceability.status !== 'LOOKUP_ERROR' && (
+                          <div className="mt-3 rounded-xl border border-amber-200 bg-white p-3">
+                            <p className="text-sm font-bold text-amber-900">Do not lose your request</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-700">This address is not currently eligible for confirmed delivery. Save your water or home-service enquiry for admin follow-up instead. No appointment, stock, price or payment is promised.</p>
+                            <WaitlistPanel cityName={addresses.find((address) => address.id === draft.addressId)?.city ?? serviceability.zone?.city ?? 'your area'} cityId={null} role="customer" source="book-zone" />
                           </div>
                         )}
                       </>
