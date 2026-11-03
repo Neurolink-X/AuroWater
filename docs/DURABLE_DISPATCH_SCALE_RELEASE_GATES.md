@@ -5,7 +5,7 @@ PR #243 adds a PostgreSQL-backed work queue for pending supplier and specialist 
 
 - OFF by default: dispatch_work_queue_enabled=false. Legacy retry continues unchanged.
 - Atomic claims use SKIP LOCKED and a global database lease budget of 24.
-- Up to eight claims per worker, three concurrent dispatch calls per worker.
+- Up to 32 claims per worker in bounded 3-item microbatches, with three concurrent dispatch calls.
 - Conditional Supabase Cron can invoke up to four workers every two minutes based on pending work.
 - Completed or assigned orders leave the queue; unresolved internal errors remain for admin review.
 - Admin operations: /admin/dispatch-queue, with explicit dead-letter requeue.
@@ -13,9 +13,9 @@ PR #243 adds a PostgreSQL-backed work queue for pending supplier and specialist 
 - No paid queue vendor or new persistent full-order payload copies.
 
 ## Critical capacity limitation
-The initial scheduler handles at most 32 queue claims every two minutes in theory, or 16 claims/minute and 960 claims/hour. Actual successful assignments are fewer and MUST be measured.
+The initial scheduler handles at most 128 queue claims every two minutes in theory, or 64 claims/minute and 3,840 claims/hour. Actual successful assignments are fewer and MUST be measured.
 
-A hypothetical 100,000-item backlog would take more than 104 hours even at that ideal claim rate to be touched once. This release does NOT certify 100,000 simultaneous bookings or guarantee real-time dispatch at that scale. Additional capacity, worker autoscaling, throughput testing and infrastructure may be needed.
+A hypothetical 100,000-item backlog would take more than 26 hours even at that ideal claim rate to be touched once. This release does NOT certify 100,000 simultaneous bookings or guarantee real-time dispatch at that scale. Additional capacity, worker autoscaling, throughput testing and infrastructure may be needed.
 
 ## Release gates
 1. Green lint, unit, regression, CodeQL and production build; no bypassing failed gates.
