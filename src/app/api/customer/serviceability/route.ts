@@ -17,7 +17,7 @@ import {
 } from '@/lib/zones';
 
 import { resolveAddressLocation } from '@/lib/address-geo.server';
-import { MIN_QUALITY_FOR_WATER } from '@/lib/address-geo';
+import { MIN_QUALITY_FOR_WATER, isValidCoord } from '@/lib/address-geo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
     const geo = await resolveAddressLocation(row);
 
     const result = await resolveServiceability(
-      geo.ok ? { ...row, lat: geo.lat, lng: geo.lng } : row,
+      geo.ok ? { ...row, lat: geo.lat, lng: geo.lng, prefer_precise_coordinates: isValidCoord(row.lat, row.lng) } : row,
       service,
     );
 
