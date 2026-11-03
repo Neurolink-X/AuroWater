@@ -243,9 +243,13 @@ export async function POST(req: NextRequest) {
   // any order/financial write; an idempotent retry was checked above.
   // Avoid an unbounded serverless stampede on the existing Supabase pool.
   if (String(flat.dispatch_work_queue_enabled ?? 'false').toLowerCase() === 'true') {
+    // The initial queue recovery ceiling is only 64 claims/minute in ideal
+    // conditions, not 600 successful assignments. Leave retry headroom until
+    // isolated load tests justify higher admission capacity. Operators may
+    // configure a higher cap after confirming sustained throughput.
     const configured = Number(flat.dispatch_booking_admit_per_minute);
-    const perMinute = Number.isSafeInteger(configured) && configured >= 60
-      ? Math.min(configured, 3000) : 600;
+    const perMinute = Number.isSafeInteger(configured) && configured >= 1
+      ? Math.min(configured, 3000) : 48;
     const gate = await consumeRateLimit(
       createServiceClient(), 'dispatch-checkout-admission', 'global', perMinute, 60,
     );
