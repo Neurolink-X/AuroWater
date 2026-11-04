@@ -81,6 +81,7 @@ interface DailyPoint {
 
 interface OrderRow {
   id: number;
+  order_number?: string | null;
   customer_name: string;
   service_name?: string;
   service_type?: string | null;
@@ -770,7 +771,7 @@ const OrdersTable = memo(function OrdersTable({
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-slate-900">
-                  #{o.id} {o.customer_name || 'Customer'}
+                  #{o.order_number || o.id} {o.customer_name || 'Customer'}
                 </span>
                 <span className="block truncate text-xs capitalize text-slate-500">
                   {orderServiceName(o)} · {relTime(o.created_at)}
@@ -834,7 +835,7 @@ const OrdersTable = memo(function OrdersTable({
                     }}
                     className="font-semibold text-cyan-800 hover:underline"
                   >
-                    #{o.id}
+                    #{o.order_number || o.id}
                   </button>
                 </td>
                 <td className="max-w-[220px] truncate px-5 py-3.5 font-medium text-slate-800">
@@ -916,7 +917,7 @@ function OrderDrawer({ order, onClose }: { order: OrderRow; onClose: () => void 
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <p className="text-xs text-slate-500">Order</p>
-            <h2 className="text-lg font-semibold text-slate-900">#{order.id}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">#{order.order_number || order.id}</h2>
           </div>
           <button ref={closeRef} type="button" className="ad-btn" onClick={onClose}>
             Close
@@ -2838,7 +2839,7 @@ You&apos;re offline. Showing the last data we have; the dashboard will refresh a
 //                             <tr><td colSpan={6} className="px-6 py-10 text-center text-slate-500 text-sm">No orders yet.</td></tr>
 //                           ) : dashboard.recent_orders.slice(0, 8).map(o => (
 //                             <tr key={o.id} className="tbl-row">
-//                               <td className="px-6 py-3.5 font-bold text-sky-400">#{o.id}</td>
+//                               <td className="px-6 py-3.5 font-bold text-sky-400">#{o.order_number || o.id}</td>
 //                               <td className="px-6 py-3.5 text-slate-300 font-medium">{o.customer_name}</td>
 //                               <td className="px-6 py-3.5 text-slate-400 capitalize">{o.service_name?.replace(/_/g, ' ')}</td>
 //                               <td className="px-6 py-3.5 font-bold text-emerald-400">{inr(o.total_amount)}</td>
@@ -3004,7 +3005,7 @@ You&apos;re offline. Showing the last data we have; the dashboard will refresh a
 //                             </tr>
 //                           ) : allOpsOrders.map(o => (
 //                             <tr key={o.id} className="tbl-row">
-//                               <td className="px-6 py-3.5 font-bold text-sky-400 tabular-nums">#{o.id}</td>
+//                               <td className="px-6 py-3.5 font-bold text-sky-400 tabular-nums">#{o.order_number || o.id}</td>
 //                               <td className="px-6 py-3.5 text-slate-200 font-medium max-w-[160px] truncate">{o.customer_name}</td>
 //                               <td className="px-6 py-3.5 text-slate-400 capitalize">{o.service_name?.replace(/_/g, ' ')}</td>
 //                               <td className="px-6 py-3.5 font-bold text-emerald-400 tabular-nums">{inr(o.total_amount)}</td>
