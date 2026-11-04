@@ -849,6 +849,22 @@ export async function diagnoseOrderDispatch(orderId: string) {
     const blockers: string[] = [];
     const hints: string[] = [];
 
+    const [retryRes, offerRes] = await Promise.all([
+      db.from('dispatch_retry_state').select('failures,next_retry_at,reason')
+        .eq('order_id', orderId).maybeSingle(),
+      db.from('order_dispatch').select('status,reason,offered_at,responded_at')
+        .eq('order_id', orderId).order('created_at', { ascending: true }).limit(30),
+    ]);
+    const retry_state = retryRes.error ? null : retryRes.data;
+    const offer_history = offerRes.error ? [] : (offerRes.data ?? []);
+    const scheduleMs = order.scheduled_at ? Date.parse(String(order.scheduled_at)) : NaN;
+    if (Number(retry_state?.failures ?? 0) >= DISPATCH_ESCALATE_AFTER_FAILURES) {
+      hints.push('Repeated supplier searches failed. Operator review and customer contact are required.');
+    }
+    if (Number.isFinite(scheduleMs) && scheduleMs < Date.now() - LATE_SLOT_REVIEW_GRACE_MS) {
+      blockers.push('Delivery schedule expired. Reconfirm a new time with the customer before trying dispatch.');
+    }
+
     if (!cfg.enabled) blockers.push('auto_assign_orders is OFF in settings, so nothing is dispatched automatically.');
     if (order.status !== 'PENDING') blockers.push(`Order status is ${order.status}; only PENDING orders are dispatched.`);
     if (order.supplier_id) blockers.push('Order already has a supplier.');
@@ -861,10 +877,12 @@ export async function diagnoseOrderDispatch(orderId: string) {
     if (ev.kind === 'error') {
       return {
         ok: true as const,
-        order: { id: order.id, status: order.status, service_type: order.service_type, zone_id: order.zone_id, dispatch_attempts: attempts, last_dispatch_at: order.last_dispatch_at },
+        order: { id: order.id, status: order.status, service_type: order.service_type, zone_id: order.zone_id, dispatch_attempts: attempts, last_dispatch_at: order.last_dispatch_at, created_at: order.created_at, scheduled_at: order.scheduled_at },
         config: cfg,
         blockers: [...blockers, ev.message],
         hints,
+        retry_state,
+        offer_history,
         online_suppliers: null,
         eligible: [],
         rejected: [],
@@ -890,11 +908,13 @@ export async function diagnoseOrderDispatch(orderId: string) {
 
     return {
       ok: true as const,
-      order: { id: order.id, status: order.status, service_type: order.service_type, zone_id: order.zone_id, dispatch_attempts: attempts, last_dispatch_at: order.last_dispatch_at },
+      order: { id: order.id, status: order.status, service_type: order.service_type, zone_id: order.zone_id, dispatch_attempts: attempts, last_dispatch_at: order.last_dispatch_at, created_at: order.created_at, scheduled_at: order.scheduled_at },
       config: cfg,
       order_location: ev.geo,
       blockers,
       hints,
+      retry_state,
+      offer_history,
       online_suppliers: ev.onlineCount,
       eligible: ev.cands.map((c) => ({ supplier_id: c.id, distance_km: c.distance === null ? null : Math.round(c.distance * 10) / 10, load: c.load, tier: c.tier, same_zone: c.coverageTier === 0 })),
       rejected: ev.rejected,
