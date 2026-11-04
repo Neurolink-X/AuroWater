@@ -90,6 +90,8 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   /* General authentication */
   '/auth/login',
   '/auth/register',
+  '/customer/referral',
+  '/customer/referrals',
   '/auth/forgot-password',
   '/auth/reset-password',
   '/auth/callback',

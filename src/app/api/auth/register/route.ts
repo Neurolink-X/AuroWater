@@ -403,6 +403,12 @@ export async function POST(
         : undefined,
   };
 
+  // Temporary launch policy: no verification email/SMTP needed for normal signup.
+  // Re-enable only after SMTP, Supabase Confirm Email and callback flow are tested.
+  // Keep this server-only: it must never be controlled by registration input.
+  const requireEmailVerification =
+    process.env.AUROTAP_REQUIRE_EMAIL_VERIFICATION === 'true' && role !== 'admin';
+
   const sb =
     createSupabaseAnonClient();
 
@@ -413,6 +419,8 @@ export async function POST(
       >
     >['data']['session'];
 
+  let signupPendingConfirmation = false;
+
   let authErrorMessage:
     | string
     | null = null;
@@ -422,11 +430,12 @@ export async function POST(
     | undefined;
 
   /*
-   * Admin creation uses the service-role
-   * client because admin accounts must be
-   * immediately confirmed and promoted.
+   * With email verification temporarily OFF, create accounts through the
+   * existing server-only service-role client with email_confirm: true.
+   * This does not send emails; password sign-in continues immediately.
+   * Admin invite-only accounts remain server-confirmed regardless of the flag.
    */
-  if (admin) {
+  if (admin && !requireEmailVerification) {
     try {
       const created =
         await admin.auth.admin.createUser({
@@ -507,7 +516,19 @@ export async function POST(
     } else {
       session =
         data.session;
+      signupPendingConfirmation = Boolean(data.user && !data.session);
     }
+  }
+
+  if (signupPendingConfirmation && !authErrorMessage) {
+    // A confirmed-email requirement on Supabase (or the future opt-in flag)
+    // can return a newly created user without a session. It is NOT a failed
+    // registration and must not invite users to create duplicate accounts.
+    return jsonOk({
+      needsEmailConfirmation: true,
+      email,
+      pending: needsApproval(role),
+    }, 202);
   }
 
   if (
@@ -527,23 +548,6 @@ export async function POST(
         409,
         authErrorCode ??
           'EMAIL_EXISTS',
-      );
-    }
-
-    /*
-     * If email confirmation is enabled,
-     * Supabase may create the account without
-     * returning a session.
-     */
-    if (
-      /confirm/i.test(
-        message,
-      )
-    ) {
-      return jsonErr(
-        'Account created. Please confirm your email before signing in.',
-        201,
-        'EMAIL_CONFIRMATION_REQUIRED',
       );
     }
 
