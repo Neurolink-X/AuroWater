@@ -130,6 +130,29 @@ INSERT INTO public.settings(key,value)
 VALUES('supplier_max_active_orders','20')
 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now();
 
+-- No failed supplier search should hold a scheduled worker forever. Five
+-- unsuccessful searches mean human review; only admin-confirmed rescheduling
+-- resets the operational failure metadata.
+CREATE OR REPLACE FUNCTION public.claim_dispatch_retry(p_order_id uuid)
+RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $function$
+DECLARE claimed uuid;
+BEGIN
+  IF p_order_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.orders
+    WHERE id=p_order_id AND status='PENDING' AND supplier_id IS NULL
+  ) THEN RETURN false; END IF;
+  INSERT INTO public.dispatch_retry_state AS s (order_id,next_retry_at,updated_at)
+  VALUES(p_order_id,clock_timestamp()+interval '2 minutes',clock_timestamp())
+  ON CONFLICT(order_id) DO UPDATE
+    SET next_retry_at=EXCLUDED.next_retry_at, updated_at=clock_timestamp()
+    WHERE s.failures < 5 AND s.next_retry_at <= clock_timestamp()
+  RETURNING order_id INTO claimed;
+  RETURN claimed IS NOT NULL;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.claim_dispatch_retry(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_dispatch_retry(uuid) TO service_role;
+
 -- Admin-only, auditable, all-or-nothing recovery after customer slot confirmation.
 -- This is not callable by browser roles, and does not assign a supplier itself.
 CREATE OR REPLACE FUNCTION public.reconfirm_pending_dispatch_slot(
