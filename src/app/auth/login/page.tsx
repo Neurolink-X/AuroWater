@@ -35,6 +35,7 @@ import {
 import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
 import { createClient } from '@/utils/supabase/client';
+import { referralReturnPath } from '@/lib/referrals/invite-paths';
 
 /* -------------------------------------------------------------------------- */
 /* Validation                                                                 */
@@ -77,7 +78,7 @@ function safeReturnTo(raw: string | null) {
     return null;
   }
 
-  if (!raw.startsWith('/') || raw.startsWith('//')) {
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\') || /[\x00-\x1f\x7f]/.test(raw) || raw.length > 500) {
     return null;
   }
 
@@ -335,10 +336,10 @@ function LoginPageInner() {
 
       // router.replace(destination);
 
-      const destination =
-  role === 'customer'
-    ? '/'
-    : (isBookRoute ? dashboardFor(role) : sanitized || dashboardFor(role));
+      const destination = role === 'customer'
+        ? (sanitized && (sanitized.startsWith('/customer/') || isBookRoute)
+          ? sanitized : '/')
+        : dashboardFor(role);
 
 router.replace(destination);
       
@@ -815,7 +816,9 @@ router.replace(destination);
 
                   {/* Main registration */}
                   <Link
-                    href="/auth/register"
+                    href={referralReturnPath(searchParams.get('returnTo'))
+                      ? `/auth/register?role=customer&returnTo=${encodeURIComponent(referralReturnPath(searchParams.get('returnTo'))!)}`
+                      : '/auth/register'}
                     className="group flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-800 transition hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
                   >
                     Create a free account
