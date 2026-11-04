@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.dispatch_alert_events (
 );
 ALTER TABLE public.dispatch_alert_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.dispatch_alert_events FROM PUBLIC, anon, authenticated;
-GRANT SELECT, INSERT ON public.dispatch_alert_events TO service_role;
+GRANT SELECT, INSERT, DELETE ON public.dispatch_alert_events TO service_role;
 
 -- Keep the original stock reservation, order locking and authorization rules;
 -- lock supplier settings across competing orders to prevent capacity oversubscription.
@@ -91,5 +91,49 @@ GRANT EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid,uuid,numeri
 INSERT INTO public.settings(key,value)
 VALUES('supplier_max_active_orders','20')
 ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now();
+
+-- Admin-only, auditable, all-or-nothing recovery after customer slot confirmation.
+-- This is not callable by browser roles, and does not assign a supplier itself.
+CREATE OR REPLACE FUNCTION public.reconfirm_pending_dispatch_slot(
+  p_order_id uuid, p_scheduled_at timestamptz, p_admin_id uuid
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $function$
+DECLARE
+  v_order public.orders;
+BEGIN
+  IF p_order_id IS NULL OR p_admin_id IS NULL OR p_scheduled_at IS NULL
+    OR p_scheduled_at < clock_timestamp() + interval '5 minutes'
+    OR p_scheduled_at > clock_timestamp() + interval '30 days' THEN
+    RETURN false;
+  END IF;
+
+  SELECT * INTO v_order FROM public.orders
+    WHERE id = p_order_id AND status='PENDING' AND supplier_id IS NULL
+    FOR UPDATE;
+  IF NOT FOUND THEN RETURN false; END IF;
+
+  UPDATE public.orders SET scheduled_at=p_scheduled_at,updated_at=clock_timestamp()
+    WHERE id=p_order_id;
+  DELETE FROM public.dispatch_retry_state WHERE order_id=p_order_id;
+  DELETE FROM public.dispatch_alert_events WHERE order_id=p_order_id
+    AND action IN ('manual_dispatch_review','stale_schedule_review','no_supplier');
+
+  INSERT INTO public.audit_logs(actor_id, action, entity, entity_id, meta)
+  VALUES(p_admin_id,'order.slot_reconfirmed','orders',p_order_id::text,
+     jsonb_build_object('old_schedule',v_order.scheduled_at,'new_schedule',p_scheduled_at,
+     'requires_new_dispatch_attempt',true,'customer_confirmation_claimed',true));
+
+  INSERT INTO public.notifications(user_id,type,title,message,data,is_read,dedup_key)
+  VALUES(v_order.customer_id,'booking','Delivery time updated',
+    'AuroTap admin confirmed a revised delivery time. Supplier assignment is still in progress.',
+    jsonb_build_object('order_id',p_order_id),false,
+    'order_'||p_order_id::text||'_slot_'||to_char(p_scheduled_at AT TIME ZONE 'UTC','YYYYMMDDHH24MISS'))
+  ON CONFLICT DO NOTHING;
+
+  RETURN true;
+END;
+$function$;
+REVOKE ALL ON FUNCTION public.reconfirm_pending_dispatch_slot(uuid,timestamptz,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reconfirm_pending_dispatch_slot(uuid,timestamptz,uuid) TO service_role;
 
 COMMIT;
