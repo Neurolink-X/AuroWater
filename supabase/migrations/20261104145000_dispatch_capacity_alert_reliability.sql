@@ -154,6 +154,24 @@ $function$;
 REVOKE ALL ON FUNCTION public.claim_dispatch_retry(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_dispatch_retry(uuid) TO service_role;
 
+-- Backlog starvation protection: do not let terminal manual-review orders
+-- occupy all 25 slots of the scheduled retry batch forever.
+CREATE OR REPLACE FUNCTION public.pending_supplier_retry_batch(p_limit integer DEFAULT 25)
+RETURNS TABLE(id uuid) LANGUAGE sql SECURITY INVOKER
+SET search_path=pg_catalog AS $function$
+  SELECT o.id FROM public.orders o
+  LEFT JOIN public.dispatch_retry_state r ON r.order_id=o.id
+  WHERE o.status='PENDING' AND o.supplier_id IS NULL
+    AND o.service_type='water_can'
+    AND o.created_at < clock_timestamp() - interval '30 seconds'
+    AND (o.last_dispatch_at IS NULL OR o.last_dispatch_at < clock_timestamp() - interval '5 minutes')
+    AND (r.order_id IS NULL OR (r.failures < 5 AND r.next_retry_at <= clock_timestamp()))
+  ORDER BY o.created_at ASC
+  LIMIT greatest(1, least(coalesce(p_limit,25), 100));
+$function$;
+REVOKE ALL ON FUNCTION public.pending_supplier_retry_batch(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pending_supplier_retry_batch(integer) TO service_role;
+
 -- Admin-only, auditable, all-or-nothing recovery after customer slot confirmation.
 -- This is not callable by browser roles, and does not assign a supplier itself.
 CREATE OR REPLACE FUNCTION public.reconfirm_pending_dispatch_slot(
