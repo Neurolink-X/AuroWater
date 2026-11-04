@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const read = path => readFileSync(path, 'utf8');
 const postal = read('src/app/api/geo/postal/route.ts');
+const cityMatcher = read('src/lib/postal-city.ts');
 const booking = read('src/components/booking/BookingWizard.tsx');
 const supplierPage = read('src/app/supplier/profile/page.tsx');
 const supplierCoverage = read('src/app/supplier/coverage/page.tsx');
@@ -11,12 +12,22 @@ const supplierCoverageApi = read('src/app/api/supplier/coverage-requests/route.t
 const supplierInvite = read('src/app/customer/referral/page.tsx');
 
 test('postal search prioritizes locally mapped post offices instead of unrelated same-name districts', () => {
-  assert.match(postal, /const district = DISTRICT_BY_CITY\[city\]/);
+  assert.match(postal, /const district = postalDistrictForCity\(city\)/);
   assert.match(postal, /run\(Boolean\(district\)\)/);
   assert.match(postal, /!strictCity && district && !data\?\.length/);
   assert.match(postal, /run\(false\)/);
   assert.match(postal, /\.eq\('pincode', pincode\)/);
   assert.match(postal, /\.limit\(MAX_RESULTS\)/);
+});
+
+test('city-district matching works for every city, with only known exceptions hardcoded', () => {
+  assert.match(cityMatcher, /return DISTRICT_ALIASES\[normalized\] \?\? normalized/);
+  assert.match(cityMatcher, /kanpur: 'kanpur nagar'/);
+  assert.match(cityMatcher, /noida: 'gautam buddha nagar'/);
+  assert.match(cityMatcher, /export function normalizedPostalPlace/);
+  assert.match(postal, /const district = postalDistrictForCity\(city\)/);
+  assert.match(postal, /strictCity && district/);
+  assert.match(postal, /!strictCity && district && !data\?\.length/);
 });
 
 test('customer can type exact PIN and old area suggestions clear when city changes', () => {
