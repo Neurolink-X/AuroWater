@@ -105,7 +105,7 @@ export default function SupplierCoveragePage() {
       <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
         <label className="block text-sm font-semibold text-sky-950" htmlFor="supplier-pin-search">{isHindi ? 'सटीक PIN से सेवा क्षेत्र खोजें' : 'Find exact service area by PIN'}</label>
         <input id="supplier-pin-search" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
-          placeholder="e.g. 201316" value={findPin}
+          placeholder="Enter your 6-digit PIN" value={findPin}
           onChange={e => setFindPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
           className="mt-2 min-h-11 w-full rounded-lg border border-sky-200 bg-white p-3 text-slate-900" />
         {pinMatches.length > 0 ? <div className="mt-3 space-y-2">{pinMatches.map(zone => (
@@ -131,7 +131,7 @@ export default function SupplierCoveragePage() {
           )}
         </div>
       </label>)}</div>}
-      <p className="mt-3 text-xs leading-5 text-slate-600">A zone showing no PIN codes is not automatically citywide. For a verified PIN such as 201316, select its own exact zone rather than adding that PIN to an unrelated pilot zone.</p>
+      <p className="mt-3 text-xs leading-5 text-slate-600">A zone showing no PIN codes is not automatically citywide. For any verified PIN, select its own exact zone rather than adding that PIN to an unrelated pilot zone.</p>
       <h2 className="mt-6 text-lg font-bold">{isHindi ? '2. उपलब्ध सेवाएँ' : '2. Services you can fulfil'}</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" className="mt-1 shrink-0" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="min-w-0 break-words text-sm">{isHindi ? serviceLabelsHi[key] ?? label : label}</span></label>)}</div>
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'अतिरिक्त 6 अंकों के PIN कोड माँगें (वैकल्पिक)' : 'Request additional 6-digit PIN codes (optional)'}
