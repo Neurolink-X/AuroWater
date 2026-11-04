@@ -113,7 +113,12 @@ export default function SupplierProfilePage() {
       </section>
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-bold">{isHindi ? 'स्वीकृत सेवा क्षेत्र' : 'Approved service coverage'}</h2>
-        {data?.coverage.length ? <div className="mt-3 space-y-3">{data.coverage.map((c,i) => <article key={c.zone_id} className="rounded-xl border border-slate-100 p-3"><div className="font-semibold">{c.service_zones?.name ?? 'Service area'} · {c.service_zones?.city ?? ''}</div><div className="mt-1 text-xs text-slate-600">Status: {c.service_zones?.status ?? 'Unknown'}</div><div className="mt-1 text-sm">PIN codes: {c.service_zones?.pincodes?.join(', ') || 'Not configured'}</div><div className="mt-1 text-sm">Services: {c.service_keys?.join(', ') || 'Not listed'}</div></article>)}</div> : <p className="mt-2 text-sm text-slate-600">No approved service areas are mapped to your account yet.</p>}
+        {data?.coverage.length ? <div className="mt-3 space-y-3">{data.coverage.map((c,i) => <article key={c.zone_id} className="rounded-xl border border-slate-100 p-3"><div className="font-semibold">{c.service_zones?.name ?? 'Service area'} · {c.service_zones?.city ?? ''}</div><div className="mt-1 text-xs text-slate-600">Status: {c.service_zones?.status ?? 'Unknown'}</div><div className="mt-1 text-sm">PIN codes: {c.service_zones?.pincodes?.length ? c.service_zones.pincodes.join(', ') : (isHindi ? 'अभी मैप नहीं हैं' : 'No exact PINs mapped')}</div>
+        {!c.service_zones?.pincodes?.length && <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          {isHindi ? 'यह क्षेत्र AVAILABLE हो सकता है, लेकिन बिना PIN मैपिंग के पूरे शहर की डिलीवरी स्वीकृत नहीं मानी जाएगी।' : 'This zone may be AVAILABLE, but it does not automatically authorize delivery to every PIN in the city.'}
+          <Link href="/supplier/coverage" className="mt-2 block font-bold underline">{isHindi ? 'सही PIN वाला क्षेत्र चुनें और एडमिन से मंजूरी लें' : 'Find an exact PIN zone and request admin approval'}</Link>
+        </div>}
+        <div className="mt-1 text-sm">Services: {c.service_keys?.map(s => s.replaceAll('_', ' ')).join(', ') || 'Not listed'}</div></article>)}</div> : <p className="mt-2 text-sm text-slate-600">No approved service areas are mapped to your account yet.</p>}
         <p className="mt-3 text-xs text-slate-500">Dispatch eligibility also depends on service availability, approval, and stock/capacity.</p>
       </section>
     </>}
