@@ -660,6 +660,9 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       await alertAdmins(db, orderId,
         'Delivery slot passed. Confirm a revised delivery time with the customer before manual dispatch.',
         'stale_schedule_review');
+      await notify(String(order.customer_id), 'Delivery time needs reconfirmation',
+        'Your originally scheduled delivery time has passed without a supplier confirmation. Our team needs to agree a revised time with you.',
+        'booking', orderId, 'stale_schedule_review');
       return { supplierId: null, reason: 'no_candidates' };
     }
 
@@ -707,6 +710,9 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
         await alertAdmins(db, orderId,
           'Multiple supplier searches failed. Check exact PIN/zone approval, stock, radius and capacity. Contact the customer before the slot expires.',
           'manual_dispatch_review', { failures });
+        await notify(String(order.customer_id), 'AuroTap is reviewing your delivery',
+          'A supplier has not confirmed yet. Our team is reviewing availability. We will notify you when your delivery is assigned or if a new time needs confirmation.',
+          'booking', orderId, 'manual_dispatch_review');
       }
       await alertAdmins(db, orderId, `No supplier is available nearby (${why})`, 'no_supplier', {
         online: ev.onlineCount,
