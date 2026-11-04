@@ -150,10 +150,11 @@ export async function resolveServiceability(
     return best?.z ?? null;
   };
 
+  // The customer's exact validated PIN is authoritative for zone ownership.
+  // A nearby radius must never silently replace an explicitly mapped PIN with
+  // an unrelated pilot zone. Precise GPS is still used independently to check
+  // the supplier's true delivery distance during dispatch.
   let zone: ZoneRow | null = pinZone;
-  if (addr.prefer_precise_coordinates === true && (!pinZone || isBookableZoneStatus(pinZone.status))) {
-    zone = nearestRadiusZone() ?? pinZone;
-  }
   if (!zone) zone = nearestRadiusZone();
   if (!zone) zone = zones.find((z) => z.is_catch_all) ?? null;
 

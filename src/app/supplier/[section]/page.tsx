@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { formatSupplierSchedule } from '@/lib/supplier/schedule-display';
+import { formatSupplierSchedule, formatSupplierOrderPlaced } from '@/lib/supplier/schedule-display';
 import { DEFAULT_CONTACT, whatsappHref } from '@/lib/contact-shared';
 import PartnerPostalLookup from '@/components/geo/PartnerPostalLookup';
 import PartnerJourney from '@/components/operations/PartnerJourney';
@@ -256,8 +256,17 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
     );
   }
 
+  const activeCount = rows.filter(o => ['ASSIGNED', 'IN_PROGRESS'].includes(str(o.status).toUpperCase())).length;
   return (
-    <section className="sp-grid">
+    <>
+      <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-slate-900">
+        <strong>{language === 'hi' ? 'सक्रिय ऑर्डर' : 'Active assignments'}: {activeCount}/20</strong>
+        <p className="mt-1 text-xs text-slate-700">{activeCount >= 20
+          ? (language === 'hi' ? 'क्षमता भर गई है। अतिरिक्त ऑर्डर दूसरे योग्य सप्लायर को भेजे जाएंगे; आपका काम पूरा होते ही जगह उपलब्ध होगी।' : 'At capacity. New orders go to other eligible suppliers; finish deliveries to free a slot.')
+          : (language === 'hi' ? 'केवल सौंपे हुए खुले ऑर्डर क्षमता में गिने जाते हैं।' : 'Only open assigned orders count against capacity.')}
+        </p>
+      </div>
+      <section className="sp-grid">
       {rows.map((o, i) => {
         const id = str(o.id);
         const status = override[id] ?? norm(o.status);
@@ -280,7 +289,8 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
               <dt>{language === 'hi' ? 'ग्राहक' : 'Customer'}</dt><dd>{str(o.customer_name, language === 'hi' ? 'ग्राहक' : 'Customer')}{o.customer_phone ? <> · <a className="sp-a" href={`tel:${str(o.customer_phone)}`}>{str(o.customer_phone)}</a></> : null}</dd>
               <dt>{language === 'hi' ? 'पता' : 'Address'}</dt><dd>{deliveryAddress || (language === 'hi' ? 'पता स्वीकार करने के बाद उपलब्ध होगा' : 'Address on order')}</dd>
               <dt>{language === 'hi' ? 'भुगतान' : 'Payment'}</dt><dd>{norm(o.payment_status) === 'paid' ? (language === 'hi' ? 'भुगतान हो गया' : 'Paid') : (language === 'hi' ? `डिलीवरी पर भुगतान (${str(o.payment_method, 'cash').toUpperCase()})` : `Collect on delivery (${str(o.payment_method, 'cash').toUpperCase()})`)}</dd>
-              <dt>{language === 'hi' ? 'समय' : 'Slot'}</dt><dd>{formatSupplierSchedule(o.scheduled_at ?? o.scheduled_date, o.time_slot ?? o.scheduled_slot, language)}</dd>
+              <dt>{language === 'hi' ? 'बुकिंग का समय' : 'Booked at'}</dt><dd>{formatSupplierOrderPlaced(o.created_at, language)}</dd>
+              <dt>{language === 'hi' ? 'डिलीवरी का निर्धारित समय' : 'Scheduled delivery'}</dt><dd>{formatSupplierSchedule(o.scheduled_at ?? o.scheduled_date, o.time_slot ?? o.scheduled_slot, language)}</dd>
             </dl>
             <p className="sp-amount">{money(o.final_amount ?? o.total_amount ?? o.amount)}</p>
 
@@ -334,7 +344,8 @@ function Orders({ rows, busy, send, language }: { rows: Row[]; busy: boolean; se
           </article>
         );
       })}
-    </section>
+      </section>
+    </>
   );
 }
 

@@ -1,14 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ApiError, adminDispatchDiagnose, adminDispatchRetry } from '@/lib/api-client';
+import { ApiError, adminDispatchDiagnose, adminDispatchRetry, getToken } from '@/lib/api-client';
 
 export default function AdminDispatchPage() {
   const [orderId, setOrderId] = useState('');
   const [report, setReport] = useState<unknown>(null);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<'diagnose' | 'retry' | null>(null);
+  const [busy, setBusy] = useState<'diagnose' | 'retry' | 'reconfirm' | null>(null);
+  const [newSlotIst, setNewSlotIst] = useState('');
+  const [customerConfirmed, setCustomerConfirmed] = useState(false);
+  const [savedMessage, setSavedMessage] = useState('');
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('orderId')?.trim();
+    if (ref) setOrderId(ref);
+  }, []);
 
   async function runDiagnosis() {
     setBusy('diagnose');
@@ -18,6 +25,32 @@ export default function AdminDispatchPage() {
       setReport(await adminDispatchDiagnose(orderId));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not load dispatch diagnosis. Please try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reconfirmSlot() {
+    if (!orderId.trim() || !newSlotIst || !customerConfirmed) return;
+    if (!window.confirm('Customer explicitly confirmed this revised IST time? This changes the order schedule, resets failed retry state and notifies the customer. It does NOT assign a supplier.')) return;
+    setBusy('reconfirm');
+    setError('');
+    setSavedMessage('');
+    try {
+      const token = await getToken();
+      if (!token) throw new Error('Sign in as admin again.');
+      const res = await fetch('/api/admin/dispatch/reconfirm', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, slotIst: newSlotIst, customerConfirmed }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.error || payload?.message || 'Could not confirm schedule.');
+      setSavedMessage('Revised delivery schedule saved. Customer was notified. Run Diagnose, then Retry dispatch.');
+      setCustomerConfirmed(false);
+      setReport(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Schedule confirmation failed.');
     } finally {
       setBusy(null);
     }
@@ -91,6 +124,25 @@ export default function AdminDispatchPage() {
           <p className="mt-3 text-xs leading-5 text-slate-400">
             Retry runs the existing protected dispatch logic. It does not bypass supplier eligibility or stock reservation. If a retry times out, diagnose the order before trying again: a timeout does not prove the assignment failed.
           </p>
+        </section>
+
+        <section className="mt-5 rounded-2xl border border-amber-300/40 bg-amber-950/30 p-5">
+          <h2 className="text-lg font-bold text-amber-100">Customer-confirmed schedule recovery</h2>
+          <p className="mt-2 text-sm text-amber-100/80">For supplier declines, exhausted retries or a missed appointment: call the customer, agree a new time, then record it here. This resets the failed-search counter but does not auto-assign a supplier.</p>
+          <label htmlFor="recovery-slot" className="mt-4 block text-sm font-medium text-white">New delivery date and time (IST)</label>
+          <input id="recovery-slot" type="datetime-local" value={newSlotIst}
+            onChange={e => setNewSlotIst(e.target.value)}
+            className="mt-2 block w-full max-w-sm rounded-lg border border-slate-600 bg-slate-900 p-3 text-white" />
+          <label className="mt-4 flex items-start gap-3 text-sm text-white">
+            <input type="checkbox" className="mt-1" checked={customerConfirmed} onChange={e => setCustomerConfirmed(e.target.checked)} />
+            I have contacted the customer and they agreed to this exact revised delivery time.
+          </label>
+          <button type="button" disabled={busy !== null || !customerConfirmed || !newSlotIst || !orderId.trim()}
+            onClick={() => void reconfirmSlot()}
+            className="mt-4 rounded-xl border border-amber-300 bg-amber-400 px-4 py-2.5 font-bold text-slate-950 disabled:opacity-40">
+            {busy === 'reconfirm' ? 'Saving…' : 'Save confirmed slot and reset failed retries'}
+          </button>
+          {savedMessage && <p role="status" className="mt-3 text-sm font-semibold text-emerald-300">{savedMessage}</p>}
         </section>
 
         {error && (

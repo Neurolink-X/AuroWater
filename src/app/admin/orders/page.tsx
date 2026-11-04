@@ -2,6 +2,7 @@
 import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   adminOrdersWithMeta,
@@ -567,14 +568,16 @@ export default function AdminOrdersPage() {
                     </div>
                   ) : null}
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Scheduled</dt>
-                    <dd className="text-right">
-                      {drawerOrder.scheduled_date
-                        ? `${new Date(String(drawerOrder.scheduled_date)).toLocaleDateString('en-IN')}${
-                            drawerOrder.time_slot ? ` · ${String(drawerOrder.time_slot)}` : ''
-                          }`
-                        : '—'}
-                    </dd>
+                    <dt className="text-slate-500">Booked at</dt>
+                    <dd className="text-right">{drawerOrder.created_at
+                      ? new Date(String(drawerOrder.created_at)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) + ' IST'
+                      : '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-500">Scheduled delivery</dt>
+                    <dd className="text-right">{drawerOrder.scheduled_at
+                      ? new Date(String(drawerOrder.scheduled_at)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) + ' IST'
+                      : 'Not confirmed'}</dd>
                   </div>
                 </dl>
               </section>
@@ -644,6 +647,13 @@ export default function AdminOrdersPage() {
                 </dl>
               </section>
 
+              {String(drawerOrder.service_type) === 'water_can' ? (
+                <section className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wider mb-2">Water supplier dispatch</h3>
+                  <p className="text-sm text-amber-900">This water delivery requires an eligible supplier, not a technician. Check approval, area coverage, radius, stock, and response history before retrying.</p>
+                  <Link className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-900 px-3 text-sm font-bold text-white" href={`/admin/dispatch?orderId=${encodeURIComponent(String(drawerOrder.order_number || drawerOrder.id))}`}>Diagnose supplier assignment</Link>
+                </section>
+              ) : (
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Technician</h3>
                 {(() => {
@@ -754,6 +764,7 @@ export default function AdminOrdersPage() {
                   );
                 })()}
               </section>
+              )}
 
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Admin actions</h3>

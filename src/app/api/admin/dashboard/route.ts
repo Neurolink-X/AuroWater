@@ -31,6 +31,7 @@ interface SupplierStat {
 }
 interface OrderRow {
   id:            string;
+  order_number: string | null;
   status:        string;
   total_amount:  number | null;
   created_at:    string;
@@ -154,9 +155,8 @@ async function fetchRecentOrders(sb: SupabaseClient): Promise<OrderRow[]> {
   const { data, error } = await sb
     .from('orders')
     .select(`
-      id, status, total_amount, created_at, is_emergency, customer_id,
-      customer:profiles!orders_customer_id_fkey ( full_name ),
-      service_types ( label )
+      id, order_number, status, total_amount, created_at, is_emergency, customer_id, service_type,
+      customer:profiles!orders_customer_id_fkey ( full_name )
     `)
     .order('created_at', { ascending: false })
     .limit(10);
@@ -167,14 +167,16 @@ async function fetchRecentOrders(sb: SupabaseClient): Promise<OrderRow[]> {
 
   return (data ?? []).map((r) => {
     const row = r as {
-      id: string; status: string; total_amount: unknown;
+      id: string; order_number: string | null; status: string; total_amount: unknown;
       created_at: string; is_emergency: unknown; customer_id: unknown;
       customer: Array<{ full_name: string }> | null;
-      service_types: Array<{ label: string }> | null;
+      service_type: string | null;
     };
-    const svcName = row.service_types?.[0]?.label ?? null;
+    // Current orders use the text service_type key, not a service_types foreign key.
+    const svcName = typeof row.service_type === 'string' ? row.service_type : null;
     return {
       id:            row.id,
+      order_number: row.order_number ?? null,
       status:        row.status,
       total_amount:  row.total_amount != null ? Number(row.total_amount) : null,
       created_at:    row.created_at,

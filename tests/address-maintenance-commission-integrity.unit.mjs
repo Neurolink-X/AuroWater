@@ -30,13 +30,14 @@ test('customer UI explains maintenance and retains an unsubmitted draft', () => 
   assert.match(wizard, /Your booking draft is saved/);
 });
 
-test('the customer address is separate from the postal-office zone label', () => {
+test('the customer address is separate from zone labels and exact PIN mapping is authoritative', () => {
   assert.match(orders, /address: addressText \|\| null/);
   assert.match(orders, /address_id: addr\.id/);
   assert.match(wizard, /Delivery to: \{formatAddressCard/);
   assert.match(zones, /available at your selected delivery address/);
-  assert.match(zones, /nearestRadiusZone\(\) \?\? pinZone/);
-  assert.match(zones, /!pinZone \|\| isBookableZoneStatus\(pinZone\.status\)/);
+  assert.match(zones, /let zone: ZoneRow \| null = pinZone/);
+  assert.match(zones, /if \(!zone\) zone = nearestRadiusZone\(\)/);
+  assert.doesNotMatch(zones, /nearestRadiusZone\(\) \?\? pinZone/);
   assert.match(serviceability, /prefer_precise_coordinates: isValidCoord\(row\.lat, row\.lng\)/);
 });
 
