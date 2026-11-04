@@ -505,6 +505,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       setVerifiedCity(null);
       abortRef.current?.abort();
       abortRef.current = null;
+      settingsInFlight.delete(city?.trim().toLowerCase() || '');
       void refresh();
     };
     const onStoragePublished = (event: StorageEvent) => {
