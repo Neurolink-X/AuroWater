@@ -141,20 +141,17 @@ export async function GET(
   let service_name: string | null = null;
   let service_key: string | null = null;
 
-  if (row.service_type_id != null) {
-    const { data: service } = await sb
-      .from('service_types')
-      .select('key, label')
-      .eq('id', row.service_type_id as number)
-      .maybeSingle();
-
-    if (service?.label != null) {
-      service_name = String(service.label);
-    }
-
-    if (service?.key != null) {
-      service_key = String(service.key);
-    }
+  // Production orders store the canonical service_type key, not service_type_id.
+  // Use the key when available; retain legacy ID compatibility for older rows.
+  const storedServiceKey = typeof row.service_type === 'string' ? row.service_type.trim() : '';
+  const serviceQuery = sb.from('service_types').select('key, label');
+  if (storedServiceKey || row.service_type_id != null) {
+    const { data: service } = storedServiceKey
+      ? await serviceQuery.eq('key', storedServiceKey).maybeSingle()
+      : await serviceQuery.eq('id', row.service_type_id as number).maybeSingle();
+    service_key = service?.key ?? (storedServiceKey || null);
+    service_name = service?.label ??
+      (storedServiceKey ? storedServiceKey.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()) : null);
   }
 
   const flatAddress =
