@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ApiError, adminDispatchDiagnose, adminDispatchRetry, getToken } from '@/lib/api-client';
 
@@ -12,6 +12,10 @@ export default function AdminDispatchPage() {
   const [newSlotIst, setNewSlotIst] = useState('');
   const [customerConfirmed, setCustomerConfirmed] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('orderId')?.trim();
+    if (ref) setOrderId(ref);
+  }, []);
 
   async function runDiagnosis() {
     setBusy('diagnose');
