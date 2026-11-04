@@ -36,3 +36,17 @@ export function formatSupplierSchedule(
   const time = slot || timeFromDate;
   return time ? `${dateLabel} · ${time} IST` : `${dateLabel} · ${language === 'hi' ? 'समय पुष्टि बाकी' : 'Slot not confirmed'} (IST)`;
 }
+
+/** Display the actual order creation time, separately from the delivery schedule. */
+export function formatSupplierOrderPlaced(
+  value: unknown,
+  language: 'en' | 'hi' = 'en',
+): string {
+  if (typeof value !== 'string' || !value.trim()) return language === 'hi' ? 'उपलब्ध नहीं' : 'Not recorded';
+  const time = new Date(value);
+  if (!Number.isFinite(time.getTime())) return language === 'hi' ? 'उपलब्ध नहीं' : 'Not recorded';
+  return new Intl.DateTimeFormat(language === 'hi' ? 'hi-IN' : 'en-IN', {
+    timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  }).format(time) + ' IST';
+}
