@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import type { CookieOptions } from '@supabase/ssr';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { ensureProfileForUser } from '@/lib/auth/ensure-profile';
+import { referralReturnPath } from '@/lib/referrals/invite-paths';
 
 type CookieToSet = {
   name: string;
@@ -209,12 +210,13 @@ setAll(cookies: CookieToSet[]) {
 
   // Google does not reliably provide a phone number. Route customers with
   // missing contact details to the existing account page, where they can add it.
+  const referralPath = role === 'customer' ? referralReturnPath(nextPath) : null;
   const destination =
-    role === 'customer' && !profilePhone
+    referralPath ?? (role === 'customer' && !profilePhone
       ? '/customer/account?complete=phone'
       : role === 'customer' && nextPath === '/customer/home'
         ? '/'
-        : nextPath;
+        : role === 'customer' ? nextPath : '/');
   const response = redirect(destination);
 
   // Compatibility cookies only; never use these to authorize requests.
