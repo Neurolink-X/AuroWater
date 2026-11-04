@@ -552,8 +552,6 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
 
     const load = activeLoad.get(id) ?? 0;
-    if (load >= cfg.maxActive) { reject('at_capacity', `${load}/${cfg.maxActive}`); saturatedSuppliers.push({ id, load }); continue; }
-
     const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
     const sLat = coord(r.base_lat);
     const sLng = coord(r.base_lng);
@@ -579,6 +577,12 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
       continue;
     }
     group = 0;
+    // Announce only demand inside this supplier's verified delivery radius.
+    if (load >= cfg.maxActive) {
+      reject('at_capacity', `${load}/${cfg.maxActive}`);
+      saturatedSuppliers.push({ id, load });
+      continue;
+    }
 
     cands.push({
       id,
