@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/utils/supabase/server';
+import { postalDistrictForCity } from '@/lib/postal-city';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PINCODE = /^[0-9]{6}$/;
 const MAX_RESULTS = 50;
-const DISTRICT_BY_CITY: Record<string, string> = {
-  kanpur: 'kanpur',
-  lucknow: 'lucknow',
-  gorakhpur: 'gorakhpur',
-  noida: 'gautam buddha nagar',
-  'greater noida': 'gautam buddha nagar',
-  'noida extension': 'gautam buddha nagar',
-  delhi: 'delhi',
-};
 
 function response(results: unknown[]) {
   return NextResponse.json(
@@ -49,7 +41,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = createServiceClient();
-    const district = DISTRICT_BY_CITY[city];
+    const district = postalDistrictForCity(city);
     const run = (preferCity: boolean) => {
       let query = db
         .from('pincode_directory')
@@ -63,9 +55,9 @@ export async function GET(req: NextRequest) {
       return query;
     };
 
-    // Search the selected city's district FIRST. A nationwide limit of 50 can
-    // otherwise hide correct Noida matches behind similarly named areas in Baghpat.
-    // Non-strict searches may fall back nationwide only when there are no local hits.
+    // Prioritize the selected city's postal district for EVERY configured city.
+    // Strict lookups never offer cross-city PINs. Non-strict lookup allows a
+    // nationwide fallback if no local name exists, for legacy broad searches.
     let { data, error } = await run(Boolean(district));
     if (!error && !pincode && !strictCity && district && !data?.length) {
       ({ data, error } = await run(false));
@@ -74,11 +66,6 @@ export async function GET(req: NextRequest) {
       console.error('[geo/postal] directory lookup failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: 'Postal lookup is temporarily unavailable' }, { status: 503 });
     }
-
-    // The first query is already city-unrestricted in non-strict mode.
-    // Repeating the exact same wildcard search on a zero-result response
-    // adds database load without finding new addresses.
-    // Strict city matching remains unchanged.
 
     const seen = new Set<string>();
     const results = (data ?? [])
