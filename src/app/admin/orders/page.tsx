@@ -644,6 +644,13 @@ export default function AdminOrdersPage() {
                 </dl>
               </section>
 
+              {String(drawerOrder.service_type) === 'water_can' ? (
+                <section className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wider mb-2">Water supplier dispatch</h3>
+                  <p className="text-sm text-amber-900">This water delivery requires an eligible supplier, not a technician. Check approval, area coverage, radius, stock, and response history before retrying.</p>
+                  <Link className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-amber-900 px-3 text-sm font-bold text-white" href={`/admin/dispatch?orderId=${encodeURIComponent(String(drawerOrder.order_number || drawerOrder.id))}`}>Diagnose supplier assignment</Link>
+                </section>
+              ) : (
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Technician</h3>
                 {(() => {
@@ -754,6 +761,7 @@ export default function AdminOrdersPage() {
                   );
                 })()}
               </section>
+              )}
 
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Admin actions</h3>
