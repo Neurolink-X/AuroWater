@@ -209,6 +209,24 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // A PIN mapped to a dedicated zone must be requested through that zone.
+  // Never silently broaden another zone's approved territory (e.g. Sector 73
+  // should not acquire Sector 122's 201316 just by typing it in a note).
+  if (requestedPins.length) {
+    const exactZones = await Promise.all(requestedPins.map(pin =>
+      db.from('service_zones').select('id, name, city').contains('pincodes', [pin]).limit(10),
+    ));
+    if (exactZones.some(x => x.error)) {
+      return withMeta(jsonErr('Could not verify PIN-to-zone mapping. Please retry.', 503), rid);
+    }
+    for (let index = 0; index < requestedPins.length; index++) {
+      const matching = exactZones[index].data ?? [];
+      if (matching.length && !matching.some(zone => zoneIds.includes(zone.id))) {
+        return withMeta(jsonErr(`PIN ${requestedPins[index]} already belongs to a configured area. Find that PIN above and request its exact service zone instead of expanding a different zone.`, 422), rid);
+      }
+    }
+  }
+
   // 1. Every selected zone must exist
   const [{ data: zones, error: zoneError }, { data: supplierProfile, error: supplierProfileError }] = await Promise.all([
     db.from('service_zones').select('id, city').in('id', zoneIds),
@@ -228,6 +246,12 @@ export async function POST(req: NextRequest) {
   const existing = await loadRequests(db, supplierId, zoneIds);
   if (existing.error) return fail(rid, 'load-existing', existing.error, 'Could not submit coverage request.');
   const approved = new Set((existing.rows ?? []).filter(r => String(r.status ?? '').toUpperCase() === 'APPROVED').map(r => String(r.zone_id)));
+
+  if (requestedPins.length && zoneIds.some(id => approved.has(id))) {
+    // Existing approved mappings must NEVER be downgraded to PENDING by an
+    // upsert. Expanding their boundaries requires a separate admin action.
+    return withMeta(jsonErr('This zone is already approved. For additional PIN coverage, select its dedicated area or ask admin to create/review a separate PIN zone; existing approval stays active.', 409), rid);
+  }
 
   const skipped = zoneIds.filter(id => approved.has(id)).map(zone_id => ({ zone_id, reason: 'ALREADY_APPROVED' as const }));
   const rows = zoneIds.filter(id => !approved.has(id)).map((zone_id) => ({
