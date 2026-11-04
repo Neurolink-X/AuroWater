@@ -1212,7 +1212,10 @@ export default function BookingWizard() {
     const id = ++areaReq.current;
     if (q.length < 3) { setAreaHits([]); return; }
     areaTimer.current = setTimeout(async () => {
-      const hits = await fetchPostOffices(q, city, false);
+      // A selected city must never suggest a similarly named post office
+      // in another district (e.g. Baghpat instead of Noida).
+      // Unknown localities can still be entered with an exact manual PIN.
+      const hits = await fetchPostOffices(q, city, Boolean(city.trim()));
       if (id === areaReq.current) setAreaHits(hits);
     }, 350);
   }, []);
