@@ -370,7 +370,7 @@
 // .sd-pill-name b{display:block;font-size:12px;font-weight:700;line-height:1.1;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 // .sd-pill-name i{display:block;font-style:normal;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
 // .sd-sub{display:none}
-// .sd-notif{position:absolute;top:46px;right:-86px;width:min(320px,calc(100vw - 24px));background:var(--bg);border-radius:var(--r-lg);box-shadow:0 18px 40px -10px rgba(15,42,67,.35),var(--raise);z-index:100;overflow:hidden}
+// .sd-notif{position:fixed;top:114px;right:max(12px,env(safe-area-inset-right));width:min(360px,calc(100vw - 24px));background:var(--bg);border-radius:var(--r-lg);box-shadow:0 18px 40px -10px rgba(15,42,67,.35),var(--raise);z-index:100;overflow:hidden}
 // .sd-notif-head{padding:13px 16px;font-size:12px;font-weight:800;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 8px -6px var(--sh-lo)}
 // .sd-notif-item{padding:12px 16px;border-bottom:1px solid rgba(132,155,182,.22)}
 // .sd-notif-item.unread{background:rgba(11,138,96,.07)}
@@ -1526,7 +1526,7 @@
 //                   aria-label="Notifications"
 //                   aria-expanded={showNotifs}
 //                   className="sd-iconbtn"
-//                   onClick={() => { setShowNotifs((v) => !v); if (!showNotifs) markNotifsRead(); }}
+//                   onClick={() => setShowNotifs((v) => !v)}
 //                 >
 //                   {Icon.bell(16)}
 //                   {unreadCount > 0 && <span className="sd-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
@@ -3639,6 +3639,11 @@ export default function SupplierDashboardPage() {
                     <div className="sd-notif-head">
                       {isHindi ? 'सूचनाएँ' : 'Notifications'}
                       <span style={{ fontSize: 10, color: 'var(--ink3)', fontWeight: 600 }}>{notifications.length} {isHindi ? 'कुल' : 'total'}</span>
+                      {unreadCount > 0 && (
+                        <button type="button" onClick={() => void markNotifsRead()} className="rounded-lg px-2 py-1 text-[11px] font-bold text-emerald-700 hover:bg-emerald-50">
+                          {isHindi ? 'सभी पढ़ लिया' : 'Mark all read'}
+                        </button>
+                      )}
                     </div>
                     <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                       {notifications.length === 0 ? (
@@ -3653,6 +3658,12 @@ export default function SupplierDashboardPage() {
                           <time>{fmtTime(n.created_at)}</time>
                         </div>
                       ))}
+                    </div>
+                    <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-600">
+                      <p>{isHindi ? 'ऐप के अंदर ऑर्डर की सूचनाएँ हमेशा चालू हैं।' : 'In-app order notifications are always on.'}</p>
+                      <Link href="/notifications" className="mt-1 inline-block font-bold text-emerald-700 underline underline-offset-2">
+                        {isHindi ? 'फ़ोन पर अलर्ट की अनुमति दें' : 'Enable phone alerts'}
+                      </Link>
                     </div>
                   </div>
                 )}
