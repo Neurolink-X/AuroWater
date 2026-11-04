@@ -57,7 +57,11 @@ const TECHNICIAN_MAX_ACTIVE = 3; // concurrent jobs per technician
 const PENDING_RETRY_AFTER_MS = 30_000; // minimum gap between dispatch retries of one order
 const PG_UNIQUE_VIOLATION = '23505';
 const CFG_TTL_MS = 15_000; // dispatch settings are re-read at most this often per server instance
-const EXPIRED_REOFFER_COOLDOWN_MS = 10 * 60_000; // an expired offer may be repeated after this long
+const EXPIRED_REOFFER_COOLDOWN_MS = 10 * 60_000;
+const MAX_SUPPLIER_ACTIVE_ORDERS = 20;
+const DISPATCH_ESCALATE_AFTER_FAILURES = 3;
+const DISPATCH_STOP_AFTER_FAILURES = 5;
+const LATE_SLOT_REVIEW_GRACE_MS = 30 * 60_000; // an expired offer may be repeated after this long
 const TECHNICIAN_RETRY_WINDOW_MS = 72 * 60 * 60_000; // stop retrying technician jobs older than this
 /** Set DISPATCH_REOFFER_EXPIRED=false to restore the old "never re-offer to a supplier who timed out" rule. */
 const REOFFER_EXPIRED = process.env.DISPATCH_REOFFER_EXPIRED !== 'false';
@@ -122,7 +126,7 @@ async function loadCfg(db: any): Promise<Cfg> {
     queueEnabled: m.dispatch_work_queue_enabled === 'true',
     responseSeconds: posNum(m.dispatch_response_seconds, 300),
     maxAttempts: Math.floor(posNum(m.dispatch_max_attempts, 5)),
-    maxActive: Math.floor(posNum(m.supplier_max_active_orders, 5)),
+    maxActive: Math.min(MAX_SUPPLIER_ACTIVE_ORDERS, Math.floor(posNum(m.supplier_max_active_orders, 20))),
     defaultRadiusKm: posNum(m.service_radius_km, 10),
   };
   if (!error) cfgCache = { at: Date.now(), cfg };
@@ -160,6 +164,27 @@ async function notify(
  * deliver it to only the first admin), and the audit row is written only when a NEW alert was
  * created, so repeated retries do not flood audit_logs.
  */
+/**
+ * One private in-app notification per supplier per IST day when their approved
+ * area receives extra demand while all 20 active slots are occupied.
+ * Never reveal the new customer's ID, address, phone, or precise location.
+ */
+async function notifySupplierAtCapacity(db: any, supplierId: string, load: number) {
+  const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+  const { error } = await db.from('notifications').insert({
+    user_id: supplierId,
+    title: 'Your delivery capacity is full',
+    message: `You have ${load} active orders. More demand is arriving in your approved area. New orders will be offered to other available suppliers until capacity frees up.`,
+    type: 'system',
+    data: { kind: 'supplier_capacity_full' },
+    is_read: false,
+    dedup_key: `supplier_capacity_full_${today}_${supplierId}`,
+  });
+  if (error && error.code !== PG_UNIQUE_VIOLATION) {
+    console.error('[dispatch] capacity notice failed', { code: error.code });
+  }
+}
+
 async function alertAdmins(
   db: any,
   orderId: string,
@@ -497,6 +522,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     : null;
 
   const cands: Cand[] = [];
+  const saturatedSuppliers: Array<{ id: string; load: number }> = [];
   for (const r of rows) {
     const id = String(r.user_id);
     const reject = (reason: string, detail?: string) => rejected.push({ supplierId: id, reason, detail });
@@ -526,7 +552,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
 
     const load = activeLoad.get(id) ?? 0;
-    if (load >= cfg.maxActive) { reject('at_capacity', `${load}/${cfg.maxActive}`); continue; }
+    if (load >= cfg.maxActive) { reject('at_capacity', `${load}/${cfg.maxActive}`); saturatedSuppliers.push({ id, load }); continue; }
 
     const radius = posNum(r.zone_radius_km, cfg.defaultRadiusKm);
     const sLat = coord(r.base_lat);
@@ -589,6 +615,9 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
     }
   }
   const repeatSupplierId = selectRepeatSupplierId(cands, affinityId, favourite);
+  if (saturatedSuppliers.length) {
+    await Promise.all(saturatedSuppliers.slice(0, 20).map(s => notifySupplierAtCapacity(db, s.id, s.load)));
+  }
   const ranked = prioritizeRepeatSupplier(rankSupplierCandidates(cands, affinityId), repeatSupplierId);
   cands.splice(0, cands.length, ...ranked);
 
@@ -596,7 +625,7 @@ async function evaluateSuppliers(db: any, order: any, cfg: Cfg): Promise<Evaluat
 }
 
 const ORDER_COLS =
-  'id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type, last_dispatch_at';
+  'id, customer_id, status, supplier_id, address_id, address_snapshot, dispatch_attempts, zone_id, service_type, last_dispatch_at, scheduled_at, created_at';
 
 /* ───────────────────────── Water dispatch ───────────────────────── */
 
@@ -624,6 +653,30 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       return { supplierId: null, reason: 'not_pending' };
     }
 
+    // A missed delivery appointment needs customer coordination and a new
+    // confirmed slot, not a surprise assignment to an unaware supplier.
+    const scheduledMs = order.scheduled_at ? Date.parse(String(order.scheduled_at)) : NaN;
+    if (Number.isFinite(scheduledMs) && scheduledMs < Date.now() - LATE_SLOT_REVIEW_GRACE_MS) {
+      await alertAdmins(db, orderId,
+        'Delivery slot passed. Confirm a revised delivery time with the customer before manual dispatch.',
+        'stale_schedule_review');
+      return { supplierId: null, reason: 'no_candidates' };
+    }
+
+    const { data: retryMeta, error: retryError } = await db
+      .from('dispatch_retry_state').select('failures').eq('order_id', orderId).maybeSingle();
+    if (retryError) {
+      console.error('[dispatch] retry metadata check failed', retryError.code);
+      await alertAdmins(db, orderId, 'Dispatch retry metadata unavailable; check database.', 'retry_metadata_error');
+      return { supplierId: null, reason: 'error' };
+    }
+    if (Number(retryMeta?.failures ?? 0) >= DISPATCH_STOP_AFTER_FAILURES) {
+      await alertAdmins(db, orderId,
+        'No eligible supplier after repeated retries. Customer schedule and coverage require manual review.',
+        'manual_dispatch_review');
+      return { supplierId: null, reason: 'no_candidates' };
+    }
+
     if (!cfg.enabled) {
       await markAttempt(db, orderId);
       await alertAdmins(db, orderId, 'Auto-assign is off. Please assign a supplier manually', 'no_supplier');
@@ -647,6 +700,14 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
       const why = summarize(ev.onlineCount, ev.rejected, declined);
       console.warn('[dispatch] no candidates', { orderId, why });
       await markAttempt(db, orderId);
+      const { data: updatedRetry } = await db.from('dispatch_retry_state')
+        .select('failures').eq('order_id', orderId).maybeSingle();
+      const failures = Number(updatedRetry?.failures ?? 0);
+      if (failures >= DISPATCH_ESCALATE_AFTER_FAILURES) {
+        await alertAdmins(db, orderId,
+          'Multiple supplier searches failed. Check exact PIN/zone approval, stock, radius and capacity. Contact the customer before the slot expires.',
+          'manual_dispatch_review', { failures });
+      }
       await alertAdmins(db, orderId, `No supplier is available nearby (${why})`, 'no_supplier', {
         online: ev.onlineCount,
         rejected: ev.rejected.slice(0, 25),
