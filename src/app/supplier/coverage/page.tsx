@@ -22,6 +22,7 @@ export default function SupplierCoveragePage() {
   const [services, setServices] = useState<string[]>(['water_can']);
   const [note, setNote] = useState('');
   const [requestedPincodes, setRequestedPincodes] = useState('');
+  const [findPin, setFindPin] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -44,7 +45,10 @@ export default function SupplierCoveragePage() {
       const loaded = (json.data ?? json) as Payload;
       setPayload(loaded);
       // A suggestion only preselects a configured zone; admin approval is never automatic.
-      const suggestedZone = new URLSearchParams(window.location.search).get('zone');
+      const url = new URLSearchParams(window.location.search);
+      const searchPin = url.get('pin');
+      if (searchPin && /^\d{6}$/.test(searchPin)) setFindPin(searchPin);
+      const suggestedZone = url.get('zone');
       if (suggestedZone && loaded.zones.some(z => z.id === suggestedZone)) {
         setSelected([suggestedZone]);
       }
@@ -52,6 +56,11 @@ export default function SupplierCoveragePage() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  // Exact PINs map to existing admin-managed zones. Never infer that an
+  // approved pilot zone with an empty PIN list covers an entire city.
+  const pinMatches = /^\d{6}$/.test(findPin)
+    ? payload.zones.filter(zone => zone.pincodes?.includes(findPin))
+    : [];
   const submit = async () => {
     if (!selected.length) { setError(isHindi ? 'कम से कम एक शहर या सेवा क्षेत्र चुनें।' : 'Choose at least one city or service area.'); return; }
     if (!services.length) { setError(isHindi ? 'कम से कम एक सेवा चुनें।' : 'Choose at least one service.'); return; }
@@ -59,6 +68,13 @@ export default function SupplierCoveragePage() {
     if (pinList.some(p => !/^[0-9]{6}$/.test(p))) { setError(isHindi ? '6 अंकों के सही PIN कोड कॉमा या स्पेस से अलग करके लिखें।' : 'Enter valid 6-digit PIN codes, separated by commas or spaces.'); return; }
     if (new Set(pinList).size > 3) { setError(isHindi ? 'एक बार में अधिकतम 3 नए PIN कोड माँग सकते हैं।' : 'You can request a maximum of 3 additional PIN codes at a time.'); return; }
     if (pinList.length && selected.length !== 1) { setError(isHindi ? 'नए PIN कोड के लिए केवल एक संबंधित क्षेत्र चुनें।' : 'When requesting new PINs, select exactly one related service area so admin can review the correct area.'); return; }
+    const existingPinZones = pinList.flatMap(pin => payload.zones.filter(z => z.pincodes?.includes(pin)));
+    if (existingPinZones.some(z => !selected.includes(z.id))) {
+      setError(isHindi
+        ? 'यह PIN पहले से किसी दूसरे सेवा क्षेत्र में है। ऊपर PIN खोजें और उसका सही क्षेत्र चुनें।'
+        : 'This PIN already belongs to another configured service zone. Search that PIN above and select its exact zone instead.');
+      return;
+    }
     const requestNote = [pinList.length ? 'Requested PIN codes: ' + [...new Set(pinList)].join(', ') : '', note.trim()].filter(Boolean).join('\n');
     setSaving(true); setError(''); setMessage('');
     try {
@@ -86,6 +102,22 @@ export default function SupplierCoveragePage() {
     {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
     <section className="mt-6 min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
       <h2 className="text-lg font-bold">{isHindi ? '1. सेवा क्षेत्र चुनें' : '1. Select service areas'}</h2>
+      <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-4">
+        <label className="block text-sm font-semibold text-sky-950" htmlFor="supplier-pin-search">{isHindi ? 'सटीक PIN से सेवा क्षेत्र खोजें' : 'Find exact service area by PIN'}</label>
+        <input id="supplier-pin-search" inputMode="numeric" pattern="[0-9]{6}" maxLength={6}
+          placeholder="Enter your 6-digit PIN" value={findPin}
+          onChange={e => setFindPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          className="mt-2 min-h-11 w-full rounded-lg border border-sky-200 bg-white p-3 text-slate-900" />
+        {pinMatches.length > 0 ? <div className="mt-3 space-y-2">{pinMatches.map(zone => (
+          <button key={zone.id} type="button"
+            onClick={() => { setSelected([zone.id]); setRequestedPincodes(''); setError(''); }}
+            className="w-full rounded-lg border border-sky-200 bg-white p-3 text-left text-sm font-semibold text-sky-900 hover:border-emerald-500">
+            {zone.name} · {findPin} · {selected.includes(zone.id) ? 'Selected ✓' : 'Select this zone'}
+          </button>
+        ))}</div> : findPin.length === 6 && !loading
+          ? <p className="mt-2 text-sm text-amber-900">No exact configured zone for this PIN. You may request a new area for admin review; the PIN alone does not grant dispatch coverage.</p>
+          : <p className="mt-2 text-xs text-sky-800">Select the matching zone and submit for approval. Existing coverage is not changed automatically.</p>}
+      </div>
       {loading ? <p className="py-6 text-sm text-slate-500">{isHindi ? 'सेवा क्षेत्र लोड हो रहे हैं…' : 'Loading configured service areas…'}</p> : payload.zones.length === 0 ? <p className="py-4 text-sm text-slate-500">{isHindi ? 'अभी कोई सेवा क्षेत्र कॉन्फ़िगर नहीं है। AuroTap सहायता से संपर्क करें।' : 'No service areas are configured yet. Contact AuroTap support.'}</p> :
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{payload.zones.map(z => <label key={z.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3">
         <input type="checkbox" className="mt-1" checked={selected.includes(z.id)} onChange={e => setSelected(old => e.target.checked ? [...old,z.id] : old.filter(id => id !== z.id))}/>
@@ -99,6 +131,7 @@ export default function SupplierCoveragePage() {
           )}
         </div>
       </label>)}</div>}
+      <p className="mt-3 text-xs leading-5 text-slate-600">A zone showing no PIN codes is not automatically citywide. For any verified PIN, select its own exact zone rather than adding that PIN to an unrelated pilot zone.</p>
       <h2 className="mt-6 text-lg font-bold">{isHindi ? '2. उपलब्ध सेवाएँ' : '2. Services you can fulfil'}</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">{SERVICE_OPTIONS.map(([key,label]) => <label key={key} className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 p-3"><input type="checkbox" className="mt-1 shrink-0" checked={services.includes(key)} onChange={e => setServices(old => e.target.checked ? [...old,key] : old.filter(x => x !== key))}/><span className="min-w-0 break-words text-sm">{isHindi ? serviceLabelsHi[key] ?? label : label}</span></label>)}</div>
       <label className="mt-5 block text-sm font-semibold">{isHindi ? 'अतिरिक्त 6 अंकों के PIN कोड माँगें (वैकल्पिक)' : 'Request additional 6-digit PIN codes (optional)'}
