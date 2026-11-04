@@ -12,6 +12,44 @@ ALTER TABLE public.dispatch_alert_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.dispatch_alert_events FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT, DELETE ON public.dispatch_alert_events TO service_role;
 
+-- Per-supplier settings match the platform cap, including future parallel offer
+-- logic. The previous optional migration used a 15-order default.
+ALTER TABLE public.supplier_settings
+  ADD COLUMN IF NOT EXISTS max_active_orders integer NOT NULL DEFAULT 20;
+ALTER TABLE public.supplier_settings
+  ALTER COLUMN max_active_orders SET DEFAULT 20;
+UPDATE public.supplier_settings SET max_active_orders=20
+WHERE max_active_orders IS DISTINCT FROM 20;
+
+-- Defense in depth: even manual assignments and future RPCs cannot exceed 20.
+-- Locking the supplier row also serializes admissions across different orders.
+CREATE OR REPLACE FUNCTION public.guard_supplier_active_capacity()
+RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $function$
+DECLARE v_used integer; v_max integer;
+BEGIN
+  IF NEW.supplier_id IS NULL OR NEW.status NOT IN ('ASSIGNED','IN_PROGRESS') THEN
+    RETURN NEW;
+  END IF;
+  IF OLD.supplier_id IS NOT DISTINCT FROM NEW.supplier_id
+     AND OLD.status IN ('ASSIGNED','IN_PROGRESS') THEN RETURN NEW; END IF;
+  SELECT max_active_orders INTO v_max FROM public.supplier_settings
+  WHERE user_id=NEW.supplier_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'SUPPLIER_SETTINGS_MISSING' USING ERRCODE='23514'; END IF;
+  SELECT count(*) INTO v_used FROM public.orders
+  WHERE supplier_id=NEW.supplier_id AND status IN ('ASSIGNED','IN_PROGRESS')
+    AND id<>NEW.id;
+  IF v_used >= least(20,coalesce(v_max,20)) THEN
+    RAISE EXCEPTION 'SUPPLIER_AT_CAPACITY' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+DROP TRIGGER IF EXISTS supplier_order_active_capacity_guard ON public.orders;
+CREATE TRIGGER supplier_order_active_capacity_guard
+  BEFORE UPDATE OF supplier_id,status ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.guard_supplier_active_capacity();
+REVOKE ALL ON FUNCTION public.guard_supplier_active_capacity() FROM PUBLIC, anon, authenticated;
+
 -- Keep the original stock reservation, order locking and authorization rules;
 -- lock supplier settings across competing orders to prevent capacity oversubscription.
 CREATE OR REPLACE FUNCTION public.try_assign_supplier_with_stock(
@@ -112,8 +150,8 @@ BEGIN
     FOR UPDATE;
   IF NOT FOUND THEN RETURN false; END IF;
 
-  UPDATE public.orders SET scheduled_at=p_scheduled_at,updated_at=clock_timestamp()
-    WHERE id=p_order_id;
+  UPDATE public.orders SET scheduled_at=p_scheduled_at,updated_at=clock_timestamp(),
+    dispatch_attempts=0,last_dispatch_at=NULL WHERE id=p_order_id;
   DELETE FROM public.dispatch_retry_state WHERE order_id=p_order_id;
   DELETE FROM public.dispatch_alert_events WHERE order_id=p_order_id
     AND action IN ('manual_dispatch_review','stale_schedule_review','no_supplier');
