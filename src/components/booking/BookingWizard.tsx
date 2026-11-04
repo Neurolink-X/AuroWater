@@ -2436,7 +2436,7 @@ export default function BookingWizard() {
 
                     <select className={`${selectCls}${flashCls}`} aria-label="City"
                       value={draft.newAddress?.city ?? ''}
-                      onChange={(e) => setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, city: e.target.value } }))}>
+                      onChange={(e) => { setAreaHits([]); setPinAreas([]); setDraft((d) => ({ ...d, newAddress: { ...d.newAddress, city: e.target.value } })); }}>
                       <option value="">{cityDirectoryLoading ? 'Loading cities…' : 'Select city'}</option>
                        {ADDRESS_CITIES.map((c) => <option key={c} value={c}>{c}{!LIVE_CITIES.includes(c) ? ' · availability check required' : ''}</option>)}
                     </select>
@@ -2451,6 +2451,7 @@ export default function BookingWizard() {
                           void lookupPincode(pin);
                         }} />
                       {newPinHint && <p className="mt-1 text-xs text-amber-700">{newPinHint}</p>}
+                      <p className="mt-1 text-xs text-slate-500">You can enter an exact 6-digit PIN manually. Postal area suggestions are optional; choose only the area that matches your actual address.</p>
                     </div>
 
                     <input className={`sm:col-span-2 ${inputCls}`} placeholder="Landmark (optional)" aria-label="Landmark"
