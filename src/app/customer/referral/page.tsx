@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { getToken } from '@/lib/api-client';
 import { referralReturnPath } from '@/lib/referrals/invite-paths';
 
 export default function CustomerSupplierInvitationPage() {
+  const router = useRouter();
   const supplierId = useSearchParams().get('supplier');
   const { hydrated, isLoggedIn, isCustomer } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -34,9 +36,12 @@ export default function CustomerSupplierInvitationPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? json.message ?? 'Unable to confirm referral.');
-      setMessage(json.data?.alreadyConfirmed
+      toast.success(json.data?.alreadyConfirmed
         ? 'This supplier is already linked to your account.'
-        : 'Supplier referral confirmed. You can now book on AuroTap.');
+        : 'Supplier referral confirmed successfully.');
+      // A confirmed invite is complete: take the customer to the main home page.
+      // A failed confirmation remains here, with its error, for a safe retry.
+      router.replace('/');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to confirm referral.');
     } finally {
