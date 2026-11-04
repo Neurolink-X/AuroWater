@@ -13,6 +13,7 @@ import {
 } from '@/lib/api-client';
 import { writeSession } from '@/hooks/useAuth';
 import { setAuthGateCookies } from '@/lib/auth/client-gate-cookies';
+import { referralReturnPath } from '@/lib/referrals/invite-paths';
 import { createClient } from '@/utils/supabase/client';
 
 const SERVICE_CITIES = [
@@ -153,6 +154,7 @@ type FieldErrors = Record<string, string>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [referralDestination, setReferralDestination] = useState<string | null>(null);
 
   const [role, setRole] = useState<Role>('customer');
   const [loading, setLoading] = useState(false);
@@ -205,6 +207,7 @@ export default function RegisterPage() {
   useEffect(() => {
     const initialRole = detectInitialRole();
     setRole(initialRole);
+    setReferralDestination(referralReturnPath(new URLSearchParams(window.location.search).get('returnTo')));
 
     document.title =
       'Create Your AuroTap Account | Water Delivery & Home Services';
@@ -329,7 +332,7 @@ export default function RegisterPage() {
       );
 
       router.replace(
-        `/auth/login?email=${encodeURIComponent(reg.email)}`
+        `/auth/login?email=${encodeURIComponent(reg.email)}${role === 'customer' && referralDestination ? `&returnTo=${encodeURIComponent(referralDestination)}` : ''}`
       );
 
       return;
@@ -349,7 +352,7 @@ export default function RegisterPage() {
 
     toast.success('Welcome to AuroTap!');
 
-    router.replace(destination);
+    router.replace(result.profile.role === 'customer' && referralDestination ? referralDestination : destination);
   };
 
 
@@ -1262,7 +1265,7 @@ export default function RegisterPage() {
                   </p>
 
                   <Link
-                    href="/auth/login"
+                    href={role === 'customer' && referralDestination ? `/auth/login?returnTo=${encodeURIComponent(referralDestination)}` : '/auth/login'}
                     className="font-black text-emerald-700 hover:text-emerald-800 hover:underline"
                   >
                     Sign in →
