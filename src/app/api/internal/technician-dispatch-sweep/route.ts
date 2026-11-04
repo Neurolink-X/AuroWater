@@ -13,7 +13,6 @@ const MAX_SWEEP_IN_FLIGHT = 1;
 let sweepInFlight = 0;
 const MAX_RUNTIME_MS = 150_000;
 const RECENT_ORDER_GRACE_MS = 30_000;
-const SUPPLIER_RETRY_INTERVAL_MS = 5 * 60_000;
 
 function authorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
@@ -185,21 +184,9 @@ async function executeSweep(startedAt: number) {
 
   // Recover stale water orders through the existing supplier dispatch engine.
   // Assignment remains atomic inside try_assign_supplier_with_stock().
-  const supplierRetryBefore = new Date(
-    Date.now() - SUPPLIER_RETRY_INTERVAL_MS,
-  ).toISOString();
-
   const { data: pendingSupplierOrders, error: supplierPendingError } = queueEnabled
     ? { data: [] as { id: string }[], error: null }
-    : await db.from('orders')
-    .select('id')
-    .eq('status', 'PENDING')
-    .is('supplier_id', null)
-    .eq('service_type', 'water_can')
-    .lt('created_at', retryBefore)
-    .or(`last_dispatch_at.is.null,last_dispatch_at.lt.${supplierRetryBefore}`)
-    .order('created_at', { ascending: true })
-    .limit(BATCH_SIZE);
+    : await db.rpc('pending_supplier_retry_batch', { p_limit: BATCH_SIZE });
 
   if (supplierPendingError) {
     console.error(
