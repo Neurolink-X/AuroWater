@@ -2,6 +2,7 @@
 import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   adminOrdersWithMeta,
@@ -567,14 +568,16 @@ export default function AdminOrdersPage() {
                     </div>
                   ) : null}
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Scheduled</dt>
-                    <dd className="text-right">
-                      {drawerOrder.scheduled_date
-                        ? `${new Date(String(drawerOrder.scheduled_date)).toLocaleDateString('en-IN')}${
-                            drawerOrder.time_slot ? ` · ${String(drawerOrder.time_slot)}` : ''
-                          }`
-                        : '—'}
-                    </dd>
+                    <dt className="text-slate-500">Booked at</dt>
+                    <dd className="text-right">{drawerOrder.created_at
+                      ? new Date(String(drawerOrder.created_at)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) + ' IST'
+                      : '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-slate-500">Scheduled delivery</dt>
+                    <dd className="text-right">{drawerOrder.scheduled_at
+                      ? new Date(String(drawerOrder.scheduled_at)).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) + ' IST'
+                      : 'Not confirmed'}</dd>
                   </div>
                 </dl>
               </section>
