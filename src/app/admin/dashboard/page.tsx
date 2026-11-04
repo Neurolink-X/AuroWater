@@ -83,9 +83,14 @@ interface OrderRow {
   id: number;
   customer_name: string;
   service_name?: string;
+  service_type?: string | null;
   total_amount: number;
   status: string;
   created_at: string;
+}
+
+function orderServiceName(order: OrderRow): string {
+  return cleanName(order.service_name || order.service_type?.replaceAll('_', ' '), 'Service details unavailable');
 }
 
 interface DashboardData {
@@ -262,7 +267,7 @@ function sortRows(rows: OrderRow[], sort: SortState): OrderRow[] {
     switch (sort.key) {
       case 'id': return num(o.id);
       case 'customer': return (o.customer_name ?? '').toLowerCase();
-      case 'service': return cleanName(o.service_name).toLowerCase();
+      case 'service': return orderServiceName(o).toLowerCase();
       case 'amount': return num(o.total_amount);
       case 'status': return o.status;
       default: return Date.parse(o.created_at) || 0;
@@ -293,7 +298,7 @@ function exportCsv(rows: OrderRow[]) {
       [
         o.id,
         esc(o.customer_name),
-        esc(cleanName(o.service_name)),
+        esc(orderServiceName(o)),
         num(o.total_amount),
         esc(o.status),
         esc(o.created_at),
@@ -768,7 +773,7 @@ const OrdersTable = memo(function OrdersTable({
                   #{o.id} {o.customer_name || 'Customer'}
                 </span>
                 <span className="block truncate text-xs capitalize text-slate-500">
-                  {cleanName(o.service_name)} · {relTime(o.created_at)}
+                  {orderServiceName(o)} · {relTime(o.created_at)}
                 </span>
               </span>
               <span className="flex shrink-0 flex-col items-end gap-1.5">
@@ -835,7 +840,7 @@ const OrdersTable = memo(function OrdersTable({
                 <td className="max-w-[220px] truncate px-5 py-3.5 font-medium text-slate-800">
                   {o.customer_name || 'Customer'}
                 </td>
-                <td className="px-5 py-3.5 capitalize text-slate-600">{cleanName(o.service_name)}</td>
+                <td className="px-5 py-3.5 capitalize text-slate-600">{orderServiceName(o)}</td>
                 <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-slate-900">
                   {inr(o.total_amount)}
                 </td>
@@ -888,7 +893,7 @@ function OrderDrawer({ order, onClose }: { order: OrderRow; onClose: () => void 
 
   const rows: [string, React.ReactNode][] = [
     ['Customer', order.customer_name || 'Customer'],
-    ['Service', <span key="s" className="capitalize">{cleanName(order.service_name)}</span>],
+    ['Service', <span key="s" className="capitalize">{orderServiceName(order)}</span>],
     ['Amount', <span key="a" className="font-semibold tabular-nums">{inr(order.total_amount)}</span>],
     ['Status', <StatusBadge key="st" status={order.status} />],
     ['Placed', `${fullDate(order.created_at)} (${relTime(order.created_at)})`],
@@ -1544,7 +1549,7 @@ function computeSample(orders: OrderRow[]): SampleStats {
   const svc = new Map<string, { count: number; revenue: number }>();
 
   for (const o of orders) {
-    const name = cleanName(o.service_name, 'Unknown service');
+    const name = orderServiceName(o);
     const entry = svc.get(name) ?? { count: 0, revenue: 0 };
     entry.count += 1;
     if (o.status === 'COMPLETED') {
