@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { getToken } from '@/lib/api-client';
+import { referralReturnPath } from '@/lib/referrals/invite-paths';
 
 type Reward = {
   id: string;
@@ -39,6 +40,8 @@ export default function CustomerReferralsPage() {
   const { hydrated, isLoggedIn, isCustomer, session } = useAuth();
   const searchParams = useSearchParams();
   const queryCode = searchParams.get('code') ?? '';
+  const invitePath = queryCode ? referralReturnPath(`/customer/referrals?code=${encodeURIComponent(queryCode)}`) : null;
+  const invited = Boolean(queryCode);
   const [data, setData] = useState<ReferralData | null>(null);
   const [code, setCode] = useState(queryCode.toUpperCase());
   const [loading, setLoading] = useState(true);
@@ -74,11 +77,11 @@ export default function CustomerReferralsPage() {
   }, [hydrated, isLoggedIn, isCustomer, load]);
 
   useEffect(() => {
-    if (hydrated && !isLoggedIn) {
-      const returnTo = `/customer/referrals${queryCode ? `?code=${encodeURIComponent(queryCode)}` : ''}`;
-      window.location.replace(`/auth/login?returnTo=${encodeURIComponent(returnTo)}`);
+    // Public invitation landing: never force a new visitor straight to login.
+    if (hydrated && !isLoggedIn && !invited) {
+      window.location.replace('/auth/login?returnTo=%2Fcustomer%2Freferrals');
     }
-  }, [hydrated, isLoggedIn, queryCode]);
+  }, [hydrated, isLoggedIn, invited]);
 
   const inviteUrl = useMemo(() => {
     if (!data?.referral_code) return '';
@@ -141,6 +144,10 @@ export default function CustomerReferralsPage() {
       toast.info(`Your referral code is ${data.referral_code}`);
     }
   };
+
+  if (hydrated && !isLoggedIn && invited) {
+    return <main className="mx-auto max-w-xl px-4 py-10 text-slate-900"><section className="rounded-3xl border border-sky-100 bg-white p-6 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-sky-700">AuroTap · Friend invitation</p><h1 className="mt-2 text-2xl font-extrabold">Your friend invited you to AuroTap</h1><p className="mt-3 text-sm leading-6 text-slate-600">Join AuroTap and apply your friend’s code before your first order. Eligible rewards unlock after a qualifying completed and paid booking. This is different from a supplier invitation.</p>{invitePath ? <div className="mt-5 flex flex-col gap-3"><Link href={`/auth/register?role=customer&returnTo=${encodeURIComponent(invitePath)}`} className="rounded-xl bg-sky-700 px-4 py-3 text-center font-bold text-white">Create customer account</Link><Link href={`/auth/login?returnTo=${encodeURIComponent(invitePath)}`} className="rounded-xl border border-sky-700 px-4 py-3 text-center font-bold text-sky-800">Already registered? Sign in</Link></div> : <p role="alert" className="mt-5 text-red-700">Invalid referral code. Ask your friend for a valid link.</p>}</section></main>;
+  }
 
   if (!hydrated || !isLoggedIn || !isCustomer) {
     return <main className="mx-auto max-w-3xl p-6 text-slate-600">Loading your referral rewards…</main>;
