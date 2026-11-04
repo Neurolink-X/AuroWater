@@ -5,6 +5,7 @@ import test from 'node:test';
 const src = (path) => readFileSync(path, 'utf8');
 const sql = src('supabase/migrations/20261104145000_dispatch_capacity_alert_reliability.sql');
 const dispatch = src('src/lib/dispatch.ts');
+const cronSweep = src('src/app/api/internal/technician-dispatch-sweep/route.ts');
 const supplier = src('src/app/supplier/[section]/page.tsx');
 const schedule = src('src/lib/supplier/schedule-display.ts');
 const zones = src('src/lib/zones.ts');
@@ -61,6 +62,9 @@ test('retry failures trigger human escalation, and a missed slot is not reassign
   assert.match(sql, /PRIMARY KEY \(order_id, action\)/);
   assert.match(sql, /s.failures < 5 AND s.next_retry_at <= clock_timestamp\(\)/);
   assert.match(dispatch, /reason: 'stale_schedule_review'/);
+  assert.match(sql, /FUNCTION public.pending_supplier_retry_batch/);
+  assert.match(sql, /r.failures < 5 AND r.next_retry_at <= clock_timestamp/);
+  assert.match(cronSweep, /rpc\('pending_supplier_retry_batch'/);
   assert.doesNotMatch(sql, /UPDATE public\.orders SET status='CANCELLED'/);
 });
 
