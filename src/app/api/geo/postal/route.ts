@@ -58,7 +58,8 @@ export async function GET(req: NextRequest) {
         .limit(MAX_RESULTS);
       if (pincode) return query.eq('pincode', pincode);
       query = query.ilike('office_name', `%${office}%`);
-      if ((strictCity || preferCity) && district) query = query.ilike('district', `%${district}%`);
+      if (strictCity && district) query = query.ilike('district', `%${district}%`);
+      else if (preferCity && district) query = query.ilike('district', `%${district}%`);
       return query;
     };
 
