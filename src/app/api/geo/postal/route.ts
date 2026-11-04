@@ -49,21 +49,26 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = createServiceClient();
-    let query = db
-      .from('pincode_directory')
-      .select('office_name, pincode, district, state')
-      .order('office_name', { ascending: true })
-      .limit(MAX_RESULTS);
-
-    if (pincode) {
-      query = query.eq('pincode', pincode);
-    } else {
+    const district = DISTRICT_BY_CITY[city];
+    const run = (preferCity: boolean) => {
+      let query = db
+        .from('pincode_directory')
+        .select('office_name, pincode, district, state')
+        .order('office_name', { ascending: true })
+        .limit(MAX_RESULTS);
+      if (pincode) return query.eq('pincode', pincode);
       query = query.ilike('office_name', `%${office}%`);
-      const district = DISTRICT_BY_CITY[city];
-      if (strictCity && district) query = query.ilike('district', `%${district}%`);
-    }
+      if ((strictCity || preferCity) && district) query = query.ilike('district', `%${district}%`);
+      return query;
+    };
 
-    const { data, error } = await query;
+    // Search the selected city's district FIRST. A nationwide limit of 50 can
+    // otherwise hide correct Noida matches behind similarly named areas in Baghpat.
+    // Non-strict searches may fall back nationwide only when there are no local hits.
+    let { data, error } = await run(Boolean(district));
+    if (!error && !pincode && !strictCity && district && !data?.length) {
+      ({ data, error } = await run(false));
+    }
     if (error) {
       console.error('[geo/postal] directory lookup failed', { code: error.code, message: error.message });
       return NextResponse.json({ error: 'Postal lookup is temporarily unavailable' }, { status: 503 });
