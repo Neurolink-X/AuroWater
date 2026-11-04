@@ -339,7 +339,8 @@ function LoginPageInner() {
       const destination = role === 'customer'
         ? (sanitized && (sanitized.startsWith('/customer/') || isBookRoute)
           ? sanitized : '/')
-        : dashboardFor(role);
+        : (sanitized && (sanitized.startsWith(`/${role}/`) || sanitized === `/${role}`)
+          ? sanitized : dashboardFor(role));
 
 router.replace(destination);
       
