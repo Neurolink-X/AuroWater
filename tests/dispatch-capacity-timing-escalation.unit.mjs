@@ -34,6 +34,8 @@ test('20-order capacity is enforced atomically on every assignment path', () => 
   assert.match(sql, /v_used >= least\(20/);
   assert.match(sql, /v_active >= v_cap/);
   assert.match(sql, /SUPPLIER_AT_CAPACITY/);
+  assert.match(sql, /IF auth.role\(\) <> 'service_role' THEN/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.try_assign_supplier_with_stock\(uuid,uuid,numeric\) FROM PUBLIC, anon, authenticated/);
   assert.match(dispatch, /MAX_SUPPLIER_ACTIVE_ORDERS = 20/);
   assert.match(dispatch, /Math\.min\(MAX_SUPPLIER_ACTIVE_ORDERS/);
   assert.match(supplier, /Active assignments/);
@@ -57,6 +59,8 @@ test('retry failures trigger human escalation, and a missed slot is not reassign
   assert.match(dispatch, /offer_history,/);
   assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.dispatch_alert_events/);
   assert.match(sql, /PRIMARY KEY \(order_id, action\)/);
+  assert.match(sql, /s.failures < 5 AND s.next_retry_at <= clock_timestamp\(\)/);
+  assert.match(dispatch, /reason: 'stale_schedule_review'/);
   assert.doesNotMatch(sql, /UPDATE public\.orders SET status='CANCELLED'/);
 });
 
