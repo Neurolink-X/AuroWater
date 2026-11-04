@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettings, type PlatformSettings } from '@/hooks/useSettings';
+import { computeExpectedTotal } from '@/lib/api/order-pricing-server';
 import {
   CITIES, FAQS, SERVICE_CARDS, WHATSAPP, type FaqItem,
 } from './pricing-shared';
@@ -161,7 +162,7 @@ const SubCard = memo(function SubCard({ plan, frequency, onCta }: { plan: SubPla
             <div style={{ fontSize: 32, fontWeight: 900, color: plan.highlight ? '#34D399' : '#0F172A', letterSpacing: '-1px' }}>Custom</div>
           )}
           <div style={{ marginTop: 6, fontSize: 13, color: plan.highlight ? '#6EE7B7' : '#047857', fontWeight: 700, lineHeight: 1.45 }}>{plan.perCan}</div>
-          <div style={{ marginTop: 7, fontSize: 11.5, fontWeight: 700, color: plan.highlight ? '#A7F3D0' : '#475569' }}>Delivery included. No separate water handling fee.</div>
+          <div style={{ marginTop: 7, fontSize: 11.5, fontWeight: 700, color: plan.highlight ? '#A7F3D0' : '#475569' }}>Includes currently published fees; the booking total is authoritative.</div>
           {typeof plan.cansPerDelivery === 'number' && (
             <div style={{ marginTop: 3, fontSize: 12, color: plan.highlight ? 'rgba(255,255,255,0.65)' : '#64748B' }}>
               {plan.id === 'pay-per-can' ? 'Example total for 1 can' : `${plan.id === 'office' ? '' : 'Up to '}${plan.cansPerDelivery} cans per delivery`}
@@ -232,7 +233,7 @@ function FaqAccordion({ faq }: { faq: FaqItem[] }) {
 function CompareTable({ settings, officeQuantity, normalPrice }: { settings: PlatformSettings; officeQuantity: number; normalPrice: number }) {
   const rows = [
     { feature: 'Per-can rate', payg: `₹${normalPrice}`, starter: `₹${settings.subscription_can_price}`, pro: `₹${settings.subscription_can_price}`, office: `₹${normalPrice}`, business: 'Quote' },
-    { feature: 'Separate water handling fee', payg: 'None for water cans', starter: 'None for water cans', pro: 'None for water cans', office: 'None for water cans', business: 'Confirmed in quote' },
+    { feature: 'Handling + delivery / order', payg: `₹${settings.convenience_fee + settings.delivery_fee}`, starter: `₹${settings.convenience_fee + settings.delivery_fee}`, pro: `₹${settings.convenience_fee + settings.delivery_fee}`, office: `₹${settings.convenience_fee + settings.delivery_fee}`, business: 'Confirmed in quote' },
     { feature: 'Cans per delivery', payg: 'As needed', starter: 'Up to 10', pro: 'Up to 20', office: `${officeQuantity}+`, business: 'Custom' },
     { feature: 'Recurring schedule', payg: 'Not required', starter: 'Weekly / monthly', pro: 'Weekly / monthly', office: 'Weekly / monthly', business: 'By agreement' },
     { feature: 'Payment', payg: 'Cash / UPI', starter: 'Cash / UPI per delivery', pro: 'Cash / UPI per delivery', office: 'Cash / UPI per delivery', business: 'Confirmed before order' },
@@ -272,14 +273,14 @@ function CompareTable({ settings, officeQuantity, normalPrice }: { settings: Pla
 }
 
 // ─── Monthly water cost estimator ─────────────────────────────────────────────
-function WaterCalculator({ onOrder, normalPrice, chilledPrice, recurringPrice }: { onOrder: (water: 'normal' | 'chilled') => void; normalPrice: number; chilledPrice: number; recurringPrice: number }) {
+function WaterCalculator({ onOrder, normalPrice, chilledPrice, recurringPrice, orderFees, gstRate }: { onOrder: (water: 'normal' | 'chilled') => void; normalPrice: number; chilledPrice: number; recurringPrice: number; orderFees: number; gstRate: number }) {
   const [cans, setCans] = useState(10);
   const [water, setWater] = useState<'normal' | 'chilled'>('normal');
   const [cycle, setCycle] = useState<BillingCycle>('weekly');
   // Weekly/monthly deliveries are recurring, so Normal RO uses the admin recurring rate.
   const normalRate = recurringPrice || normalPrice;
   const rate = water === 'normal' ? normalRate : chilledPrice;
-  const perDelivery = cans * rate;
+  const perDelivery = computeExpectedTotal(cans * rate, orderFees, 0, gstRate).total;
   const monthly = Math.round(perDelivery * (cycle === 'weekly' ? 52 / 12 : 1));
   const pct = ((cans - 1) / 99) * 100;
   const seg = (on: boolean): React.CSSProperties => ({ flex: 1, minHeight: 44, padding: '0 14px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, color: on ? '#047857' : '#475569', background: '#E3EDF6', boxShadow: on ? 'inset 4px 4px 8px #b7c8d9, inset -4px -4px 8px #fff' : '5px 5px 10px #b7c8d9, -5px -5px 10px #fff', transition: 'box-shadow .2s, color .2s' });
@@ -312,7 +313,7 @@ function WaterCalculator({ onOrder, normalPrice, chilledPrice, recurringPrice }:
         <p style={{ margin: '2px 0 0', fontSize: 30, fontWeight: 900, color: '#0F172A', letterSpacing: '-1px' }}>₹{perDelivery.toLocaleString('en-IN')}</p>
         <p style={{ margin: '16px 0 0', fontSize: 12, fontWeight: 700, color: '#64748B' }}>About per month</p>
         <p style={{ margin: '2px 0 0', fontSize: 38, fontWeight: 900, color: '#047857', letterSpacing: '-1.5px' }}>₹{monthly.toLocaleString('en-IN')}</p>
-        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748B' }}>{cans} × ₹{rate}. Delivery included, no separate water handling fee.</p>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748B' }}>{cans} × ₹{rate} plus ₹{orderFees} published handling/delivery and applicable GST per delivery. Emergency charges are excluded.</p>
         <button type="button" onClick={() => onOrder(water)} className="cta cta-primary" style={{ marginTop: 20 }}>
           Order {water === 'normal' ? 'Normal' : 'Chilled'} RO
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden><path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -512,10 +513,11 @@ export default function PricingClient() {
     };
   }, []);
 
-  // Public totals follow the server-authoritative launch pricing in /api/customer/orders.
+  // Use the same base, published flat fees and whole-rupee GST rule as checkout.
   const deliveryTotal = (quantity: number, orderType: 'one_time' | 'subscription' = 'subscription') => {
-    const unit = orderType === 'subscription' ? recurringPrice : normalPrice;
-    return quantity * unit;
+    const unit = orderType === 'subscription' ? recurringPrice
+      : quantity >= settings.bulk_threshold ? settings.bulk_can_price : normalPrice;
+    return computeExpectedTotal(quantity * unit, settings.convenience_fee + settings.delivery_fee, 0, settings.gst_rate).total;
   };
   const officeQuantity = Math.max(50, settings.bulk_threshold);
 
@@ -529,7 +531,7 @@ export default function PricingClient() {
       pricePerDelivery: deliveryTotal(1, 'one_time'),
       unitPrice: normalPrice,
       cansPerDelivery: 1,
-      perCan: `₹${normalPrice}/can, no separate water handling fee, before any legally applicable tax`,
+      perCan: `₹${normalPrice}/can, excluding per-order fees and GST`,
       features: [
         { text: '20L water can delivery', included: true },
         { text: 'Choose from available delivery slots', included: true },
@@ -551,7 +553,7 @@ export default function PricingClient() {
       pricePerDelivery: deliveryTotal(10),
       unitPrice: recurringPrice,
       cansPerDelivery: 10,
-      perCan: `₹${recurringPrice}/can recurring rate, no separate water handling fee, before any legally applicable tax`,
+      perCan: `₹${recurringPrice}/can recurring rate, excluding per-order fees and GST`,
       features: [
         { text: '10 cans per delivery at the recurring rate', included: true },
         { text: 'Flexible delivery schedule', included: true },
@@ -574,7 +576,7 @@ export default function PricingClient() {
       pricePerDelivery: deliveryTotal(20),
       unitPrice: recurringPrice,
       cansPerDelivery: 20,
-      perCan: `₹${recurringPrice}/can recurring rate, no separate water handling fee, before any legally applicable tax`,
+      perCan: `₹${recurringPrice}/can recurring rate, excluding per-order fees and GST`,
       features: [
         { text: '20 cans per delivery at the recurring rate', included: true },
         { text: 'Choose weekly or monthly delivery', included: true },
@@ -600,7 +602,7 @@ export default function PricingClient() {
       unitPrice: normalPrice,
       cansPerDelivery: officeQuantity,
       // Uses the same rate the order API charges, so the card total and per-can line always agree.
-      perCan: `₹${normalPrice}/can, no separate water handling fee, before any legally applicable tax`,
+      perCan: `₹${officeQuantity >= settings.bulk_threshold ? settings.bulk_can_price : normalPrice}/can, excluding per-order fees and GST`,
       features: [
         { text: `${officeQuantity} cans per delivery`, included: true },
         { text: 'Scheduled bulk deliveries', included: true },
@@ -732,7 +734,7 @@ export default function PricingClient() {
                 <small>Final rate shown before booking.</small>
               </p>
               <p className="hero-lead">
-                Normal RO ₹{normalPrice} and Chilled RO ₹{chilledPrice} per 20L can, delivery included and no separate water handling fee. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
+                Normal RO ₹{normalPrice} and Chilled RO ₹{chilledPrice} per 20L can; published delivery/handling fees and GST, if applicable, are included in the estimated order total. Need a water-system repair? Book a plumber from AuroWater too. Review your payable total before confirming.
               </p>
               <div className="hero-actions">
                 <button type="button" className="h-btn h-btn-main" onClick={() => router.push('/book?service=water_can&water=normal')}>Order Normal RO</button>
@@ -773,7 +775,7 @@ export default function PricingClient() {
                     <span className="pc-price-main">₹{normalPrice}</span>
                     <span style={{ fontSize: 13, color: '#64748B', fontWeight: 500 }}>/ can, one-time</span>
                   </div>
-                  <span className="pc-save-pill">Delivery included. No separate water delivery fee.</span>
+                  <span className="pc-save-pill">Published delivery and handling charges are shown in the total.</span>
                 </div>
               </div>
 
@@ -831,7 +833,7 @@ export default function PricingClient() {
               <p style={{ margin: 0, color: '#047857', fontSize: 12, fontWeight: 800 }}>Everyday essential</p>
               <h3 style={{ margin: '8px 0 0', color: '#0F172A', fontSize: 20, fontWeight: 900 }}>Normal RO Water</h3>
               <p style={{ margin: '8px 0 0', color: '#047857', fontSize: 30, fontWeight: 900 }}>₹{normalPrice}<span style={{ fontSize: 13, fontWeight: 600, color: '#64748B' }}> / 20L can</span></p>
-              <p style={{ margin: '8px 0 16px', color: '#475569', fontSize: 13, lineHeight: 1.55 }}>For daily home and office drinking-water needs. Delivery included in the displayed water-can price.</p>
+              <p style={{ margin: '8px 0 16px', color: '#475569', fontSize: 13, lineHeight: 1.55 }}>For daily home and office drinking-water needs. The complete payable price includes any published fees and taxes.</p>
               <button type="button" onClick={() => router.push('/book?service=water_can&water=normal')} className="cta" style={{ background: '#047857', color: '#fff' }}>Order Normal RO</button>
             </article>
             <article className="nu nu-hover" style={{ borderRadius: 22, padding: 24 }}>
@@ -846,7 +848,7 @@ export default function PricingClient() {
 
         {/* Monthly cost estimator */}
         <section aria-labelledby="calc-title" className="defer" style={{ maxWidth: 1160, margin: '0 auto', padding: '56px 24px 0' }}>
-          <WaterCalculator normalPrice={normalPrice} chilledPrice={chilledPrice} recurringPrice={recurringPrice} onOrder={(w) => router.push(`/book?service=water_can&water=${w}`)} />
+          <WaterCalculator normalPrice={normalPrice} chilledPrice={chilledPrice} recurringPrice={recurringPrice} orderFees={settings.convenience_fee + settings.delivery_fee} gstRate={settings.gst_rate} onOrder={(w) => router.push(`/book?service=water_can&water=${w}`)} />
         </section>
 
         {/* ── MAIN CONTENT ── */}
