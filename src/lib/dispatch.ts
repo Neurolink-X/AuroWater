@@ -661,6 +661,16 @@ export async function dispatchOrder(orderId: string): Promise<DispatchResult> {
     // confirmed slot, not a surprise assignment to an unaware supplier.
     const scheduledMs = order.scheduled_at ? Date.parse(String(order.scheduled_at)) : NaN;
     if (Number.isFinite(scheduledMs) && scheduledMs < Date.now() - LATE_SLOT_REVIEW_GRACE_MS) {
+      // Terminal operational retry metadata, never a customer order status
+      // mutation. The scheduler will no longer claim this missed appointment.
+      const { error: reviewError } = await db.from('dispatch_retry_state').upsert({
+        order_id: orderId,
+        failures: DISPATCH_STOP_AFTER_FAILURES,
+        next_retry_at: new Date(Date.now() + 30 * 86400_000).toISOString(),
+        reason: 'stale_schedule_review',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'order_id' });
+      if (reviewError) console.error('[dispatch] stale retry review marker failed', reviewError.code);
       await alertAdmins(db, orderId,
         'Delivery slot passed. Confirm a revised delivery time with the customer before manual dispatch.',
         'stale_schedule_review');
