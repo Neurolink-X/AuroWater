@@ -65,10 +65,10 @@ DECLARE
   v_cap integer;
   v_online boolean;
 BEGIN
-  IF auth.role() <> 'service_role'
-     AND public.current_profile_role() <> 'admin'
-     AND auth.uid() IS DISTINCT FROM p_supplier_id THEN
-    RAISE EXCEPTION 'FORBIDDEN';
+  -- Supplier claims must pass the authenticated, eligibility-aware backend.
+  -- A browser caller must never bypass approved area, capacity or stock rules.
+  IF auth.role() <> 'service_role' THEN
+    RAISE EXCEPTION 'SERVER_ONLY' USING ERRCODE='42501';
   END IF;
 
   SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
@@ -124,7 +124,8 @@ END;
 $function$;
 
 -- Keep previous RPC exposure exactly as designed; invocation is authorization-checked.
-GRANT EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid,uuid,numeric) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.try_assign_supplier_with_stock(uuid,uuid,numeric) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.try_assign_supplier_with_stock(uuid,uuid,numeric) TO service_role;
 -- Twenty is a hard cap by policy; existing assignments remain untouched.
 INSERT INTO public.settings(key,value)
 VALUES('supplier_max_active_orders','20')
