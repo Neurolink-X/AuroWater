@@ -242,7 +242,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
     const fallback = idleId === undefined ? window.setTimeout(prefetch, 900) : undefined;
     return () => { cancelled = true; if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId); if (fallback !== undefined) window.clearTimeout(fallback); };
   }, [router]);
-  // Published versioned prices are the source of truth; fallback prices show only while unavailable.
+  // Published versioned prices are authoritative; hide fallback prices until verification.
   // Display city is a visitor preference only; checkout re-resolves the saved address city.
   const [pricingCity] = useState(() => {
     if (typeof window === 'undefined') return '';
@@ -729,7 +729,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
         <section aria-labelledby="live-pricing-notice" className="bg-cyan-50 px-5 py-6 text-slate-900">
           <div className="mx-auto max-w-6xl rounded-2xl border border-cyan-200 bg-white p-5 sm:p-6">
             <h2 id="live-pricing-notice" className="text-lg font-extrabold">Current prices & extra fees</h2>
-            <p className="mt-2 text-sm leading-6">Normal RO from {displayPrice(currentNormal)} · Chilled RO from {displayPrice(currentChilled)}. {pricingReady ? <>Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; surge: ₹{currentSurgeFee}; emergency: ₹{currentEmergencyFee}.</> : 'Published fees are loading.'} Some fees apply only to eligible services or emergency bookings.</p>
+            <p className="mt-2 text-sm leading-6">Normal RO from {displayPrice(currentNormal)} · Chilled RO from {displayPrice(currentChilled)}. {pricingReady ? <>Handling: ₹{currentHandlingFee}; delivery: ₹{currentDeliveryFee}; emergency delivery: ₹{currentEmergencyFee + currentSurgeFee}.</> : 'Published fees are loading.'} Some fees apply only to eligible services or emergency bookings.</p>
             <p className="mt-2 text-xs leading-5 text-slate-600">Prices reflect published platform settings and may differ by city, service, quantity or scheduled change. The final server-calculated total before confirmation is authoritative.</p>
             <Link href="/pricing" className="mt-3 inline-flex min-h-11 items-center font-bold text-cyan-800 hover:underline">See full pricing & availability →</Link>
           </div>
@@ -740,7 +740,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
           <div className="max-w-3xl mx-auto px-5 sm:px-8">
             <h2 className="font-display text-3xl font-extrabold text-slate-900 text-center mb-8">Frequently asked questions</h2>
             <div className="space-y-3">
-              {[...pricingFaqs(settings), ...FAQS.slice(4)].map((f, i) => (
+              {[...(pricingReady ? pricingFaqs(settings) : []), ...FAQS.slice(4)].map((f, i) => (
                 <div key={f.q} className="rounded-2xl bg-white border border-slate-100 shadow-sm">
                   <h3>
                     <button type="button" onClick={() => setOpenFaq(openFaq === i ? null : i)} aria-expanded={openFaq === i}

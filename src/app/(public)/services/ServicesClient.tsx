@@ -74,7 +74,7 @@ const ServiceCard = memo(function ServiceCard({ s, index, normalCanPrice, chille
         <div className="sv-chips" aria-label="20 litre water prices">
           <span className="sv-chip">Normal RO ₹{normalCanPrice}/20L</span>
           <span className="sv-chip">Chilled RO ₹{chilledCanPrice}/20L</span>
-          <span className="sv-chip-note">Delivery included · No separate water delivery fee</span>
+          <span className="sv-chip-note">Delivery and handling charges, if any, shown at checkout</span>
         </div>
       )}
 

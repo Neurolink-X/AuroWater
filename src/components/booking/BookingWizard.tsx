@@ -1574,6 +1574,11 @@ export default function BookingWizard() {
 
   const confirmOrder = async () => {
     if (submitLock.current || createdOrder) return;
+    if (!pricingReady || pricingLoading) {
+      toast.warning('Confirm the latest live prices before placing an order.');
+      void refreshSettings();
+      return;
+    }
     if (settings.maintenance_mode) {
       const message = 'New bookings are paused for maintenance. Your saved address and draft are retained. Existing orders continue normally.';
       setSubmitError(message);
@@ -1726,6 +1731,9 @@ export default function BookingWizard() {
         : !draft.slotValid ? 'Pick an available delivery window'
         : null
       : null;
+  const confirmedTotal = createdOrder && Number.isFinite(Number(createdOrder.total_amount))
+    ? inr(Number(createdOrder.total_amount))
+    : 'See order history';
   const windowText = draft.startTime && draft.endTime
     ? `${shortDateLabel(draft.scheduledDate)} · ${to12h(draft.startTime)} – ${to12h(draft.endTime)}${draft.slotId === ASAP_SLOT_ID ? ' (ASAP)' : ''}`
     : '—';
@@ -1737,7 +1745,7 @@ export default function BookingWizard() {
     >
       <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
-        {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Live prices are being verified. You can select a service and address now; payment confirmation waits for verified pricing.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
+        {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Checking current prices for this address. Booking totals appear only after verification.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
         {pricingReady && settings.maintenance_mode && view < 4 && (
           <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             <p className="font-extrabold">New bookings temporarily paused</p>
@@ -1755,7 +1763,7 @@ export default function BookingWizard() {
           </h2>
           {view < 4 && (
             <p className="mx-auto mt-2 max-w-xl text-sm text-slate-600">
-              Genuine 20L RO cans from {inr(settings.default_can_price)} · fees shown at checkout · pay when it arrives.
+              Genuine 20L RO cans from {pricingReady ? inr(settings.default_can_price) : 'checking…'} · fees shown at checkout · pay when it arrives.
             </p>
           )}
           {view > 1 && view < 4 && (
@@ -1767,7 +1775,7 @@ export default function BookingWizard() {
 
         {view < 4 && <TrustChips />}
 
-        {view === 1 && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price && (
+        {view === 1 && pricingReady && SHOW_MARKET_COMPARISON && MARKET_CAN_PRICES.normal > settings.default_can_price && (
           <div className="mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 p-5 text-white shadow-lg shadow-emerald-900/10">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
@@ -1800,7 +1808,12 @@ export default function BookingWizard() {
         {/* Focus target for step changes */}
         <div ref={stepRef} tabIndex={-1} className="outline-none" aria-live="polite">
 
-        {view === 1 && (
+        {view === 1 && !pricingReady && (
+          <div role="status" className="rounded-2xl border border-sky-200 bg-white p-6 text-sm text-slate-700">
+            Checking current service prices. Your service choices will appear as soon as the published prices are verified.
+          </div>
+        )}
+        {view === 1 && pricingReady && (
           <>
           <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
             <h2 className="text-base font-bold text-slate-900">1 · What do you need?</h2>
@@ -2174,7 +2187,7 @@ export default function BookingWizard() {
           </>
         )}
 
-        {view === 1 && (
+        {view === 1 && pricingReady && (
           <>
             <WhyChooseUs />
             <FaqList liveCities={LIVE_CITIES} convenience={settings.convenience_fee} delivery={settings.delivery_fee} gstRate={settings.gst_rate} emergencySurcharge={settings.emergency_surcharge + settings.surge_charge} normalPrice={settings.default_can_price} chilledPrice={settings.chilled_can_price} subscriptionPrice={settings.subscription_can_price} />
@@ -2483,7 +2496,7 @@ export default function BookingWizard() {
                 onChange={(e) => setDraft((d) => ({ ...d, isEmergency: e.target.checked }))}
                 className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
               <span className="text-sm text-slate-700">
-                Emergency booking (+ {inr(settings.emergency_surcharge)} surcharge) · arrives ASAP, even outside {to12h(`${OPEN_HOUR}:00`)}–{to12h(`${CLOSE_HOUR}:00`)}
+                Emergency booking (+ {pricingReady ? inr(settings.emergency_surcharge + settings.surge_charge) : 'checking…'} total fee) · arrives ASAP, even outside {to12h(`${OPEN_HOUR}:00`)}–{to12h(`${CLOSE_HOUR}:00`)}
               </span>
             </label>
 
@@ -2522,13 +2535,18 @@ export default function BookingWizard() {
             />
 
             <p className="text-sm text-slate-500">
-              Total so far: <span className="font-bold text-emerald-700">{inr(breakdown.total)}</span>
+              Total so far: <span className="font-bold text-emerald-700">{pricingReady ? inr(breakdown.total) : 'Checking current price…'}</span>
             </p>
           </div>
           </>
         )}
 
-        {view === 3 && (
+        {view === 3 && !pricingReady && (
+          <div role="status" aria-live="polite" className="rounded-2xl border border-sky-200 bg-sky-50 p-6 text-sm font-semibold text-sky-900">
+            Checking the latest price for your delivery address. Confirmation becomes available once verified.
+          </div>
+        )}
+        {view === 3 && pricingReady && (
           <div className="bk-in rounded-3xl bg-white border border-slate-100 shadow-sm p-5 sm:p-6 space-y-5">
             <h2 className="text-base font-bold text-slate-900">3 · Review &amp; payment</h2>
 
@@ -2624,7 +2642,7 @@ export default function BookingWizard() {
                 <span>{inr(settings.convenience_fee)}</span>
               </div>
               <div className="flex justify-between text-slate-900"><span>Delivery fee</span><span>{inr(settings.delivery_fee)}</span></div>
-              <p className="text-xs text-slate-500">Pricing version {settings.pricing_version ?? 'loading'} · Fees for the selected address, saved with your order.</p>
+              <p className="text-xs text-slate-500">Fees reflect your selected address and are verified again before your order is accepted.</p>
               {loyaltyDiscountAmount > 0 && (
                 <div className="flex justify-between font-bold text-sky-800">
                   <span>{selectedLoyaltyReward === 'free_can' ? 'Loyalty free-can reward' : 'Loyalty service discount'}</span>
@@ -2775,8 +2793,8 @@ export default function BookingWizard() {
                     {selectedServiceLabel(draft)}{isCan ? ` × ${canQty}` : ''}
                   </p>
                   <p className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="text-lg font-extrabold text-slate-900" style={{ fontFamily: DISPLAY_FONT }}>{inr(breakdown.total)}</span>
-                    {youSave > 0 && <span className="text-[11px] font-bold text-emerald-700">You save {inr(youSave)}</span>}
+                    <span className="text-lg font-extrabold text-slate-900" style={{ fontFamily: DISPLAY_FONT }}>{pricingReady ? inr(breakdown.total) : 'Checking price…'}</span>
+                    {pricingReady && youSave > 0 && <span className="text-[11px] font-bold text-emerald-700">You save {inr(youSave)}</span>}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -2807,7 +2825,7 @@ export default function BookingWizard() {
               #{orderNo}
             </div>
             <div className="text-slate-600 space-y-1 text-sm">
-              <p>{selectedServiceLabel(draft)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{inr(breakdown.total)}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
+              <p>{selectedServiceLabel(draft)}{draft.serviceKey === 'water_can' ? ` × ${draft.canQuantity ?? 1}` : ''} · <span className="font-semibold text-slate-900">{confirmedTotal}</span> · {draft.paymentMethod === 'cash' ? 'Pay on delivery' : draft.paymentMethod.toUpperCase()}</p>
               <p>Window: <span className="font-semibold text-slate-900">{windowText}</span></p>
               <p>{supplierSearching ? 'We are checking availability in your city. A professional and the requested time window are NOT yet confirmed.' : 'Professional assigned. Tracking updates automatically.'}</p>
               {supplierSearching && <p className="font-semibold text-amber-800">No advance payment is required until a provider, service scope and applicable price are confirmed.</p>}

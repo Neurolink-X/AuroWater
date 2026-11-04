@@ -96,7 +96,7 @@ export interface UseSettingsReturn {
   /** Current city has completed an authoritative pricing read. */
   pricingReady: boolean;
   loading:        boolean;
-  /** null = ok; string = last error message (settings still usable via fallback) */
+  /** null = ok; string = last error; checkout requires verified pricing. */
   error:          string | null;
   /** Force a network refresh */
   refresh:        () => Promise<void>;
@@ -455,8 +455,10 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       if (timedOut || !ctrl.signal.aborted) setError(timedOut ? 'Current prices took too long to load. Please retry.' : cause instanceof Error ? cause.message : 'Live pricing unavailable');
     } finally {
       window.clearTimeout(kill);
-      if (abortRef.current === ctrl) abortRef.current = null;
-      setLoading(false);
+      if (abortRef.current === ctrl) {
+        abortRef.current = null;
+        setLoading(false);
+      }
     }
   }, [city]);
 
@@ -498,9 +500,16 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   /* Admin publishing invalidates pricing in every active tab. The API remains authoritative. */
   React.useEffect(() => {
-    const onPublished = () => { void refresh(); };
+    const onPublished = () => {
+      // Do not display an outdated published price after a local publish event.
+      setVerifiedCity(null);
+      abortRef.current?.abort();
+      abortRef.current = null;
+      settingsInFlight.delete(city?.trim().toLowerCase() || '');
+      void refresh();
+    };
     const onStoragePublished = (event: StorageEvent) => {
-      if (event.key === 'aw_pricing_published_at') void refresh();
+      if (event.key === 'aw_pricing_published_at') onPublished();
     };
     window.addEventListener('aurotap:pricing-published', onPublished);
     window.addEventListener('storage', onStoragePublished);
