@@ -145,8 +145,8 @@ const FIELD_META: Record<ManagedKey, FieldMeta> = {
     kind: 'currency', section: 'fees', prefix: '₹',
   },
   emergency_surcharge: {
-    label: 'Emergency surcharge',
-    description: 'Additional charge for emergency bookings.',
+    label: 'Emergency surcharge (legacy, not customer-facing)',
+    description: 'This older setting does not control checkout. Published Pricing combines emergency_surcharge plus emergency-only surge_charge; manage both in Admin → Pricing. A legacy ₹0 here does NOT mean customers pay ₹0.',
     kind: 'currency', section: 'fees', prefix: '₹',
   },
   supplier_commission: {
