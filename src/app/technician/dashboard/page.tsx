@@ -45,6 +45,7 @@ import React, {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard,
   Bell,
@@ -1299,7 +1300,7 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
 
   return (
     <div className="space-y-5">
-      <PageHeader title={isHindi ? 'मेरी प्रोफ़ाइल' : 'My profile'} description={isHindi ? 'अपना काम और शहर चुनें। ये जानकारी इस फोन में सेव होगी; जॉब की मंज़ूरी अलग से मिलेगी।' : 'Choose skills and cities. Saved on this device; job eligibility requires separate admin approval.'} />
+      <PageHeader title={isHindi ? 'मेरी प्रोफ़ाइल' : 'My profile'} description={isHindi ? 'अपना काम और शहर चुनें। जानकारी फोन में सेव होगी और इंटरनेट मिलने पर खाते में सिंक होगी। जॉब की मंज़ूरी अलग से मिलेगी।' : 'Choose skills and cities. Changes save on this phone and sync to your account when online. Job eligibility still requires admin approval.'} />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className={`${card} p-4 sm:p-5`}>
           {([
@@ -1545,9 +1546,53 @@ export default function TechnicianDashboardPage() {
   const [docsSubmitting, setDocsSubmitting] = useState(false);
   const [docsUploadingSlot, setDocsUploadingSlot] = useState<string | null>(null);
 
-  const [profile, setProfile] = usePersisted<TechProfile>(KEYS.PROFILE, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
-  const [availability, setAvailability] = usePersisted<Availability>(KEYS.AVAILABILITY, {}, normalizeAvailability);
-  const [docs, setDocs] = usePersisted<TechDocs>(KEYS.DOCS, {}, normalizeDocs);
+  // Never reuse another technician's phone-local draft after account switching.
+  const storageOwner = userId ?? 'guest';
+  const [profile, setProfile, profileReady] = usePersisted<TechProfile>(`${KEYS.PROFILE}:${storageOwner}`, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
+  const [availability, setAvailability] = usePersisted<Availability>(`${KEYS.AVAILABILITY}:${storageOwner}`, {}, normalizeAvailability);
+  const [docs, setDocs] = usePersisted<TechDocs>(`${KEYS.DOCS}:${storageOwner}`, {}, normalizeDocs);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+
+  // Sync *self-declared* preferences between phones without granting job skills.
+  // Admin-reviewed technician_service_capabilities remain the only entitlement.
+  useEffect(() => {
+    if (!allowed || !userId || !profileReady) return;
+    let cancelled = false;
+    setPreferencesLoaded(false);
+    void createClient().auth.getUser().then(({data,error}) => {
+      if (cancelled) return;
+      if (!error && data.user?.id === userId) {
+        const meta = data.user.user_metadata ?? {};
+        const requested = Array.isArray(meta.requested_skills) ? meta.requested_skills : null;
+        const cities = Array.isArray(meta.requested_service_cities) ? meta.requested_service_cities : null;
+        if (requested || cities) setProfile(prev => ({
+          ...prev,
+          skills: requested
+            ? requested.map((v: unknown) => v === 'Tank Cleaning' ? 'Tank Cleaning Service' : v)
+                .filter((v: unknown): v is TechSkill => typeof v === 'string' && SKILLS.includes(v as TechSkill))
+            : prev.skills,
+          serviceCities: cities
+            ? cities.filter((v: unknown): v is string => typeof v === 'string' && UP_CITIES.includes(v as typeof UP_CITIES[number]))
+            : prev.serviceCities,
+        }));
+      }
+      setPreferencesLoaded(true);
+    }).catch(() => { if (!cancelled) setPreferencesLoaded(true); });
+    return () => { cancelled = true; };
+  }, [allowed,userId,profileReady,setProfile]);
+
+  useEffect(() => {
+    if (!allowed || !preferencesLoaded || !userId) return;
+    const t = window.setTimeout(() => {
+      void createClient().auth.updateUser({ data: {
+        requested_skills: profile.skills.map(s => s === 'Tank Cleaning Service' ? 'Tank Cleaning' : s),
+        requested_service_cities: profile.serviceCities,
+      } }).then(({error}) => {
+        if (error) console.warn('[technician/profile] preference sync unavailable', error.code);
+      }).catch(() => { /* kept safely on this device; sync resumes on next edit */ });
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [allowed,preferencesLoaded,userId,profile.skills,profile.serviceCities]);
 
   useEffect(() => {
     if (!allowed) return;
