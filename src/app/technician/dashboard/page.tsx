@@ -197,7 +197,7 @@ const OFFER_WINDOW_MS = 24 * 3600 * 1000;
 const POLL_MS = 30_000;
 const STALE_SYNC_MS = 15_000;
 const JOBS_CACHE_PREFIX = 'aurowater:tech-jobs:v2:';
-const JOBS_CACHE_MAX_AGE_MS = 10 * 60_000;
+const JOBS_CACHE_MAX_AGE_MS = 3 * 60_000;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const UPI_PATTERN = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
@@ -346,7 +346,10 @@ function readJobsCache(userId?: string): Job[] | null {
     const raw = window.sessionStorage.getItem(JOBS_CACHE_PREFIX + userId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { savedAt: number; jobs: Job[] };
-    if (!Array.isArray(parsed.jobs) || Date.now() - parsed.savedAt > JOBS_CACHE_MAX_AGE_MS) return null;
+    if (!Array.isArray(parsed.jobs) || !Number.isFinite(parsed.savedAt) || Date.now() - parsed.savedAt > JOBS_CACHE_MAX_AGE_MS) {
+      window.sessionStorage.removeItem(JOBS_CACHE_PREFIX + userId);
+      return null;
+    }
     return parsed.jobs;
   } catch {
     return null;
@@ -1563,7 +1566,8 @@ export default function TechnicianDashboardPage() {
   const storageOwner = userId ?? 'guest';
   const [profile, setProfile, profileReady] = usePersisted<TechProfile>(`${KEYS.PROFILE}:${storageOwner}`, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
   const [availability, setAvailability] = usePersisted<Availability>(`${KEYS.AVAILABILITY}:${storageOwner}`, {}, normalizeAvailability);
-  const [docs, setDocs] = usePersisted<TechDocs>(`${KEYS.DOCS}:${storageOwner}`, {}, normalizeDocs);
+  // KYC filenames/status are fetched from the server and never stored as persistent browser drafts.
+  const [docs, setDocs] = useState<TechDocs>({});
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const lastSyncedSelectionsRef = useRef<string | null>(null);
 
@@ -1682,8 +1686,17 @@ export default function TechnicianDashboardPage() {
   const seenOffersRef = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    const savedOnline = lsGet(KEYS.ONLINE);
-    setOnline(savedOnline === 'online' ? 'online' : 'offline');
+    // Remove obsolete auth flags; only the server is authoritative.
+    lsRemove(KEYS.ONLINE);
+    lsRemove(KEYS.VERIFICATION);
+    lsRemove(KEYS.DOCS);
+    lsRemove(`${KEYS.DOCS}:${storageOwner}`);
+    try {
+      for(let n=sessionStorage.length-1;n>=0;n--){
+        const key=sessionStorage.key(n);
+        if(key?.startsWith(JOBS_CACHE_PREFIX) && key !== JOBS_CACHE_PREFIX + storageOwner) sessionStorage.removeItem(key);
+      }
+    } catch { /* browser storage may be disabled */ }
 
     async function fetchVerification() {
       try {
@@ -1839,16 +1852,17 @@ export default function TechnicianDashboardPage() {
       if (next === 'online' && navigator.geolocation) {
         try {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 }),
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 2500, maximumAge: 300_000 }),
           );
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch {
-          toast.warning('Location is unavailable, so you may see fewer nearby jobs.');
+          toast.info(isHindi ? 'लोकेशन नहीं मिली। आप फिर भी ऑनलाइन हो सकते हैं। सर्विस एरिया सेट करें।' : 'Location unavailable. You can still go online; confirm your service area.');
         }
       }
-      await technicianAvailabilityUpdate({ online: next === 'online', lat, lng });
-      lsSet(KEYS.ONLINE, next);
+      const result = await technicianAvailabilityUpdate(lat !== null && lng !== null
+        ? { online: next === 'online', lat, lng } : { online: next === 'online' });
+      setOnline(result.is_online ? 'online' : 'offline');
       toast.success(next === 'online' ? 'You’re available for nearby jobs.' : 'You’re offline.');
     } catch (cause) {
       setOnline(previous);
@@ -1856,7 +1870,7 @@ export default function TechnicianDashboardPage() {
     } finally {
       setOnlineBusy(false);
     }
-  }, [online, onlineBusy]);
+  }, [online, onlineBusy, isHindi]);
 
   const handlers = useMemo<JobHandlers>(() => ({
     onAccept: async (job) => {
@@ -1942,14 +1956,14 @@ export default function TechnicianDashboardPage() {
     try {
       await submitDocumentsToServer(docs);
       setVerification('pending');
-      lsSet(KEYS.VERIFICATION, 'pending');
-      toast.success('Documents submitted. Review takes 1 to 2 business days.');
+      window.dispatchEvent(new Event('aurotap:verification-changed'));
+      toast.success(isHindi ? 'दस्तावेज़ जाँच के लिए भेज दिए।' : 'Documents submitted for review.');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Couldn’t submit documents.');
     } finally {
       setDocsSubmitting(false);
     }
-  }, [docs]);
+  }, [docs, isHindi]);
 
   const toggleExpanded = useCallback((id: string) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
