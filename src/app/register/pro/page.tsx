@@ -222,7 +222,8 @@ function RegisterPro() {
   const legacyType = (sp.get('type') ?? '').toLowerCase(); // keeps old ?type= links working
   const role: RoleId = (ROLE_IDS as readonly string[]).includes(roleParam) ? (roleParam as RoleId) : legacyType === 'technician' ? 'plumber' : 'can';
   const kind: Kind = ROLES[role].kind;
-  const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/register/pro?role=${role}`)}`;
+  const loginHref = `/auth/login?returnTo=${encodeURIComponent(`/register/pro?role=${role}&resume=1`)}`;
+  const resumeAfterSignIn = sp.get('resume') === '1';
 
   const rows = useMemo(() => tierRows(), []);
   const faqs = useMemo(() => buildFaqs(rows), [rows]);
@@ -361,7 +362,7 @@ function RegisterPro() {
           </div>
 
           <div id="apply" className="min-w-0 scroll-mt-6 lg:sticky lg:top-6">
-            <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} accountRole={accountRole} loginHref={loginHref} onSubmit={submitApplication} />
+            <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} accountRole={accountRole} resumeAfterSignIn={resumeAfterSignIn} loginHref={loginHref} onSubmit={submitApplication} />
           </div>
         </section>
 
@@ -605,13 +606,14 @@ function Estimator({ rows, role }: { rows: TierRow[]; role: RoleId }) {
 /* ───────────────────────── Application form ───────────────────────── */
 
 function ApplicationCard({
-  kind, role, ready, signedIn, accountRole, loginHref, onSubmit,
+  kind, role, ready, signedIn, accountRole, resumeAfterSignIn, loginHref, onSubmit,
 }: {
   kind: Kind;
   role: RoleId;
   ready: boolean;
   signedIn: boolean;
   accountRole: string | null;
+  resumeAfterSignIn: boolean;
   loginHref: string;
   onSubmit: (v: Payload) => Promise<boolean>;
 }) {
@@ -650,12 +652,12 @@ function ApplicationCard({
         You can keep using it, but professional roles cannot currently be combined here.
         <Link href="/contact" className="ml-1 font-bold underline">Contact support for role access</Link>.
       </div>}
-      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} incompatible={incompatible} onSubmit={onSubmit} />
+      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} incompatible={incompatible} resumeAfterSignIn={resumeAfterSignIn} onSubmit={onSubmit} />
     </div>
   );
 }
 
-function ApplicationForm({ kind, role, ready, signedIn, incompatible, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; signedIn: boolean; incompatible: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
+function ApplicationForm({ kind, role, ready, signedIn, incompatible, resumeAfterSignIn, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; signedIn: boolean; incompatible: boolean; resumeAfterSignIn: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
   const steps = STEPS[kind];
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -671,9 +673,19 @@ function ApplicationForm({ kind, role, ready, signedIn, incompatible, onSubmit }
   useEffect(() => {
     try {
       const raw = localStorage.getItem(draftKey(role));
-      if (raw) { reset({ ...defaultsFor(role), ...(JSON.parse(raw) as Partial<FormValues>) }); setSaved(true); }
+      if (raw) {
+        const restored = { ...defaultsFor(role), ...(JSON.parse(raw) as Partial<FormValues>) };
+        reset(restored);
+        setSaved(true);
+        // After sign-in, jump back to the final step only when every required
+        // field is restored and valid; never auto-submit or skip validation.
+        if (resumeAfterSignIn && signedIn &&
+            (kind === 'supplier' ? supplierSchema : technicianSchema).safeParse(restored).success) {
+          setStep(steps.length - 1);
+        }
+      }
     } catch { /* storage unavailable or corrupt: start fresh */ }
-  }, [role, reset]);
+  }, [role, reset, resumeAfterSignIn, signedIn, kind, steps.length]);
 
   // Save a draft as the user types.
   useEffect(() => {
@@ -710,8 +722,20 @@ function ApplicationForm({ kind, role, ready, signedIn, incompatible, onSubmit }
   };
 
   const submit = form.handleSubmit(async (values) => {
+    // Do not rely on the 500ms autosave timer: login navigation unmounts the form.
+    if (!signedIn) {
+      try {
+        const draft: Partial<FormValues> = {};
+        for (const f of DRAFT_FIELDS) if (values[f] !== undefined)
+          (draft as Record<string, unknown>)[f] = values[f];
+        localStorage.setItem(draftKey(role), JSON.stringify(draft));
+      } catch { /* browser storage may be unavailable; sign-in still works */ }
+    }
     const ok = await onSubmit(values as unknown as Payload);
     if (ok) { try { localStorage.removeItem(draftKey(role)); } catch { /* ignore */ } }
+  }, (invalid) => {
+    const firstErrorStep = steps.findIndex(s => s.fields.some(field => Boolean(invalid[field as keyof FormValues])));
+    if (firstErrorStep >= 0) setStep(firstErrorStep);
   });
 
   const clearDraft = () => {
