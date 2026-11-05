@@ -31,9 +31,9 @@ test('supplier and customer invitations have separate actions and APIs', () => {
 test('invite survives login and registration while non-referral logins retain existing defaults', () => {
   assert.match(login, /sanitized\.startsWith\('\/customer\/'\)/);
   assert.match(login, /referralReturnPath\(searchParams\.get\('returnTo'\)\)/);
-  assert.match(signup, /referralReturnPath\(params\.get\('returnTo'\)\)/);
-  assert.match(signup, /const customerReturn = role === 'customer' \? returnTo : null/);
-  assert.match(signup, /router\.replace\(result\.profile\.role === 'customer' && returnTo \? returnTo : cfg\.dest\)/);
+  assert.ok(signup.includes("referralReturnPath(new URLSearchParams(window.location.search).get('returnTo'))"));
+  assert.ok(signup.includes("role === 'customer' && referralDestination"));
+  assert.ok(signup.includes("router.replace(result.profile.role === 'customer' && referralDestination ? referralDestination : destination)"));
   assert.match(callback, /referralReturnPath\(nextPath\)/);
 });
 
