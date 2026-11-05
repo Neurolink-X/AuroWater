@@ -225,14 +225,16 @@ export default function RegisterClient() {
   // One-time read of ?role= and ?returnTo=; focus the first field on desktop only
   // (autofocus on mobile would pop the keyboard and hide the page).
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setRole(parseRole(params.get('role')));
-    setReturnTo(referralReturnPath(params.get('returnTo')));
-    if (window.matchMedia('(min-width: 1024px)').matches) {
-      requestAnimationFrame(() =>
-        formRef.current?.querySelector<HTMLElement>('input[name="businessName"], input[name="fullName"]')?.focus(),
-      );
-    }
+    // Sync the URL after hydration and first paint; avoid synchronous state writes in effects.
+    const frame = window.requestAnimationFrame(() => {
+      const params = new URLSearchParams(window.location.search);
+      setRole(parseRole(params.get('role')));
+      setReturnTo(referralReturnPath(params.get('returnTo')));
+      if (window.matchMedia('(min-width: 1024px)').matches) {
+        formRef.current?.querySelector<HTMLElement>('input[name="businessName"], input[name="fullName"]')?.focus();
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   // Warm the post-signup destination so the redirect feels instant.
@@ -845,45 +847,6 @@ function MultiChoicePicker({label,items,selected,onToggle,hint}:{
       </label>)}
     </fieldset>
   </details>;
-}
-
-function ChipGroup({
-  label, items, selected, onToggle,
-}: {
-  label: string;
-  items: readonly string[];
-  selected: string[];
-  onToggle: (item: string) => void;
-}) {
-  return (
-    <fieldset className="sm:col-span-2">
-      <legend className="text-sm font-bold text-slate-800">
-        {label} <span className="font-normal text-slate-500">(optional, select all that apply)</span>
-      </legend>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {items.map((item) => {
-          const on = selected.includes(item);
-          return (
-            <button
-              key={item}
-              type="button"
-              aria-pressed={on}
-              onClick={() => onToggle(item)}
-              className={[
-                'inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sky-100',
-                on
-                  ? 'border-sky-500 bg-sky-50 text-sky-800'
-                  : 'border-slate-300 bg-white text-slate-700 hover:border-sky-300',
-              ].join(' ')}
-            >
-              {on ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : null}
-              {item}
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
-  );
 }
 
 function TermsCheckbox({
