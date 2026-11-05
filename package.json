@@ -18,6 +18,7 @@
     "test:technician:contract": "node --experimental-strip-types --test tests/technician-service-approval-flow.unit.mjs",
     "test:platform:contract": "node scripts/platform-quality-contract.mjs",
     "test:platform:stage": "node scripts/platform-staging-role-matrix.mjs",
+    "quality:slo-report": "node scripts/platform-journey-slo.mjs",
     "db:audit-migrations": "node scripts/audit-supabase-migrations.mjs",
     "db:inspect-live": "node scripts/inspect-supabase-readiness.mjs",
     "db:audit-indexes": "node scripts/audit-index-overlap.mjs",
