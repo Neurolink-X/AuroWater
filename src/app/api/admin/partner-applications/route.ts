@@ -10,22 +10,29 @@ export async function GET(req:NextRequest){
  const gate=await authorize(req);if('response' in gate)return gate.response;
  const db=createServiceClient();
  // Both supplier and specialist requests belong to the existing Pending Approvals inbox.
- // Fetch only pending rows by default. Bounded result; oldest submissions first.
+ // Recent new requests should appear without older pending requests hiding them.
  const {data,error}=await db.from('applications')
   .select('id,user_id,type,status,payload,created_at')
   .in('type',['technician','supplier'])
   .in('status',['pending','pending_approval'])
-  .order('created_at',{ascending:true}).limit(150);
+  .order('created_at',{ascending:false}).limit(150);
  if(error)return jsonErr('Could not load partner applications',503);
  const userIds=[...new Set((data??[]).map(a=>a.user_id).filter((id):id is string=>Boolean(id)))];
  const [{data:profiles,error:profileError},{data:docs,error:docError}]=await Promise.all([
   userIds.length?db.from('profiles').select('id,full_name,email,phone,role,city,status').in('id',userIds):Promise.resolve({data:[],error:null}),
-  userIds.length?db.from('user_files').select('owner_user_id,document_slot,review_status').in('owner_user_id',userIds).not('document_slot','is',null).limit(1000):Promise.resolve({data:[],error:null}),
+  userIds.length?db.from('user_files').select('owner_user_id,document_slot,review_status,created_at').in('owner_user_id',userIds).not('document_slot','is',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000):Promise.resolve({data:[],error:null}),
  ]);
  if(profileError||docError)return jsonErr('Partner verification summary unavailable',503);
  const byId=new Map((profiles??[]).map(p=>[p.id,p]));
  const readiness=new Map<string,Set<string>>();
- for(const file of docs??[])if(file.review_status==='approved'&&file.document_slot){
+ const seen=new Set<string>();
+ // Later rejected replacements override previously approved KYC evidence.
+ for(const file of docs??[]){
+  if(!file.document_slot)continue;
+  const key=file.owner_user_id+':'+file.document_slot;
+  if(seen.has(key))continue;
+  seen.add(key);
+  if(file.review_status!=='approved')continue;
   const slots=readiness.get(file.owner_user_id)??new Set<string>();
   slots.add(file.document_slot);
   readiness.set(file.owner_user_id,slots);

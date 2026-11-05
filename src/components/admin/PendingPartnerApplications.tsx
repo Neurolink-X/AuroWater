@@ -96,6 +96,13 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
           </div>
           <p className="text-sm text-slate-300">Registered email: {app.applicant?.email || 'Not available'} · Contact: {textValue(p.phone) || app.applicant?.phone || 'Not available'}</p>
           <p className="text-sm text-slate-300">Area: {textValue(p.working_area) || textValue(p.business_address) || 'Not specified'} · PIN: {textValue(p.working_pincode) || textValue(p.pincode) || 'Not specified'}</p>
+          {p.application_source === 'existing_technician_service_approval' && <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-sm text-cyan-100">
+            <p className="font-bold">Existing technician · new service only (no new account)</p>
+            <p className="mt-1">Requested service: {labelFor(app).replaceAll('_',' ')}</p>
+            <p className="mt-1">Experience: {Number(p.experience_years ?? 0)} years</p>
+            <p className="mt-2 whitespace-pre-wrap">{textValue(p.work_description) || 'No description supplied'}</p>
+            <p className="mt-2 text-xs text-cyan-200">Verify trade experience and service coverage. Approving this review activates only the selected service.</p>
+          </div>}
           {app.type === 'technician' ? <p className={`text-sm ${docsOk ? 'text-emerald-300' : 'text-amber-200'}`}>
             {docsOk ? 'Both sides of ID and the profile photo approved' : `Verified documents: ${DOCS.filter(slot => app.approved_document_slots.includes(slot)).length}/3 — awaiting verification`}
           </p> : <p className="text-sm text-amber-200">Supplier request: review supplier KYC and coverage separately. Technician approval must never be used.</p>}

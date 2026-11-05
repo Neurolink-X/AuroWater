@@ -161,7 +161,10 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
       </div> : <p className="text-sm text-slate-600">{hi ? 'दस्तावेज़ की जाँच और काम की मंज़ूरी अलग-अलग हैं।' : 'Identity-document review and permission to accept jobs are separate checks.'}</p>}
       {data.other_capabilities.length > 0 && <p className="text-xs text-slate-600">{data.other_capabilities.map(x => `${label(x.service_key, hi)}: ${x.status}`).join(' · ')}</p>}
       {data.application?.rejection_note && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">{data.application.rejection_note}</p>}
-      {docsReady && !verified && !hasPendingApplication && <Link href="/register/pro" className="inline-flex min-h-10 items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">{hi ? 'सर्विस मंज़ूरी के लिए आवेदन' : 'Apply for service approval'}</Link>}
+      {docsReady && !hasPendingApplication &&
+        <Link href="/technician/services/apply" className="inline-flex min-h-10 items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
+          {hi ? 'नई सर्विस की मंज़ूरी लें' : 'Request service approval'}
+        </Link>}
     </div>}
     {data && <details className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
       <summary className="cursor-pointer font-semibold text-emerald-800">{hi ? 'पंजीकृत ईमेल और शहर देखें' : 'Registered email & service city'}</summary>
@@ -171,6 +174,7 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
     </details>}
     <nav aria-label={hi ? 'अकाउंट लिंक' : 'Account links'} className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs font-semibold text-emerald-700 sm:text-sm">
       <Link href="/technician/settings" className="underline">{hi ? 'सेटिंग्स' : 'Settings'}</Link>
+      <Link href="/technician/services/apply" className="underline">{hi ? 'सर्विस मंज़ूरी' : 'Service approvals'}</Link>
       <Link href="/technician/dashboard#documents" className="underline">{hi ? 'दस्तावेज़' : 'Documents'}</Link>
       <Link href="/technician/dashboard#my_jobs" className="underline">{hi ? 'मेरे काम' : 'My jobs'}</Link>
       <Link href="/notifications" className="underline">{hi ? 'जॉब अलर्ट' : 'Job alerts'}</Link>

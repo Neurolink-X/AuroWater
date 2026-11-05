@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       .select('document_slot,review_status')
       .eq('owner_user_id', id)
       .in('document_slot', ['aadhaar_front','aadhaar_back','profile_photo'])
-      .order('created_at',{ascending:false}).limit(30),
+      .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(30),
   ]);
 
   if (capabilities.error || applications.error || documents.error) {

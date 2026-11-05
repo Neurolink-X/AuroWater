@@ -7,6 +7,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_technician_stage_e2e:
+        description: 'Run real technician/admin service approval E2E against isolated staging'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -45,6 +51,10 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # Always runs when ANY application code changes; not regex-only verification.
+      - name: Technician role and service approval lifecycle contract
+        run: npm run test:technician:contract
+
       - name: Regression tests
         run: npm run test:regression
 
@@ -57,3 +67,30 @@ jobs:
 
       - name: Client bundle budget report
         run: npm run perf:bundle-report
+
+  technician-stage-e2e:
+    name: Authenticated technician lifecycle - isolated staging
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_technician_stage_e2e }}
+    needs: quality
+    runs-on: ubuntu-24.04
+    environment: staging-e2e
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Run real KYC to admin service activation + rejection sequence
+        env:
+          TECHNICIAN_STAGE_URL: ${{ vars.TECHNICIAN_STAGE_URL }}
+          TECHNICIAN_STAGE_DB_ISOLATED: ${{ vars.TECHNICIAN_STAGE_DB_ISOLATED }}
+          TECHNICIAN_STAGE_SUPABASE_URL: ${{ vars.TECHNICIAN_STAGE_SUPABASE_URL }}
+          TECHNICIAN_STAGE_SUPABASE_ANON_KEY: ${{ vars.TECHNICIAN_STAGE_SUPABASE_ANON_KEY }}
+          TECHNICIAN_STAGE_EMAIL: ${{ secrets.TECHNICIAN_STAGE_EMAIL }}
+          TECHNICIAN_STAGE_PASSWORD: ${{ secrets.TECHNICIAN_STAGE_PASSWORD }}
+          ADMIN_STAGE_EMAIL: ${{ secrets.ADMIN_STAGE_EMAIL }}
+          ADMIN_STAGE_PASSWORD: ${{ secrets.ADMIN_STAGE_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS }}
+        run: npm run test:technician:stage
