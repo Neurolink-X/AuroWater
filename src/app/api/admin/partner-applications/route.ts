@@ -20,7 +20,7 @@ export async function GET(req:NextRequest){
  const userIds=[...new Set((data??[]).map(a=>a.user_id).filter((id):id is string=>Boolean(id)))];
  const [{data:profiles,error:profileError},{data:docs,error:docError}]=await Promise.all([
   userIds.length?db.from('profiles').select('id,full_name,email,phone,role,city,status').in('id',userIds):Promise.resolve({data:[],error:null}),
-  userIds.length?db.from('user_files').select('owner_user_id,document_slot,review_status,created_at').in('owner_user_id',userIds).not('document_slot','is',null).order('created_at',{ascending:false}).limit(1000):Promise.resolve({data:[],error:null}),
+  userIds.length?db.from('user_files').select('owner_user_id,document_slot,review_status,created_at').in('owner_user_id',userIds).not('document_slot','is',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1000):Promise.resolve({data:[],error:null}),
  ]);
  if(profileError||docError)return jsonErr('Partner verification summary unavailable',503);
  const byId=new Map((profiles??[]).map(p=>[p.id,p]));
