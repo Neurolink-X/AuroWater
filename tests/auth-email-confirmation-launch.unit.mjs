@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const register = readFileSync('src/app/api/auth/register/route.ts', 'utf8');
 const client = readFileSync('src/lib/api-client.ts', 'utf8');
-const signupPage = readFileSync('src/app/auth/register/RegisterClient.tsx', 'utf8');
+const signupPage = readFileSync('src/app/auth/register/page.tsx', 'utf8');
 
 test('launch signup defaults to server-confirmed without SMTP and flag stays server-owned', () => {
   assert.match(register, /process\.env\.AUROTAP_REQUIRE_EMAIL_VERIFICATION === 'true'/);
