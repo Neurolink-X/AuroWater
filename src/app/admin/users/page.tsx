@@ -977,6 +977,9 @@ function UsersContent() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <Link href="/admin/verification" className="inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+                Verify documents
+              </Link>
               <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
                 Account Help &amp; Recovery
               </Link>
