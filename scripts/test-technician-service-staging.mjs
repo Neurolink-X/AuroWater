@@ -8,12 +8,27 @@
  * pending technician applications or approved "plumbing" capability.
  */
 import assert from 'node:assert/strict';
+import { createClient } from '@supabase/supabase-js';
 
 const base = process.env.TECHNICIAN_STAGE_URL;
-const token = process.env.TECHNICIAN_STAGE_TOKEN;
-const admin = process.env.ADMIN_STAGE_TOKEN;
-if (!base || !token || !admin) {
-  throw new Error('BLOCKED: Stage URL, technician and admin tokens are mandatory. No test was run.');
+const supabaseUrl = process.env.TECHNICIAN_STAGE_SUPABASE_URL;
+const supabaseKey = process.env.TECHNICIAN_STAGE_SUPABASE_ANON_KEY;
+const technicianEmail = process.env.TECHNICIAN_STAGE_EMAIL;
+const technicianPassword = process.env.TECHNICIAN_STAGE_PASSWORD;
+const adminEmail = process.env.ADMIN_STAGE_EMAIL;
+const adminPassword = process.env.ADMIN_STAGE_PASSWORD;
+if (![base,supabaseUrl,supabaseKey,technicianEmail,technicianPassword,adminEmail,adminPassword].every(Boolean)) {
+  throw new Error('BLOCKED: Isolated staging URL, Supabase publishable key and two test-account credentials are required.');
+}
+const authOrigin=new URL(supabaseUrl);
+if(authOrigin.protocol!=='https:' || authOrigin.hostname.includes('mwfcwhxdlnqldciigicl')) {
+  throw new Error('BLOCKED: Production Supabase project is forbidden for integration tests.');
+}
+async function stageSignIn(email,password) {
+  const client=createClient(supabaseUrl,supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  const {data,error}=await client.auth.signInWithPassword({email,password});
+  if(error || !data.session?.access_token)throw new Error('Stage test-account login failed; fixture not ready.');
+  return data.session.access_token;
 }
 const url = new URL(base);
 const host = url.hostname.toLowerCase();
@@ -28,6 +43,12 @@ if (url.protocol !== 'https:' ||
 if (process.env.TECHNICIAN_STAGE_DB_ISOLATED !== 'yes') {
   throw new Error('BLOCKED: Confirm the staging site uses an isolated NON-production Supabase project first.');
 }
+// Fresh staging JWTs are created on demand. A preview pointed at production
+// will reject these stage-issued JWTs rather than mutate production records.
+const [token,admin]=await Promise.all([
+  stageSignIn(technicianEmail,technicianPassword),
+  stageSignIn(adminEmail,adminPassword),
+]);
 const bypass=process.env.VERCEL_AUTOMATION_BYPASS;
 async function request(path, credentials, method='GET', body) {
   const res=await fetch(new URL(path,url),{
