@@ -56,9 +56,9 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
   async function decide(app: PartnerApplication, decision: 'approved' | 'rejected') {
     if (!app.review_supported || busy) return;
     const note = reason[app.id]?.trim() ?? '';
-    if (note.length < (decision === 'approved' ? 20 : 3)) { setError('Add a verification note or rejection reason (minimum 3 characters).'); return; }
+    if (note.length < (decision === 'approved' ? 20 : 3)) { setError(decision === 'approved' ? 'Describe the actual identity and work-experience checks (20+ characters).' : 'Give a rejection reason (3+ characters).'); return; }
     if (decision === 'approved' && !DOCS.every(slot => app.approved_document_slots.includes(slot))) {
-      setError('Identity and skill evidence must be verified before approval.');
+      setError('Aadhaar front, Aadhaar back and profile photo must all be approved before account activation.');
       return;
     }
     setBusy(app.id); setError('');
@@ -97,8 +97,8 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
           <p className="text-sm text-slate-300">Registered email: {app.applicant?.email || 'Not available'} · Contact: {textValue(p.phone) || app.applicant?.phone || 'Not available'}</p>
           <p className="text-sm text-slate-300">Area: {textValue(p.working_area) || textValue(p.business_address) || 'Not specified'} · PIN: {textValue(p.working_pincode) || textValue(p.pincode) || 'Not specified'}</p>
           {app.type === 'technician' ? <p className={`text-sm ${docsOk ? 'text-emerald-300' : 'text-amber-200'}`}>
-            {docsOk ? 'All three required identity/skill documents approved' : `Verified documents: ${DOCS.filter(slot => app.approved_document_slots.includes(slot)).length}/3 — awaiting verification`}
-          </p> : <p className="text-sm text-amber-200">Supplier request: use existing supplier KYC/account review; technician approval action is not applicable.</p>}
+            {docsOk ? 'Both sides of ID and the profile photo approved' : `Verified documents: ${DOCS.filter(slot => app.approved_document_slots.includes(slot)).length}/3 — awaiting verification`}
+          </p> : <p className="text-sm text-amber-200">Supplier request: review supplier KYC and coverage separately. Technician approval must never be used.</p>}
           <div className="flex flex-wrap gap-2">
             <Link href="/admin/verification" className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm font-semibold text-cyan-200">Review KYC documents</Link>
             {!app.review_supported ? <span className="rounded-lg border border-white/20 px-3 py-2 text-xs text-slate-300">Supplier approval requires supplier-specific checks</span> : <>
