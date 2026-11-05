@@ -1574,7 +1574,11 @@ export default function TechnicianDashboardPage() {
     let cancelled = false;
     setPreferencesLoaded(false);
     lastSyncedSelectionsRef.current = null;
-    void createClient().auth.getUser().then(({data,error}) => {
+    void createClient().auth.getUser().then((result: {
+      data: { user: { id: string; user_metadata?: Record<string, unknown> } | null };
+      error: { code?: string } | null;
+    }) => {
+      const { data, error } = result;
       if (cancelled) return;
       if (!error && data.user?.id === userId) {
         const meta = data.user.user_metadata ?? {};
@@ -1612,7 +1616,8 @@ export default function TechnicianDashboardPage() {
       void createClient().auth.updateUser({ data: {
         requested_skills: profile.skills.map(s => s === 'Tank Cleaning Service' ? 'Tank Cleaning' : s),
         requested_service_cities: profile.serviceCities,
-      } }).then(({error}) => {
+      } }).then((result: { error: { code?: string } | null }) => {
+        const { error } = result;
         if (error) console.warn('[technician/profile] preference sync unavailable', error.code);
         else lastSyncedSelectionsRef.current = fingerprint;
       }).catch(() => { /* retained on this device */ });
