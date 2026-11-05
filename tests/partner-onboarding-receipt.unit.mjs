@@ -50,6 +50,10 @@ test('consolidated admin navigation retains notification inbox without header be
   assert.doesNotMatch(header, /<NotificationBell/);
   assert.match(header, /href="\/notifications"/);
   assert.match(approvals, /<PendingPartnerApplications/);
+  const users = read('src/app/admin/users/page.tsx');
+  assert.match(users, /<PendingPartnerApplications/);
+  assert.match(users, /No pending account approvals/);
+  assert.match(users, /Professional applications appear in the section above/);
   const queue = read('src/components/admin/PendingPartnerApplications.tsx');
   const endpoint = read('src/app/api/admin/partner-applications/route.ts');
   assert.match(queue, /review_supported/);
