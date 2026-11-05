@@ -416,6 +416,8 @@ export async function authRegister(body: {
   gst_number?: string;
   vehicle_type?: string;
   license_number?: string;
+  requested_skills?: string[];
+  requested_service_cities?: string[];
 }): Promise<LoginResult | { needsEmailConfirmation: true; email: string; pending?: boolean }> {
   const { res, json } = await fetchWithRetryParse('/auth/register', {
     method: 'POST',
