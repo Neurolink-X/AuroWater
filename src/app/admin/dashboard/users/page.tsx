@@ -232,7 +232,15 @@ export default function AdminUsersPage() {
           </p>
         </div>
 
-        <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20">Account Help &amp; Recovery</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/technician-capabilities" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2.5 text-sm font-bold text-emerald-200 hover:bg-emerald-400/20">
+            Partner applications
+          </Link>
+          <Link href="/admin/verification" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20">
+            Verify documents
+          </Link>
+          <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold text-slate-100 hover:bg-white/10">Account Help &amp; Recovery</Link>
+        </div>
         <button
           type="button"
           onClick={() => void load(true)}
