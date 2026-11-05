@@ -22,13 +22,13 @@ test('valid Supabase session is not signed out after a single API 401', () => {
   assert.doesNotMatch(client.slice(client.indexOf('async function apiFetchAuth'), client.indexOf('export type LoginResult')), /auth\.signOut\(/);
 });
 
-test('registration keeps technician skill and city selections compact and persists unverified preferences', () => {
-  const page = read('src/app/auth/register/RegisterClient.tsx');
+test('active registration persists the selected technician skills/cities without granting capabilities', () => {
+  const page = read('src/app/auth/register/page.tsx');
   const api = read('src/app/api/auth/register/route.ts');
-  assert.match(page, /function MultiChoicePicker/);
-  assert.match(page, /type="checkbox"/);
-  assert.match(page, /requested_skills: skills/);
-  assert.match(page, /requested_service_cities:/);
+  assert.match(page, /selectedSkills/);
+  assert.match(page, /selectedTechCities/);
+  assert.match(page, /requested_skills: selectedSkills/);
+  assert.match(page, /requested_service_cities: selectedTechCities/);
   assert.match(api, /requested_skills: role === 'technician'/);
   assert.match(api, /requested_service_cities: role === 'technician'/);
   assert.match(api, /service capabilities granted separately/);

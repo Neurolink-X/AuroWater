@@ -451,6 +451,9 @@ export default function RegisterPage() {
           phone,
           role: 'technician',
           city: parsed.data.city,
+          // These are self-declared preferences, NOT approved job capabilities.
+          requested_skills: selectedSkills,
+          requested_service_cities: selectedTechCities,
         });
 
         await finishRegistration(

@@ -197,7 +197,7 @@ const OFFER_WINDOW_MS = 24 * 3600 * 1000;
 const POLL_MS = 30_000;
 const STALE_SYNC_MS = 15_000;
 const JOBS_CACHE_PREFIX = 'aurowater:tech-jobs:v2:';
-const JOBS_CACHE_MAX_AGE_MS = 10 * 60_000;
+const JOBS_CACHE_MAX_AGE_MS = 3 * 60_000;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_UPLOAD_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const UPI_PATTERN = /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z]{2,64}$/;
@@ -346,7 +346,10 @@ function readJobsCache(userId?: string): Job[] | null {
     const raw = window.sessionStorage.getItem(JOBS_CACHE_PREFIX + userId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { savedAt: number; jobs: Job[] };
-    if (!Array.isArray(parsed.jobs) || Date.now() - parsed.savedAt > JOBS_CACHE_MAX_AGE_MS) return null;
+    if (!Array.isArray(parsed.jobs) || !Number.isFinite(parsed.savedAt) || Date.now() - parsed.savedAt > JOBS_CACHE_MAX_AGE_MS) {
+      window.sessionStorage.removeItem(JOBS_CACHE_PREFIX + userId);
+      return null;
+    }
     return parsed.jobs;
   } catch {
     return null;
@@ -972,16 +975,18 @@ function UploadArea({ label, required, current, onPick, onRemove, disabled }: { 
 }
 
 const OverviewTab = memo(function OverviewTab({
-  techName, roleLabel, greeting, online, onlineBusy, onOnline, verification, stats, activeJob, nextJob, offers, onTab, onComplete,
+  techName, roleLabel, greeting, online, onlineBusy, onOnline, verification, serviceApproved, stats, activeJob, nextJob, offers, onTab, onComplete,
 }: {
   techName: string; roleLabel: string; greeting: string; online: TechnicianOnline; onlineBusy: boolean;
-  onOnline: (v: TechnicianOnline) => void; verification: VerificationStatus; stats: Stats;
+  onOnline: (v: TechnicianOnline) => void; verification: VerificationStatus; serviceApproved: boolean; stats: Stats;
   activeJob: Job | null; nextJob: Job | null; offers: Job[]; onTab: (t: TabKey) => void; onComplete: (j: Job) => void;
 }) {
   const isHindi = useDashboardLanguage() === 'hi';
   const banner =
-    verification === 'verified'
+    verification === 'verified' && serviceApproved
       ? { cls: 'bg-emerald-600', text: isHindi ? `AuroWater ${roleLabel === 'Plumber' ? 'प्लंबर' : 'टेक्नीशियन'} सत्यापित। आप जॉब स्वीकार कर सकते हैं।` : `Verified AuroWater ${roleLabel.toLowerCase()}. You can accept jobs.`, cta: null as string | null }
+      : verification === 'verified'
+        ? { cls: 'bg-sky-700', text: isHindi ? 'आधार और फोटो मंज़ूर हैं। सर्विस की मंज़ूरी अलग से ज़रूरी है।' : 'Your identity photos are approved. Service approval is still required for new jobs.', cta: null }
       : verification === 'pending'
         ? { cls: 'bg-sky-700', text: isHindi ? 'आपकी ID की जाँच चल रही है। इसमें आमतौर पर 1 से 2 कार्यदिवस लगते हैं।' : 'Your ID is under review. This usually takes 1 to 2 business days.', cta: null }
         : { cls: 'bg-amber-600', text: isHindi ? 'जॉब स्वीकार करने के लिए प्रोफ़ाइल पूरी करें और ID जोड़ें।' : 'Complete your profile and add your ID to start accepting jobs.', cta: isHindi ? 'दस्तावेज़ जोड़ें' : 'Add documents' };
@@ -1563,7 +1568,8 @@ export default function TechnicianDashboardPage() {
   const storageOwner = userId ?? 'guest';
   const [profile, setProfile, profileReady] = usePersisted<TechProfile>(`${KEYS.PROFILE}:${storageOwner}`, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
   const [availability, setAvailability] = usePersisted<Availability>(`${KEYS.AVAILABILITY}:${storageOwner}`, {}, normalizeAvailability);
-  const [docs, setDocs] = usePersisted<TechDocs>(`${KEYS.DOCS}:${storageOwner}`, {}, normalizeDocs);
+  // KYC filenames/status are fetched from the server and never stored as persistent browser drafts.
+  const [docs, setDocs] = useState<TechDocs>({});
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const lastSyncedSelectionsRef = useRef<string | null>(null);
 
@@ -1625,28 +1631,79 @@ export default function TechnicianDashboardPage() {
     return () => window.clearTimeout(t);
   }, [allowed,preferencesLoaded,userId,profile.skills,profile.serviceCities]);
 
+  const [serviceReady, setServiceReady] = useState(false);
+  const [accountOperational, setAccountOperational] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+  const lastDocCheck = useRef(0);
+
+  // Read independent identity, operational and service approvals from the server.
+  // No local-storage document flag can ever make a technician eligible for a job.
+  const refreshDocumentStatus = useCallback(async () => {
+    if (!allowed || !userId) return;
+    try {
+      const headers = await technicianAuthHeaders();
+      const [docsResponse, serviceResponse, onlineResponse] = await Promise.all([
+        fetch('/api/technicians/documents', { headers, cache: 'no-store' }),
+        fetch('/api/technician/specializations', { headers, cache: 'no-store' }),
+        fetch('/api/technician/availability', { headers, cache: 'no-store' }),
+      ]);
+      const payload = await docsResponse.json().catch(() => ({}));
+      if (!docsResponse.ok) throw new Error(payload?.error || 'Document verification unavailable.');
+      const files = payload?.data?.files ?? {};
+      const fields: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
+      const latest: TechDocs = {};
+      for (const [slot, field] of Object.entries(fields)) {
+        const file = files[slot];
+        if (file?.id) latest[field] = {
+          id: file.id, name: file.original_name || '', size: file.size_bytes || 0,
+          status: file.review_status === 'approved' ? 'verified' : file.review_status === 'rejected' ? 'rejected' : 'submitted',
+        };
+      }
+      setDocs(latest);
+      const state = payload?.data?.verification_status;
+      setVerification(state === 'verified' || state === 'pending' || state === 'rejected' ? state : 'unverified');
+      setDocumentError('');
+      if (serviceResponse.ok) {
+        const approvals = await serviceResponse.json().catch(() => ({}));
+        setServiceReady(Array.isArray(approvals?.data?.approved) && approvals.data.approved.length > 0);
+        setAccountOperational(approvals?.data?.profile?.active === true && approvals?.data?.profile?.verification === 'approved');
+      } else {
+        setServiceReady(false);
+        setAccountOperational(false);
+      }
+      if (onlineResponse.ok) {
+        const status = await onlineResponse.json().catch(() => ({}));
+        setOnline(status?.data?.online === true ? 'online' : 'offline');
+      }
+    } catch (e) {
+      setServiceReady(false);
+      setAccountOperational(false);
+      setDocumentError(e instanceof Error ? e.message : 'Could not check verification.');
+    } finally { lastDocCheck.current = Date.now(); }
+  }, [allowed, userId]);
+
   useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-    void technicianAuthHeaders().then(headers => fetch('/api/technicians/documents', { headers, cache: 'no-store' })).then(async (response) => {
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(response.status === 401 ? 'Sign in again to view verified document status.' : payload?.error || 'Could not load document review status.');
-      if (cancelled) return;
-      const serverFiles = payload?.data?.files ?? {};
-      const map: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
-      setDocs((current) => {
-        const next = { ...current };
-        for (const [slot, field] of Object.entries(map)) {
-          const file = serverFiles[slot];
-          if (file?.id) next[field] = { id: file.id, name: file.original_name, size: file.size_bytes, status: file.review_status === 'approved' ? 'verified' : file.review_status === 'rejected' ? 'rejected' : 'submitted' };
-        }
-        return next;
-      });
-      const status = payload?.data?.verification_status;
-      if (status === 'verified' || status === 'pending' || status === 'rejected') setVerification(status);
-    }).catch((error) => console.error('[TechnicianDashboard] document status load failed:', error));
-    return () => { cancelled = true; };
-  }, [allowed]);
+    if (!allowed || !userId) return;
+    void refreshDocumentStatus();
+    const visible = () => document.visibilityState === 'visible' && navigator.onLine;
+    const maybeRefresh = () => {
+      if (visible() && Date.now() - lastDocCheck.current >= 20_000) void refreshDocumentStatus();
+    };
+    const onOnline = () => { if (visible()) void refreshDocumentStatus(); };
+    const onChanged = () => { if (visible()) void refreshDocumentStatus(); };
+    const poll = window.setInterval(() => { if (visible()) void refreshDocumentStatus(); }, 60_000);
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('aurotap:verification-changed', onChanged);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', maybeRefresh);
+      window.removeEventListener('focus', maybeRefresh);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('aurotap:verification-changed', onChanged);
+    };
+  }, [allowed, userId, refreshDocumentStatus]);
 
   const saveProfileToServer = useCallback(async (updated: TechProfile) => {
     try {
@@ -1682,27 +1739,17 @@ export default function TechnicianDashboardPage() {
   const seenOffersRef = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    const savedOnline = lsGet(KEYS.ONLINE);
-    setOnline(savedOnline === 'online' ? 'online' : 'offline');
-
-    async function fetchVerification() {
-      try {
-        const res = await fetch('/api/technicians/profile');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.verification_status) {
-            setVerification(data.verification_status);
-            lsSet(KEYS.VERIFICATION, data.verification_status);
-            return;
-          }
-        }
-      } catch {
-        // Fallback to local cache if offline
+    // Remove obsolete auth flags; only the server is authoritative.
+    lsRemove(KEYS.ONLINE);
+    lsRemove(KEYS.VERIFICATION);
+    lsRemove(KEYS.DOCS);
+    lsRemove(`${KEYS.DOCS}:${storageOwner}`);
+    try {
+      for(let n=sessionStorage.length-1;n>=0;n--){
+        const key=sessionStorage.key(n);
+        if(key?.startsWith(JOBS_CACHE_PREFIX) && key !== JOBS_CACHE_PREFIX + storageOwner) sessionStorage.removeItem(key);
       }
-      const savedVerif = lsGet(KEYS.VERIFICATION);
-      setVerification(savedVerif === 'verified' || savedVerif === 'pending' ? savedVerif : 'unverified');
-    }
-    void fetchVerification();
+    } catch { /* browser storage may be disabled */ }
 
     try {
       const profileRaw = lsGet(KEYS.USER_PROFILE);
@@ -1839,16 +1886,17 @@ export default function TechnicianDashboardPage() {
       if (next === 'online' && navigator.geolocation) {
         try {
           const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 }),
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 2500, maximumAge: 300_000 }),
           );
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch {
-          toast.warning('Location is unavailable, so you may see fewer nearby jobs.');
+          toast.info(isHindi ? 'लोकेशन नहीं मिली। आप फिर भी ऑनलाइन हो सकते हैं। सर्विस एरिया सेट करें।' : 'Location unavailable. You can still go online; confirm your service area.');
         }
       }
-      await technicianAvailabilityUpdate({ online: next === 'online', lat, lng });
-      lsSet(KEYS.ONLINE, next);
+      const result = await technicianAvailabilityUpdate(lat !== null && lng !== null
+        ? { online: next === 'online', lat, lng } : { online: next === 'online' });
+      setOnline(result.is_online ? 'online' : 'offline');
       toast.success(next === 'online' ? 'You’re available for nearby jobs.' : 'You’re offline.');
     } catch (cause) {
       setOnline(previous);
@@ -1856,7 +1904,7 @@ export default function TechnicianDashboardPage() {
     } finally {
       setOnlineBusy(false);
     }
-  }, [online, onlineBusy]);
+  }, [online, onlineBusy, isHindi]);
 
   const handlers = useMemo<JobHandlers>(() => ({
     onAccept: async (job) => {
@@ -1942,14 +1990,14 @@ export default function TechnicianDashboardPage() {
     try {
       await submitDocumentsToServer(docs);
       setVerification('pending');
-      lsSet(KEYS.VERIFICATION, 'pending');
-      toast.success('Documents submitted. Review takes 1 to 2 business days.');
+      window.dispatchEvent(new Event('aurotap:verification-changed'));
+      toast.success(isHindi ? 'दस्तावेज़ जाँच के लिए भेज दिए।' : 'Documents submitted for review.');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'Couldn’t submit documents.');
     } finally {
       setDocsSubmitting(false);
     }
-  }, [docs]);
+  }, [docs, isHindi]);
 
   const toggleExpanded = useCallback((id: string) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
@@ -1989,8 +2037,10 @@ export default function TechnicianDashboardPage() {
   }
 
   const displayName = techName || roleLabel;
-  const canAccept = verification === 'verified' && online === 'online';
-  const acceptReason = verification !== 'verified' ? 'Get verified to accept jobs.' : online !== 'online' ? 'Go online to accept jobs.' : null;
+  const canAccept = verification === 'verified' && serviceReady && accountOperational && online === 'online';
+  const acceptReason = verification !== 'verified' ? (isHindi ? 'पहचान की जाँच पूरी करें।' : 'Complete identity verification.')
+    : !serviceReady || !accountOperational ? (isHindi ? 'एडमिन की सर्विस मंज़ूरी बाकी है।' : 'Admin service approval required.')
+    : online !== 'online' ? (isHindi ? 'नई जॉब के लिए ऑनलाइन हों।' : 'Go online to accept jobs.') : null;
   const inProgressCount = stageCounts.in_progress;
 
   const badgeFor = (key: TabKey) => (key === 'queue' ? offers.length : key === 'my_jobs' ? inProgressCount : 0);
@@ -2092,6 +2142,12 @@ export default function TechnicianDashboardPage() {
               </div>
             </div>
 
+            {documentError && (
+              <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                {isHindi ? 'डॉक्यूमेंट और सर्विस स्टेटस अपडेट नहीं हो पाया।' : 'Document or service status could not be checked.'}
+                <button type="button" onClick={() => void refreshDocumentStatus()} className="ml-2 font-bold underline">{isHindi ? 'फिर कोशिश करें' : 'Retry'}</button>
+              </p>
+            )}
             {error && (
               <div className="mb-5 space-y-2" role="alert">
                 <DatabaseErrorBanner message={error} />
@@ -2100,7 +2156,7 @@ export default function TechnicianDashboardPage() {
             )}
 
             {tab === 'overview' && (
-              <OverviewTab techName={displayName} roleLabel={roleLabel} greeting={greeting} online={online} onlineBusy={onlineBusy} onOnline={handleOnline} verification={verification} stats={stats} activeJob={activeJob} nextJob={nextJob} offers={offers} onTab={changeTab} onComplete={handlers.onComplete} />
+              <OverviewTab techName={displayName} roleLabel={roleLabel} greeting={greeting} online={online} onlineBusy={onlineBusy} onOnline={handleOnline} verification={verification} serviceApproved={serviceReady && accountOperational} stats={stats} activeJob={activeJob} nextJob={nextJob} offers={offers} onTab={changeTab} onComplete={handlers.onComplete} />
             )}
 
             {tab === 'queue' && (

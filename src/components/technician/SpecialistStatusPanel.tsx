@@ -1,165 +1,181 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useLanguage } from '@/lib/i18n/LanguageContext';
-import { useAuth } from '@/hooks/useAuth';
 
-type Specialty = { service_key: string; reviewed_at?: string | null };
-type Blocked = { service_key: string; status: string };
+import Link from 'next/link';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { getToken } from '@/lib/api-client';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+
 type ApprovalState = {
   profile: { city: string | null; email: string | null; verification: string | null; active: boolean };
-  approved: Specialty[];
-  other_capabilities: Blocked[];
-  application: { id: string; status: string; created_at: string; requested_role: string | null; rejection_note: string | null } | null;
+  documents: { status: 'approved' | 'under_review' | 'rejected' | 'not_submitted'; approved_count: number; required_count: number };
+  approved: { service_key: string; reviewed_at?: string | null }[];
+  other_capabilities: { service_key: string; status: string }[];
+  application: { id: string; status: string; requested_role: string | null; rejection_note: string | null } | null;
 };
-type OwnedState = { userId: string; data: ApprovalState };
-const SERVICE_DETAILS: Record<string, { en: string; hi: string; image: string }> = {
-  plumbing: { en: 'Plumbing', hi: 'प्लंबिंग', image: '/images/plumbing.webp' },
-  borewell: { en: 'Borewell / drilling', hi: 'बोरवेल', image: '/images/borewell.webp' },
-  tank_cleaning: { en: 'Water tank cleaning', hi: 'टंकी की सफाई', image: '/images/tank_cleaning.webp' },
-  ro_service: { en: 'RO servicing', hi: 'RO सर्विस', image: '/images/ro_service.webp' },
-  motor_pump: { en: 'Motor pump repair', hi: 'मोटर पंप', image: '/images/motor_pump.webp' },
-  installation: { en: 'Installation', hi: 'इंस्टॉलेशन', image: '/images/ro_service.webp' },
-  maintenance: { en: 'Maintenance', hi: 'मेंटेनेंस', image: '/images/motor_pump.webp' },
-};
-const showName = (key: string, hi: boolean) => SERVICE_DETAILS[key]?.[hi ? 'hi' : 'en'] ?? key.replace(/_/g, ' ');
-const CACHE_MS = 25_000;
-const REQUEST_MS = 12_000;
-// Never persist private email/approvals in localStorage or sessionStorage.
-// Key by authenticated user to prevent cross-account cache leakage after switching users.
-const cached = new Map<string, { at: number; data: ApprovalState }>();
+type OwnedRecord = { userId: string; data: ApprovalState };
+const CACHE_MS = 15_000;
+const REFRESH_MS = 40_000;
+const cache = new Map<string, { at: number; data: ApprovalState }>();
 const pending = new Map<string, Promise<ApprovalState>>();
-async function readApprovals(userId: string, force = false): Promise<ApprovalState> {
-  const existing = cached.get(userId);
-  if (!force && existing && Date.now() - existing.at < CACHE_MS) return existing.data;
-  const running = pending.get(userId);
-  if (running) return running;
-  const fetcher = (async () => {
-    const res = await fetch('/api/technician/specializations', {
-      cache: 'no-store', credentials: 'include', signal: AbortSignal.timeout(REQUEST_MS),
+const LABELS: Record<string, [string, string]> = {
+  plumbing: ['Plumbing', 'प्लंबिंग'],
+  borewell: ['Borewell', 'बोरवेल'],
+  tank_cleaning: ['Tank cleaning', 'टंकी की सफाई'],
+  ro_service: ['RO service', 'RO सर्विस'],
+  motor_pump: ['Motor repair', 'मोटर रिपेयर'],
+  installation: ['Installation', 'इंस्टॉलेशन'],
+  maintenance: ['Maintenance', 'मेंटेनेंस'],
+};
+const label = (key: string, hi: boolean) => LABELS[key]?.[hi ? 1 : 0] ?? key.replaceAll('_', ' ');
+async function readApproval(userId: string, force = false): Promise<ApprovalState> {
+  const saved = cache.get(userId);
+  if (!force && saved && Date.now() - saved.at < CACHE_MS) return saved.data;
+  const active = pending.get(userId);
+  if (active) return active;
+  const task = (async () => {
+    const token = await getToken();
+    if (!token) throw new Error('SESSION_REQUIRED');
+    const response = await fetch('/api/technician/specializations', {
+      cache: 'no-store', credentials: 'same-origin',
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(12_000),
     });
-    const json: { success?: boolean; data?: ApprovalState; error?: string } = await res.json().catch(() => ({}));
-    if (!res.ok || json.success === false || !json.data) throw new Error(json.error || 'Service approvals unavailable.');
-    // Bounded in-memory cache; not an authorization source for new job assignments.
-    if (cached.size >= 8 && !cached.has(userId)) cached.delete(cached.keys().next().value ?? '');
-    cached.set(userId, { at: Date.now(), data: json.data });
-    return json.data;
+    const payload: { success?: boolean; data?: ApprovalState; error?: string } =
+      await response.json().catch(() => ({}));
+    if (response.status === 401) throw new Error('SESSION_REQUIRED');
+    if (response.status === 403) throw new Error('ROLE_NOT_ALLOWED');
+    if (!response.ok || payload.success === false || !payload.data) throw new Error('STATUS_UNAVAILABLE');
+    if (cache.size >= 8 && !cache.has(userId)) cache.delete(cache.keys().next().value ?? '');
+    cache.set(userId, { at: Date.now(), data: payload.data });
+    return payload.data;
   })();
-  pending.set(userId, fetcher);
-  try { return await fetcher; } finally { if (pending.get(userId) === fetcher) pending.delete(userId); }
+  pending.set(userId, task);
+  try { return await task; } finally { if (pending.get(userId) === task) pending.delete(userId); }
 }
-const statusClass = (status: string) => status === 'approved'
-  ? 'bg-emerald-50 text-emerald-800'
-  : status === 'rejected' || status === 'suspended'
-    ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-900';
 
+/**
+ * KYC approval is NOT approval to accept a particular service.
+ * Show each state separately, even for fully uploaded/approved documents.
+ * Request updates only while the tab is visible; never store identities in localStorage.
+ */
 export default function SpecialistStatusPanel({ enabled }: { enabled: boolean }) {
   const { language } = useLanguage();
   const hi = language === 'hi';
   const { userId } = useAuth();
-  const [record, setRecord] = useState<OwnedState | null>(null);
+  const [record, setRecord] = useState<OwnedRecord | null>(null);
   const [error, setError] = useState('');
-  const [busyFor, setBusyFor] = useState('');
-  const data = enabled && userId === record?.userId ? record.data : null;
-  const loading = Boolean(userId && busyFor === userId);
+  const [loadingUser, setLoadingUser] = useState<string | null>(null);
+  const lastChecked = useRef(0);
+  const data = enabled && record?.userId === userId ? record.data : null;
+  const loading = loadingUser === userId && Boolean(userId);
 
   const refresh = useCallback(async (force = false) => {
     if (!enabled || !userId) return;
-    setBusyFor(userId);
+    setLoadingUser(userId);
     try {
-      const next = await readApprovals(userId, force);
+      const next = await readApproval(userId, force);
       setRecord({ userId, data: next });
       setError('');
+      lastChecked.current = Date.now();
     } catch (cause) {
-      // A stale qualification must never be shown as currently verified after a failed refresh.
+      cache.delete(userId);
       setRecord(null);
-      cached.delete(userId);
-      const timeout = cause instanceof DOMException && (cause.name === 'TimeoutError' || cause.name === 'AbortError');
-      setError(timeout ? (hi ? 'जाँच में समय लग रहा है। इंटरनेट जाँचें और दोबारा कोशिश करें।' : 'Verification timed out. Check your connection and retry.')
-        : cause instanceof Error ? cause.message : 'Could not verify qualifications.');
+      const reason = cause instanceof Error ? cause.message : '';
+      const timeout = cause instanceof DOMException && cause.name === 'TimeoutError';
+      setError(reason === 'SESSION_REQUIRED'
+        ? (hi ? 'लॉगिन की जाँच नहीं हो पाई। दोबारा लॉगिन करें।' : 'Sign-in expired. Please log in again.')
+        : reason === 'ROLE_NOT_ALLOWED'
+          ? (hi ? 'इस अकाउंट में टेक्नीशियन की अनुमति नहीं है। सपोर्ट से संपर्क करें।' : 'Technician account access is not enabled. Contact support.')
+          : timeout
+            ? (hi ? 'जाँच में समय लग रहा है। इंटरनेट चेक करें और फिर कोशिश करें।' : 'Check your connection and retry.')
+            : (hi ? 'अभी स्टेटस नहीं मिल पाया। रिफ्रेश करके देखें।' : 'Service status unavailable. Refresh to retry.'));
+      lastChecked.current = Date.now();
     } finally {
-      setBusyFor('');
+      setLoadingUser((previous) => previous === userId ? null : previous);
     }
   }, [enabled, userId, hi]);
 
   useEffect(() => {
     if (!enabled || !userId) return;
-    void refresh();
-    let lastFocusRefresh = Date.now();
-    const onVisible = () => { if (document.visibilityState === 'visible' && navigator.onLine && Date.now() - lastFocusRefresh >= 8_000) { lastFocusRefresh = Date.now(); void refresh(); } };
-    const onOnline = () => { if (document.visibilityState === 'visible') { lastFocusRefresh = Date.now(); void refresh(); } };
-    document.addEventListener('visibilitychange', onVisible);
+    void refresh(true);
+    const visible = () => document.visibilityState === 'visible' && navigator.onLine;
+    const onReturn = () => {
+      if (visible() && Date.now() - lastChecked.current >= 12_000) void refresh(true);
+    };
+    const onOnline = () => { if (visible()) void refresh(true); };
+    const onDocumentChange = () => { if (visible()) void refresh(true); };
+    const poll = window.setInterval(() => { if (visible()) void refresh(true); }, REFRESH_MS);
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('focus', onReturn);
     window.addEventListener('online', onOnline);
+    window.addEventListener('aurotap:verification-changed', onDocumentChange);
     return () => {
-      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('focus', onReturn);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('aurotap:verification-changed', onDocumentChange);
     };
   }, [enabled, userId, refresh]);
+
   if (!enabled) return null;
   const approved = data?.approved ?? [];
-  const role = data?.application?.requested_role;
-  const selected = role === 'tank' ? 'tank_cleaning' : role === 'plumber' ? 'plumbing' : role ?? '';
-  return <section aria-label="Your approved service qualifications" className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
+  const verified = approved.length > 0 && data?.profile.active === true && data?.profile.verification === 'approved';
+  const docs = data?.documents;
+  const hasPendingApplication = data?.application && ['pending','pending_approval'].includes(data.application.status);
+  const docsReady = docs?.status === 'approved';
+  const title = verified
+    ? (hi ? 'काम के लिए मंज़ूरी मिल गई' : 'Approved for service jobs')
+    : docsReady
+      ? (hi ? 'दस्तावेज़ मंज़ूर · सर्विस की मंज़ूरी बाकी' : 'Documents approved · service approval pending')
+      : docs?.status === 'under_review'
+        ? (hi ? 'दस्तावेज़ जाँच में हैं' : 'Documents under review')
+        : docs?.status === 'rejected'
+          ? (hi ? 'दस्तावेज़ दोबारा भेजें' : 'Update rejected documents')
+          : (hi ? 'पहचान और सर्विस की जाँच बाकी है' : 'Identity and service approval pending');
+
+  return <section aria-label="Professional verification and service approval" className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-sm sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{hi ? 'सत्यापित सेवाएँ और खाता' : 'Verified services & account'}</p>
-        <h2 className="mt-1 text-lg font-bold">
-          {loading && !data ? (hi ? 'जानकारी अपडेट हो रही है…' : 'Loading account details…') :
-           approved.length > 1 ? (hi ? 'बहु-सेवा विशेषज्ञ' : 'Multi-service specialist') :
-           approved.length === 1 ? showName(approved[0].service_key, hi) :
-           (hi ? 'सेवा स्वीकृति लंबित है' : 'Awaiting service approval')}
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          {data ? (hi ? 'कार्य शहर: ' : 'Working city: ') + (data.profile.city || (hi ? 'दर्ज नहीं' : 'Not registered'))
-            : (hi ? 'नई बुकिंग केवल स्वीकृत कौशल के अनुसार मिलती है।' : 'New jobs require an Admin-approved service skill.')}
-        </p>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">{hi ? 'मेरे अकाउंट का स्टेटस' : 'Professional account status'}</p>
+        <h2 className="mt-1 text-base font-bold sm:text-lg">{loading && !data ? (hi ? 'स्टेटस चेक हो रहा है…' : 'Checking live status…') : title}</h2>
+        {docs && <p className="mt-1 text-xs text-slate-600">{hi ? 'पहचान की जाँच' : 'Identity documents'}: {docs.approved_count}/{docs.required_count} {hi ? 'मंज़ूर' : 'approved'} · {hi ? 'सर्विस मंज़ूरी' : 'Approved services'}: {approved.length}</p>}
       </div>
       <button type="button" onClick={() => void refresh(true)} disabled={loading}
-        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50">
-        {loading ? (hi ? 'जाँच जारी…' : 'Checking…') : (hi ? 'रिफ्रेश' : 'Refresh')}
+        className="min-h-10 rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold disabled:opacity-50">
+        {loading ? (hi ? 'चेक हो रहा है…' : 'Checking…') : (hi ? 'फिर चेक करें' : 'Refresh')}
       </button>
     </div>
-    {error && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
-      {error} {hi ? 'सत्यापन के बिना नया काम नहीं मिलेगा।' : 'New work remains protected until verified.'}
-    </p>}
-    {data && <>
-      <dl className="mt-4 grid gap-3 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-2">
-        <div className="min-w-0"><dt className="text-xs text-slate-500">{hi ? 'पंजीकृत ईमेल' : 'Registered email'}</dt>
-          <dd className="mt-1 break-all font-semibold">{data.profile.email || (hi ? 'ईमेल उपलब्ध नहीं' : 'No email on account')}</dd></div>
-        <div><dt className="text-xs text-slate-500">{hi ? 'खाता और सत्यापन' : 'Account & verification'}</dt>
-          <dd className="mt-1 font-semibold">{data.profile.active ? (hi ? 'सक्रिय' : 'Active') : (hi ? 'निष्क्रिय' : 'Inactive')} · {data.profile.verification || 'pending'}</dd></div>
-      </dl>
-      {approved.length ? <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {approved.map(s => <div key={s.service_key} className="overflow-hidden rounded-xl border border-emerald-200">
-          {SERVICE_DETAILS[s.service_key]?.image && <Image src={SERVICE_DETAILS[s.service_key].image} width={400} height={210}
-            sizes="(max-width: 640px) 85vw, 210px" alt={showName(s.service_key, hi)}
-            className="h-28 w-full object-cover" />}
-          <div className="p-3"><p className="font-semibold">{showName(s.service_key, hi)}</p>
-            <p className="mt-1 text-xs text-emerald-700">{hi ? 'एडमिन से स्वीकृत' : 'Admin approved'}</p></div>
-        </div>)}
-      </div> : <div className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-        {hi ? 'अभी कोई सेवा स्वीकृत नहीं है। पहचान और कौशल प्रमाणपत्र सत्यापित कराएँ।' :
-          'No service is approved yet. Complete identity and qualification document review before accepting jobs.'}
-      </div>}
-      {data.other_capabilities.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
-        {data.other_capabilities.map(s=><span key={s.service_key} className={'rounded-full px-3 py-1.5 text-xs font-semibold ' + statusClass(s.status)}>
-          {showName(s.service_key,hi)} · {s.status}</span>)}
-      </div>}
-      {data.application && <p className="mt-3 text-sm text-slate-700">
-        {hi ? 'आवेदन की स्थिति' : 'Application'}: <strong>{data.application.status.replace(/_/g,' ')}</strong>
-        {selected && ' · ' + showName(selected,hi)}
-        {data.application.rejection_note && <span className="block text-rose-700">{data.application.rejection_note}</span>}
-      </p>}
-    </>}
-    <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold text-emerald-700">
-      <Link href="/technician/settings" className="underline">{hi ? 'खाता सेटिंग्स' : 'Account settings'}</Link>
+    {error && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="alert">{error}
+      <Link href="/auth/login?returnTo=%2Ftechnician%2Fdashboard" className="ml-2 font-bold underline">{hi ? 'लॉगिन' : 'Sign in'}</Link>
+    </div>}
+    {data && <div className="mt-3 space-y-3">
+      {verified ? <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">
+        {hi ? 'आप इन सेवाओं में काम ले सकते हैं: ' : 'You can receive jobs for: '}
+        <strong>{approved.map(x => label(x.service_key, hi)).join(', ')}</strong>.
+      </div> : docsReady ? <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
+        {hasPendingApplication
+          ? (hi ? 'आपका सर्विस आवेदन एडमिन की जाँच में है। दस्तावेज़ दोबारा भेजने की ज़रूरत नहीं है।' : 'Your service application is under admin review. No need to upload the same documents again.')
+          : (hi ? 'आपके तीनों दस्तावेज़ मंज़ूर हैं। अब अपना काम चुनकर सर्विस मंज़ूरी का आवेदन करें। सिर्फ दस्तावेज़ मंज़ूर होने से नई जॉब नहीं मिलेगी।' : 'All three identity documents are approved. Apply for service eligibility; KYC alone does not activate job dispatch.')}
+      </div> : <p className="text-sm text-slate-600">{hi ? 'दस्तावेज़ की जाँच और काम की मंज़ूरी अलग-अलग हैं।' : 'Identity-document review and permission to accept jobs are separate checks.'}</p>}
+      {data.other_capabilities.length > 0 && <p className="text-xs text-slate-600">{data.other_capabilities.map(x => `${label(x.service_key, hi)}: ${x.status}`).join(' · ')}</p>}
+      {data.application?.rejection_note && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">{data.application.rejection_note}</p>}
+      {docsReady && !verified && !hasPendingApplication && <Link href="/register/pro" className="inline-flex min-h-10 items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">{hi ? 'सर्विस मंज़ूरी के लिए आवेदन' : 'Apply for service approval'}</Link>}
+    </div>}
+    {data && <details className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
+      <summary className="cursor-pointer font-semibold text-emerald-800">{hi ? 'पंजीकृत ईमेल और शहर देखें' : 'Registered email & service city'}</summary>
+      <p className="mt-2 break-all">{hi ? 'पंजीकृत ईमेल' : 'Registered email'}: <strong>{data.profile.email || (hi ? 'उपलब्ध नहीं' : 'Not provided')}</strong></p>
+      <p className="mt-1">{hi ? 'शहर' : 'City'}: <strong>{data.profile.city || (hi ? 'दर्ज नहीं' : 'Not registered')}</strong></p>
+      <p className="mt-1">{hi ? 'खाते की मंज़ूरी' : 'Account verification'}: <strong>{data.profile.verification || (hi ? 'बाकी' : 'Pending')}</strong></p>
+    </details>}
+    <nav aria-label={hi ? 'अकाउंट लिंक' : 'Account links'} className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs font-semibold text-emerald-700 sm:text-sm">
+      <Link href="/technician/settings" className="underline">{hi ? 'सेटिंग्स' : 'Settings'}</Link>
       <Link href="/technician/dashboard#documents" className="underline">{hi ? 'दस्तावेज़' : 'Documents'}</Link>
-      <Link href="/technician/jobs" className="underline">{hi ? 'मेरे काम' : 'My jobs'}</Link>
-      <Link href="/register/pro" className="underline">{hi ? 'नई सेवा के लिए आवेदन' : 'Apply for another service'}</Link>
+      <Link href="/technician/dashboard#my_jobs" className="underline">{hi ? 'मेरे काम' : 'My jobs'}</Link>
+      <Link href="/notifications" className="underline">{hi ? 'जॉब अलर्ट' : 'Job alerts'}</Link>
       <Link href="/contact?subject=technician" className="underline">{hi ? 'सहायता' : 'Support'}</Link>
-    </div>
-    <p className="mt-3 text-xs text-slate-500">{hi ? 'ईमेल केवल आपके सुरक्षित खाते में दिखाई देता है। इसे सार्वजनिक ग्राहकों को नहीं दिखाया जाता।' :
-      'Your registered email is private. Service approval is controlled on the server, not by editable device settings.'}</p>
+    </nav>
+    <p className="mt-2 text-[11px] text-slate-500">{hi ? 'ऐप खुले होने पर स्टेटस खुद अपडेट होता है।' : 'Status refreshes automatically while this page is visible.'}</p>
   </section>;
 }
