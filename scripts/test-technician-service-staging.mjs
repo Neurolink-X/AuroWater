@@ -25,6 +25,9 @@ if (url.protocol !== 'https:' ||
   !(host.endsWith('.vercel.app') || host.startsWith('staging.'))) {
   throw new Error('BLOCKED: Refusing to mutate a production or unrecognized deployment.');
 }
+if (process.env.TECHNICIAN_STAGE_DB_ISOLATED !== 'yes') {
+  throw new Error('BLOCKED: Confirm the staging site uses an isolated NON-production Supabase project first.');
+}
 const bypass=process.env.VERCEL_AUTOMATION_BYPASS;
 async function request(path, credentials, method='GET', body) {
   const res=await fetch(new URL(path,url),{
