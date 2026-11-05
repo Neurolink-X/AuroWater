@@ -1349,21 +1349,30 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
 }
 
 function DocumentsTab({
-  docs, setDocs, verification, onSubmit, submitting, uploadingSlot,
+  docs, setDocs, verification, onSubmit, submitting, uploadingSlot, setUploadingSlot,
 }: {
   docs: TechDocs; setDocs: React.Dispatch<React.SetStateAction<TechDocs>>;
-  verification: VerificationStatus; onSubmit: () => void; submitting: boolean; uploadingSlot: string | null;
+  verification: VerificationStatus; onSubmit: () => void; submitting: boolean;
+  uploadingSlot: string | null; setUploadingSlot: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const isHindi = useDashboardLanguage() === 'hi';
+  const uploadBusyRef = useRef(false);
   const set = (field: keyof TechDocs) => ({
     current: docs[field],
     onPick: async (f: File) => {
+      if (uploadBusyRef.current) return;
       const slotByField: Record<keyof TechDocs, string> = { aadhaarFront: 'aadhaar_front', aadhaarBack: 'aadhaar_back', profilePhoto: 'profile_photo', skillCert: 'skill_certificate' };
+      uploadBusyRef.current = true;
+      setUploadingSlot(slotByField[field]);
       try {
         const uploaded = await uploadTechnicianDocument(f, slotByField[field]);
         setDocs((c) => ({ ...c, [field]: uploaded }));
-        toast.success(`${f.name} uploaded securely.`);
+        toast.success(isHindi ? 'फाइल सुरक्षित अपलोड हो गई।' : `${f.name} uploaded securely.`);
       } catch (error) { toast.error(error instanceof Error ? error.message : 'Upload failed.'); }
+      finally {
+        uploadBusyRef.current = false;
+        setUploadingSlot(null);
+      }
     },
     onRemove: () => setDocs((c) => ({ ...c, [field]: undefined })),
   });
@@ -2135,7 +2144,7 @@ export default function TechnicianDashboardPage() {
             {tab === 'earnings' && <EarningsTab stats={stats} week={week} completed={completedJobs} profile={profile} setProfile={setProfile} />}
             {tab === 'availability' && <AvailabilityTab availability={availability} setAvailability={setAvailability} />}
             {tab === 'profile' && <ProfileTab profile={profile} setProfile={setProfile} />}
-            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} uploadingSlot={docsUploadingSlot} />}
+            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} uploadingSlot={docsUploadingSlot} setUploadingSlot={setDocsUploadingSlot} />}
           </main>
         </div>
       </div>
