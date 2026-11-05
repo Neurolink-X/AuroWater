@@ -72,6 +72,13 @@ assert.equal(state.data.data?.pending_application,null,'fixture must have no pen
 assert.ok(!state.data.data?.approved_services.includes('plumbing'),'fixture plumbing must be unapproved');
 console.log('PASS 1: role-aware GET, KYC and active technician fixture');
 
+const wrongRole=await request('/api/technician/service-applications',admin,'POST',{
+  serviceKey:'plumbing',workingArea:'Kakadeo',workingPincode:'208025',
+  experienceYears:2,workDescription:'Role isolation test from the admin account.',
+});
+assertStatus(wrongRole,403,'admin must not submit technician application');
+console.log('PASS 1b: real admin role cannot impersonate a technician or submit a service request');
+
 const invalid=await request('/api/technician/service-applications',token,'POST',{
   serviceKey:'water_can',workingArea:'Kakadeo',workingPincode:'208025',
   experienceYears:3,workDescription:'Fifteen years of verified plumbing experience.',
