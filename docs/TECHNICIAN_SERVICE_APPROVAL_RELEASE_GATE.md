@@ -50,9 +50,10 @@ Auth user metadata, submitted form or old file can grant job permissions.
    invalid POST, simultaneous duplicate submissions, real admin pending
    list, actual admin approval, capability readback, blocked duplicate,
    rejection, and verification that rejected service is not approved.
-4. Run the protected GitHub workflow:
-   `Technician service application - authenticated staging E2E`
-   on the candidate PR branch. Configure the **staging-e2e** environment
+4. In the existing GitHub **CI** workflow, select the candidate PR branch,
+   use **Run workflow**, and enable input `run_technician_stage_e2e`.
+   The protected `technician-stage-e2e` job runs only after the quality job
+   passes. Configure the **staging-e2e** environment
    with variables `TECHNICIAN_STAGE_URL`,
    `TECHNICIAN_STAGE_DB_ISOLATED=yes`,
    `TECHNICIAN_STAGE_SUPABASE_URL` (a separate project),
