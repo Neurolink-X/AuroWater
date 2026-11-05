@@ -21,5 +21,26 @@ export async function PATCH(req:NextRequest){
   p_application_id:parsed.data.application_id,p_admin_id:gate.id,p_decision:parsed.data.decision,p_note:parsed.data.note
  });
  if(error){console.error('[admin/partner-applications] review failed',{code:error.code});return jsonErr(error.code==='P0001'?error.message:'Application review unavailable; no partial changes were applied.',error.code==='P0001'?409:503)}
+ // The atomic database decision is authoritative. Notify the applicant only
+ // after the RPC commits; a failed alert must never roll back approval.
+ try {
+  const db=createServiceClient();
+  const {data:app}=await db.from('applications')
+   .select('user_id').eq('id',parsed.data.application_id).maybeSingle();
+  if(app?.user_id){
+   const status=parsed.data.decision;
+   const {error:notifyError}=await db.from('notifications').upsert({
+    user_id:app.user_id, type:'system',
+    title:status==='approved'?'Professional account approved':'Partner application needs attention',
+    message:status==='approved'
+      ?'Your verification was approved. Open your professional dashboard to get started.'
+      :'Your partner application was not approved. See the reason in your application status page.',
+    data:{application_id:parsed.data.application_id,url:'/register/pro/success'},
+    is_read:false,
+    dedup_key:'partner_'+parsed.data.application_id+'_'+status+'_'+app.user_id,
+   },{onConflict:'dedup_key',ignoreDuplicates:true});
+   if(notifyError)console.error('[partner-review] applicant notification unavailable',notifyError.code);
+  }
+ }catch(e){console.error('[partner-review] applicant notification failed',e instanceof Error?e.message:'unknown')}
  return jsonOk(data);
 }
