@@ -215,7 +215,7 @@ export default function RegisterProPage() {
 function RegisterPro() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { hydrated, isLoggedIn } = useAuth();
+  const { hydrated, isLoggedIn, role: accountRole } = useAuth();
   const [showBar, setShowBar] = useState(false);
 
   const roleParam = (sp.get('role') ?? '').toLowerCase();
@@ -361,7 +361,7 @@ function RegisterPro() {
           </div>
 
           <div id="apply" className="min-w-0 scroll-mt-6 lg:sticky lg:top-6">
-            <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} loginHref={loginHref} onSubmit={submitApplication} />
+            <ApplicationCard kind={kind} role={role} ready={hydrated} signedIn={isLoggedIn} accountRole={accountRole} loginHref={loginHref} onSubmit={submitApplication} />
           </div>
         </section>
 
@@ -605,16 +605,19 @@ function Estimator({ rows, role }: { rows: TierRow[]; role: RoleId }) {
 /* ───────────────────────── Application form ───────────────────────── */
 
 function ApplicationCard({
-  kind, role, ready, signedIn, loginHref, onSubmit,
+  kind, role, ready, signedIn, accountRole, loginHref, onSubmit,
 }: {
   kind: Kind;
   role: RoleId;
   ready: boolean;
   signedIn: boolean;
+  accountRole: string | null;
   loginHref: string;
   onSubmit: (v: Payload) => Promise<boolean>;
 }) {
   const r = ROLES[role];
+  const incompatible = signedIn && Boolean(accountRole) &&
+    !['customer', kind, 'admin'].includes(accountRole!);
   return (
     <div className={`rounded-[32px] bg-[#E3EDF6] p-5 sm:p-7 ${RAISED}`}>
       <nav aria-label="Choose your work" className={`flex gap-1 overflow-x-auto rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET} [scrollbar-width:none]`}>
@@ -642,12 +645,17 @@ function ApplicationCard({
         )}
       </p>
       <p className="mt-1 text-xs text-slate-500">You need: {r.needs}.</p>
-      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} onSubmit={onSubmit} />
+      {incompatible && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        यह लॉगिन पहले से {accountRole} भूमिका से जुड़ा है। / This login is already a {accountRole} account.
+        You can keep using it, but professional roles cannot currently be combined here.
+        <Link href="/contact" className="ml-1 font-bold underline">Contact support for role access</Link>.
+      </div>}
+      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} incompatible={incompatible} onSubmit={onSubmit} />
     </div>
   );
 }
 
-function ApplicationForm({ kind, role, ready, signedIn, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; signedIn: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
+function ApplicationForm({ kind, role, ready, signedIn, incompatible, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; signedIn: boolean; incompatible: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
   const steps = STEPS[kind];
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -881,8 +889,8 @@ function ApplicationForm({ kind, role, ready, signedIn, onSubmit }: { kind: Kind
             Back
           </button>
         )}
-        <button type="submit" disabled={isSubmitting || (isLast && !ready)} className={`${BTN_PRIMARY} flex-1`}>
-          {isSubmitting ? 'Submitting…' : isLast ? (signedIn ? 'Submit application' : 'Sign in to submit') : 'Continue'}
+        <button type="submit" disabled={isSubmitting || (isLast && (!ready || incompatible))} className={`${BTN_PRIMARY} flex-1`}>
+          {isSubmitting ? 'Submitting…' : isLast ? (incompatible ? 'Contact support for role access' : signedIn ? 'Submit application' : 'Sign in to submit') : 'Continue'}
         </button>
       </div>
       {isLast && ready && !signedIn && <p role="status" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-950">
