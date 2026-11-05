@@ -19,7 +19,21 @@ export async function GET(req: NextRequest) {
     console.error('[files/list] lookup failed', error);
     return jsonErr('Could not load your documents.', 503);
   }
-  const res = jsonOk({ role: auth.ctx.profile.role, slots: slotsForRole(auth.ctx.profile.role), files: data ?? [] });
+  // A new professional initially has a customer profile. Allow only an existing,
+  // authenticated pending technician applicant to see the pre-approval KYC slots.
+  let slots = slotsForRole(auth.ctx.profile.role);
+  let onboardingRole = auth.ctx.profile.role;
+  if (auth.ctx.profile.role === 'customer') {
+    const { data: pending, error: pendingError } = await db.from('applications')
+      .select('id').eq('user_id', auth.ctx.user.id).eq('type', 'technician')
+      .in('status', ['pending', 'pending_approval']).limit(1).maybeSingle();
+    if (pendingError) return jsonErr('Could not verify application eligibility.', 503);
+    if (pending) {
+      slots = slotsForRole('technician');
+      onboardingRole = 'technician_applicant';
+    }
+  }
+  const res = jsonOk({ role: onboardingRole, slots, files: data ?? [] });
   res.headers.set('Cache-Control', 'no-store');
   return res;
 }
