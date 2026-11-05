@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 const APPLICANT_ROLES = ['supplier', 'technician', 'plumber'];
 const SLOT_KEYS = Object.keys(DOCUMENT_SLOTS);
-const PROFILE_COLUMNS = 'id, full_name, email, phone, role, status, verification_status, business_name, city';
+const PROFILE_COLUMNS = 'id, full_name, email, phone, role, status, verification_status, city';
 const noStore = <T extends Response>(r: T): T => { r.headers.set('Cache-Control', 'no-store'); return r; };
 
 async function requireAdmin(req: NextRequest) {
@@ -47,11 +47,24 @@ export async function GET(req: NextRequest) {
     : { data: [], error: null };
   if (profileError) { console.error('[admin/verification] profiles lookup failed', profileError); return jsonErr('Could not load applicant details.', 503); }
 
+  // Applicants keep the customer account role until approval. Check the real application,
+  // not user-editable metadata, so they appear in the verification queue.
+  const candidateIds = (profiles ?? []).filter(p => p.role === 'customer').map(p => p.id);
+  const { data: pending, error: pendingError } = candidateIds.length
+    ? await db.from('applications').select('user_id').in('user_id', candidateIds)
+        .eq('type', 'technician').in('status', ['pending', 'pending_approval'])
+    : { data: [], error: null };
+  if (pendingError) return jsonErr('Could not validate pending applicant documents.', 503);
+  const pendingIds = new Set((pending ?? []).map(a => a.user_id));
   const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
   const rows = (files ?? []).flatMap((f) => {
-    const applicant = byId.get(f.owner_user_id);
-    return applicant && APPLICANT_ROLES.includes(applicant.role) && isDocumentSlot(f.document_slot) && slotApplicantRoles(f.document_slot).includes(applicant.role)
-      ? [{ ...f, applicant }] : [];
+    const profile = byId.get(f.owner_user_id);
+    if (!profile || !isDocumentSlot(f.document_slot)) return [];
+    const effectiveRole = profile.role === 'customer' && pendingIds.has(profile.id)
+      ? 'technician' : profile.role;
+    if (!APPLICANT_ROLES.includes(effectiveRole) || !slotApplicantRoles(f.document_slot).includes(effectiveRole)) return [];
+    const applicant = { ...profile, business_name: null, role: effectiveRole };
+    return [{ ...f, applicant }];
   });
   return noStore(jsonOk({ files: rows, counts }));
 }
@@ -79,7 +92,16 @@ export async function PATCH(req: NextRequest) {
   if (lookupError || !file?.document_slot || !isDocumentSlot(file.document_slot)) return jsonErr('Document not found.', 404);
 
   const { data: profile, error: profileError } = await db.from('profiles').select('role').eq('id', file.owner_user_id).maybeSingle();
-  if (profileError || !profile || !slotApplicantRoles(file.document_slot).includes(profile.role)) {
+  if (profileError || !profile) return jsonErr('Applicant account not found.', 404);
+  let effectiveRole = profile.role;
+  if (effectiveRole === 'customer') {
+    const { data: pending, error: pendingError } = await db.from('applications')
+      .select('id').eq('user_id', file.owner_user_id).eq('type', 'technician')
+      .in('status', ['pending', 'pending_approval']).limit(1).maybeSingle();
+    if (pendingError) return jsonErr('Could not verify the applicant role.', 503);
+    if (pending) effectiveRole = 'technician';
+  }
+  if (!slotApplicantRoles(file.document_slot).includes(effectiveRole)) {
     return jsonErr('Document does not match an eligible applicant role.', 409);
   }
 
@@ -92,8 +114,8 @@ export async function PATCH(req: NextRequest) {
   if (!updated) return jsonErr('This document was just reviewed by someone else. Refresh to see the latest.', 409, 'STALE');
 
   const { error: auditError } = await db.from('audit_logs').insert({
-    actor_id: gate.adminId, action: `${profile.role}_document_${decision}`, entity: 'user_file', entity_id: file.id,
-    meta: { owner_user_id: file.owner_user_id, role: profile.role, document_slot: file.document_slot, note: note ?? null, from_status: file.review_status },
+    actor_id: gate.adminId, action: `${effectiveRole}_document_${decision}`, entity: 'user_file', entity_id: file.id,
+    meta: { owner_user_id: file.owner_user_id, role: effectiveRole, account_role: profile.role, document_slot: file.document_slot, note: note ?? null, from_status: file.review_status },
   });
   if (auditError) {
     // Never leave an unaudited decision behind: roll the review back, then tell the admin to retry.
