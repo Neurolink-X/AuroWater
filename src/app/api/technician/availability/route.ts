@@ -9,6 +9,25 @@ const schema = z.object({
   lng: z.number().min(-180).max(180).nullable().optional(),
 });
 
+/** Read-only source of truth for the availability toggle across devices. */
+export async function GET(req: NextRequest) {
+  const auth = await requireSupabaseAuth(req);
+  if (!auth.ok) return auth.response;
+  if (!requireRole(auth.ctx, 'technician')) return jsonErr('Technician only', 403);
+  const { data, error } = await auth.ctx.supabase
+    .from('profiles')
+    .select('id,is_online,availability_status,status,verification_status')
+    .eq('id', auth.ctx.user.id).eq('role','technician').maybeSingle();
+  if (error || !data) return jsonErr('Could not load availability. Please retry.', 503);
+  const response = jsonOk({
+    online: data.is_online === true,
+    operational: data.status === 'active' && data.verification_status === 'approved',
+    verification_status: data.verification_status,
+  });
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
+}
+
 export async function PUT(req: NextRequest) {
   const auth = await requireSupabaseAuth(req);
   if (!auth.ok) return auth.response;
