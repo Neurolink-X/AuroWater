@@ -282,16 +282,21 @@ async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnaut
     if (res.status === 401 && redirectOnUnauthorized && !authEndpoint && !onAuthEntry && typeof window !== 'undefined') {
       // Only protected requests with an app session should redirect. Public endpoint 401s
       // and failed login attempts must not destroy an otherwise valid local session.
-      const cachedSession = safeGet('aurowater_session');
-      const hasSession = Boolean(cachedSession);
-      if (hasSession) {
-        clearToken();
-        clearUser();
-        clearAuthGateCookies();
-        safeRemove('aurowater_session');
-        const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
-        window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
-      }
+      // A single endpoint's 401 is not proof that the login session expired.
+      // Especially on protected roles, a rejected API request must never log out
+      // a valid Supabase session. Redirect only if the auth provider confirms
+      // that this browser has no session (not on a transient auth/network error).
+      try {
+        const { data: authState, error: stateError } = await createClient().auth.getSession();
+        if (!stateError && !authState.session && safeGet('aurowater_session')) {
+          clearToken();
+          clearUser();
+          clearAuthGateCookies();
+          safeRemove('aurowater_session');
+          const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
+          window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
+        }
+      } catch { /* preserve login on network failure */ }
     }
     const msg = typeof json.error === 'string' ? json.error : `HTTP ${res.status}`;
     const code = typeof json.code === 'string' ? json.code : undefined;
@@ -368,26 +373,23 @@ async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T>
     }
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      // Clear this browser's invalid session only after refresh + retry both fail.
+      // Never sign out on a generic 401: permissions, endpoint bugs, and a
+      // refresh race can all return it while the real login remains valid.
+      // Only the lack of a Supabase session can clear our cached UI login.
       try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch {
-        /* stale refresh tokens can make local sign-out throw; clear app-side state below */
-      }
-      clearToken();
-      clearUser();
-      clearAuthGateCookies();
-      safeRemove('aurowater_session');
-
-      if (typeof window !== 'undefined') {
-        const onAuthEntry =
-          window.location.pathname.startsWith('/auth/login') ||
-          window.location.pathname.startsWith('/auth/register');
-        if (!onAuthEntry) {
-          const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
-          window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
+        const { data: state, error: stateError } = await supabase.auth.getSession();
+        if (!stateError && !state.session) {
+          clearToken();
+          clearUser();
+          clearAuthGateCookies();
+          safeRemove('aurowater_session');
+          if (typeof window !== 'undefined' &&
+              !window.location.pathname.startsWith('/auth/')) {
+            const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
+            window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
+          }
         }
-      }
+      } catch { /* request failure isn't a logout command */ }
     }
     throw error;
   }
