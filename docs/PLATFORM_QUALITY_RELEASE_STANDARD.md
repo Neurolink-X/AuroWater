@@ -82,6 +82,28 @@ network states, locations and release cohorts rather than one fixture.
    even when static CI passes. They are not automatically run on PRs without
    isolated secrets, because this could mutate the live database.
 
+## Evidence-based SLO report (aggregation, not instrumentation)
+Run `npm run quality:slo-report -- /path/to/aggregate-counts.json`.
+The input contains ONLY per-domain counts and a time window, never users,
+device IDs or PII:
+
+```json
+{
+  "window": "2026-11",
+  "journeys": {
+    "auth": { "success": 30000, "failure": 0 },
+    "booking": { "success": 30000, "failure": 0 }
+  }
+}
+```
+
+Supply all ten domains. The command exits nonzero for missing telemetry,
+low volume, or a 95% upper failure bound above 0.01%. It does **not**
+collect production events: first instrument real user journeys, choose a
+representative time window, validate event deduplication, and aggregate
+privacy-safe success/failure counts. Never report synthetic test runs as
+production traffic.
+
 ## Running locally
 ```sh
 npm run test:unit
