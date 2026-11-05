@@ -54,8 +54,11 @@ Auth user metadata, submitted form or old file can grant job permissions.
    `Technician service application - authenticated staging E2E`
    on the candidate PR branch. Configure the **staging-e2e** environment
    with variables `TECHNICIAN_STAGE_URL`,
-   `TECHNICIAN_STAGE_DB_ISOLATED=yes`, and secrets
-   `TECHNICIAN_STAGE_TOKEN`, `ADMIN_STAGE_TOKEN`
+   `TECHNICIAN_STAGE_DB_ISOLATED=yes`,
+   `TECHNICIAN_STAGE_SUPABASE_URL` (a separate project),
+   `TECHNICIAN_STAGE_SUPABASE_ANON_KEY`; secrets
+   `TECHNICIAN_STAGE_EMAIL`, `TECHNICIAN_STAGE_PASSWORD`,
+   `ADMIN_STAGE_EMAIL`, `ADMIN_STAGE_PASSWORD`
    (plus optional `VERCEL_AUTOMATION_BYPASS`).
    Require review of this environment and add its job as a release gate.
    **Never** point it at production; the script rejects production hostnames
