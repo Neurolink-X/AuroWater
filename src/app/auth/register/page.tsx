@@ -20,16 +20,16 @@ const SERVICE_CITIES = [
   'Kanpur',
   'Gorakhpur',
   'Lucknow',
+  'Delhi',
+  'Noida',
+  'Ghaziabad',
   'Varanasi',
   'Prayagraj',
   'Agra',
   'Meerut',
   'Bareilly',
-  'Aligarh',
   'Mathura',
-  'Delhi',
-  'Noida',
-  'Ghaziabad',
+  
 ] as const;
 
 type City = (typeof SERVICE_CITIES)[number];
