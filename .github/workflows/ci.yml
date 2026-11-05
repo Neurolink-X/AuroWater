@@ -45,6 +45,10 @@ jobs:
       - name: Unit tests
         run: npm run test:unit
 
+      # Always runs when ANY application code changes; not regex-only verification.
+      - name: Technician role and service approval lifecycle contract
+        run: npm run test:technician:contract
+
       - name: Regression tests
         run: npm run test:regression
 
