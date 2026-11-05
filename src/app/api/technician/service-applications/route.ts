@@ -23,28 +23,31 @@ const submitSchema = z.object({
 
 async function readState(userId: string) {
   const db = createServiceClient();
-  const [account, capabilities, applications, documents] = await Promise.all([
+  const [account, capabilities, pendingApplication, latestApplication, documents] = await Promise.all([
     db.from('profiles').select('id,role,status,is_active,city,full_name,phone')
       .eq('id',userId).maybeSingle(),
     db.from('technician_service_capabilities').select('service_key,status')
       .eq('technician_id',userId).limit(20),
     db.from('applications').select('id,type,status,payload,created_at')
       .eq('user_id',userId).eq('type','technician')
-      .order('created_at',{ascending:false}).limit(10),
+      .in('status',['pending','pending_approval'])
+      .order('created_at',{ascending:false}).limit(1).maybeSingle(),
+    db.from('applications').select('id,type,status,payload,created_at')
+      .eq('user_id',userId).eq('type','technician')
+      .order('created_at',{ascending:false}).limit(1).maybeSingle(),
     db.from('user_files').select('document_slot,review_status,created_at')
       .eq('owner_user_id',userId)
       .in('document_slot',['aadhaar_front','aadhaar_back','profile_photo'])
       .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(30),
   ]);
-  if (account.error || capabilities.error || applications.error || documents.error)
+  if (account.error || capabilities.error || pendingApplication.error ||
+      latestApplication.error || documents.error)
     throw new Error('APPLICATION_STATE_UNAVAILABLE');
   if (!account.data) throw new Error('ACCOUNT_NOT_FOUND');
-  const all = applications.data ?? [];
-  const pending = all.find(a => ['pending','pending_approval'].includes(a.status)) ?? null;
   return {
     account: account.data,
-    pending,
-    recent: all[0] ?? null,
+    pending: pendingApplication.data,
+    recent: latestApplication.data,
     approvedServices: (capabilities.data ?? []).filter(c=>c.status==='approved').map(c=>c.service_key),
     documentStatuses: requiredDocumentStates(documents.data ?? []),
   };
