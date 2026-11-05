@@ -91,6 +91,7 @@ import {
   technicianJobUpdateStatus,
   technicianAvailabilityUpdate,
   getApiErrorMessage,
+  getToken,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
@@ -368,13 +369,23 @@ function requiredDocsUploaded(d: TechDocs) {
   return Boolean(d.aadhaarFront && d.aadhaarBack && d.profilePhoto);
 }
 
+/** Every private technician API uses a fresh Supabase access token, never implicit browser cookies. */
+async function technicianAuthHeaders(): Promise<{ Authorization: string }> {
+  const token = await getToken();
+  if (!token) throw new Error('Your sign-in could not be verified. Sign in again, then retry; your uploaded files are safe.');
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function uploadTechnicianDocument(file: File, slot: string): Promise<UploadMeta> {
   const form = new FormData();
   form.append('file', file);
   form.append('document_slot', slot);
   form.append('category', slot === 'profile_photo' ? 'profile_photo' : slot === 'skill_certificate' ? 'skill_certificate' : 'identity_document');
-  const response = await fetch('/api/files/upload', { method: 'POST', body: form });
+  const headers = await technicianAuthHeaders();
+  const response = await fetch('/api/files/upload', { method: 'POST', headers, body: form, cache: 'no-store' });
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('Session not verified. Sign in and try the upload again.');
+  if (response.status === 403) throw new Error('Your account needs technician access to upload documents. Check application approval or contact support.');
   if (!response.ok || !payload?.data?.file?.id) throw new Error(payload?.error || 'Secure upload failed. Please retry.');
   const uploaded = payload.data.file;
   return { id: uploaded.id, name: uploaded.original_name || file.name, size: uploaded.size_bytes ?? file.size, status: 'uploaded' };
@@ -383,10 +394,13 @@ async function uploadTechnicianDocument(file: File, slot: string): Promise<Uploa
 async function submitDocumentsToServer(docs: TechDocs): Promise<void> {
   const fileIds = [docs.aadhaarFront?.id, docs.aadhaarBack?.id, docs.profilePhoto?.id, docs.skillCert?.id].filter((id): id is string => Boolean(id));
   if (fileIds.length < 3) throw new Error('Upload Aadhaar front, Aadhaar back and profile photo first.');
+  const headers = await technicianAuthHeaders();
   const response = await fetch('/api/technicians/documents', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: fileIds }),
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: fileIds }), cache: 'no-store',
   });
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('Session not verified. Sign in again and retry submission.');
+  if (response.status === 403) throw new Error('Your technician account is not eligible for review yet. Contact support.');
   if (!response.ok) throw new Error(payload?.error || 'Failed to submit documents for review.');
 }
 
@@ -1352,10 +1366,10 @@ function DocumentsTab({
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        <UploadArea label="Aadhaar card (front)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarFront')} />
-        <UploadArea label="Aadhaar card (back)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarBack')} />
-        <UploadArea label="Profile photo" required disabled={Boolean(uploadingSlot)} {...set('profilePhoto')} />
-        <UploadArea label="Skill certificate" required={false} disabled={Boolean(uploadingSlot)} {...set('skillCert')} />
+        <UploadArea label={isHindi ? 'आधार कार्ड (आगे)' : 'Aadhaar card (front)'} required disabled={Boolean(uploadingSlot)} {...set('aadhaarFront')} />
+        <UploadArea label={isHindi ? 'आधार कार्ड (पीछे)' : 'Aadhaar card (back)'} required disabled={Boolean(uploadingSlot)} {...set('aadhaarBack')} />
+        <UploadArea label={isHindi ? 'अपनी फोटो' : 'Profile photo'} required disabled={Boolean(uploadingSlot)} {...set('profilePhoto')} />
+        <UploadArea label={isHindi ? 'काम का प्रमाणपत्र' : 'Skill certificate'} required={false} disabled={Boolean(uploadingSlot)} {...set('skillCert')} />
       </div>
       <div className={`${card} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
         <div className="flex items-center gap-3">
@@ -1366,10 +1380,10 @@ function DocumentsTab({
         </div>
         <button type="button" className={btnPrimary} disabled={!canSubmit} onClick={onSubmit}>
           {submitting && <Loader2 size={14} aria-hidden className="animate-spin" />}
-          {submitting ? 'Submitting…' : (isHindi ? 'सत्यापन के लिए भेजें' : 'Submit for verification')}
+          {submitting ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'जाँच के लिए भेजें' : 'Submit for verification')}
         </button>
       </div>
-      {verification === 'rejected' && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">Your documents were rejected. Replace the required files and submit them again.</p>}
+      {verification === 'rejected' && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{isHindi ? 'दस्तावेज़ मंज़ूर नहीं हुए। सही फोटो लगाकर दोबारा भेजें।' : 'Your documents were rejected. Replace the required files and submit them again.'}</p>}
       {verification === 'pending' && (
         <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
           <Clock3 size={16} aria-hidden className="mt-0.5 shrink-0 text-sky-700" />
@@ -1529,9 +1543,9 @@ export default function TechnicianDashboardPage() {
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
-    void fetch('/api/technicians/documents', { cache: 'no-store' }).then(async (response) => {
+    void technicianAuthHeaders().then(headers => fetch('/api/technicians/documents', { headers, cache: 'no-store' })).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Could not load document review status.');
+      if (!response.ok) throw new Error(response.status === 401 ? 'Sign in again to view verified document status.' : payload?.error || 'Could not load document review status.');
       if (cancelled) return;
       const serverFiles = payload?.data?.files ?? {};
       const map: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
