@@ -446,8 +446,12 @@ function usePersisted<T>(key: string, initial: T, normalize: (raw: unknown) => T
       try {
         setValue(normalizeRef.current(JSON.parse(raw)));
       } catch {
-        /* ignore corrupt data */
+        setValue(normalizeRef.current(undefined));
       }
+    } else {
+      // When the signed-in user changes, clear previous user state before loading
+      // the new key. Never carry sensitive document metadata across accounts.
+      setValue(normalizeRef.current(undefined));
     }
     readyRef.current = true;
     setReady(true);
