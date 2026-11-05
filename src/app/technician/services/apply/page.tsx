@@ -55,7 +55,13 @@ export default function TechnicianServiceApplicationPage() {
   const reload=useCallback(async()=>{
     if(!eligible)return;
     setLoading(true);setError('');
-    try {setStatus(await authorized<Status>('GET'));}
+    try {
+      const next=await authorized<Status>('GET');
+      setStatus(next);
+      const firstUnapproved=(Object.keys(TECHNICIAN_SERVICE_OPTIONS) as TechnicianServiceKey[])
+        .find(key => !next.approved_services.includes(key));
+      if(firstUnapproved) setServiceKey(firstUnapproved);
+    }
     catch(e){setStatus(null);setError(e instanceof Error?e.message:'Could not load eligibility.');}
     finally{setLoading(false);}
   },[eligible]);
@@ -95,7 +101,11 @@ export default function TechnicianServiceApplicationPage() {
   const name=(service:TechnicianServiceKey)=>hi?TECHNICIAN_SERVICE_OPTIONS[service].hindi:TECHNICIAN_SERVICE_OPTIONS[service].label;
   const keys=Object.keys(TECHNICIAN_SERVICE_OPTIONS) as TechnicianServiceKey[];
   const pending=status?.pending_application;
-  const canSubmit=eligible && Boolean(status?.account_active && status?.documents_approved) && !pending && !loading;
+  const allServicesApproved=Boolean(status && (Object.keys(TECHNICIAN_SERVICE_OPTIONS) as TechnicianServiceKey[])
+    .every(k => status.approved_services.includes(k)));
+  const profileComplete=Boolean(status?.full_name?.trim() && status?.city?.trim());
+  const canSubmit=eligible && Boolean(status?.account_active && status?.documents_approved) &&
+    profileComplete && !pending && !loading && !allServicesApproved;
   const errorText=error==='SIGN_IN_REQUIRED'
     ? (hi?'फिर से लॉगिन करके आवेदन देखें।':'Sign in again to view or submit your application.')
     :error;
@@ -135,7 +145,12 @@ export default function TechnicianServiceApplicationPage() {
           <p>{hi?'पहचान के दस्तावेज़':'Identity documents'}: <strong>{status.documents_approved?(hi?'मंज़ूर':'Approved'):(hi?'जाँच बाकी':'Review pending')}</strong></p>
           <p>{hi?'मंज़ूर सेवाएँ':'Already approved'}: <strong>{status.approved_services.length?status.approved_services.join(', '):(hi?'अभी कोई नहीं':'None yet')}</strong></p>
         </div>
-        {pending ? <div role="status" className="mt-4 rounded-xl bg-sky-50 p-4 text-sm text-sky-950">
+        {allServicesApproved ? <p className="mt-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+          {hi?'इन सभी सर्विस के लिए मंज़ूरी मिल चुकी है। नई जॉब के लिए डैशबोर्ड देखें।':'All listed services are already approved. Open your dashboard to receive eligible jobs.'}
+        </p> : !profileComplete ? <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          {hi?'पहले प्रोफ़ाइल में नाम और शहर सही भरें।':'Add your registered name and city to your profile first.'}
+          <Link href="/technician/dashboard#profile" className="ml-2 font-bold underline">{hi?'प्रोफ़ाइल खोलें':'Open profile'}</Link>
+        </p> : pending ? <div role="status" className="mt-4 rounded-xl bg-sky-50 p-4 text-sm text-sky-950">
           <h2 className="font-bold">{hi?'आवेदन जाँच में है':'Application under review'}</h2>
           <p className="mt-2">{hi?'अलग से नया आवेदन करने की ज़रूरत नहीं है।':'Do not submit another registration while this request is pending.'}</p>
           <p className="mt-1 break-all font-mono">{pending.id}</p>
