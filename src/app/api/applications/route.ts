@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import {PARTNER_ROLE_POLICY,registrationRoleMatchesSkills} from '@/lib/partner-onboarding-policy';
+import { createServiceClient } from '@/utils/supabase/server';
 
 import {
   jsonErr,
@@ -271,7 +272,7 @@ export async function POST(
     data: application,
     error:
       applicationError,
-  } = await supabase
+  } = await createServiceClient()
     .from('applications')
     .insert({
       user_id: userId,
@@ -308,6 +309,29 @@ export async function POST(
     );
   }
 
+  // The applicant owns the application. A small admin team is notified in-app
+  // only after a confirmed write; failed notifications never undo the application.
+  try {
+    const db = createServiceClient();
+    const { data: admins } = await db.from('profiles').select('id')
+      .eq('role', 'admin').eq('is_active', true).limit(20);
+    if (admins?.length) {
+      const { error: noticeError } = await db.from('notifications').upsert(
+        admins.map((admin) => ({
+          user_id: admin.id,
+          type: 'system',
+          title: 'New ' + body.type + ' application',
+          message: 'A new partner is awaiting application and document review.',
+          data: { application_id: application.id, url: '/admin/technician-capabilities' },
+          dedup_key: 'partner_' + application.id + '_new_' + admin.id,
+          is_read: false,
+        })), { onConflict: 'dedup_key', ignoreDuplicates: true },
+      );
+      if (noticeError) console.error('[applications] admin notification unavailable', noticeError.code);
+    }
+  } catch (e) {
+    console.error('[applications] admin notification failed', e instanceof Error ? e.message : 'unknown');
+  }
   return jsonOk(
     application,
     201,
