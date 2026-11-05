@@ -13,6 +13,11 @@ on:
         type: boolean
         required: false
         default: false
+      run_platform_stage_role_matrix:
+        description: 'Run read-only cross-role staging API authorization checks'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -35,6 +40,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -54,6 +61,11 @@ jobs:
       # Always runs when ANY application code changes; not regex-only verification.
       - name: Technician role and service approval lifecycle contract
         run: npm run test:technician:contract
+
+      - name: Platform-wide role, route and dependency contracts
+        run: npm run test:platform:contract
+        env:
+          PLATFORM_DIFF_BASE: ${{ github.event.pull_request.base.sha }}
 
       - name: Regression tests
         run: npm run test:regression
@@ -94,3 +106,34 @@ jobs:
           ADMIN_STAGE_PASSWORD: ${{ secrets.ADMIN_STAGE_PASSWORD }}
           VERCEL_AUTOMATION_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS }}
         run: npm run test:technician:stage
+
+  platform-stage-roles:
+    name: Read-only role matrix - isolated staging
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_platform_stage_role_matrix }}
+    needs: quality
+    runs-on: ubuntu-24.04
+    environment: staging-e2e
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Cross-role read-only HTTP matrix (all 4 roles)
+        env:
+          PLATFORM_STAGE_URL: ${{ vars.PLATFORM_STAGE_URL }}
+          PLATFORM_STAGE_DB_ISOLATED: ${{ vars.PLATFORM_STAGE_DB_ISOLATED }}
+          PLATFORM_STAGE_SUPABASE_URL: ${{ vars.PLATFORM_STAGE_SUPABASE_URL }}
+          PLATFORM_STAGE_SUPABASE_ANON_KEY: ${{ vars.PLATFORM_STAGE_SUPABASE_ANON_KEY }}
+          PLATFORM_STAGE_CUSTOMER_EMAIL: ${{ secrets.PLATFORM_STAGE_CUSTOMER_EMAIL }}
+          PLATFORM_STAGE_CUSTOMER_PASSWORD: ${{ secrets.PLATFORM_STAGE_CUSTOMER_PASSWORD }}
+          PLATFORM_STAGE_SUPPLIER_EMAIL: ${{ secrets.PLATFORM_STAGE_SUPPLIER_EMAIL }}
+          PLATFORM_STAGE_SUPPLIER_PASSWORD: ${{ secrets.PLATFORM_STAGE_SUPPLIER_PASSWORD }}
+          PLATFORM_STAGE_TECHNICIAN_EMAIL: ${{ secrets.PLATFORM_STAGE_TECHNICIAN_EMAIL }}
+          PLATFORM_STAGE_TECHNICIAN_PASSWORD: ${{ secrets.PLATFORM_STAGE_TECHNICIAN_PASSWORD }}
+          PLATFORM_STAGE_ADMIN_EMAIL: ${{ secrets.PLATFORM_STAGE_ADMIN_EMAIL }}
+          PLATFORM_STAGE_ADMIN_PASSWORD: ${{ secrets.PLATFORM_STAGE_ADMIN_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS }}
+        run: npm run test:platform:stage
