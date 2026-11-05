@@ -1629,28 +1629,79 @@ export default function TechnicianDashboardPage() {
     return () => window.clearTimeout(t);
   }, [allowed,preferencesLoaded,userId,profile.skills,profile.serviceCities]);
 
+  const [serviceReady, setServiceReady] = useState(false);
+  const [accountOperational, setAccountOperational] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+  const lastDocCheck = useRef(0);
+
+  // Read independent identity, operational and service approvals from the server.
+  // No local-storage document flag can ever make a technician eligible for a job.
+  const refreshDocumentStatus = useCallback(async () => {
+    if (!allowed || !userId) return;
+    try {
+      const headers = await technicianAuthHeaders();
+      const [docsResponse, serviceResponse, onlineResponse] = await Promise.all([
+        fetch('/api/technicians/documents', { headers, cache: 'no-store' }),
+        fetch('/api/technician/specializations', { headers, cache: 'no-store' }),
+        fetch('/api/technician/availability', { headers, cache: 'no-store' }),
+      ]);
+      const payload = await docsResponse.json().catch(() => ({}));
+      if (!docsResponse.ok) throw new Error(payload?.error || 'Document verification unavailable.');
+      const files = payload?.data?.files ?? {};
+      const fields: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
+      const latest: TechDocs = {};
+      for (const [slot, field] of Object.entries(fields)) {
+        const file = files[slot];
+        if (file?.id) latest[field] = {
+          id: file.id, name: file.original_name || '', size: file.size_bytes || 0,
+          status: file.review_status === 'approved' ? 'verified' : file.review_status === 'rejected' ? 'rejected' : 'submitted',
+        };
+      }
+      setDocs(latest);
+      const state = payload?.data?.verification_status;
+      setVerification(state === 'verified' || state === 'pending' || state === 'rejected' ? state : 'unverified');
+      setDocumentError('');
+      if (serviceResponse.ok) {
+        const approvals = await serviceResponse.json().catch(() => ({}));
+        setServiceReady(Array.isArray(approvals?.data?.approved) && approvals.data.approved.length > 0);
+        setAccountOperational(approvals?.data?.profile?.active === true && approvals?.data?.profile?.verification === 'approved');
+      } else {
+        setServiceReady(false);
+        setAccountOperational(false);
+      }
+      if (onlineResponse.ok) {
+        const status = await onlineResponse.json().catch(() => ({}));
+        setOnline(status?.data?.online === true ? 'online' : 'offline');
+      }
+    } catch (e) {
+      setServiceReady(false);
+      setAccountOperational(false);
+      setDocumentError(e instanceof Error ? e.message : 'Could not check verification.');
+    } finally { lastDocCheck.current = Date.now(); }
+  }, [allowed, userId]);
+
   useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-    void technicianAuthHeaders().then(headers => fetch('/api/technicians/documents', { headers, cache: 'no-store' })).then(async (response) => {
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(response.status === 401 ? 'Sign in again to view verified document status.' : payload?.error || 'Could not load document review status.');
-      if (cancelled) return;
-      const serverFiles = payload?.data?.files ?? {};
-      const map: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
-      setDocs((current) => {
-        const next = { ...current };
-        for (const [slot, field] of Object.entries(map)) {
-          const file = serverFiles[slot];
-          if (file?.id) next[field] = { id: file.id, name: file.original_name, size: file.size_bytes, status: file.review_status === 'approved' ? 'verified' : file.review_status === 'rejected' ? 'rejected' : 'submitted' };
-        }
-        return next;
-      });
-      const status = payload?.data?.verification_status;
-      if (status === 'verified' || status === 'pending' || status === 'rejected') setVerification(status);
-    }).catch((error) => console.error('[TechnicianDashboard] document status load failed:', error));
-    return () => { cancelled = true; };
-  }, [allowed]);
+    if (!allowed || !userId) return;
+    void refreshDocumentStatus();
+    const visible = () => document.visibilityState === 'visible' && navigator.onLine;
+    const maybeRefresh = () => {
+      if (visible() && Date.now() - lastDocCheck.current >= 20_000) void refreshDocumentStatus();
+    };
+    const onOnline = () => { if (visible()) void refreshDocumentStatus(); };
+    const onChanged = () => { if (visible()) void refreshDocumentStatus(); };
+    const poll = window.setInterval(() => { if (visible()) void refreshDocumentStatus(); }, 45_000);
+    document.addEventListener('visibilitychange', maybeRefresh);
+    window.addEventListener('focus', maybeRefresh);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('aurotap:verification-changed', onChanged);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener('visibilitychange', maybeRefresh);
+      window.removeEventListener('focus', maybeRefresh);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('aurotap:verification-changed', onChanged);
+    };
+  }, [allowed, userId, refreshDocumentStatus]);
 
   const saveProfileToServer = useCallback(async (updated: TechProfile) => {
     try {
@@ -1697,25 +1748,6 @@ export default function TechnicianDashboardPage() {
         if(key?.startsWith(JOBS_CACHE_PREFIX) && key !== JOBS_CACHE_PREFIX + storageOwner) sessionStorage.removeItem(key);
       }
     } catch { /* browser storage may be disabled */ }
-
-    async function fetchVerification() {
-      try {
-        const res = await fetch('/api/technicians/profile');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.verification_status) {
-            setVerification(data.verification_status);
-            lsSet(KEYS.VERIFICATION, data.verification_status);
-            return;
-          }
-        }
-      } catch {
-        // Fallback to local cache if offline
-      }
-      const savedVerif = lsGet(KEYS.VERIFICATION);
-      setVerification(savedVerif === 'verified' || savedVerif === 'pending' ? savedVerif : 'unverified');
-    }
-    void fetchVerification();
 
     try {
       const profileRaw = lsGet(KEYS.USER_PROFILE);
@@ -2003,8 +2035,10 @@ export default function TechnicianDashboardPage() {
   }
 
   const displayName = techName || roleLabel;
-  const canAccept = verification === 'verified' && online === 'online';
-  const acceptReason = verification !== 'verified' ? 'Get verified to accept jobs.' : online !== 'online' ? 'Go online to accept jobs.' : null;
+  const canAccept = verification === 'verified' && serviceReady && accountOperational && online === 'online';
+  const acceptReason = verification !== 'verified' ? (isHindi ? 'पहचान की जाँच पूरी करें।' : 'Complete identity verification.')
+    : !serviceReady || !accountOperational ? (isHindi ? 'एडमिन की सर्विस मंज़ूरी बाकी है।' : 'Admin service approval required.')
+    : online !== 'online' ? (isHindi ? 'नई जॉब के लिए ऑनलाइन हों।' : 'Go online to accept jobs.') : null;
   const inProgressCount = stageCounts.in_progress;
 
   const badgeFor = (key: TabKey) => (key === 'queue' ? offers.length : key === 'my_jobs' ? inProgressCount : 0);
@@ -2106,6 +2140,12 @@ export default function TechnicianDashboardPage() {
               </div>
             </div>
 
+            {documentError && (
+              <p role="status" className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                {isHindi ? 'डॉक्यूमेंट और सर्विस स्टेटस अपडेट नहीं हो पाया।' : 'Document or service status could not be checked.'}
+                <button type="button" onClick={() => void refreshDocumentStatus()} className="ml-2 font-bold underline">{isHindi ? 'फिर कोशिश करें' : 'Retry'}</button>
+              </p>
+            )}
             {error && (
               <div className="mb-5 space-y-2" role="alert">
                 <DatabaseErrorBanner message={error} />
