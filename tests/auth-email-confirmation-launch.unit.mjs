@@ -22,7 +22,8 @@ test('unconfirmed Supabase signup response is treated as pending rather than fai
 });
 
 test('referral handoff remains preserved in future verification mode', () => {
-  assert.match(signupPage, /referralReturnPath\(params\.get\('returnTo'\)\)/);
-  assert.match(signupPage, /const customerReturn = role === 'customer' \? returnTo : null/);
-  assert.match(signupPage, /router\.replace\(result\.profile\.role === 'customer' && returnTo \? returnTo : cfg\.dest\)/);
+  assert.ok(signupPage.includes("referralReturnPath(new URLSearchParams(window.location.search).get('returnTo'))"));
+  assert.ok(signupPage.includes("role === 'customer' && referralDestination"));
+  assert.ok(signupPage.includes("router.replace(result.profile.role === 'customer' && referralDestination ? referralDestination : destination)"));
 });
+
