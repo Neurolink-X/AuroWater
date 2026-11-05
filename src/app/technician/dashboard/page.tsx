@@ -1313,7 +1313,7 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
                 <legend className="sr-only">{title}</legend>
                 {choices.map(choice => (
                   <label key={choice} className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs font-semibold text-slate-800">
-                    <input type="checkbox" checked={profile[field].includes(choice)} onChange={() => toggleIn(field,choice)} className="h-4 w-4 accent-emerald-600" /> {choice}
+                    <input type="checkbox" checked={(profile[field] as readonly string[]).includes(choice)} onChange={() => toggleIn(field,choice)} className="h-4 w-4 accent-emerald-600" /> {choice}
                   </label>
                 ))}
               </fieldset>
