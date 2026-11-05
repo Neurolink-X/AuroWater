@@ -975,16 +975,18 @@ function UploadArea({ label, required, current, onPick, onRemove, disabled }: { 
 }
 
 const OverviewTab = memo(function OverviewTab({
-  techName, roleLabel, greeting, online, onlineBusy, onOnline, verification, stats, activeJob, nextJob, offers, onTab, onComplete,
+  techName, roleLabel, greeting, online, onlineBusy, onOnline, verification, serviceApproved, stats, activeJob, nextJob, offers, onTab, onComplete,
 }: {
   techName: string; roleLabel: string; greeting: string; online: TechnicianOnline; onlineBusy: boolean;
-  onOnline: (v: TechnicianOnline) => void; verification: VerificationStatus; stats: Stats;
+  onOnline: (v: TechnicianOnline) => void; verification: VerificationStatus; serviceApproved: boolean; stats: Stats;
   activeJob: Job | null; nextJob: Job | null; offers: Job[]; onTab: (t: TabKey) => void; onComplete: (j: Job) => void;
 }) {
   const isHindi = useDashboardLanguage() === 'hi';
   const banner =
-    verification === 'verified'
+    verification === 'verified' && serviceApproved
       ? { cls: 'bg-emerald-600', text: isHindi ? `AuroWater ${roleLabel === 'Plumber' ? 'प्लंबर' : 'टेक्नीशियन'} सत्यापित। आप जॉब स्वीकार कर सकते हैं।` : `Verified AuroWater ${roleLabel.toLowerCase()}. You can accept jobs.`, cta: null as string | null }
+      : verification === 'verified'
+        ? { cls: 'bg-sky-700', text: isHindi ? 'आधार और फोटो मंज़ूर हैं। सर्विस की मंज़ूरी अलग से ज़रूरी है।' : 'Your identity photos are approved. Service approval is still required for new jobs.', cta: null }
       : verification === 'pending'
         ? { cls: 'bg-sky-700', text: isHindi ? 'आपकी ID की जाँच चल रही है। इसमें आमतौर पर 1 से 2 कार्यदिवस लगते हैं।' : 'Your ID is under review. This usually takes 1 to 2 business days.', cta: null }
         : { cls: 'bg-amber-600', text: isHindi ? 'जॉब स्वीकार करने के लिए प्रोफ़ाइल पूरी करें और ID जोड़ें।' : 'Complete your profile and add your ID to start accepting jobs.', cta: isHindi ? 'दस्तावेज़ जोड़ें' : 'Add documents' };
@@ -1689,7 +1691,7 @@ export default function TechnicianDashboardPage() {
     };
     const onOnline = () => { if (visible()) void refreshDocumentStatus(); };
     const onChanged = () => { if (visible()) void refreshDocumentStatus(); };
-    const poll = window.setInterval(() => { if (visible()) void refreshDocumentStatus(); }, 45_000);
+    const poll = window.setInterval(() => { if (visible()) void refreshDocumentStatus(); }, 60_000);
     document.addEventListener('visibilitychange', maybeRefresh);
     window.addEventListener('focus', maybeRefresh);
     window.addEventListener('online', onOnline);
@@ -2154,7 +2156,7 @@ export default function TechnicianDashboardPage() {
             )}
 
             {tab === 'overview' && (
-              <OverviewTab techName={displayName} roleLabel={roleLabel} greeting={greeting} online={online} onlineBusy={onlineBusy} onOnline={handleOnline} verification={verification} stats={stats} activeJob={activeJob} nextJob={nextJob} offers={offers} onTab={changeTab} onComplete={handlers.onComplete} />
+              <OverviewTab techName={displayName} roleLabel={roleLabel} greeting={greeting} online={online} onlineBusy={onlineBusy} onOnline={handleOnline} verification={verification} serviceApproved={serviceReady && accountOperational} stats={stats} activeJob={activeJob} nextJob={nextJob} offers={offers} onTab={changeTab} onComplete={handlers.onComplete} />
             )}
 
             {tab === 'queue' && (
