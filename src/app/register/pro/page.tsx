@@ -618,8 +618,9 @@ function ApplicationCard({
   onSubmit: (v: Payload) => Promise<boolean>;
 }) {
   const r = ROLES[role];
+  const existingTechnician = signedIn && accountRole === 'technician';
   const incompatible = signedIn && Boolean(accountRole) &&
-    !['customer', kind, 'admin'].includes(accountRole!);
+    (existingTechnician || !['customer', kind].includes(accountRole!));
   return (
     <div className={`rounded-[32px] bg-[#E3EDF6] p-5 sm:p-7 ${RAISED}`}>
       <nav aria-label="Choose your work" className={`flex gap-1 overflow-x-auto rounded-2xl bg-[#E3EDF6] p-1.5 ${INSET} [scrollbar-width:none]`}>
@@ -647,12 +648,17 @@ function ApplicationCard({
         )}
       </p>
       <p className="mt-1 text-xs text-slate-500">You need: {r.needs}.</p>
-      {incompatible && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-        यह लॉगिन पहले से {accountRole} भूमिका से जुड़ा है। / This login is already a {accountRole} account.
-        You can keep using it, but professional roles cannot currently be combined here.
-        <Link href="/contact" className="ml-1 font-bold underline">Contact support for role access</Link>.
-      </div>}
-      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} incompatible={incompatible} resumeAfterSignIn={resumeAfterSignIn} onSubmit={onSubmit} />
+      {existingTechnician ? <div role="status" className="mt-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
+        <p className="font-bold">आपका टेक्नीशियन अकाउंट पहले से बना है। / Your technician account already exists.</p>
+        <p className="mt-1">नई सर्विस के लिए फिर से रजिस्टर न करें। / Request another service without repeating registration.</p>
+        <Link href="/technician/services/apply" className="mt-3 inline-flex min-h-11 items-center rounded-lg bg-emerald-700 px-4 py-2 font-bold text-white">
+          Apply for service approval →
+        </Link>
+        {kind === 'supplier' && <p className="mt-2">Supplier account अलग भूमिका है। / Supplier access requires a separate account or verified support review.</p>}
+      </div> : incompatible ? <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        यह लॉगिन पहले से {accountRole} भूमिका से जुड़ा है। / This login already belongs to the {accountRole} role.
+        <Link href="/contact" className="ml-1 font-bold underline">Contact support about professional account access.</Link>
+      </div> : <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} incompatible={false} resumeAfterSignIn={resumeAfterSignIn} onSubmit={onSubmit} />}
     </div>
   );
 }
