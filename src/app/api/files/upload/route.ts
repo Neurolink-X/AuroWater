@@ -32,6 +32,16 @@ export async function POST(req: NextRequest) {
   const userId = auth.ctx.user.id;
   const role = auth.ctx.profile.role;
   if (!(UPLOAD_ROLES as readonly string[]).includes(role)) return fail('Your account cannot upload files.', 403);
+  // A newly registered technician is still a customer until admin approval.
+  // Customer uploads of KYC slots are allowed ONLY when they own a pending application.
+  let pendingTechnicianApplicant = false;
+  if (role === 'customer') {
+    const { data: application, error: eligibilityError } = await createServiceClient()
+      .from('applications').select('id').eq('user_id', userId).eq('type', 'technician')
+      .in('status', ['pending', 'pending_approval']).limit(1).maybeSingle();
+    if (eligibilityError) return fail('Could not verify your application. Please retry.', 503);
+    pendingTechnicianApplicant = Boolean(application);
+  }
 
   const db = createServiceClient();
 
@@ -63,10 +73,18 @@ export async function POST(req: NextRequest) {
   let slotName: string | null = null;
   if (slot !== null) {
     if (!isDocumentSlot(slot) || DOCUMENT_SLOTS[slot].category !== category) return fail('Invalid document type.', 422);
-    if (!(DOCUMENT_SLOTS[slot].roles as readonly string[]).includes(role)) return fail('This document type is not available for your account.', 403);
+    const directRoleAllowed = (DOCUMENT_SLOTS[slot].roles as readonly string[]).includes(role);
+    const applicantSlotAllowed = pendingTechnicianApplicant &&
+      (DOCUMENT_SLOTS[slot].roles as readonly string[]).includes('technician');
+    if (!directRoleAllowed && !applicantSlotAllowed)
+      return fail('This document type is not available for your account.', 403);
     slotName = slot;
   }
 
+  // Do not turn an ordinary customer account into an unrestricted upload endpoint.
+  if (role === 'customer' && !pendingTechnicianApplicant &&
+      category !== 'profile_photo' && category !== 'support_attachment')
+    return fail('Submit and sign in to your technician application before uploading verification documents.', 403);
   if (!isValidPrivateFileSize(file.size)) return fail('Files must be between 1 byte and 5 MB.', 413);
   const bytes = new Uint8Array(await file.arrayBuffer());
 

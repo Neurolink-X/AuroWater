@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import PendingPartnerApplications from '@/components/admin/PendingPartnerApplications';
 import { toast } from 'sonner';
 import {
   adminUsersWithMeta,
@@ -232,7 +233,10 @@ export default function AdminUsersPage() {
           </p>
         </div>
 
-        <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20">Account Help &amp; Recovery</Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/verification" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2.5 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20">Verify documents</Link>
+          <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold text-slate-100 hover:bg-white/10">Account Help &amp; Recovery</Link>
+        </div>
         <button
           type="button"
           onClick={() => void load(true)}
@@ -365,6 +369,12 @@ export default function AdminUsersPage() {
           </div>
         </div>
       ) : null}
+
+      {/* The existing Pending approval section is the only entry point for new
+          professional registrations. Do not promote a customer profile directly:
+          the atomic specialist application review enforces verified documents. */}
+      {view === 'pending' && roleTab !== 'ADMIN' && roleTab !== 'CUSTOMER' &&
+        <PendingPartnerApplications roleFilter={roleTab} search={q} />}
 
       {/* Users table */}
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-card overflow-hidden">

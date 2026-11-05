@@ -127,6 +127,10 @@ export default function AdminVerificationPage() {
           <p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-300">Trust &amp; safety</p>
           <h1 className="mt-2 text-2xl font-black">Document Verification</h1>
           <p className="mt-1 text-sm text-slate-400">Oldest first. Every view and decision is audit-logged.</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
+            <a href="/admin/technician-capabilities" className="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-cyan-200 hover:bg-cyan-400/20">Partner applications & approval →</a>
+            <a href="/admin/dashboard/users" className="rounded-xl border border-white/20 px-4 py-2 text-slate-200 hover:bg-white/10">Account approvals</a>
+          </div>
         </div>
         <button onClick={() => void load()} disabled={loading} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-50">{loading ? 'Refreshing…' : 'Refresh'}</button>
       </header>
