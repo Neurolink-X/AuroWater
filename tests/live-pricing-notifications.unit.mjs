@@ -44,7 +44,10 @@ test('notifications are discoverable and suppliers do not lose unread alerts on 
   const header = read('src/components/layout/Header.tsx');
   const dashboard = read('src/app/supplier/dashboard/page.tsx');
   const notifications = read('src/app/notifications/page.tsx');
-  assert.match(header, /aria-label="Notifications and alerts"/);
+  // Notification inbox lives in the desktop account menu and mobile drawer.
+  // The crowded top bar intentionally has no standalone notification bell.
+  assert.match(header, /href="\\/notifications"/);
+  assert.doesNotMatch(header, /<NotificationBell/);
   assert.match(dashboard, /onClick=\{\(\) => setShowNotifs\(\(v\) => !v\)\}/);
   assert.match(dashboard, /Mark all read/);
   assert.match(dashboard, /In-app order notifications are always on/);
