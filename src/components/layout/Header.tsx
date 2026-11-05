@@ -1150,7 +1150,7 @@ import { clearSession, useAuth } from '@/hooks/useAuth';
 import { authLogout, getToken } from '@/lib/api-client';
 import { createClient } from '@/utils/supabase/client';
 import { safeSet } from '@/lib/storage';
-import { Bell as NotificationBell } from 'lucide-react';
+
 
 /* ───────────── Navigation data ───────────── */
 
@@ -2052,18 +2052,6 @@ export default function Header() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </Link>
-
-            {hydrated && isLoggedIn && (
-              <Link
-                href="/notifications"
-                prefetch={false}
-                aria-label="Notifications and alerts"
-                title="Notifications and alerts"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-              >
-                <NotificationBell className="h-[19px] w-[19px]" aria-hidden="true" />
-              </Link>
-            )}
 
             <button
               type="button"
