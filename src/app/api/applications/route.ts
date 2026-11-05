@@ -173,7 +173,7 @@ export async function POST(
 
   // A contact number supplied in a form is not proof of phone ownership.
   // Only Supabase Auth phone confirmation may be trusted as phone verification.
-  const authPhone = (auth.ctx.user.phone ?? '').replace(/\\D/g, '').slice(-10);
+  const authPhone = (auth.ctx.user.phone ?? '').replace(/[^0-9]/g, '').slice(-10);
   const verifiedPhone = Boolean(auth.ctx.user.phone_confirmed_at && authPhone.length === 10);
   if (verifiedPhone && body.phone !== authPhone) {
     return jsonErr('Use the mobile number verified on this login, or contact support to change it.', 422, 'PHONE_MISMATCH');
