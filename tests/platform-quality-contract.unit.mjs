@@ -40,11 +40,13 @@ test('a green general test cannot hide booking-specific regressions', () => {
   ]);
   assert.ok(evidence.problems.some(p=>p.includes('booking')));
   assert.equal(evidence.summary.domains.includes('booking'),true);
-  const fixed=enforceChangeImpact([
-    'src/app/api/customer/orders/route.ts',
-    'tests/booking-order-creation.unit.mjs',
-  ]);
-  assert.equal(fixed.problems.length,0);
+  const source='src/app/api/customer/orders/route.ts';
+  const ownedTests=domainsForChangedPath(source).map(d=>'tests/'+d+'-integration.unit.mjs');
+  const fixed=enforceChangeImpact([source,...ownedTests]);
+  assert.deepEqual(fixed.problems,[]);
+  assert.ok(fixed.summary.domains.includes('finance'));
+  assert.ok(fixed.summary.domains.includes('notifications'));
+  assert.ok(fixed.summary.domains.includes('dispatch'));
 });
 
 test('shared authentication modifications require affected role/access tests', () => {
@@ -57,7 +59,8 @@ test('shared authentication modifications require affected role/access tests', (
 test('supplier job changes must update supplier/dispatch-relevant regression tests', () => {
   const bad=enforceChangeImpact(['src/app/api/supplier/orders/route.ts','tests/admin-list.unit.mjs']);
   assert.ok(bad.problems.some(x=>x.includes('supplier')));
-  const good=enforceChangeImpact(['src/app/api/supplier/orders/route.ts','tests/supplier-order-assignment.unit.mjs']);
+  const changed='src/app/api/supplier/orders/route.ts';
+  const good=enforceChangeImpact([changed,...domainsForChangedPath(changed).map(d=>'tests/'+d+'-integration.unit.mjs')]);
   assert.deepEqual(good.problems,[]);
 });
 
@@ -97,12 +100,14 @@ test('contract scanner rejects missing role-guarded API and missing UI route',()
 });
 
 test('test suite guards policy itself against inverted acceptance decisions',()=>{
-  const controlled=[
-    'src/app/api/customer/orders/route.ts','tests/booking-order-creation.unit.mjs',
-    'src/app/api/technician/jobs/route.ts','tests/technician-job-permission.unit.mjs',
-    'src/app/api/admin/users/route.ts','tests/admin-approval-permissions.unit.mjs',
+  const sources=[
+    'src/app/api/customer/orders/route.ts',
+    'src/app/api/technician/jobs/route.ts',
+    'src/app/api/admin/users/route.ts',
   ];
-  assert.deepEqual(requiredTestEvidence(controlled).missing,[]);
-  const removed=controlled.filter(p=>p!=='tests/technician-job-permission.unit.mjs');
-  assert.ok(requiredTestEvidence(removed).missing.includes('technician'));
+  const dependent=[...new Set(sources.flatMap(domainsForChangedPath))];
+  const evidence=dependent.map(d=>'tests/'+d+'-cross-role.unit.mjs');
+  assert.deepEqual(requiredTestEvidence([...sources,...evidence]).missing,[]);
+  const removed=evidence.filter(p=>!p.includes('/technician-'));
+  assert.ok(requiredTestEvidence([...sources,...removed]).missing.includes('technician'));
 });
