@@ -121,7 +121,7 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
 
   if (!enabled) return null;
   const approved = data?.approved ?? [];
-  const verified = approved.length > 0 && data?.profile.active === true;
+  const verified = approved.length > 0 && data?.profile.active === true && data?.profile.verification === 'approved';
   const docs = data?.documents;
   const hasPendingApplication = data?.application && ['pending','pending_approval'].includes(data.application.status);
   const docsReady = docs?.status === 'approved';
