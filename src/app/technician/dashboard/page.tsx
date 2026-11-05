@@ -1556,6 +1556,7 @@ export default function TechnicianDashboardPage() {
   const [availability, setAvailability] = usePersisted<Availability>(`${KEYS.AVAILABILITY}:${storageOwner}`, {}, normalizeAvailability);
   const [docs, setDocs] = usePersisted<TechDocs>(`${KEYS.DOCS}:${storageOwner}`, {}, normalizeDocs);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const lastSyncedSelectionsRef = useRef<string | null>(null);
 
   // Sync *self-declared* preferences between phones without granting job skills.
   // Admin-reviewed technician_service_capabilities remain the only entitlement.
@@ -1563,12 +1564,19 @@ export default function TechnicianDashboardPage() {
     if (!allowed || !userId || !profileReady) return;
     let cancelled = false;
     setPreferencesLoaded(false);
+    lastSyncedSelectionsRef.current = null;
     void createClient().auth.getUser().then(({data,error}) => {
       if (cancelled) return;
       if (!error && data.user?.id === userId) {
         const meta = data.user.user_metadata ?? {};
         const requested = Array.isArray(meta.requested_skills) ? meta.requested_skills : null;
         const cities = Array.isArray(meta.requested_service_cities) ? meta.requested_service_cities : null;
+        if (requested || cities) {
+          lastSyncedSelectionsRef.current = JSON.stringify({
+            skills: (requested ?? []).map((s: unknown) => s === 'Tank Cleaning' ? 'Tank Cleaning Service' : s),
+            cities: cities ?? [],
+          });
+        }
         if (requested || cities) setProfile(prev => ({
           ...prev,
           skills: requested
@@ -1588,12 +1596,17 @@ export default function TechnicianDashboardPage() {
   useEffect(() => {
     if (!allowed || !preferencesLoaded || !userId) return;
     const t = window.setTimeout(() => {
+      const fingerprint = JSON.stringify({ skills: profile.skills, cities: profile.serviceCities });
+      if (lastSyncedSelectionsRef.current === fingerprint) return;
+      // Don't write an empty preference document during ordinary dashboard visits.
+      if (lastSyncedSelectionsRef.current === null && !profile.skills.length && !profile.serviceCities.length) return;
       void createClient().auth.updateUser({ data: {
         requested_skills: profile.skills.map(s => s === 'Tank Cleaning Service' ? 'Tank Cleaning' : s),
         requested_service_cities: profile.serviceCities,
       } }).then(({error}) => {
         if (error) console.warn('[technician/profile] preference sync unavailable', error.code);
-      }).catch(() => { /* kept safely on this device; sync resumes on next edit */ });
+        else lastSyncedSelectionsRef.current = fingerprint;
+      }).catch(() => { /* retained on this device */ });
     }, 900);
     return () => window.clearTimeout(t);
   }, [allowed,preferencesLoaded,userId,profile.skills,profile.serviceCities]);
