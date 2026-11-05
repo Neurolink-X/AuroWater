@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const id = auth.ctx.profile.id;
   const db = createServiceClient();
-  const [capabilities, applications] = await Promise.all([
+  const [capabilities, applications, documents] = await Promise.all([
     db.from('technician_service_capabilities')
       .select('service_key,status,reviewed_at')
       .eq('technician_id', id).order('service_key', { ascending: true }).limit(20),
@@ -24,20 +24,38 @@ export async function GET(req: NextRequest) {
       .select('id,status,created_at,payload,rejection_note')
       .eq('user_id', id).eq('type', 'technician')
       .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('user_files')
+      .select('document_slot,review_status')
+      .eq('owner_user_id', id)
+      .in('document_slot', ['aadhaar_front','aadhaar_back','profile_photo'])
+      .order('created_at',{ascending:false}).limit(30),
   ]);
 
-  if (capabilities.error || applications.error) {
+  if (capabilities.error || applications.error || documents.error) {
     console.error('[technician/specializations] private read unavailable', {
       capabilityCode: capabilities.error?.code,
       applicationCode: applications.error?.code,
+      documentCode: documents.error?.code,
     });
     return jsonErr('Service approvals are temporarily unavailable; jobs remain protected.', 503);
   }
 
+  // Document approval, account verification and service skill approval are separate.
+  // A completed KYC upload must not silently grant permissions or activate dispatch.
+  const newest = new Map<string,string>();
+  for(const row of documents.data ?? []) {
+    if(row.document_slot && !newest.has(row.document_slot)) newest.set(row.document_slot, row.review_status);
+  }
+  const required = ['aadhaar_front','aadhaar_back','profile_photo'];
+  const docsApproved = required.every(slot=>newest.get(slot)==='approved');
+  const docsSubmitted = required.every(slot=>newest.has(slot));
+  const docsRejected = required.some(slot=>newest.get(slot)==='rejected');
+  const documentStatus = docsApproved?'approved':docsRejected?'rejected':docsSubmitted?'under_review':'not_submitted';
   const application = applications.data;
   const proposed = application?.payload && typeof application.payload === 'object' && !Array.isArray(application.payload)
     ? application.payload as Record<string, unknown> : null;
   const response = jsonOk({
+    documents: { status: documentStatus, approved_count: required.filter(s=>newest.get(s)==='approved').length, required_count: 3 },
     profile: {
       city: auth.ctx.profile.city ?? null,
       email: auth.ctx.user.email ?? auth.ctx.profile.email ?? null,
