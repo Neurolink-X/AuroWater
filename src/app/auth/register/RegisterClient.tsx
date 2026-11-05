@@ -305,11 +305,8 @@ export default function RegisterClient() {
     const name = values.fullName.trim();
     const business = values.businessName.trim();
 
-    /*
-     * NOTE: technician `skills` and `serviceCities` are collected below but are NOT sent,
-     * exactly like the previous version, because authRegister has no fields for them.
-     * Add them here once the API accepts them.
-     */
+    // Declared skills and operating cities are saved as unverified onboarding preferences.
+    // They never grant a service capability or bypass administrator approval.
     const payload: RegisterPayload = {
       email: values.email.trim().toLowerCase(),
       password: values.password,
@@ -317,6 +314,7 @@ export default function RegisterClient() {
       phone: values.phone,
       role,
       city: values.city as City,
+      ...(role === 'technician' ? { requested_skills: skills, requested_service_cities: serviceCities.length ? serviceCities : [values.city] } : {}),
       ...(role === 'supplier'
         ? {
             business_name: business,
@@ -524,16 +522,14 @@ export default function RegisterClient() {
 
               {role === 'technician' && (
                 <>
-                  <ChipGroup
-                    label="Your skills"
-                    items={SKILLS}
-                    selected={skills}
+                  <MultiChoicePicker
+                    label="Your skills" items={SKILLS} selected={skills}
+                    hint="Select only work you can perform. Admin verification is required before jobs."
                     onToggle={(i) => toggle(skills, setSkills, i)}
                   />
-                  <ChipGroup
-                    label="Cities you serve"
-                    items={CITIES}
-                    selected={serviceCities}
+                  <MultiChoicePicker
+                    label="Cities you serve" items={CITIES} selected={serviceCities}
+                    hint="Your real service areas will be checked before a job is assigned."
                     onToggle={(i) => toggle(serviceCities, setServiceCities, i)}
                   />
                 </>
@@ -826,6 +822,29 @@ function PasswordField({
       </ul>
     </Field>
   );
+}
+
+/** Compact, accessible multi-select. Keeps the mobile form short and shows selections. */
+function MultiChoicePicker({label,items,selected,onToggle,hint}:{
+  label: string; items: readonly string[]; selected: string[];
+  onToggle: (item: string) => void; hint: string;
+}) {
+  return <details className="group rounded-2xl border border-slate-200 bg-white p-3 sm:col-span-2">
+    <summary className="flex min-h-10 cursor-pointer items-center justify-between gap-2 font-semibold text-slate-900">
+      <span>{label} <span className="font-normal text-slate-500">({selected.length} selected)</span></span>
+      <span className="text-sm text-sky-700 group-open:hidden">Choose ▾</span>
+      <span className="hidden text-sm text-sky-700 group-open:block">Close ▴</span>
+    </summary>
+    <p className="mt-1 text-xs leading-5 text-slate-500">{hint}</p>
+    {selected.length > 0 && <p className="mt-2 text-xs font-semibold text-sky-800">{selected.join(', ')}</p>}
+    <fieldset className="mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto rounded-xl bg-slate-50 p-2 sm:grid-cols-3">
+      <legend className="sr-only">{label}</legend>
+      {items.map(item => <label key={item} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-800">
+        <input type="checkbox" checked={selected.includes(item)} onChange={() => onToggle(item)} className="h-4 w-4 accent-sky-600" />
+        <span>{item}</span>
+      </label>)}
+    </fieldset>
+  </details>;
 }
 
 function ChipGroup({
