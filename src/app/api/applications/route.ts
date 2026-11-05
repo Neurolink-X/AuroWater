@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import {PARTNER_ROLE_POLICY,registrationRoleMatchesSkills} from '@/lib/partner-onboarding-policy';
 import { createServiceClient } from '@/utils/supabase/server';
+import { consumeRateLimit } from '@/lib/api/rate-limit';
 
 import {
   jsonErr,
@@ -170,11 +171,27 @@ export async function POST(
     return jsonErr('This login is assigned to a different role. Contact support about professional account access.', 409, 'ROLE_CONFLICT');
   }
 
+  // A contact number supplied in a form is not proof of phone ownership.
+  // Only Supabase Auth phone confirmation may be trusted as phone verification.
+  const authPhone = (auth.ctx.user.phone ?? '').replace(/\\D/g, '').slice(-10);
+  const verifiedPhone = Boolean(auth.ctx.user.phone_confirmed_at && authPhone.length === 10);
+  if (verifiedPhone && body.phone !== authPhone) {
+    return jsonErr('Use the mobile number verified on this login, or contact support to change it.', 422, 'PHONE_MISMATCH');
+  }
+
   if (body.type === 'technician') {
     const policy = PARTNER_ROLE_POLICY[body.role];
     if (!registrationRoleMatchesSkills(body.role,body.skills) || body.requested_radius_km > policy.maxRadiusKm) {
       return jsonErr('Selected role, qualifications and working radius do not match',422);
     }
+  }
+
+  const limiter = await consumeRateLimit(createServiceClient(), 'partner-application', userId, 8, 86400);
+  if (limiter.unavailable) return jsonErr('Application protection is temporarily unavailable. Please retry.', 503, 'RATE_LIMIT_UNAVAILABLE');
+  if (!limiter.allowed) {
+    const response = jsonErr('Too many application attempts. Try again tomorrow or contact support.', 429, 'RATE_LIMITED');
+    response.headers.set('Retry-After', String(Math.max(1, limiter.retryAfter)));
+    return response;
   }
 
   const supabase =
@@ -236,32 +253,8 @@ export async function POST(
     );
   }
 
-  /*
-   * Do not trust the phone/name currently
-   * stored in the profile. Update them from
-   * the validated application payload.
-   */
-  const {
-    error: profileError,
-  } = await supabase
-    .from('profiles')
-    .update({
-      full_name:
-        body.full_name,
-      phone:
-        body.phone,
-    })
-    .eq(
-      'id',
-      userId,
-    );
-
-  if (profileError) {
-    return jsonErr(
-      'Could not update applicant profile',
-      502,
-    );
-  }
+  // Do not overwrite a trusted account phone from an unverified contact form.
+  // Contact information is stored in the application for explicit admin review.
 
   /*
    * Store the validated payload.
@@ -277,7 +270,7 @@ export async function POST(
     .insert({
       user_id: userId,
       type: body.type,
-      payload: body,
+      payload: { ...body, contact_phone_verified: verifiedPhone },
       status: 'pending',
     })
     .select('*')
@@ -308,6 +301,13 @@ export async function POST(
       502,
     );
   }
+
+  // A verified submission is authoritative even if optional profile sync fails.
+  try {
+    const { error: profileNameError } = await supabase.from('profiles')
+      .update({ full_name: body.full_name }).eq('id', userId);
+    if (profileNameError) console.error('[applications] optional profile name sync failed', profileNameError.code);
+  } catch { /* application receipt remains valid */ }
 
   // The applicant owns the application. A small admin team is notified in-app
   // only after a confirmed write; failed notifications never undo the application.
