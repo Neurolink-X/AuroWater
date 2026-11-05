@@ -15,7 +15,7 @@ type PartnerApplication = {
   approved_document_slots: string[];
   review_supported: boolean;
 };
-const DOCS = ['aadhaar_front', 'aadhaar_back', 'skill_certificate'];
+const DOCS = ['aadhaar_front', 'aadhaar_back', 'profile_photo'];
 const textValue = (x: unknown) => typeof x === 'string' ? x : '';
 const labelFor = (x: PartnerApplication) => textValue(x.payload?.role) || x.type;
 const request = async (method: 'GET' | 'PATCH', body?: unknown) => {
@@ -56,7 +56,7 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
   async function decide(app: PartnerApplication, decision: 'approved' | 'rejected') {
     if (!app.review_supported || busy) return;
     const note = reason[app.id]?.trim() ?? '';
-    if (note.length < 3) { setError('Add a verification note or rejection reason (minimum 3 characters).'); return; }
+    if (note.length < (decision === 'approved' ? 20 : 3)) { setError('Add a verification note or rejection reason (minimum 3 characters).'); return; }
     if (decision === 'approved' && !DOCS.every(slot => app.approved_document_slots.includes(slot))) {
       setError('Identity and skill evidence must be verified before approval.');
       return;
@@ -102,9 +102,9 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
           <div className="flex flex-wrap gap-2">
             <Link href="/admin/verification" className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm font-semibold text-cyan-200">Review KYC documents</Link>
             {!app.review_supported ? <span className="rounded-lg border border-white/20 px-3 py-2 text-xs text-slate-300">Supplier approval requires supplier-specific checks</span> : <>
-              <input aria-label="Verification note or rejection reason" value={reason[app.id] ?? ''}
+              <input aria-label="Verified work experience/references (20+ characters) or rejection reason" value={reason[app.id] ?? ''}
                 onChange={e => setReason(prev => ({...prev, [app.id]: e.target.value}))}
-                maxLength={300} placeholder="Verified evidence / rejection reason" className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/20 bg-slate-950 px-3 py-2 text-sm text-white" />
+                maxLength={300} placeholder="Identity and experience checks (20+ characters) / rejection reason" className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/20 bg-slate-950 px-3 py-2 text-sm text-white" />
               <button type="button" disabled={!docsOk || Boolean(busy)} onClick={() => void decide(app, 'approved')}
                 className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">Approve</button>
               <button type="button" disabled={Boolean(busy)} onClick={() => void decide(app, 'rejected')}
