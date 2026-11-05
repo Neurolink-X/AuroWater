@@ -12,6 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 
 import { MILESTONE_TIERS, type MilestoneTier } from '@/lib/milestone-constants';
 import { useAuth } from '@/hooks/useAuth';
+import { getToken } from '@/lib/api-client';
 import {PARTNER_ROLE_POLICY,recommendedRadiusKm} from '@/lib/partner-onboarding-policy';
 
 /* ───────────────────────── Content & constants ───────────────────────── */
@@ -251,10 +252,16 @@ function RegisterPro() {
         return false;
       }
       try {
+        const token = await getToken();
+        if (!token) {
+          toast.info('Sign in first, then return to finish submitting your saved draft.');
+          router.push(loginHref);
+          return false;
+        }
         const res = await fetch('/api/applications', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
           body: JSON.stringify(SEND_ROLE ? values : Object.fromEntries(Object.entries(values).filter(([k]) => k !== 'role'))),
           signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(20_000) : undefined,
         });
@@ -263,8 +270,13 @@ function RegisterPro() {
           router.push(loginHref);
           return false;
         }
-        if (!res.ok || json?.success === false) {
-          toast.error(json?.error ?? 'Could not submit your application. Please try again.');
+        if (res.status === 409 && /already have|pending/i.test(json?.error ?? '')) {
+          // If a real application already exists, show its server-verified receipt.
+          router.push(SUCCESS_PATH);
+          return false;
+        }
+        if (!res.ok || json?.success === false || !json.data?.id) {
+          toast.error(json?.error ?? 'Could not confirm your application. Your draft is saved; please retry.');
           return false;
         }
         toast.success('Application submitted. We will contact you within 24 hours.');
@@ -624,18 +636,18 @@ function ApplicationCard({
       <h2 className="mt-5 text-xl font-extrabold text-[#0B2A4A]">{r.label} application</h2>
       <p className="mt-1 text-sm text-slate-500">
         {ready && !signedIn ? (
-          <>It takes about two minutes. You will sign in at the end. <Link href={loginHref} className="font-semibold text-sky-700 underline underline-offset-4">Sign in now</Link></>
+          <>It takes about two minutes. Your form is a draft until you sign in and submit. <Link href={loginHref} className="font-semibold text-sky-700 underline underline-offset-4">Sign in first</Link></>
         ) : (
           'It takes about two minutes. We review within 24 hours.'
         )}
       </p>
       <p className="mt-1 text-xs text-slate-500">You need: {r.needs}.</p>
-      <ApplicationForm key={role} kind={kind} role={role} ready={ready} onSubmit={onSubmit} />
+      <ApplicationForm key={role} kind={kind} role={role} ready={ready} signedIn={signedIn} onSubmit={onSubmit} />
     </div>
   );
 }
 
-function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
+function ApplicationForm({ kind, role, ready, signedIn, onSubmit }: { kind: Kind; role: RoleId; ready: boolean; signedIn: boolean; onSubmit: (v: Payload) => Promise<boolean> }) {
   const steps = STEPS[kind];
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -870,9 +882,13 @@ function ApplicationForm({ kind, role, ready, onSubmit }: { kind: Kind; role: Ro
           </button>
         )}
         <button type="submit" disabled={isSubmitting || (isLast && !ready)} className={`${BTN_PRIMARY} flex-1`}>
-          {isSubmitting ? 'Submitting…' : isLast ? 'Submit application' : 'Continue'}
+          {isSubmitting ? 'Submitting…' : isLast ? (signedIn ? 'Submit application' : 'Sign in to submit') : 'Continue'}
         </button>
       </div>
+      {isLast && ready && !signedIn && <p role="status" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-semibold leading-6 text-amber-950">
+        आपका आवेदन अभी जमा नहीं हुआ है। / Not submitted yet. Your draft stays on this device.
+        Sign in, return here and press Submit application. An application ID will appear only after successful submission.
+      </p>}
       <div className="mt-4 text-center text-xs text-slate-500" aria-live="polite">
         <p>
           {saved ? 'Draft saved on this device. ' : ''}By submitting you agree to be contacted on WhatsApp for verification.
