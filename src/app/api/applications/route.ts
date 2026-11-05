@@ -160,6 +160,15 @@ export async function POST(
   const body =
     parsed.data;
 
+  // The platform currently has one operational role per profile.
+  // Fail before storing an application that an admin could never approve.
+  if (body.type === 'technician' && !['customer', 'technician'].includes(auth.ctx.profile.role)) {
+    return jsonErr('This login is already assigned to another professional role. Contact support before adding technician services.', 409, 'ROLE_CONFLICT');
+  }
+  if (body.type === 'supplier' && !['customer', 'supplier'].includes(auth.ctx.profile.role)) {
+    return jsonErr('This login is assigned to a different role. Contact support about professional account access.', 409, 'ROLE_CONFLICT');
+  }
+
   if (body.type === 'technician') {
     const policy = PARTNER_ROLE_POLICY[body.role];
     if (!registrationRoleMatchesSkills(body.role,body.skills) || body.requested_radius_km > policy.maxRadiusKm) {
