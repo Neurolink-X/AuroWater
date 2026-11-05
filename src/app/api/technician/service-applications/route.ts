@@ -34,7 +34,7 @@ async function readState(userId: string) {
     db.from('user_files').select('document_slot,review_status,created_at')
       .eq('owner_user_id',userId)
       .in('document_slot',['aadhaar_front','aadhaar_back','profile_photo'])
-      .order('created_at',{ascending:false}).limit(30),
+      .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(30),
   ]);
   if (account.error || capabilities.error || applications.error || documents.error)
     throw new Error('APPLICATION_STATE_UNAVAILABLE');
