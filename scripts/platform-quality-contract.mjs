@@ -124,10 +124,24 @@ export const CRITICAL_LINKS = Object.freeze([
 ]);
 
 const normalizePath = p => p.replaceAll('\\', '/').replace(/^\.\//, '');
+// Explicit cross-role propagation. An order/assignment/financial change can
+// pass its own unit test yet break the next actor in the transaction.
+const CROSS_ROLE_IMPACT = Object.freeze([
+  { path: /^src\/app\/api\/customer\/orders\/route\.ts$/, domains: ['booking','pricing','dispatch','supplier','technician','notifications','finance'] },
+  { path: /^src\/app\/api\/supplier\/orders\/route\.ts$/, domains: ['supplier','dispatch','booking','finance','notifications'] },
+  { path: /^src\/app\/api\/technician\/jobs\/route\.ts$/, domains: ['technician','dispatch','booking','notifications','finance'] },
+  { path: /^src\/app\/api\/admin\/pricing\/route\.ts$/, domains: ['admin','pricing','booking','subscriptions','finance'] },
+  { path: /^src\/app\/api\/admin\/partner-applications\/route\.ts$/, domains: ['admin','technician','auth','notifications'] },
+  { path: /^src\/app\/api\/technician\/service-applications\/route\.ts$/, domains: ['technician','admin','auth','notifications'] },
+  { path: /^src\/app\/api\/customer\/subscriptions\/route\.ts$/, domains: ['subscriptions','booking','supplier','finance','notifications'] },
+]);
 export function domainsForChangedPath(file) {
   const path = normalizePath(file);
-  if (path.startsWith('supabase/migrations/')) return ['auth', 'booking', 'supplier', 'technician', 'admin', 'pricing', 'subscriptions', 'dispatch', 'notifications', 'finance'];
-  return Object.entries(DOMAIN_CONTRACTS).filter(([, cfg]) => cfg.sourceName.test(path)).map(([id]) => id);
+  if (path.startsWith('supabase/migrations/')) return Object.keys(DOMAIN_CONTRACTS);
+  const direct=Object.entries(DOMAIN_CONTRACTS)
+    .filter(([, cfg]) => cfg.sourceName.test(path)).map(([id]) => id);
+  const propagated=CROSS_ROLE_IMPACT.filter(flow=>flow.path.test(path)).flatMap(flow=>flow.domains);
+  return [...new Set([...direct,...propagated])];
 }
 
 export function requiredTestEvidence(changed) {
