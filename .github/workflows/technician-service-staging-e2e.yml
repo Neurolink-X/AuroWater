@@ -1,0 +1,29 @@
+name: Technician service application - authenticated staging E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verified-service-flow:
+    name: Role, KYC, admin review, duplicate and rejection - staging
+    runs-on: ubuntu-latest
+    environment: staging-e2e
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Verify isolated staging workflow from live HTTP to admin decision
+        env:
+          TECHNICIAN_STAGE_URL: ${{ vars.TECHNICIAN_STAGE_URL }}
+          TECHNICIAN_STAGE_DB_ISOLATED: ${{ vars.TECHNICIAN_STAGE_DB_ISOLATED }}
+          TECHNICIAN_STAGE_TOKEN: ${{ secrets.TECHNICIAN_STAGE_TOKEN }}
+          ADMIN_STAGE_TOKEN: ${{ secrets.ADMIN_STAGE_TOKEN }}
+          VERCEL_AUTOMATION_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS }}
+        run: npm run test:technician:stage
