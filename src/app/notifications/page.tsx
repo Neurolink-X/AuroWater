@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, BellOff, Check, RefreshCw, ShieldCheck } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 type Preferences = {
   configured: boolean; vapid_public_key: string | null;
@@ -49,6 +51,8 @@ function publicKeyToBytes(encoded: string): ArrayBuffer {
 }
 
 export default function NotificationSettingsPage() {
+  const { language } = useLanguage();
+  const hi = language === 'hi';
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,12 +196,12 @@ export default function NotificationSettingsPage() {
   return (
     <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-7 sm:py-10">
       <header className="space-y-2">
-        <Link href="/" className="text-sm font-semibold text-blue-700 hover:underline">AuroTap home</Link>
-        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Notifications & preferences</h1>
-        <p className="text-sm text-slate-600">Control phone alerts for this device and account. New orders and job updates remain available in the app even if push is disabled.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3"><Link href="/" className="text-sm font-semibold text-blue-700 hover:underline">{hi ? 'AuroTap होम पर जाएँ' : 'Back to AuroTap home'}</Link><LanguageToggle /></div>
+        <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{hi ? 'जॉब अलर्ट और नोटिफिकेशन' : 'Notifications & preferences'}</h1>
+        <p className="text-sm text-slate-600">{hi ? 'नए ऑर्डर और जॉब की जानकारी ऐप में हमेशा मिलती रहेगी। फोन पर अलर्ट पाने के लिए अपनी मर्ज़ी से अनुमति दें।' : 'Control phone alerts for this device and account. New orders and job updates remain available in the app even if push is disabled.'}</p>
       </header>
 
-      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error} {error.includes('Sign in') && <Link href="/auth/login?redirect=/notifications" className="font-bold underline">Sign in</Link>}</p>}
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error} {error.includes('Sign in') && <Link href="/auth/login?returnTo=%2Fnotifications" className="font-bold underline">Sign in</Link>}</p>}
       {status && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{status}</p>}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -206,29 +210,29 @@ export default function NotificationSettingsPage() {
             {prefs?.enabled ? <Bell className="mt-1 text-emerald-600" size={22}/> :
               <BellOff className="mt-1 text-slate-500" size={22}/>}
             <div>
-              <h2 className="font-extrabold text-slate-950">Phone push notifications</h2>
-              <p className="mt-1 text-sm text-slate-600">New eligible job offers, booking progress and payment-related updates. Permission is optional.</p>
+              <h2 className="font-extrabold text-slate-950">{hi ? 'फोन पर आने वाले अलर्ट' : 'Phone push notifications'}</h2>
+              <p className="mt-1 text-sm text-slate-600">{hi ? 'नए जॉब ऑफर, बुकिंग अपडेट और पेमेंट की जानकारी। फोन की अनुमति देना आपकी मर्ज़ी है।' : 'New eligible job offers, booking progress and payment-related updates. Permission is optional.'}</p>
             </div>
           </div>
-          {prefs && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{prefs.enabled ? 'Enabled' : 'Off'}</span>}
+          {prefs && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{prefs.enabled ? (hi ? 'चालू' : 'Enabled') : (hi ? 'बंद' : 'Off')}</span>}
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
           <button type="button" onClick={() => void enable()}
             disabled={busy || loading || !prefs?.configured || prefs?.enabled}
             className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
-            Enable on this phone
+            {hi ? 'इस फोन पर अलर्ट चालू करें' : 'Enable on this phone'}
           </button>
           <button type="button" onClick={() => void disable()}
             disabled={busy || loading || !prefs?.enabled}
             className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-800 disabled:opacity-40">
-            Disable all my push alerts
+            {hi ? 'फोन के अलर्ट बंद करें' : 'Disable all my push alerts'}
           </button>
         </div>
-        {prefs && !prefs.configured && <p className="mt-3 text-xs text-amber-800">Push delivery is being configured. In-app notifications remain accessible.</p>}
+        {prefs && !prefs.configured && <p className="mt-3 text-xs text-amber-800">{hi ? 'फोन पर अलर्ट की सुविधा सेट हो रही है। ऐप में जानकारी मिलती रहेगी।' : 'Push delivery is being configured. In-app notifications remain accessible.'}</p>}
         {prefs && <p className="mt-3 text-xs text-slate-500">{prefs.devices} registered device(s). Up to 3 per account. Browser and operating-system permission also apply.</p>}
         <div className="mt-5 border-t border-slate-100 pt-4">
           <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span className="text-sm text-slate-800"><strong>Promotional alerts</strong><span className="block text-xs text-slate-500">Optional offers and marketing; off by default.</span></span>
+            <span className="text-sm text-slate-800"><strong>{hi ? 'ऑफर और प्रचार के अलर्ट' : 'Promotional alerts'}</strong><span className="block text-xs text-slate-500">{hi ? 'ज़रूरी नहीं हैं; शुरू में बंद रहते हैं।' : 'Optional offers and marketing; off by default.'}</span></span>
             <input type="checkbox" checked={prefs?.marketing ?? false} disabled={busy || !prefs}
               onChange={e => void setMarketing(e.target.checked)}
               className="h-5 w-5 accent-emerald-700" aria-label="Allow promotional push alerts"/>
@@ -236,28 +240,28 @@ export default function NotificationSettingsPage() {
         </div>
         <div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
           <ShieldCheck size={18} className="shrink-0 text-emerald-700"/>
-          <span>Permission can be withdrawn here or in browser settings. Declining push never blocks bookings or accepting jobs. Phone alerts are best-effort, not a guarantee of delivery.</span>
+          <span>{hi ? 'आप कभी भी फोन के अलर्ट बंद कर सकते हैं। इससे बुकिंग या जॉब स्वीकार करने पर कोई रोक नहीं लगेगी। फोन पर हर अलर्ट पहुँचने की गारंटी नहीं है।' : 'Permission can be withdrawn here or in browser settings. Declining push never blocks bookings or accepting jobs. Phone alerts are best-effort, not a guarantee of delivery.'}</span>
         </div>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-extrabold text-slate-950">Your in-app notifications</h2>
-            <p className="text-xs text-slate-500">Latest 25. These remain available without phone permission.</p>
+            <h2 className="font-extrabold text-slate-950">{hi ? 'ऐप में आए अलर्ट' : 'Your in-app notifications'}</h2>
+            <p className="text-xs text-slate-500">{hi ? 'पिछले 25 अलर्ट। इन्हें देखने के लिए फोन की अनुमति नहीं चाहिए।' : 'Latest 25. These remain available without phone permission.'}</p>
           </div>
           <button type="button" onClick={() => void load()} disabled={loading || busy}
             className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40">
-            <RefreshCw size={15}/> Refresh
+            <RefreshCw size={15}/> {hi ? 'फिर से देखें' : 'Refresh'}
           </button>
         </div>
         {!loading && notices.some(n => !n.is_read) &&
           <button type="button" onClick={() => void markRead()} disabled={busy}
             className="mb-3 flex items-center gap-1 text-xs font-bold text-blue-700 disabled:opacity-50">
-            <Check size={14}/> Mark all as read
+            <Check size={14}/> {hi ? 'सभी पढ़े हुए करें' : 'Mark all as read'}
           </button>}
-        {loading ? <p className="py-4 text-sm text-slate-500">Loading…</p> :
-          notices.length === 0 ? <p className="py-5 text-sm text-slate-500">No notifications yet. Your order and job timelines continue to work normally.</p> :
+        {loading ? <p className="py-4 text-sm text-slate-500">{hi ? 'लोड हो रहा है…' : 'Loading…'}</p> :
+          notices.length === 0 ? <p className="py-5 text-sm text-slate-500">{hi ? 'अभी कोई अलर्ट नहीं है। ऑर्डर और जॉब सामान्य रूप से काम करेंगे।' : 'No notifications yet. Your order and job timelines continue to work normally.'}</p> :
             <div className="divide-y divide-slate-100">
               {notices.map(item => (
                 <article key={item.id} className="flex items-start justify-between gap-4 py-4">
@@ -269,7 +273,7 @@ export default function NotificationSettingsPage() {
                     </time>
                   </div>
                   {!item.is_read && <button type="button" onClick={() => void markRead(item.id)}
-                    disabled={busy} className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-emerald-700 disabled:opacity-40">Read</button>}
+                    disabled={busy} className="shrink-0 rounded-md px-2 py-1 text-xs font-bold text-emerald-700 disabled:opacity-40">{hi ? 'पढ़ लिया' : 'Read'}</button>}
                 </article>
               ))}
             </div>}

@@ -401,6 +401,17 @@ export async function POST(
             40,
           )
         : undefined,
+
+    // User-declared preferences are not authorizations. Dispatch can only use
+    // service capabilities granted separately by an authorized admin.
+    requested_skills: role === 'technician' && Array.isArray(body.requested_skills)
+      ? [...new Set(body.requested_skills.filter((v): v is string =>
+          typeof v === 'string' && ['Plumbing','RO Service','Borewell','Motor Repair','Water Tanker','Tank Cleaning'].includes(v)))].slice(0,6)
+      : undefined,
+    requested_service_cities: role === 'technician' && Array.isArray(body.requested_service_cities)
+      ? [...new Set(body.requested_service_cities.filter((v): v is string =>
+          typeof v === 'string' && ['Kanpur','Gorakhpur','Lucknow','Varanasi','Prayagraj','Agra','Meerut','Bareilly','Aligarh','Mathura','Delhi','Noida','Ghaziabad'].includes(v)))].slice(0,13)
+      : undefined,
   };
 
   // Temporary launch policy: no verification email/SMTP needed for normal signup.

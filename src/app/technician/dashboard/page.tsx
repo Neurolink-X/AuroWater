@@ -44,6 +44,8 @@ import React, {
   useContext,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import {
   LayoutDashboard,
   Bell,
@@ -91,6 +93,7 @@ import {
   technicianJobUpdateStatus,
   technicianAvailabilityUpdate,
   getApiErrorMessage,
+  getToken,
 } from '@/lib/api-client';
 import { DatabaseErrorBanner } from '@/components/ui/DatabaseErrorBanner';
 import LiveOperationsActionCenter from '@/components/operations/LiveOperationsActionCenter';
@@ -368,13 +371,23 @@ function requiredDocsUploaded(d: TechDocs) {
   return Boolean(d.aadhaarFront && d.aadhaarBack && d.profilePhoto);
 }
 
+/** Every private technician API uses a fresh Supabase access token, never implicit browser cookies. */
+async function technicianAuthHeaders(): Promise<{ Authorization: string }> {
+  const token = await getToken();
+  if (!token) throw new Error('Your sign-in could not be verified. Sign in again, then retry; your uploaded files are safe.');
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function uploadTechnicianDocument(file: File, slot: string): Promise<UploadMeta> {
   const form = new FormData();
   form.append('file', file);
   form.append('document_slot', slot);
   form.append('category', slot === 'profile_photo' ? 'profile_photo' : slot === 'skill_certificate' ? 'skill_certificate' : 'identity_document');
-  const response = await fetch('/api/files/upload', { method: 'POST', body: form });
+  const headers = await technicianAuthHeaders();
+  const response = await fetch('/api/files/upload', { method: 'POST', headers, body: form, cache: 'no-store' });
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('Session not verified. Sign in and try the upload again.');
+  if (response.status === 403) throw new Error('Your account needs technician access to upload documents. Check application approval or contact support.');
   if (!response.ok || !payload?.data?.file?.id) throw new Error(payload?.error || 'Secure upload failed. Please retry.');
   const uploaded = payload.data.file;
   return { id: uploaded.id, name: uploaded.original_name || file.name, size: uploaded.size_bytes ?? file.size, status: 'uploaded' };
@@ -383,10 +396,13 @@ async function uploadTechnicianDocument(file: File, slot: string): Promise<Uploa
 async function submitDocumentsToServer(docs: TechDocs): Promise<void> {
   const fileIds = [docs.aadhaarFront?.id, docs.aadhaarBack?.id, docs.profilePhoto?.id, docs.skillCert?.id].filter((id): id is string => Boolean(id));
   if (fileIds.length < 3) throw new Error('Upload Aadhaar front, Aadhaar back and profile photo first.');
+  const headers = await technicianAuthHeaders();
   const response = await fetch('/api/technicians/documents', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: fileIds }),
+    method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: fileIds }), cache: 'no-store',
   });
   const payload = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('Session not verified. Sign in again and retry submission.');
+  if (response.status === 403) throw new Error('Your technician account is not eligible for review yet. Contact support.');
   if (!response.ok) throw new Error(payload?.error || 'Failed to submit documents for review.');
 }
 
@@ -430,8 +446,12 @@ function usePersisted<T>(key: string, initial: T, normalize: (raw: unknown) => T
       try {
         setValue(normalizeRef.current(JSON.parse(raw)));
       } catch {
-        /* ignore corrupt data */
+        setValue(normalizeRef.current(undefined));
       }
+    } else {
+      // When the signed-in user changes, clear previous user state before loading
+      // the new key. Never carry sensitive document metadata across accounts.
+      setValue(normalizeRef.current(undefined));
     }
     readyRef.current = true;
     setReady(true);
@@ -1281,27 +1301,35 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
   ];
   const done = checks.filter((c) => c.ok).length;
   const pct = Math.round((done / checks.length) * 100);
-  const chip = (active: boolean) => `rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors ${ringFocus} ${active ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`;
 
   return (
     <div className="space-y-5">
-      <PageHeader title={isHindi ? 'प्रोफ़ाइल' : 'Profile'} description="Skills and areas you cover. Changes save automatically on this device." />
+      <PageHeader title={isHindi ? 'मेरी प्रोफ़ाइल' : 'My profile'} description={isHindi ? 'अपना काम और शहर चुनें। जानकारी फोन में सेव होगी और इंटरनेट मिलने पर खाते में सिंक होगी। जॉब की मंज़ूरी अलग से मिलेगी।' : 'Choose skills and cities. Changes save on this phone and sync to your account when online. Job eligibility still requires admin approval.'} />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className={`${card} p-4 sm:p-5`}>
-          <h2 className="mb-3 font-bold text-slate-900">Skills</h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Skills">
-            {SKILLS.map((s) => <button key={s} type="button" aria-pressed={profile.skills.includes(s)} onClick={() => toggleIn('skills', s)} className={chip(profile.skills.includes(s))}>{s}</button>)}
-          </div>
-          <h2 className="mb-3 mt-6 font-bold text-slate-900">{isHindi ? 'सेवा वाले शहर' : 'Service cities'}</h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Service cities">
-            {UP_CITIES.map((c) => <button key={c} type="button" aria-pressed={profile.serviceCities.includes(c)} onClick={() => toggleIn('serviceCities', c)} className={chip(profile.serviceCities.includes(c))}>{c}</button>)}
-          </div>
+          {([
+            { field: 'skills' as const, title: isHindi ? 'कौन सा काम करते हैं?' : 'Skills', choices: SKILLS as readonly string[] },
+            { field: 'serviceCities' as const, title: isHindi ? 'कहाँ काम करते हैं?' : 'Service cities', choices: UP_CITIES as readonly string[] },
+          ]).map(({field,title,choices}) => (
+            <details key={field} className="mb-3 rounded-xl border border-slate-200 p-3">
+              <summary className="min-h-10 cursor-pointer text-sm font-bold text-slate-900">{title} ({profile[field].length}) ▾</summary>
+              <p className="text-xs text-slate-500">{profile[field].join(', ') || (isHindi ? 'कुछ नहीं चुना' : 'Nothing selected')}</p>
+              <fieldset className="mt-3 grid max-h-56 grid-cols-2 gap-2 overflow-y-auto">
+                <legend className="sr-only">{title}</legend>
+                {choices.map(choice => (
+                  <label key={choice} className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs font-semibold text-slate-800">
+                    <input type="checkbox" checked={(profile[field] as readonly string[]).includes(choice)} onChange={() => toggleIn(field,choice)} className="h-4 w-4 accent-emerald-600" /> {choice}
+                  </label>
+                ))}
+              </fieldset>
+            </details>
+          ))}
         </section>
         <section className={`${card} p-4 sm:p-5`}>
-          <label htmlFor="bio" className="mb-3 block font-bold text-slate-900">Bio</label>
-          <textarea id="bio" value={profile.bio} onChange={(e) => setProfile((c) => ({ ...c, bio: e.target.value.slice(0, 200) }))} rows={5} placeholder="Tell customers what you specialise in and how you work." className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
+          <label htmlFor="bio" className="mb-3 block font-bold text-slate-900">{isHindi ? 'अपने काम के बारे में' : 'Bio'}</label>
+          <textarea id="bio" value={profile.bio} onChange={(e) => setProfile((c) => ({ ...c, bio: e.target.value.slice(0, 200) }))} rows={5} placeholder={isHindi ? 'आप कौन सा काम करते हैं और कितना अनुभव है?' : 'Tell customers what you specialise in and how you work.'} className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
           <p className="mt-1 text-right text-xs text-slate-500">{profile.bio.length}/200</p>
-          <h2 className="mb-3 mt-5 font-bold text-slate-900">Profile completeness</h2>
+          <h2 className="mb-3 mt-5 font-bold text-slate-900">{isHindi ? 'प्रोफ़ाइल कितनी पूरी हुई' : 'Profile completeness'}</h2>
           <div className="mb-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Profile completeness">
             <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
@@ -1321,21 +1349,30 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
 }
 
 function DocumentsTab({
-  docs, setDocs, verification, onSubmit, submitting, uploadingSlot,
+  docs, setDocs, verification, onSubmit, submitting, uploadingSlot, setUploadingSlot,
 }: {
   docs: TechDocs; setDocs: React.Dispatch<React.SetStateAction<TechDocs>>;
-  verification: VerificationStatus; onSubmit: () => void; submitting: boolean; uploadingSlot: string | null;
+  verification: VerificationStatus; onSubmit: () => void; submitting: boolean;
+  uploadingSlot: string | null; setUploadingSlot: React.Dispatch<React.SetStateAction<string | null>>;
 }) {
   const isHindi = useDashboardLanguage() === 'hi';
+  const uploadBusyRef = useRef(false);
   const set = (field: keyof TechDocs) => ({
     current: docs[field],
     onPick: async (f: File) => {
+      if (uploadBusyRef.current) return;
       const slotByField: Record<keyof TechDocs, string> = { aadhaarFront: 'aadhaar_front', aadhaarBack: 'aadhaar_back', profilePhoto: 'profile_photo', skillCert: 'skill_certificate' };
+      uploadBusyRef.current = true;
+      setUploadingSlot(slotByField[field]);
       try {
         const uploaded = await uploadTechnicianDocument(f, slotByField[field]);
         setDocs((c) => ({ ...c, [field]: uploaded }));
-        toast.success(`${f.name} uploaded securely.`);
+        toast.success(isHindi ? 'फाइल सुरक्षित अपलोड हो गई।' : `${f.name} uploaded securely.`);
       } catch (error) { toast.error(error instanceof Error ? error.message : 'Upload failed.'); }
+      finally {
+        uploadBusyRef.current = false;
+        setUploadingSlot(null);
+      }
     },
     onRemove: () => setDocs((c) => ({ ...c, [field]: undefined })),
   });
@@ -1352,10 +1389,10 @@ function DocumentsTab({
         </div>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        <UploadArea label="Aadhaar card (front)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarFront')} />
-        <UploadArea label="Aadhaar card (back)" required disabled={Boolean(uploadingSlot)} {...set('aadhaarBack')} />
-        <UploadArea label="Profile photo" required disabled={Boolean(uploadingSlot)} {...set('profilePhoto')} />
-        <UploadArea label="Skill certificate" required={false} disabled={Boolean(uploadingSlot)} {...set('skillCert')} />
+        <UploadArea label={isHindi ? 'आधार कार्ड (आगे)' : 'Aadhaar card (front)'} required disabled={Boolean(uploadingSlot)} {...set('aadhaarFront')} />
+        <UploadArea label={isHindi ? 'आधार कार्ड (पीछे)' : 'Aadhaar card (back)'} required disabled={Boolean(uploadingSlot)} {...set('aadhaarBack')} />
+        <UploadArea label={isHindi ? 'अपनी फोटो' : 'Profile photo'} required disabled={Boolean(uploadingSlot)} {...set('profilePhoto')} />
+        <UploadArea label={isHindi ? 'काम का प्रमाणपत्र' : 'Skill certificate'} required={false} disabled={Boolean(uploadingSlot)} {...set('skillCert')} />
       </div>
       <div className={`${card} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5`}>
         <div className="flex items-center gap-3">
@@ -1366,10 +1403,10 @@ function DocumentsTab({
         </div>
         <button type="button" className={btnPrimary} disabled={!canSubmit} onClick={onSubmit}>
           {submitting && <Loader2 size={14} aria-hidden className="animate-spin" />}
-          {submitting ? 'Submitting…' : (isHindi ? 'सत्यापन के लिए भेजें' : 'Submit for verification')}
+          {submitting ? (isHindi ? 'भेजा जा रहा है…' : 'Submitting…') : (isHindi ? 'जाँच के लिए भेजें' : 'Submit for verification')}
         </button>
       </div>
-      {verification === 'rejected' && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">Your documents were rejected. Replace the required files and submit them again.</p>}
+      {verification === 'rejected' && <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{isHindi ? 'दस्तावेज़ मंज़ूर नहीं हुए। सही फोटो लगाकर दोबारा भेजें।' : 'Your documents were rejected. Replace the required files and submit them again.'}</p>}
       {verification === 'pending' && (
         <div className="flex items-start gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
           <Clock3 size={16} aria-hidden className="mt-0.5 shrink-0 text-sky-700" />
@@ -1522,16 +1559,78 @@ export default function TechnicianDashboardPage() {
   const [docsSubmitting, setDocsSubmitting] = useState(false);
   const [docsUploadingSlot, setDocsUploadingSlot] = useState<string | null>(null);
 
-  const [profile, setProfile] = usePersisted<TechProfile>(KEYS.PROFILE, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
-  const [availability, setAvailability] = usePersisted<Availability>(KEYS.AVAILABILITY, {}, normalizeAvailability);
-  const [docs, setDocs] = usePersisted<TechDocs>(KEYS.DOCS, {}, normalizeDocs);
+  // Never reuse another technician's phone-local draft after account switching.
+  const storageOwner = userId ?? 'guest';
+  const [profile, setProfile, profileReady] = usePersisted<TechProfile>(`${KEYS.PROFILE}:${storageOwner}`, { skills: [], serviceCities: [], bio: '', upiId: '' }, normalizeProfile);
+  const [availability, setAvailability] = usePersisted<Availability>(`${KEYS.AVAILABILITY}:${storageOwner}`, {}, normalizeAvailability);
+  const [docs, setDocs] = usePersisted<TechDocs>(`${KEYS.DOCS}:${storageOwner}`, {}, normalizeDocs);
+  const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const lastSyncedSelectionsRef = useRef<string | null>(null);
+
+  // Sync *self-declared* preferences between phones without granting job skills.
+  // Admin-reviewed technician_service_capabilities remain the only entitlement.
+  useEffect(() => {
+    if (!allowed || !userId || !profileReady) return;
+    let cancelled = false;
+    setPreferencesLoaded(false);
+    lastSyncedSelectionsRef.current = null;
+    void createClient().auth.getUser().then((result: {
+      data: { user: { id: string; user_metadata?: Record<string, unknown> } | null };
+      error: { code?: string } | null;
+    }) => {
+      const { data, error } = result;
+      if (cancelled) return;
+      if (!error && data.user?.id === userId) {
+        const meta = data.user.user_metadata ?? {};
+        const requested = Array.isArray(meta.requested_skills) ? meta.requested_skills : null;
+        const cities = Array.isArray(meta.requested_service_cities) ? meta.requested_service_cities : null;
+        if (requested || cities) {
+          lastSyncedSelectionsRef.current = JSON.stringify({
+            skills: (requested ?? []).map((s: unknown) => s === 'Tank Cleaning' ? 'Tank Cleaning Service' : s),
+            cities: cities ?? [],
+          });
+        }
+        if (requested || cities) setProfile(prev => ({
+          ...prev,
+          skills: requested
+            ? requested.map((v: unknown) => v === 'Tank Cleaning' ? 'Tank Cleaning Service' : v)
+                .filter((v: unknown): v is TechSkill => typeof v === 'string' && SKILLS.includes(v as TechSkill))
+            : prev.skills,
+          serviceCities: cities
+            ? cities.filter((v: unknown): v is string => typeof v === 'string' && UP_CITIES.includes(v as typeof UP_CITIES[number]))
+            : prev.serviceCities,
+        }));
+      }
+      setPreferencesLoaded(true);
+    }).catch(() => { if (!cancelled) setPreferencesLoaded(true); });
+    return () => { cancelled = true; };
+  }, [allowed,userId,profileReady,setProfile]);
+
+  useEffect(() => {
+    if (!allowed || !preferencesLoaded || !userId) return;
+    const t = window.setTimeout(() => {
+      const fingerprint = JSON.stringify({ skills: profile.skills, cities: profile.serviceCities });
+      if (lastSyncedSelectionsRef.current === fingerprint) return;
+      // Don't write an empty preference document during ordinary dashboard visits.
+      if (lastSyncedSelectionsRef.current === null && !profile.skills.length && !profile.serviceCities.length) return;
+      void createClient().auth.updateUser({ data: {
+        requested_skills: profile.skills.map(s => s === 'Tank Cleaning Service' ? 'Tank Cleaning' : s),
+        requested_service_cities: profile.serviceCities,
+      } }).then((result: { error: { code?: string } | null }) => {
+        const { error } = result;
+        if (error) console.warn('[technician/profile] preference sync unavailable', error.code);
+        else lastSyncedSelectionsRef.current = fingerprint;
+      }).catch(() => { /* retained on this device */ });
+    }, 900);
+    return () => window.clearTimeout(t);
+  }, [allowed,preferencesLoaded,userId,profile.skills,profile.serviceCities]);
 
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
-    void fetch('/api/technicians/documents', { cache: 'no-store' }).then(async (response) => {
+    void technicianAuthHeaders().then(headers => fetch('/api/technicians/documents', { headers, cache: 'no-store' })).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Could not load document review status.');
+      if (!response.ok) throw new Error(response.status === 401 ? 'Sign in again to view verified document status.' : payload?.error || 'Could not load document review status.');
       if (cancelled) return;
       const serverFiles = payload?.data?.files ?? {};
       const map: Record<string, keyof TechDocs> = { aadhaar_front: 'aadhaarFront', aadhaar_back: 'aadhaarBack', profile_photo: 'profilePhoto', skill_certificate: 'skillCert' };
@@ -1980,6 +2079,9 @@ export default function TechnicianDashboardPage() {
                 {lastSynced ? `${isHindi ? 'सिंक हुआ' : 'Synced'} ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : (isHindi ? 'सिंक हो रहा है…' : 'Syncing…')}
               </span>
               <div className="flex items-center gap-2">
+                <Link href="/notifications" prefetch={false} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" title={isHindi ? 'नए काम का अलर्ट देखें' : 'View new job alerts'}>
+                  <Bell size={14} aria-hidden />{isHindi ? 'जॉब अलर्ट' : 'Job alerts'}
+                </Link>
                 <div role="group" aria-label={isHindi ? 'भाषा चुनें' : 'Choose language'} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
                   <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'en' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="English">EN</button>
                   <button type="button" aria-pressed={language === 'hi'} onClick={() => setLanguage('hi')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'hi' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="हिंदी">हिंदी</button>
@@ -2047,7 +2149,7 @@ export default function TechnicianDashboardPage() {
             {tab === 'earnings' && <EarningsTab stats={stats} week={week} completed={completedJobs} profile={profile} setProfile={setProfile} />}
             {tab === 'availability' && <AvailabilityTab availability={availability} setAvailability={setAvailability} />}
             {tab === 'profile' && <ProfileTab profile={profile} setProfile={setProfile} />}
-            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} uploadingSlot={docsUploadingSlot} />}
+            {tab === 'documents' && <DocumentsTab docs={docs} setDocs={setDocs} verification={verification} onSubmit={() => void submitDocuments()} submitting={docsSubmitting} uploadingSlot={docsUploadingSlot} setUploadingSlot={setDocsUploadingSlot} />}
           </main>
         </div>
       </div>

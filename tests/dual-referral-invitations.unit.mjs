@@ -7,7 +7,7 @@ const proxy = read('src/proxy.ts');
 const supplierPage = read('src/app/customer/referral/page.tsx');
 const customerPage = read('src/app/customer/referrals/page.tsx');
 const login = read('src/app/auth/login/page.tsx');
-const signup = read('src/app/auth/register/page.tsx');
+const signup = read('src/app/auth/register/RegisterClient.tsx');
 const callback = read('src/app/auth/callback/route.ts');
 const supplierApi = read('src/app/api/customer/referral/route.ts');
 const rewardApi = read('src/app/api/customer/referrals/route.ts');
@@ -31,8 +31,9 @@ test('supplier and customer invitations have separate actions and APIs', () => {
 test('invite survives login and registration while non-referral logins retain existing defaults', () => {
   assert.match(login, /sanitized\.startsWith\('\/customer\/'\)/);
   assert.match(login, /referralReturnPath\(searchParams\.get\('returnTo'\)\)/);
-  assert.match(signup, /referralReturnPath\(new URLSearchParams\(window\.location\.search\)\.get\('returnTo'\)\)/);
-  assert.match(signup, /referralDestination \? referralDestination : destination/);
+  assert.match(signup, /referralReturnPath\(params\.get\('returnTo'\)\)/);
+  assert.match(signup, /const customerReturn = role === 'customer' \? returnTo : null/);
+  assert.match(signup, /router\.replace\(result\.profile\.role === 'customer' && returnTo \? returnTo : cfg\.dest\)/);
   assert.match(callback, /referralReturnPath\(nextPath\)/);
 });
 

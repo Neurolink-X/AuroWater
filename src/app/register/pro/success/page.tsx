@@ -10,11 +10,11 @@ type Receipt = {
   account_role: string;
 };
 type FileView = { files: UserFile[]; slots: SlotInfo[] };
-const MANDATORY = ['aadhaar_front', 'aadhaar_back', 'skill_certificate'];
+const MANDATORY = ['aadhaar_front', 'aadhaar_back', 'profile_photo'];
 const LABELS: Record<string, [string, string]> = {
   aadhaar_front: ['पहचान पत्र - सामने', 'Government ID - front'],
   aadhaar_back: ['पहचान पत्र - पीछे', 'Government ID - back'],
-  skill_certificate: ['काम या कौशल का प्रमाण', 'Skill / work-experience proof'],
+  profile_photo: ['अपनी साफ़ फोटो', 'Clear profile photo'],
 };
 function info(status: string): [string, string] {
   if (status === 'approved') return ['आपका आवेदन स्वीकृत है।', 'Your application is approved.'];
@@ -126,7 +126,7 @@ export default function ProApplicationSuccessPage() {
         })}
         {uploadError && <p role="alert" className="rounded-xl bg-rose-950 p-3 text-sm text-rose-200">{uploadError}</p>}
         {!files && <p className="text-sm text-amber-200">{hi ? 'दस्तावेज़ सूची उपलब्ध नहीं है। लॉगिन और कनेक्शन जाँचें।' : 'Document list is unavailable. Check your login and connection.'}</p>}
-        <p className="text-xs text-slate-400">{hi ? 'कौशल प्रमाण के लिए सर्टिफ़िकेट या काम का उचित प्रमाण दें। अंतिम स्वीकृति एडमिन जाँच के बाद होगी।' : 'Provide a trade certificate or verifiable work evidence. Final eligibility requires admin review.'}</p>
+        <p className="text-xs text-slate-400">{hi ? 'काम का सर्टिफ़िकेट वैकल्पिक है। एडमिन आपकी पहचान और काम का अनुभव जाँचकर मंज़ूरी देगा।' : 'A trade certificate is optional. Admin must verify your identity and work experience before granting job access.'}</p>
       </section>}
       <div className="flex flex-wrap gap-3 text-sm font-semibold">
         <button onClick={() => void load()} className="rounded-xl border border-white/20 px-4 py-3 text-cyan-200">{hi ? 'स्थिति रिफ्रेश करें' : 'Refresh status'}</button>

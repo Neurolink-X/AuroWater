@@ -33,8 +33,13 @@ export default function SpecialistReviewPage(){
  },[]);
  useEffect(()=>{void refresh()},[refresh]);
  async function review(id:string,status:'approved'|'rejected'){
-  const note=status==='rejected'?window.prompt('Why was this application rejected?'):'Verified ID and specialist qualification';
-  if(!note||note.trim().length<3)return;
+  const note=window.prompt(status==='approved'
+    ? 'Describe identity check and actual trade experience/reference reviewed (20+ characters). Never approve based on a blank or prefilled statement.'
+    : 'Why was this application rejected?');
+  if(!note||note.trim().length<(status==='approved'?20:3)){
+    if(note!==null)toast.error(status==='approved'?'Explain the actual identity and experience check (20+ characters)':'Give a rejection reason');
+    return;
+  }
   setBusy(id);
   try{
    await request('/api/admin/partner-applications','PATCH',{application_id:id,decision:status,note});
@@ -52,7 +57,7 @@ export default function SpecialistReviewPage(){
  return <main className="mx-auto max-w-5xl space-y-6 p-4 text-slate-100 sm:p-8">
   <header><a href="/admin/orders" className="text-cyan-300 underline">Back to Orders</a><h1 className="mt-3 text-2xl font-bold">Specialist applications & service approvals</h1>
   <p className="mt-2 text-sm text-slate-300">Private operations only. A plumber cannot receive borewell or tank-cleaning jobs without separately approved qualifications. Document verification is mandatory.</p></header>
-  <div className="flex gap-2"><button onClick={()=>void refresh()} disabled={loading} className="rounded-lg bg-cyan-400 px-4 py-2 text-slate-950">{loading?'Loading…':'Refresh'}</button><a className="rounded-lg border p-2" href="/admin/technician-documents">Verify ID & skill documents</a></div>
+  <div className="flex gap-2"><button onClick={()=>void refresh()} disabled={loading} className="rounded-lg bg-cyan-400 px-4 py-2 text-slate-950">{loading?'Loading…':'Refresh'}</button><a className="rounded-lg border p-2" href="/admin/verification">Verify required ID & photo</a></div>
   <section className="space-y-3"><h2 className="text-xl font-semibold">Pending registration requests</h2>
    {!apps.some(x=>['pending','pending_approval'].includes(x.status))&&<p className="text-slate-300">No pending specialist applications.</p>}
    {apps.filter(x=>['pending','pending_approval'].includes(x.status)).map(a=><article key={a.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
