@@ -60,7 +60,10 @@ export default function TechnicianServiceApplicationPage() {
       setStatus(next);
       const firstUnapproved=(Object.keys(TECHNICIAN_SERVICE_OPTIONS) as TechnicianServiceKey[])
         .find(key => !next.approved_services.includes(key));
-      if(firstUnapproved) setServiceKey(firstUnapproved);
+      // Background refresh must NEVER overwrite the user's in-progress choice.
+      // Only move the selector if the current service has become approved.
+      if(firstUnapproved) setServiceKey(current =>
+        next.approved_services.includes(current) ? firstUnapproved : current);
     }
     catch(e){setStatus(null);setError(e instanceof Error?e.message:'Could not load eligibility.');}
     finally{setLoading(false);}
