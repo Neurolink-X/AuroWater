@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   // A new professional initially has a customer profile. Allow only an existing,
   // authenticated pending technician applicant to see the pre-approval KYC slots.
   let slots = slotsForRole(auth.ctx.profile.role);
-  let onboardingRole = auth.ctx.profile.role;
+  let onboardingRole: string = auth.ctx.profile.role;
   if (auth.ctx.profile.role === 'customer') {
     const { data: pending, error: pendingError } = await db.from('applications')
       .select('id').eq('user_id', auth.ctx.user.id).eq('type', 'technician')
