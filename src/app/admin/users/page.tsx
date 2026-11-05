@@ -33,6 +33,7 @@ import React, {
   useSyncExternalStore,
 } from 'react';
 import Link from 'next/link';
+import PendingPartnerApplications from '@/components/admin/PendingPartnerApplications';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -1103,6 +1104,12 @@ function UsersContent() {
           </div>
         )}
 
+        {/* Professional applications are persisted separately from profile.status.
+            Show them inside the same Pending approval workspace, not a new sidebar page. */}
+        {view === 'pending' && role !== 'CUSTOMER' && role !== 'ADMIN' && (
+          <PendingPartnerApplications roleFilter={role} search={debouncedQ} />
+        )}
+
         <section
           className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
           aria-busy={loading || refreshing}
@@ -1143,11 +1150,11 @@ function UsersContent() {
             ) : rows.length === 0 ? (
               <div className="px-5 py-16 text-center">
                 <p className="font-semibold text-slate-900">
-                  {view === 'pending' && !filtersActive ? 'The approval queue is clear' : 'No users found'}
+                  {view === 'pending' && !filtersActive ? 'No pending account approvals' : 'No users found'}
                 </p>
                 <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
                   {view === 'pending' && !filtersActive
-                    ? 'New registrations that need review will appear here.'
+                    ? 'Professional applications appear in the section above; these rows show account-level approvals only.'
                     : 'Try a different filter or search term.'}
                 </p>
                 {filtersActive && (
