@@ -44,6 +44,7 @@ import React, {
   useContext,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   LayoutDashboard,
   Bell,
@@ -1295,27 +1296,35 @@ function ProfileTab({ profile, setProfile }: { profile: TechProfile; setProfile:
   ];
   const done = checks.filter((c) => c.ok).length;
   const pct = Math.round((done / checks.length) * 100);
-  const chip = (active: boolean) => `rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors ${ringFocus} ${active ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`;
 
   return (
     <div className="space-y-5">
-      <PageHeader title={isHindi ? 'प्रोफ़ाइल' : 'Profile'} description="Skills and areas you cover. Changes save automatically on this device." />
+      <PageHeader title={isHindi ? 'मेरी प्रोफ़ाइल' : 'My profile'} description={isHindi ? 'अपना काम और शहर चुनें। ये जानकारी इस फोन में सेव होगी; जॉब की मंज़ूरी अलग से मिलेगी।' : 'Choose skills and cities. Saved on this device; job eligibility requires separate admin approval.'} />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className={`${card} p-4 sm:p-5`}>
-          <h2 className="mb-3 font-bold text-slate-900">Skills</h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Skills">
-            {SKILLS.map((s) => <button key={s} type="button" aria-pressed={profile.skills.includes(s)} onClick={() => toggleIn('skills', s)} className={chip(profile.skills.includes(s))}>{s}</button>)}
-          </div>
-          <h2 className="mb-3 mt-6 font-bold text-slate-900">{isHindi ? 'सेवा वाले शहर' : 'Service cities'}</h2>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Service cities">
-            {UP_CITIES.map((c) => <button key={c} type="button" aria-pressed={profile.serviceCities.includes(c)} onClick={() => toggleIn('serviceCities', c)} className={chip(profile.serviceCities.includes(c))}>{c}</button>)}
-          </div>
+          {([
+            { field: 'skills' as const, title: isHindi ? 'कौन सा काम करते हैं?' : 'Skills', choices: SKILLS as readonly string[] },
+            { field: 'serviceCities' as const, title: isHindi ? 'कहाँ काम करते हैं?' : 'Service cities', choices: UP_CITIES as readonly string[] },
+          ]).map(({field,title,choices}) => (
+            <details key={field} className="mb-3 rounded-xl border border-slate-200 p-3">
+              <summary className="min-h-10 cursor-pointer text-sm font-bold text-slate-900">{title} ({profile[field].length}) ▾</summary>
+              <p className="text-xs text-slate-500">{profile[field].join(', ') || (isHindi ? 'कुछ नहीं चुना' : 'Nothing selected')}</p>
+              <fieldset className="mt-3 grid max-h-56 grid-cols-2 gap-2 overflow-y-auto">
+                <legend className="sr-only">{title}</legend>
+                {choices.map(choice => (
+                  <label key={choice} className="flex min-h-11 items-center gap-2 rounded-lg bg-slate-50 p-2 text-xs font-semibold text-slate-800">
+                    <input type="checkbox" checked={profile[field].includes(choice)} onChange={() => toggleIn(field,choice)} className="h-4 w-4 accent-emerald-600" /> {choice}
+                  </label>
+                ))}
+              </fieldset>
+            </details>
+          ))}
         </section>
         <section className={`${card} p-4 sm:p-5`}>
-          <label htmlFor="bio" className="mb-3 block font-bold text-slate-900">Bio</label>
-          <textarea id="bio" value={profile.bio} onChange={(e) => setProfile((c) => ({ ...c, bio: e.target.value.slice(0, 200) }))} rows={5} placeholder="Tell customers what you specialise in and how you work." className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
+          <label htmlFor="bio" className="mb-3 block font-bold text-slate-900">{isHindi ? 'अपने काम के बारे में' : 'Bio'}</label>
+          <textarea id="bio" value={profile.bio} onChange={(e) => setProfile((c) => ({ ...c, bio: e.target.value.slice(0, 200) }))} rows={5} placeholder={isHindi ? 'आप कौन सा काम करते हैं और कितना अनुभव है?' : 'Tell customers what you specialise in and how you work.'} className="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20" />
           <p className="mt-1 text-right text-xs text-slate-500">{profile.bio.length}/200</p>
-          <h2 className="mb-3 mt-5 font-bold text-slate-900">Profile completeness</h2>
+          <h2 className="mb-3 mt-5 font-bold text-slate-900">{isHindi ? 'प्रोफ़ाइल कितनी पूरी हुई' : 'Profile completeness'}</h2>
           <div className="mb-2 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Profile completeness">
             <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
           </div>
@@ -1994,6 +2003,9 @@ export default function TechnicianDashboardPage() {
                 {lastSynced ? `${isHindi ? 'सिंक हुआ' : 'Synced'} ${new Date(lastSynced).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : (isHindi ? 'सिंक हो रहा है…' : 'Syncing…')}
               </span>
               <div className="flex items-center gap-2">
+                <Link href="/notifications" prefetch={false} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 px-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50" title={isHindi ? 'नए काम का अलर्ट देखें' : 'View new job alerts'}>
+                  <Bell size={14} aria-hidden />{isHindi ? 'जॉब अलर्ट' : 'Job alerts'}
+                </Link>
                 <div role="group" aria-label={isHindi ? 'भाषा चुनें' : 'Choose language'} className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1">
                   <button type="button" aria-pressed={language === 'en'} onClick={() => setLanguage('en')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'en' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="English">EN</button>
                   <button type="button" aria-pressed={language === 'hi'} onClick={() => setLanguage('hi')} className={`min-h-8 rounded-lg px-2.5 text-xs font-bold ${ringFocus} ${language === 'hi' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-50'}`} title="हिंदी">हिंदी</button>
