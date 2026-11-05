@@ -163,6 +163,12 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
       {data.application?.rejection_note && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-800">{data.application.rejection_note}</p>}
       {docsReady && !verified && !hasPendingApplication && <Link href="/register/pro" className="inline-flex min-h-10 items-center rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white">{hi ? 'सर्विस मंज़ूरी के लिए आवेदन' : 'Apply for service approval'}</Link>}
     </div>}
+    {data && <details className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
+      <summary className="cursor-pointer font-semibold text-emerald-800">{hi ? 'पंजीकृत ईमेल और शहर देखें' : 'Registered email & service city'}</summary>
+      <p className="mt-2 break-all">{hi ? 'पंजीकृत ईमेल' : 'Registered email'}: <strong>{data.profile.email || (hi ? 'उपलब्ध नहीं' : 'Not provided')}</strong></p>
+      <p className="mt-1">{hi ? 'शहर' : 'City'}: <strong>{data.profile.city || (hi ? 'दर्ज नहीं' : 'Not registered')}</strong></p>
+      <p className="mt-1">{hi ? 'खाते की मंज़ूरी' : 'Account verification'}: <strong>{data.profile.verification || (hi ? 'बाकी' : 'Pending')}</strong></p>
+    </details>}
     <nav aria-label={hi ? 'अकाउंट लिंक' : 'Account links'} className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs font-semibold text-emerald-700 sm:text-sm">
       <Link href="/technician/settings" className="underline">{hi ? 'सेटिंग्स' : 'Settings'}</Link>
       <Link href="/technician/dashboard#documents" className="underline">{hi ? 'दस्तावेज़' : 'Documents'}</Link>
