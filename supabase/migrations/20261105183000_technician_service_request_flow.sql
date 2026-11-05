@@ -26,8 +26,8 @@ BEGIN
     RAISE EXCEPTION 'Only the authenticated professional API can submit requests'
       USING ERRCODE='42501';
   END IF;
-  IF p_service_key NOT IN ('plumbing','ro_service','tank_cleaning','borewell')
-    OR p_experience_years NOT BETWEEN 0 AND 60
+  IF p_service_key IS NULL OR p_service_key NOT IN ('plumbing','ro_service','tank_cleaning','borewell')
+    OR p_experience_years IS NULL OR p_experience_years NOT BETWEEN 0 AND 60
     OR length(trim(coalesce(p_working_area,''))) NOT BETWEEN 3 AND 150
     OR coalesce(p_working_pincode,'') !~ '^[1-9][0-9]{5}$'
     OR length(trim(coalesce(p_work_description,''))) NOT BETWEEN 20 AND 700
