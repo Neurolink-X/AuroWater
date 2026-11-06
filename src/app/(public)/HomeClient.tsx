@@ -420,7 +420,8 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Check live coverage in {LIVE_CITY_NAMES}</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
-                    <span className={`hero-h block mt-2 ${pricingReady ? 'hero-price-line' : ''}`}>RO Water from <span className="inline whitespace-nowrap">{displayPrice(currentNormal)},</span></span>
+                    {/* Keep mobile heading line-height stable during initial pricing verification. */}
+                    <span className="hero-h hero-price-line block mt-2">RO Water from{' '}<span className="inline whitespace-nowrap" aria-live="polite">{pricingReady ? `${displayPrice(currentNormal)},` : <span className="opacity-60" aria-label={pricingError ? 'Check live price during booking' : 'Loading live price'}>…</span>}</span></span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
