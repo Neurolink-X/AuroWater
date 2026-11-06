@@ -10,6 +10,9 @@ const expected = Object.freeze({
   'node_modules/tinyglobby/node_modules/picomatch': [4, 0, 4],
   'node_modules/brace-expansion': [1, 1, 21],
   'node_modules/minimatch': [3, 1, 4],
+  'node_modules/@humanfs/node': [0, 16, 8],
+  'node_modules/@humanfs/core': [0, 19, 2],
+  'node_modules/@humanfs/types': [0, 15, 0],
 });
 
 function compareVersions(actual, required) {
