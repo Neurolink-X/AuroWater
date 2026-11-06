@@ -1,11 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-const raw=readFileSync('src/lib/routing/slot-safe-route.ts','utf8');
-const js=ts.transpileModule(raw,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const output={};new Function('exports',js)(output);
-const {planNearbyRoute}=output;
+import { planNearbyRoute } from '../src/lib/routing/slot-safe-route.ts';
 const d=(minutes)=>new Date(Date.parse('2026-11-03T03:00:00Z')+minutes*60_000).toISOString();
 const stop=(id,lat,lng,start,end)=>({id,lat,lng,scheduledAt:d(start),slotEndAt:d(end),serviceMinutes:8});
 test('groups nearby stops when deadlines allow without making distant detour',()=>{

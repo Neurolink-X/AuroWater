@@ -1,3 +1,4 @@
+import { withinSupplierRadius } from '../src/lib/dispatch-radius.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,13 +8,7 @@ const root = process.cwd();
 const source = readFileSync(join(root, 'src/lib/dispatch-radius.ts'), 'utf8');
 assert.match(source, /distanceKm <= selectedRadiusKm/);
 
-const withinSupplierRadius = new Function('distanceKm', 'selectedRadiusKm', `
-  return Number.isFinite(distanceKm) &&
-    Number.isFinite(selectedRadiusKm) &&
-    distanceKm >= 0 &&
-    selectedRadiusKm > 0 &&
-    distanceKm <= selectedRadiusKm;
-`);
+
 
 test('supplier 5km selection is a hard limit, not 15km fallback', () => {
   assert.equal(withinSupplierRadius(1.34, 5), true);
