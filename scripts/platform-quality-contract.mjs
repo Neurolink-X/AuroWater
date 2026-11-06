@@ -141,6 +141,9 @@ const CROSS_ROLE_IMPACT = Object.freeze([
  * Shared files can affect multiple roles; ownership is not a lint exemption.
  */
 export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
+  'src/app/(supplier)/supplier/settings/page.tsx': ['supplier'],
+  'src/app/api/notifications/inbox/route.ts': ['notifications', 'auth'],
+  'src/lib/routing/slot-safe-route.ts': ['dispatch', 'supplier', 'technician'],
   'src/app/(public)/HomeClient.tsx': ['booking', 'auth'],
   'src/app/(public)/contact/ContactForm.tsx': ['admin', 'auth'],
   'src/app/account-help/page.tsx': ['auth', 'admin'],
