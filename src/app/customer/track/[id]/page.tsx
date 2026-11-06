@@ -228,14 +228,15 @@ export default function TrackOrderPage() {
   );
 
   useEffect(() => {
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [load]);
 
   // Keep the first paint useful even when the API/network is slow.
   useEffect(() => {
     if (!loading) {
-      setLoadingSlow(false);
-      return;
+      const frame = window.requestAnimationFrame(() => setLoadingSlow(false));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     const timer = window.setTimeout(() => setLoadingSlow(true), 3500);
@@ -319,35 +320,43 @@ export default function TrackOrderPage() {
   /* Provider profiles are resolved by the authenticated order API.
    * Do not query another user's private profiles row from the browser. */
   useEffect(() => {
-    const provider = (order as Record<string, unknown> | null)?.technician_profile;
-    if (!technicianId || !provider || typeof provider !== 'object') {
-      setTech(null);
-      return;
-    }
-    const row = provider as Record<string, unknown>;
-    setTech({
-      id: String(row.id ?? technicianId),
-      full_name: typeof row.full_name === 'string' ? row.full_name : null,
-      avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+    const frame = window.requestAnimationFrame(() => {
+      const provider = (order as Record<string, unknown> | null)?.technician_profile;
+      if (!technicianId || !provider || typeof provider !== 'object') {
+        setTech(null);
+        return;
+      }
+      const row = provider as Record<string, unknown>;
+      setTech({
+        id: String(row.id ?? technicianId),
+        full_name: typeof row.full_name === 'string' ? row.full_name : null,
+        avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+      });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [technicianId, order]);
 
   /* Supplier profile + rating (re-runs only when the supplier changes) */
   useEffect(() => {
     const provider = supplierProfile;
-    if (!supplierId || !provider || typeof provider !== 'object') {
-      setSupplier(null);
-      setSupplierRating(null);
-      return;
-    }
-    const row = provider as Record<string, unknown>;
-    setSupplier({
-      id: String(row.id ?? supplierId),
-      full_name: typeof row.full_name === 'string' ? row.full_name : null,
-      avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
-      milestone_tier: typeof row.milestone_tier === 'string' ? row.milestone_tier : null,
-      last_seen_at: typeof row.last_seen_at === 'string' ? row.last_seen_at : null,
+    const frame = window.requestAnimationFrame(() => {
+      if (!supplierId || !provider || typeof provider !== 'object') {
+        setSupplier(null);
+        setSupplierRating(null);
+        return;
+      }
+      const row = provider as Record<string, unknown>;
+      setSupplier({
+        id: String(row.id ?? supplierId),
+        full_name: typeof row.full_name === 'string' ? row.full_name : null,
+        avatar_url: typeof row.avatar_url === 'string' ? row.avatar_url : null,
+        milestone_tier: typeof row.milestone_tier === 'string' ? row.milestone_tier : null,
+        last_seen_at: typeof row.last_seen_at === 'string' ? row.last_seen_at : null,
+      });
     });
+    if (!supplierId || !provider || typeof provider !== 'object') {
+      return () => window.cancelAnimationFrame(frame);
+    }
 
     // Rating is non-critical. Load only a small recent sample instead of
     // fetching hundreds of order IDs and then a second reviews query.
@@ -376,7 +385,7 @@ export default function TrackOrderPage() {
           : null;
         if (!cancelled) setSupplierRating(averageRating);
       });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.cancelAnimationFrame(frame); };
   }, [supplierId, supplierProfileId, session?.accessToken]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
