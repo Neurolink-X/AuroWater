@@ -16,7 +16,10 @@ export default function RadiusApprovalsPage(){
   return json.data??json;
  },[]);
  const reload=useCallback(async()=>{try{setError('');const d=await authFetch('GET');setItems(Array.isArray(d)?d:[])}catch(e){setError(e instanceof Error?e.message:'Could not load')}finally{setLoading(false)}},[authFetch]);
- useEffect(()=>{void reload()},[reload]);
+ useEffect(() => {
+  const initial = window.setTimeout(() => { void reload(); }, 0);
+  return () => window.clearTimeout(initial);
+ }, [reload]);
  const review=async(r:Request,decision:'APPROVED'|'REJECTED')=>{
   const note=window.prompt(decision==='APPROVED'?'Review supplier capacity, approved PIN zones and reliable delivery, then enter your review note:':'Explain rejection:');
   if(note===null)return;

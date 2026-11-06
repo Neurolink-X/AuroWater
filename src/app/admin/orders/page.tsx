@@ -79,7 +79,8 @@ export default function AdminOrdersPage() {
   }, [status, from, to]);
 
   useEffect(() => {
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [load]);
 
   const rows = useMemo(() => {

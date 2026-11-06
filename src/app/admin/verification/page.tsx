@@ -57,7 +57,10 @@ export default function AdminVerificationPage() {
     } finally { if (ctrl.current === c) setLoading(false); }
   }, [status]);
 
-  useEffect(() => { void load(); return () => ctrl.current?.abort(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => { window.clearTimeout(initial); ctrl.current?.abort(); };
+  }, [load]);
   useEffect(() => {
     const tick = () => { if (document.visibilityState === 'visible') void load(true); };
     const t = setInterval(tick, REFRESH_MS);

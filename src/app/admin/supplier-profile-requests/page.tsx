@@ -26,7 +26,10 @@ export default function AdminSupplierProfileRequestsPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load requests.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
   const review = async (row: Row, status: 'APPROVED'|'REJECTED') => {
     setBusy(row.id); setError(''); setMessage('');
     try {

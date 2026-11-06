@@ -40,7 +40,10 @@ export default function AdminPricingPage() {
  const [config,setConfig]=useState<Config>({water_normal:20,water_chilled:25,water_subscription:20,bulk_can_price:20,bulk_threshold:50,services:{water_tanker:699,ro_service:349,plumbing:149,plumbing_mistri:700,borewell:499,borewell_drilling_4_5:100,borewell_drilling_6:180,borewell_drilling_6_5:180,borewell_drilling_8:350,motor_pump:299,tank_cleaning:599,ro_service_filter_change:49,ro_service_amc:149,ro_service_new_installation:599,plumbing_drainage:49,plumbing_new_fitting:99,water_tanker_1000:300,water_tanker_2000:800,water_tanker_custom:0},convenience_fee:0,emergency_surcharge:0,delivery_fee:0,surge_charge:0,gst_rate:0});
  const [reason,setReason]=useState(''); const [effective,setEffective]=useState(''); const [mode,setMode]=useState<'global'|'city'>('global'); const [city,setCity]=useState('Kanpur'); const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [error,setError]=useState('');
  const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await call<{versions:Version[];current:Version|null;active_pricing_issues?:Array<{field:string;reason:string}>}>('GET');setVersions(r.versions);setCurrent(r.current);setActiveIssues(r.active_pricing_issues??[]);if(r.current?.config)setConfig({...r.current.config,services:{water_tanker:699,ro_service:349,plumbing:149,plumbing_mistri:700,borewell:499,borewell_drilling_4_5:100,borewell_drilling_6:180,borewell_drilling_6_5:180,borewell_drilling_8:350,motor_pump:299,tank_cleaning:599,ro_service_filter_change:49,ro_service_amc:149,ro_service_new_installation:599,plumbing_drainage:49,plumbing_new_fitting:99,water_tanker_1000:300,water_tanker_2000:800,water_tanker_custom:0,...r.current.config.services}});}catch(e){setError(e instanceof Error?e.message:'Could not load pricing.');}finally{setLoading(false);}},[]);
- useEffect(()=>{void load();},[load]);
+ useEffect(() => {
+  const initial = window.setTimeout(() => { void load(); }, 0);
+  return () => window.clearTimeout(initial);
+ }, [load]);
  useEffect(()=>{
   const controller=new AbortController();
   void fetch('/api/cities',{cache:'no-store',signal:controller.signal})

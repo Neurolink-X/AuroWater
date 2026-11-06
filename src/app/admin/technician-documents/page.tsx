@@ -56,7 +56,10 @@ export default function TechnicianDocumentReviewPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
