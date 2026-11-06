@@ -79,7 +79,7 @@ export default function UpdatePasswordPage() {
             window.history.replaceState({}, document.title, '/auth/update-password');
             return;
           }
-          await new Promise((resolve) => window.setTimeout(resolve, 250));
+          await new Promise((resolve) => { window.setTimeout(resolve, 250); });
         }
 
         if ((code || window.location.hash.includes('access_token')) && !cancelled) {
