@@ -1708,6 +1708,7 @@ export default function TechnicianDashboardPage() {
     window.addEventListener('online', onOnline);
     window.addEventListener('aurotap:verification-changed', onChanged);
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(poll);
       document.removeEventListener('visibilitychange', maybeRefresh);
       window.removeEventListener('focus', maybeRefresh);
