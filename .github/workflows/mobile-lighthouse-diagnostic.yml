@@ -4,6 +4,10 @@ name: Mobile Lighthouse diagnostics
 # a production URL would not include unmerged changes, and repeated tests
 # should not add noise/cost to normal CI.
 on:
+  # One-time branch proof-run before exposing the on-demand action on main.
+  push:
+    branches: [perf/mobile-lighthouse-audit-and-visual-loading]
+    paths: [.github/workflows/mobile-lighthouse-diagnostic.yml]
   workflow_dispatch:
 
 permissions:
