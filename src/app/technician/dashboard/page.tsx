@@ -1435,6 +1435,7 @@ function useTechnicianJobs(enabled: boolean, userId?: string) {
   const inflightRef = useRef(false);
   const queuedRef = useRef(false);
   const lastSyncRef = useRef(0);
+  const refreshRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -1470,19 +1471,27 @@ function useTechnicianJobs(enabled: boolean, userId?: string) {
       }
       if (queuedRef.current) {
         queuedRef.current = false;
-        void refresh();
+        void refreshRef.current?.();
       }
     }
   }, [userId]);
 
   useEffect(() => {
+    refreshRef.current = refresh;
+    return () => { refreshRef.current = null; };
+  }, [refresh]);
+
+  useEffect(() => {
     if (!enabled) return;
-    const cached = readJobsCache(userId);
-    if (cached) {
-      setJobs(cached);
-      setLoading(false);
-    }
-    void refresh();
+    const frame = window.requestAnimationFrame(() => {
+      const cached = readJobsCache(userId);
+      if (cached) {
+        setJobs(cached);
+        setLoading(false);
+      }
+      void refresh();
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [enabled, userId, refresh]);
 
   useEffect(() => {
@@ -1578,7 +1587,9 @@ export default function TechnicianDashboardPage() {
   useEffect(() => {
     if (!allowed || !userId || !profileReady) return;
     let cancelled = false;
-    setPreferencesLoaded(false);
+    const preferenceFrame = window.requestAnimationFrame(() => {
+      if (!cancelled) setPreferencesLoaded(false);
+    });
     lastSyncedSelectionsRef.current = null;
     void createClient().auth.getUser().then((result: {
       data: { user: { id: string; user_metadata?: Record<string, unknown> } | null };
@@ -1609,7 +1620,7 @@ export default function TechnicianDashboardPage() {
       }
       setPreferencesLoaded(true);
     }).catch(() => { if (!cancelled) setPreferencesLoaded(true); });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.cancelAnimationFrame(preferenceFrame); };
   }, [allowed,userId,profileReady,setProfile]);
 
   useEffect(() => {
@@ -1684,7 +1695,7 @@ export default function TechnicianDashboardPage() {
 
   useEffect(() => {
     if (!allowed || !userId) return;
-    void refreshDocumentStatus();
+    const initial = window.setTimeout(() => { void refreshDocumentStatus(); }, 0);
     const visible = () => document.visibilityState === 'visible' && navigator.onLine;
     const maybeRefresh = () => {
       if (visible() && Date.now() - lastDocCheck.current >= 20_000) void refreshDocumentStatus();
@@ -1801,7 +1812,7 @@ export default function TechnicianDashboardPage() {
   const completedJobs = useMemo(() => myJobs.filter((j) => j.stage === 'completed').sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)), [myJobs]);
 
   const { stats, week } = useMemo(() => {
-    const nowTs = clock || Date.now();
+    const nowTs = clock;
     const today = dayKey(nowTs);
     const monthPrefix = `${new Date(nowTs).getFullYear()}-${new Date(nowTs).getMonth()}-`;
     let todayCount = 0;
