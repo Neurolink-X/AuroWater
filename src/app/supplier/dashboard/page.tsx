@@ -2972,7 +2972,7 @@ export default function SupplierDashboardPage() {
   }, []);
 
   // ── Load all data ───────────────────────────────────────────────────────────
-  const loadAll = useCallback(async (userId: string) => {
+  async function loadAll(userId: string) {
     // Show the full-page loader only on first load. Focus/manual refreshes must
     // keep the last successful dashboard and orders visible while data reloads.
     if (!dashboardLoadedOnceRef.current) setLoading(true);
@@ -2990,7 +2990,7 @@ export default function SupplierDashboardPage() {
       dashboardLoadedOnceRef.current = true;
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const fetchProfile = async (userId: string) => {
     // The production schema stores supplier identity in public.profiles.
