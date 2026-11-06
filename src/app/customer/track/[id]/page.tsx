@@ -1,4 +1,5 @@
 'use client';
+import { useClientClock } from '@/hooks/useClientClock';
 import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -172,6 +173,7 @@ export default function TrackOrderPage() {
   // Avoid bouncing the tracking timeline backwards on congested mobile networks.
   const realtimeGeneration = useRef(0);
   const mountedRef = useRef(false);
+  const displayNow = useClientClock(30_000);
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
@@ -407,11 +409,11 @@ export default function TrackOrderPage() {
   const pendingTooLong =
     unassignedPending &&
     Boolean(order?.created_at) &&
-    Date.now() - new Date(String(order?.created_at ?? '')).getTime() > 5 * 60_000;
+    displayNow !== null && displayNow - new Date(String(order?.created_at ?? '')).getTime() > 5 * 60_000;
 
   function minsAgo(iso: string | null | undefined): string {
-    if (!iso) return '—';
-    const ms = Date.now() - new Date(iso).getTime();
+    if (!iso || displayNow === null) return '—';
+    const ms = displayNow - new Date(iso).getTime();
     const m = Math.max(0, Math.floor(ms / 60_000));
     if (m < 1) return 'just now';
     if (m < 60) return `${m} min ago`;

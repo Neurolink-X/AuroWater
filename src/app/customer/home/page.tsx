@@ -15,6 +15,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import BottomNav from '@/components/customer/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useClientClock } from '@/hooks/useClientClock';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { createSupabaseBrowserAuthed } from '@/lib/db/supabase-user-browser';
 
@@ -168,7 +169,7 @@ function daysAgo(iso: string | number | Date | null | undefined): number | null 
   if (!iso) return null;
   const timestamp = new Date(iso).getTime();
   if (Number.isNaN(timestamp)) return null;
-  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+  return Math.max(0, Math.floor((displayNow - timestamp) / 86_400_000));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -561,6 +562,7 @@ export default function CustomerHomePage() {
   const notificationDebounce = useRef<number | null>(null);
 
   const ready = hydrated && isLoggedIn && isCustomer;
+  const displayNow = useClientClock(60_000);
 
   /* ── Stable greeting after hydration: avoids SSR/client time mismatch ── */
   useEffect(() => {
@@ -891,14 +893,14 @@ export default function CustomerHomePage() {
   const firstName = name ?? fullName?.split(/\s+/)[0] ?? 'there';
 
   const memberDays = useMemo(() => {
-    if (!stats?.member_since) return 0;
+    if (!stats?.member_since || displayNow === null) return 0;
 
     const timestamp = new Date(stats.member_since).getTime();
 
     if (Number.isNaN(timestamp)) return 0;
 
     return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
-  }, [stats?.member_since, version]);
+  }, [stats?.member_since, version, displayNow]);
 
   const supportHref = `${WHATSAPP_SUPPORT}?text=${encodeURIComponent(
     primary ? `Hi AuroTap, I need help with order #${primary.orderReference}` : 'Hi AuroTap, I need help'
