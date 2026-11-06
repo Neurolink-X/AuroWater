@@ -1,0 +1,61 @@
+name: Desktop Lighthouse diagnostics
+
+# Run only on demand. This measures the deployed production URL and is NOT a
+# preview test for unmerged PR changes, nor real-user Core Web Vitals.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-lighthouse-production
+  cancel-in-progress: false
+
+jobs:
+  desktop-lighthouse:
+    name: Repeated desktop profiling of AuroTap production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify Chrome
+        run: |
+          command -v google-chrome
+          google-chrome --version
+      - name: Run Lighthouse desktop three times
+        run: |
+          mkdir -p .lighthouse-desktop
+          for i in 1 2 3; do
+            npx --yes lighthouse@13.6.0 https://www.aurotap.in/ \
+              --preset=desktop \
+              --only-categories=performance,accessibility,best-practices,seo \
+              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+              --output=json \
+              --output-path=".lighthouse-desktop/run-$i.json" \
+              --quiet
+          done
+      - name: Extract desktop CLS, TBT, long tasks, failed audits
+        run: |
+          node scripts/report-lighthouse-desktop.mjs \
+            .lighthouse-desktop/run-1.json \
+            .lighthouse-desktop/run-2.json \
+            .lighthouse-desktop/run-3.json
+      - name: Report diagnostics
+        if: always()
+        run: |
+          if test -f .lighthouse-desktop/summary.md; then
+            cat .lighthouse-desktop/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Archive raw reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-lighthouse-diagnostic
+          path: .lighthouse-desktop/
+          retention-days: 14
+          if-no-files-found: error
+          include-hidden-files: true
