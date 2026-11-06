@@ -391,6 +391,8 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
         .aw-season-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:700;color:#bae6fd}
         @media (max-width:639px){
                   .aw-hero-bg .hero-h{font-size:clamp(1.9rem,8vw,2.7rem)}
+                  /* Keep the actual short water price attached to its label at narrow screen widths. */
+                  .aw-hero-bg .hero-price-line{font-size:clamp(1.25rem,6.85vw,2.6rem);letter-spacing:-.035em;white-space:nowrap}
                   .aw-hero-bg .hero-hi{font-size:clamp(1.75rem,7vw,2.6rem)}
                   /* Mobile LCP must paint from SSR HTML, not await Framer Motion hydration. */
                   .aw-hero-copy,.aw-hero-visual{opacity:1!important;transform:none!important}
@@ -418,7 +420,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Check live coverage in {LIVE_CITY_NAMES}</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
-                    <span className="hero-h block mt-2">RO Water from <span className="block whitespace-nowrap sm:inline">{displayPrice(currentNormal)},</span></span>
+                    <span className={`hero-h block mt-2 ${pricingReady ? 'hero-price-line' : ''}`}>RO Water from <span className="inline whitespace-nowrap">{displayPrice(currentNormal)},</span></span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
