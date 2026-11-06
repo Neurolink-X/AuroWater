@@ -120,7 +120,10 @@ export default function SupplierSectionPage() {
     [meta, section, authedFetch],
   );
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   // Keep the orders list fresh while the tab is visible.
   useEffect(() => {

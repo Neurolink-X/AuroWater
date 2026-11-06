@@ -176,7 +176,8 @@ export default function CustomerSubscriptionsPage() {
       isLoggedIn &&
       isCustomer
     ) {
-      void load();
+      const initial = window.setTimeout(() => { void load(); }, 0);
+      return () => window.clearTimeout(initial);
     }
   }, [
     hydrated,

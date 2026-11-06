@@ -48,7 +48,10 @@ export default function CustomerReferralsPage() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => setCode(queryCode.toUpperCase()), [queryCode]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setCode(queryCode.toUpperCase()));
+    return () => window.cancelAnimationFrame(frame);
+  }, [queryCode]);
 
   const load = useCallback(async () => {
     const token = await getToken();
@@ -73,7 +76,9 @@ export default function CustomerReferralsPage() {
   }, []);
 
   useEffect(() => {
-    if (hydrated && isLoggedIn && isCustomer) void load();
+    if (!hydrated || !isLoggedIn || !isCustomer) return;
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [hydrated, isLoggedIn, isCustomer, load]);
 
   useEffect(() => {

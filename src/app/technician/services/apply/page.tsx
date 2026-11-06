@@ -69,7 +69,10 @@ export default function TechnicianServiceApplicationPage() {
     finally{setLoading(false);}
   },[eligible]);
 
-  useEffect(()=>{void reload();},[reload]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void reload(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [reload]);
   useEffect(()=>{
     if(!eligible)return;
     const visible=()=>{if(document.visibilityState==='visible' && navigator.onLine)void reload();};

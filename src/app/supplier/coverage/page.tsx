@@ -55,7 +55,10 @@ export default function SupplierCoveragePage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load coverage.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
   // Exact PINs map to existing admin-managed zones. Never infer that an
   // approved pilot zone with an empty PIN list covers an entire city.
   const pinMatches = /^\d{6}$/.test(findPin)

@@ -45,7 +45,10 @@ export default function SupplierProfilePage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load supplier profile.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
   const update = (key: keyof typeof form, v: string) => setForm(old => ({ ...old, [key]: v }));
   const submit = async () => {
     setSaving(true); setError(''); setMessage('');

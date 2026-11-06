@@ -18,7 +18,10 @@ export default function PreferredSupplierPage(){
   return json.data;
  },[]);
  const refresh=useCallback(async()=>{try{const result=await call('GET');setItems(result.relationships??[])}catch(e){setError(e instanceof Error?e.message:'Unable to load preference')}},[call]);
- useEffect(()=>{void refresh()},[refresh]);
+ useEffect(() => {
+    const initial = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [refresh]);
  async function change(method:'POST'|'DELETE',supplierId:string){if(busy)return;setBusy(true);setError('');setNotice('');try{await call(method,supplierId);setNotice(method==='POST'?'Supplier preference saved. All orders remain managed by AuroTap.':'Supplier preference removed.');await refresh()}catch(e){setError(e instanceof Error?e.message:'Unable to save')}finally{setBusy(false)}}
  return <main className="mx-auto max-w-2xl px-4 py-8"><h1 className="text-2xl font-bold text-slate-900">Preferred supplier</h1>
  <p className="mt-2 text-sm text-slate-600">Choose who gets first priority for your eligible water deliveries. If they cannot fulfill your slot, AuroTap can assign another verified supplier. You can change your choice anytime.</p>
