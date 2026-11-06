@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { pricingIsVerified } from '@/lib/pricing/readiness';
+import { pricingIsVerified, usablePublishedPricingCache, shouldRevalidatePublishedPricing } from '@/lib/pricing/readiness';
 import { computeExpectedTotal } from '@/lib/api/order-pricing-server';
 import { safeGet, safeSet } from '@/lib/storage';
 
@@ -178,7 +178,7 @@ export const DEFAULT_SETTINGS: PlatformSettings = {
 
 const CACHE_KEY        = 'aw_settings_v3';
 const CACHE_TS_KEY     = 'aw_settings_v3_ts';
-const DEFAULT_STALE_MS = 0; // Pricing always revalidates against the published version
+const DEFAULT_STALE_MS = 60_000; // Reuse recently server-verified city prices; revalidate quietly.
 const CITY_CACHE_PREFIX = 'aw_settings_city_v1_';
 const cityCacheKey = (city?: string) => city?.trim() ? CITY_CACHE_PREFIX + city.trim().toLowerCase() : CACHE_KEY;
 
@@ -427,6 +427,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   const abortRef = React.useRef<AbortController | null>(null);
   const latestVersionRef = React.useRef(0);
   const [verifiedCity, setVerifiedCity] = React.useState<string | null>(null);
+  const verifiedCityRef = React.useRef<string | null>(null);
+  const cityKey = city?.trim().toLowerCase() || 'global';
   const pricingReady = pricingIsVerified(settings.pricing_version, verifiedCity, city);
 
   /* ── Network refresh ── */
@@ -437,7 +439,9 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     let timedOut = false;
     const kill = window.setTimeout(() => { timedOut = true; ctrl.abort(); }, 5000);
 
-    setLoading(true);
+    // A routine background read must not flash the UI into "Checking price".
+    // A newly selected city or unpublished snapshot still blocks checkout.
+    setLoading(verifiedCityRef.current !== (city?.trim().toLowerCase() || 'global'));
     setError(null);
 
     try {
@@ -448,7 +452,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
         if (version < latestVersionRef.current) return;
         latestVersionRef.current = version;
         setSettings(next);
-        setVerifiedCity(city?.trim().toLowerCase() || 'global');
+        verifiedCityRef.current = city?.trim().toLowerCase() || 'global';
+        setVerifiedCity(verifiedCityRef.current);
         writeCache(next, city);
       }
     } catch (cause: unknown) {
@@ -465,30 +470,49 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   /* ── Mount: serve cache if fresh; otherwise fetch ── */
   React.useEffect(() => {
     const hydrateFrame = window.requestAnimationFrame(() => {
-    const { settings: cached, ts } = readCache(city);
-    const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
-
-    // Cached published settings are safe to display while a background refresh runs.
-    // They are never sufficient to mark checkout pricing as server-verified.
-    if (cached && Number(cached.pricing_version) > 0) {
-      const cachedVersion = Number(cached.pricing_version);
-      if (cachedVersion >= latestVersionRef.current) {
-        latestVersionRef.current = cachedVersion;
-        setSettings(mergeSettings(cached));
+      const { settings: cached, ts } = readCache(city);
+      const publishedAt = Number(safeGet('aw_pricing_published_at') ?? 0);
+      const usable = usablePublishedPricingCache(cached?.pricing_version, ts, publishedAt);
+      if (usable && cached) {
+        const cachedVersion = Number(cached.pricing_version);
+        if (cachedVersion >= latestVersionRef.current) {
+          latestVersionRef.current = cachedVersion;
+          setSettings(mergeSettings(cached));
+          verifiedCityRef.current = cityKey;
+          setVerifiedCity(cityKey);
+          setLoading(false);
+          setError(null);
+        }
+      } else {
+        // Never authorize a cache invalidated by admin publish or an invalid timestamp.
+        verifiedCityRef.current = null;
+        setVerifiedCity(null);
       }
-    }
-    void fresh;
-    void refresh();
+      // Cold visits fetch immediately; returning visits quietly revalidate only
+      // when the city-scoped cache exceeds the freshness window.
+      if (!usable || shouldRevalidatePublishedPricing(ts, staleMs)) void refresh();
     });
     return () => { window.cancelAnimationFrame(hydrateFrame); abortRef.current?.abort(); };
-  }, [refresh, staleMs, city]);
+  }, [refresh, staleMs, city, cityKey]);
 
   /* Refresh when a customer returns to an open tab after admin changes. */
   React.useEffect(() => {
-    const onFocus = () => { void refresh(); };
-    const onVisible = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const refreshIfStale = () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+      const { settings: cached, ts } = readCache(city);
+      const publishedAt = Number(safeGet('aw_pricing_published_at') ?? 0);
+      if (!usablePublishedPricingCache(cached?.pricing_version, ts, publishedAt)) {
+        verifiedCityRef.current = null;
+        setVerifiedCity(null);
+        void refresh();
+      } else if (shouldRevalidatePublishedPricing(ts, staleMs)) {
+        void refresh();
+      }
+    };
+    const onFocus = () => { if (document.visibilityState === 'visible') refreshIfStale(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshIfStale(); };
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && navigator.onLine) void refresh();
+      if (document.visibilityState === 'visible') refreshIfStale();
     }, 30_000);
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
@@ -497,12 +521,13 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [refresh]);
+  }, [refresh, city, staleMs]);
 
   /* Admin publishing invalidates pricing in every active tab. The API remains authoritative. */
   React.useEffect(() => {
     const onPublished = () => {
       // Do not display an outdated published price after a local publish event.
+      verifiedCityRef.current = null;
       setVerifiedCity(null);
       abortRef.current?.abort();
       abortRef.current = null;

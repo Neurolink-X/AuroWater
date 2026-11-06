@@ -678,6 +678,15 @@ export default function BookingWizard() {
   const ADDRESS_CITIES = useMemo(() => directoryCities.map(city => city.name), [directoryCities]);
   const pricingCity = addresses.find((address) => address.id === draft.addressId)?.city ?? draft.newAddress?.city ?? undefined;
   const { settings, calcOrderTotal, whatsappHref, loading: pricingLoading, pricingReady, error: pricingError, refresh: refreshSettings } = useSettings(undefined, pricingCity);
+  const [showPricingWait, setShowPricingWait] = useState(false);
+  useEffect(() => {
+    if (pricingReady) {
+      const frame = window.requestAnimationFrame(() => setShowPricingWait(false));
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const timer = window.setTimeout(() => setShowPricingWait(true), 750);
+    return () => window.clearTimeout(timer);
+  }, [pricingReady]);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
@@ -1761,7 +1770,7 @@ export default function BookingWizard() {
     >
       <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
-        {!pricingReady && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Checking current prices for this address. Booking totals appear only after verification.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
+        {!pricingReady && showPricingWait && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Checking current prices for this address. Booking totals appear only after verification.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
         {pricingReady && settings.maintenance_mode && view < 4 && (
           <div role="alert" aria-live="assertive" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             <p className="font-extrabold">New bookings temporarily paused</p>
