@@ -1506,7 +1506,7 @@ export default function BookingWizard() {
       window.history.replaceState(null, '', `${window.location.pathname}#step-1`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, [session?.aurotapId, session?.userId]);
+  }, [session]);
 
   const saveInlineAddress = async () => {
     if (savingAddress) return;
