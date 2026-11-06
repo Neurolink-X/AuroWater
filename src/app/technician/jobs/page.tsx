@@ -195,12 +195,14 @@ export default function TechnicianJobs() {
     const currentUser = getUser();
 
     if (!currentUser || currentUser.role !== 'TECHNICIAN') {
-      setUser(null);
-      setLoading(false);
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setUser(null);
+        setLoading(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
 
-    setUser(currentUser);
+    const userFrame = window.requestAnimationFrame(() => setUser(currentUser));
     let mounted = true;
     let inFlight = false;
     let refreshDebounce: number | undefined;
@@ -256,6 +258,7 @@ export default function TechnicianJobs() {
 
     return () => {
       mounted = false;
+      window.cancelAnimationFrame(userFrame);
       window.clearInterval(timer);
       window.clearTimeout(refreshDebounce);
       document.removeEventListener('visibilitychange', onVisible);
