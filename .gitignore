@@ -1,7 +1,13 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# ============================================================
+# AUROTAP / AUROWATER — GITIGNORE
+# Next.js 16 | React 19 | TypeScript | Supabase | Vercel
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. Dependencies and package managers
+# ------------------------------------------------------------
+/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,34 +16,144 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# Local package caches
+.npm/
+.pnpm-store/
 
-# next.js
+# ------------------------------------------------------------
+# 2. Next.js and build output
+# ------------------------------------------------------------
 /.next/
 /out/
+/build/
+/dist/
+/.turbo/
 
-# production
-/build
+# TypeScript generated files
+*.tsbuildinfo
+next-env.d.ts
 
-# misc
-.DS_Store
+# ------------------------------------------------------------
+# 3. Environment variables and secrets
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
 *.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
 
-# debug
+# Local credentials
+credentials.json
+service-account*.json
+service-role*.json
+*.credentials.local.json
+
+# ------------------------------------------------------------
+# 4. Supabase local development
+# ------------------------------------------------------------
+.supabase/
+supabase/.branches/
+supabase/.temp/
+
+# IMPORTANT:
+# Keep supabase/migrations/ tracked.
+# Keep supabase/config.toml tracked where appropriate.
+# Keep sql/ migration files tracked.
+
+# ------------------------------------------------------------
+# 5. Tests and coverage
+# ------------------------------------------------------------
+/coverage/
+/.nyc_output/
+/playwright-report/
+/test-results/
+/blob-report/
+
+# ------------------------------------------------------------
+# 6. Local logs and debugging
+# ------------------------------------------------------------
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Crash reports
+*.stackdump
+*.heapsnapshot
+*.heapprofile
 
-# vercel
-.vercel
+# ------------------------------------------------------------
+# 7. Vercel local configuration
+# ------------------------------------------------------------
+.vercel/
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# ------------------------------------------------------------
+# 8. Operating system files
+# ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+*.swo
+*~
 
-.env.local
+# ------------------------------------------------------------
+# 9. Local IDE configuration
+# ------------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ------------------------------------------------------------
+# 10. Temporary generated files
+# ------------------------------------------------------------
+.tmp/
+.temp/
+tmp/
+temp/
+
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# ------------------------------------------------------------
+# 11. Local runtime artifacts
+# ------------------------------------------------------------
+*.pid
+*.pid.lock
+
+# ------------------------------------------------------------
+# 12. IMPORTANT FILES TO KEEP TRACKED
+# ------------------------------------------------------------
+# package.json
+# package-lock.json
+# next.config.ts
+# eslint.config.mjs
+# eslint-suppressions.json
+# tsconfig.json
+# postcss.config.mjs
+# tailwind.config.ts
+# src/app/globals.css
+# src/app/layout.tsx
+# supabase/migrations/
+# sql/
+# public/
+# .env.example
+
+# Do not globally ignore source code, migrations,
+# SQL scripts, public assets, or application tests.
+# ============================================================
