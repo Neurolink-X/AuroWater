@@ -231,7 +231,6 @@ const eslintConfig = defineConfig([
           disallowTypeAnnotations: false,
         },
       ],
-      "@typescript-eslint/consistent-type-exports": "warn",
     },
   },
 
@@ -267,6 +266,8 @@ const eslintConfig = defineConfig([
             "@typescript-eslint/await-thenable": level,
             "@typescript-eslint/only-throw-error": level,
             "@typescript-eslint/return-await": [level, "in-try-catch"],
+            // Requires parserServices; never enable in untyped/fast lint.
+            "@typescript-eslint/consistent-type-exports": "warn",
             "@typescript-eslint/no-implied-eval": level,
             "@typescript-eslint/no-for-in-array": level,
 
