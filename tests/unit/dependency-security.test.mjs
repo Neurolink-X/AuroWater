@@ -8,6 +8,8 @@ const expected = Object.freeze({
   'node_modules/flatted': [3, 4, 2],
   'node_modules/js-yaml': [4, 3, 2],
   'node_modules/tinyglobby/node_modules/picomatch': [4, 0, 4],
+  'node_modules/brace-expansion': [1, 1, 21],
+  'node_modules/minimatch': [3, 1, 4],
 });
 
 function compareVersions(actual, required) {
