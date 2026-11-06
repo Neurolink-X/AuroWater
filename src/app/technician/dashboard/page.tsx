@@ -1885,9 +1885,9 @@ export default function TechnicianDashboardPage() {
       let lng: number | null = null;
       if (next === 'online' && navigator.geolocation) {
         try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 2500, maximumAge: 300_000 }),
-          );
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 2500, maximumAge: 300_000 });
+          });
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
         } catch {

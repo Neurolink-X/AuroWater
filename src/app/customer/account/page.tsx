@@ -43,7 +43,7 @@ const STALE_MS = 30_000;
 class AuthError extends Error {}
 class FatalError extends Error {} // non-retryable server/validation error
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
  * fetch with timeout, exponential-backoff retries (network errors, 408/429/5xx),

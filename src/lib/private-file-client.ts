@@ -37,7 +37,7 @@ export async function shrinkImageIfNeeded(file: File, targetBytes = 4.2 * 1024 *
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
       canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+      const blob = await new Promise<Blob | null>((r) => { canvas.toBlob(r, 'image/jpeg', 0.85); });
       if (blob && blob.size <= targetBytes) return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
       scale *= 0.75;
     }
@@ -78,7 +78,7 @@ export async function uploadPrivateFile({ file, category, slot, onProgress, sign
     try { return await attempt(); } catch (e) {
       const retryable = e instanceof HttpError && (e.status === 0 || [502, 503, 504].includes(e.status));
       if (!retryable || n >= retries) throw e;
-      await new Promise((r) => setTimeout(r, 600 * 2 ** n + Math.random() * 300));
+      await new Promise((r) => { setTimeout(r, 600 * 2 ** n + Math.random() * 300); });
     }
   }
 }

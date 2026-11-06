@@ -801,7 +801,7 @@
 //       try {
 //         let result = await supabase.auth.getSession();
 //         if (result.error) {
-//           await new Promise((resolve) => setTimeout(resolve, 900));
+//           await new Promise((resolve) => { setTimeout(resolve, 900); });
 //           result = await supabase.auth.getSession();
 //         }
 //         if (!active) return;
@@ -834,7 +834,7 @@
 //           if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
 //           if (!result.data.session?.user) {
 //             // A missing session on tab focus can be a brief storage/refresh race; verify once more.
-//             await new Promise((resolve) => setTimeout(resolve, 900));
+//             await new Promise((resolve) => { setTimeout(resolve, 900); });
 //             const retry = await supabase.auth.getSession();
 //             if (retry.error) {
 //               console.warn('[supplier] retry session check failed:', retry.error.message);
@@ -949,7 +949,7 @@
 //       try {
 //         rows = await supplierOrdersList();
 //       } catch {
-//         await new Promise((resolve) => setTimeout(resolve, 1200));
+//         await new Promise((resolve) => { setTimeout(resolve, 1200); });
 //         rows = await supplierOrdersList();
 //       }
 //       setOrdersStale(false);
@@ -2883,7 +2883,7 @@ export default function SupplierDashboardPage() {
       try {
         let result = await supabase.auth.getSession();
         if (result.error) {
-          await new Promise((resolve) => setTimeout(resolve, 900));
+          await new Promise((resolve) => { setTimeout(resolve, 900); });
           result = await supabase.auth.getSession();
         }
         if (!active) return;
@@ -2930,7 +2930,7 @@ export default function SupplierDashboardPage() {
           if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
           if (!result.data.session?.user) {
             // A missing session on tab focus can be a brief storage/refresh race; verify once more.
-            await new Promise((resolve) => setTimeout(resolve, 900));
+            await new Promise((resolve) => { setTimeout(resolve, 900); });
             const retry = await supabase.auth.getSession();
             if (retry.error) {
               console.warn('[supplier] retry session check failed:', retry.error.message);
@@ -3058,7 +3058,7 @@ export default function SupplierDashboardPage() {
       try {
         rows = await supplierOrdersList();
       } catch {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => { setTimeout(resolve, 1200); });
         rows = await supplierOrdersList();
       }
       setOrdersStale(false);

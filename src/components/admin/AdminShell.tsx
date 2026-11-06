@@ -740,7 +740,7 @@ export default function AdminShell({
         // Background check: one quick retry so a tiny network blip
         // does not throw an admin out.
         if (silent && !verified?.user) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          await new Promise((resolve) => { setTimeout(resolve, 1500); });
           if (!isActive()) return;
           verified = await verifyToken();
           if (!isActive()) return;

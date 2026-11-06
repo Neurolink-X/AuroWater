@@ -93,7 +93,7 @@ export function isTransient(error: DbError): boolean {
   return !code && /fetch|network|timeout|econn|socket/i.test(String(error.message ?? ''));
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 /** Retries a Supabase call on transient errors with exponential backoff and jitter. */
 export async function withRetry<T extends { error?: DbError }>(

@@ -611,7 +611,7 @@ export default function Header() {
       const { revokeLocalPushBeforeLogout } = await import('@/lib/push-device-client');
       await Promise.race([
         revokeLocalPushBeforeLogout(),
-        new Promise<void>((resolve) => window.setTimeout(resolve, 700)),
+        new Promise<void>((resolve) => { window.setTimeout(resolve, 700); }),
       ]);
     } catch { /* optional notifications must never block logout */ }
     clearSession();
