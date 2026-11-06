@@ -7,9 +7,12 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { reconcileMigrationInventory } from './lib/migration-inventory-policy.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const sqlDir = join(root, 'sql');
+const baseline = JSON.parse(readFileSync(join(root, 'scripts', 'migration-inventory-baseline.json'), 'utf8'));
+const ciMode = process.argv.includes('--ci');
 const builderPath = join(root, 'scripts', 'build-supabase-migrations.mjs');
 const builder = readFileSync(builderPath, 'utf8');
 const match = builder.match(/const files = \[([\s\S]*?)\n\];/);
@@ -34,10 +37,12 @@ const timestamped = readdirSync(join(root, 'supabase', 'migrations'), { withFile
   .filter((entry) => entry.isFile() && /^\d{12}_.*\.sql$/i.test(entry.name))
   .map((entry) => entry.name)
   .sort();
+const inventory = reconcileMigrationInventory({ listed, numbered: numberedFiles, timestamped, missingFiles, baseline });
 
 console.log(`Legacy SQL bundle: ${listed.length} explicitly ordered files`);
 console.log(`Numbered SQL source files: ${numberedFiles.length}`);
 console.log(`Timestamped Supabase migrations (separate stream): ${timestamped.length}`);
+console.log(`Distinct timestamp versions with collisions (known and unresolved): ${inventory.timestampVersionConflicts.join(', ') || 'none'}`);
 
 if (duplicates.length) console.error('Duplicate bundle entries:', [...new Set(duplicates)].join(', '));
 if (missingFiles.length) console.error('Bundle references missing files:', [...new Set(missingFiles)].join(', '));
@@ -54,7 +59,18 @@ if (timestamped.length) {
   for (const file of timestamped) console.log(`  - ${file}`);
 }
 
-if (duplicates.length || missingFiles.length || unbundled.length || prefixCollisions.length) {
+if (inventory.requiresManualReconciliation) {
+  console.warn('KNOWN UNRESOLVED migration debt: do not replay, rename or automatically append files. Production history must be reconciled manually.');
+}
+if (ciMode) {
+  if (inventory.ciBlocked) {
+    for (const problem of inventory.errors) console.error(problem);
+    console.error('Migration inventory drift is unreviewed; CI blocked.');
+    process.exitCode = 1;
+  } else {
+    console.log('CI inventory gate passed: no NEW drift from the recorded baseline. Existing migration debt is not resolved.');
+  }
+} else if (duplicates.length || missingFiles.length || unbundled.length || prefixCollisions.length || inventory.timestampVersionConflicts.length) {
   console.error('Migration audit requires human reconciliation before a fresh-environment bundle can be trusted.');
   process.exitCode = 1;
 } else {

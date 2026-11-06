@@ -72,27 +72,61 @@ function groupFor(route) {
   return 'public';
 }
 
+// Count each chunk once per route. Referenced chunks may be lazy and are NOT
+// equivalent to initially downloaded JS; shared/unique labels are diagnostic.
+const normalizedRoutes = new Map();
+const usage = new Map();
 for (const [route, files] of Object.entries(routes)) {
   if (!Array.isArray(files)) continue;
-  const chunks = [...new Set([...sharedFiles, ...files.filter((file) => typeof file === 'string' && file.endsWith('.js'))])];
+  const chunks = [...new Set([...sharedFiles, ...files.filter((f) => typeof f === 'string' && f.endsWith('.js'))])];
+  normalizedRoutes.set(route, chunks);
+  for (const chunk of chunks) usage.set(chunk, (usage.get(chunk) ?? 0) + 1);
+}
+
+for (const [route, chunks] of normalizedRoutes) {
   let bytes = 0;
+  let sharedBytes = 0;
+  let uniqueBytes = 0;
   for (const file of chunks) {
     const absolute = resolve(nextDir, decodeURIComponent(file).replace(/^\/+/, ''));
     if (!absolute.startsWith(nextDir + sep) || !existsSync(absolute)) {
       throw new Error('Missing or invalid client chunk: ' + file);
     }
     if (!gzipSizes.has(absolute)) gzipSizes.set(absolute, gzipSync(readFileSync(absolute)).byteLength);
-    bytes += gzipSizes.get(absolute);
+    const chunkBytes = gzipSizes.get(absolute);
+    bytes += chunkBytes;
+    if ((usage.get(file) ?? 0) > 1) sharedBytes += chunkBytes;
+    else uniqueBytes += chunkBytes;
   }
   if (chunks.length) {
     const group = groupFor(route);
     const kb = Math.round((bytes / 1024) * 10) / 10;
-    results.push({ route, group, gzip_kb: kb, budget_kb: budgetsKb[group], exceeded: kb > budgetsKb[group], chunks: chunks.length });
+    results.push({ route, group, gzip_kb: kb, budget_kb: budgetsKb[group], exceeded: kb > budgetsKb[group], chunks: chunks.length,
+      shared_referenced_gzip_kb: Math.round(sharedBytes / 1024 * 10) / 10,
+      route_unique_referenced_gzip_kb: Math.round(uniqueBytes / 1024 * 10) / 10 });
   }
 }
 
 results.sort((a, b) => b.gzip_kb - a.gzip_kb);
-console.log(JSON.stringify({ report: 'route-client-js-gzip', measurement, route_count: results.length, manifest: manifestPath.slice(root.length + 1), routes: results }, null, 2));
+const report = { report: 'route-client-js-gzip', measurement, route_count: results.length,
+  manifest: manifestPath.slice(root.length + 1),
+  methodology: 'Referenced gzip chunks (includes lazy chunks). Not initial-load bytes, real-user Core Web Vitals, or a performance score.',
+  routes: results };
+if (process.argv.includes('--summary')) {
+  console.log('BUNDLE_SUMMARY ' + JSON.stringify({
+    report: report.report, measurement, route_count: results.length,
+    exceeded_count: results.filter((row) => row.exceeded).length,
+    group_counts: Object.fromEntries([...new Set(results.map((r) => r.group))].map((group) => [
+      group, { routes: results.filter((r) => r.group === group).length,
+        exceeded: results.filter((r) => r.group === group && r.exceeded).length },
+    ])),
+    largest_route_unique: [...results].sort((a, b) => b.route_unique_referenced_gzip_kb - a.route_unique_referenced_gzip_kb).slice(0, 12)
+      .map(({ route, route_unique_referenced_gzip_kb }) => ({ route, route_unique_referenced_gzip_kb })),
+    limitations: report.methodology,
+  }));
+} else {
+  console.log(JSON.stringify(report, null, 2));
+}
 
 const exceeded = results.filter((row) => row.exceeded);
 if (exceeded.length) {
