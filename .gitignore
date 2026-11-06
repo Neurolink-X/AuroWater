@@ -157,3 +157,28 @@ temp/
 # Do not globally ignore source code, migrations,
 # SQL scripts, public assets, or application tests.
 # ============================================================
+
+# ------------------------------------------------------------
+# 13. Contract: never ignore critical versioned inputs.
+# Verified by tests/repository-path-contract.unit.mjs.
+# Do NOT unignore .env.local, service-role keys or credentials.
+# ------------------------------------------------------------
+!/package-lock.json
+!/eslint-suppressions.json
+!/scripts/auto-publish-water-news.mjs
+!/scripts/setup-db.js
+!/.github/workflows/water-news-discovery.yml
+!/.github/workflows/editorial-evergreen-publish.yml
+!/.github/workflows/auto-repair-safe.yml
+!/.github/workflows/codeql.yml
+!/.github/scripts/verify-suppression-prune.mjs
+!/content/water-news-drafts.json
+!/content/water-news-drafts.quarantine.json
+!/content/water-news-candidates.json
+!/src/data/water-news-reviewed.json
+!/sql/*.sql
+!/supabase/migrations/*.sql
+
+# Generated database diagnostics contain only table names but should
+# still remain local/CI artifacts, not committed into application code.
+/artifacts/db-readiness/
