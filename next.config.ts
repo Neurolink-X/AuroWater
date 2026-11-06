@@ -53,8 +53,8 @@ const securityHeaders = [
       /*
        * Supabase + realtime
        */
-      // GA4 sends measurements to Google's collection endpoints; keep other origins denied.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com",
+      // Allow only GA4's observed HTTPS collection origins; other connections stay denied.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com https://stats.g.doubleclick.net https://www.google.com",
 
       /*
        * Prevent unexpected embedded content.
