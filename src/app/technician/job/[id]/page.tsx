@@ -38,17 +38,6 @@ export default function JobDetail() {
   const [paymentReference, setPaymentReference] = useState('');
   const [success, setSuccess] = useState('');
 
-  useEffect(() => {
-    const currentUser = getUser();
-    if (!currentUser || currentUser.role !== 'TECHNICIAN') {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
-    setUser(currentUser);
-    loadJobData();
-  }, [router, jobId]);
 
   const loadJobData = async () => {
     if (!jobId) return;
@@ -64,6 +53,22 @@ export default function JobDetail() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => {
+      const currentUser = getUser();
+      if (!currentUser || currentUser.role !== 'TECHNICIAN') {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      setUser(currentUser);
+      void loadJobData();
+    }, 0);
+    return () => window.clearTimeout(initial);
+    // loadJobData is intentionally scoped to the requested job id.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
 
   const handleStatusUpdate = async () => {
     if (!job) return;
