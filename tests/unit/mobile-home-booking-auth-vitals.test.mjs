@@ -14,14 +14,15 @@ test('mobile homepage paints the existing hero before animation hydration', () =
   assert.match(home, /transition=\{\{ duration: 0\.7 \}\}/);
 });
 
-test('mobile hero keeps dynamic RO price beside from on narrow screens', () => {
-  assert.ok(home.includes('hero-price-line{font-size:clamp(1.25rem,6.85vw,2.6rem)'));
-  assert.ok(home.includes("pricingReady ? 'hero-price-line' : ''"));
-  assert.ok(home.includes('RO Water from <span className="inline whitespace-nowrap">{displayPrice(currentNormal)},</span>'));
+test('mobile hero keeps a stable single-line height while live price is verified', () => {
+  assert.ok(home.includes('.hero-price-line{font-size:clamp(1.25rem,6.85vw,2.6rem)'));
+  assert.ok(home.includes('className="hero-h hero-price-line block mt-2"'));
+  assert.ok(home.includes("RO Water from{' '}"));
+  assert.ok(home.includes('aria-live="polite"'));
+  assert.ok(home.includes('Loading live price'));
+  assert.ok(home.includes("pricingReady ? `${displayPrice(currentNormal)},` :"));
+  assert.ok(!home.includes("pricingReady ? 'hero-price-line' : ''"));
   assert.ok(!home.includes('className="block whitespace-nowrap sm:inline">{displayPrice(currentNormal)}'));
-  assert.match(home, /flex min-h-7 items-center whitespace-nowrap/);
-  assert.match(home, /pricingReady/);
-  assert.match(home, /See live price/);
 });
 
 test('homepage does not duplicate automatic booking-link prefetch during first paint', () => {
