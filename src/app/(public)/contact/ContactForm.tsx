@@ -57,7 +57,7 @@ export default function ContactForm({ whatsappNumber }: { whatsappNumber: string
   useEffect(() => {
     // URL state is browser-only. Apply it after hydration rather than
     // synchronously cascading a second render during effect setup.
-    let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+    let scrollTimer: number | undefined;
     const frame = window.requestAnimationFrame(() => {
       const raw = new URLSearchParams(window.location.search).get('subject')?.toLowerCase();
       const subject = raw ? SUBJECT_ALIASES[raw] : undefined;
