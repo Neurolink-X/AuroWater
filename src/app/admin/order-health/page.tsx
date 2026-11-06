@@ -31,9 +31,12 @@ export default function OrderHealthPage() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    setPayload(null);
+    const resetFrame = window.requestAnimationFrame(() => {
+      if (!active) return;
+      setLoading(true);
+      setError('');
+      setPayload(null);
+    });
     const load = async () => {
       try {
         const token = await getToken();
