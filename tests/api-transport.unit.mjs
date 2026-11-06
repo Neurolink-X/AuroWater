@@ -75,14 +75,14 @@ test('stalled reads time out without retrying', async (t) => {
 
 test('deadline covers stalled body consumption even if parser catches abort', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url, { signal }) => ({
-    json: () => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true })),
+    json: () => new Promise((_resolve, reject) => { signal.addEventListener('abort', () => reject(signal.reason), { once: true }); }),
   }));
   await assert.rejects(requestJson('/api/read', {}, (res) => res.json().catch(() => ({})), 15), { name: 'TimeoutError' });
 });
 
 test('writes retain their existing runtime budget', async (t) => {
   t.mock.method(globalThis, 'fetch', async (_url, { signal }) => {
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
     assert.equal(signal.aborted, false);
     return response();
   });

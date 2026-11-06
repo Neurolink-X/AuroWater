@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Load existing review queue (if a review PR is still open)
         shell: bash
@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Repair store, discover last 7 days of headlines (untrusted), save drafts
-        run: node scripts/publish-water-news.mjs --repair --max=3 --max-age-days=7 --verbose
+        run: node scripts/auto-publish-water-news.mjs --repair --max=3 --max-age-days=7 --verbose
 
       # Runs even if discovery failed (feed down): repair results are still proposed.
       - name: Propose review PR (never auto-publishes)

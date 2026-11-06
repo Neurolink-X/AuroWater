@@ -14,7 +14,9 @@ export default function AdminDispatchPage() {
   const [savedMessage, setSavedMessage] = useState('');
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('orderId')?.trim();
-    if (ref) setOrderId(ref);
+    if (!ref) return;
+    const frame = window.requestAnimationFrame(() => setOrderId(ref));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   async function runDiagnosis() {

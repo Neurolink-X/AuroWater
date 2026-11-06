@@ -1,13 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import ts from 'typescript';
-
-const source = readFileSync('src/lib/borewell-estimate.ts', 'utf8');
-const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-const testModule = { exports: {} };
-new Function('module', 'exports', compiled)(testModule, testModule.exports);
-const { estimateBorewell, BOREWELL_GUIDE } = testModule.exports;
+import { estimateBorewell, BOREWELL_GUIDE } from '../src/lib/borewell-estimate.ts';
 
 test('4.5-inch 300 feet at 100 rupees gives 30000 drilling only', () => {
   const quote = estimateBorewell({ job: 'drilling', diameter: '4.5', depthFeet: 300, ratePerFoot: 100 });

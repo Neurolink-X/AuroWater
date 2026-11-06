@@ -24,7 +24,7 @@ export class HttpError extends Error {
 
 type Options = RequestInit & { timeoutMs?: number; retries?: number };
 const RETRYABLE = new Set([502, 503, 504]);
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise((r) => { setTimeout(r, ms); });
 
 export async function requestJson<T = unknown>(url: string, opts: Options = {}): Promise<ApiEnvelope<T>> {
   const { timeoutMs = 15_000, retries = 0, signal: outer, ...init } = opts;

@@ -801,7 +801,7 @@
 //       try {
 //         let result = await supabase.auth.getSession();
 //         if (result.error) {
-//           await new Promise((resolve) => setTimeout(resolve, 900));
+//           await new Promise((resolve) => { setTimeout(resolve, 900); });
 //           result = await supabase.auth.getSession();
 //         }
 //         if (!active) return;
@@ -834,7 +834,7 @@
 //           if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
 //           if (!result.data.session?.user) {
 //             // A missing session on tab focus can be a brief storage/refresh race; verify once more.
-//             await new Promise((resolve) => setTimeout(resolve, 900));
+//             await new Promise((resolve) => { setTimeout(resolve, 900); });
 //             const retry = await supabase.auth.getSession();
 //             if (retry.error) {
 //               console.warn('[supplier] retry session check failed:', retry.error.message);
@@ -852,7 +852,7 @@
 //     };
 //     const online = () => { setNetworkOnline(true); refreshOnFocus(); };
 //     const offline = () => setNetworkOnline(false);
-//     setNetworkOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+//     const networkFrame = window.requestAnimationFrame(() => setNetworkOnline(navigator.onLine));
 //     window.addEventListener('focus', refreshOnFocus);
 //     document.addEventListener('visibilitychange', refreshOnFocus);
 //     window.addEventListener('online', online);
@@ -869,7 +869,7 @@
 //   }, []);
 
 //   // ── Load all data ───────────────────────────────────────────────────────────
-//   const loadAll = useCallback(async (userId: string) => {
+//   async function loadAll(userId: string) {
 //     lastLoadRef.current = Date.now();
 //     if (!profileLoadedRef.current) setLoading(true);
 //     try {
@@ -883,7 +883,7 @@
 //       profileLoadedRef.current = true;
 //       setLoading(false);
 //     }
-//   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+//   }
 
 //   const fetchProfile = async (userId: string) => {
 //     // The production schema stores supplier identity in public.profiles.
@@ -949,7 +949,7 @@
 //       try {
 //         rows = await supplierOrdersList();
 //       } catch {
-//         await new Promise((resolve) => setTimeout(resolve, 1200));
+//         await new Promise((resolve) => { setTimeout(resolve, 1200); });
 //         rows = await supplierOrdersList();
 //       }
 //       setOrdersStale(false);
@@ -2871,7 +2871,7 @@ export default function SupplierDashboardPage() {
 
   // ── Auth guard + safe session recovery ───────────────────────────────────────
   useEffect(() => {
-    setMounted(true);
+    const mountedFrame = window.requestAnimationFrame(() => setMounted(true));
     let active = true;
     let initialized = false;
     let refreshInFlight = false;
@@ -2883,7 +2883,7 @@ export default function SupplierDashboardPage() {
       try {
         let result = await supabase.auth.getSession();
         if (result.error) {
-          await new Promise((resolve) => setTimeout(resolve, 900));
+          await new Promise((resolve) => { setTimeout(resolve, 900); });
           result = await supabase.auth.getSession();
         }
         if (!active) return;
@@ -2930,7 +2930,7 @@ export default function SupplierDashboardPage() {
           if (result.error) { console.warn('[supplier] focus session check failed:', result.error.message); return; }
           if (!result.data.session?.user) {
             // A missing session on tab focus can be a brief storage/refresh race; verify once more.
-            await new Promise((resolve) => setTimeout(resolve, 900));
+            await new Promise((resolve) => { setTimeout(resolve, 900); });
             const retry = await supabase.auth.getSession();
             if (retry.error) {
               console.warn('[supplier] retry session check failed:', retry.error.message);
@@ -2953,13 +2953,15 @@ export default function SupplierDashboardPage() {
     };
     const online = () => { setNetworkOnline(true); refreshOnFocus(); };
     const offline = () => setNetworkOnline(false);
-    setNetworkOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    const networkFrame = window.requestAnimationFrame(() => setNetworkOnline(navigator.onLine));
     window.addEventListener('focus', refreshOnFocus);
     document.addEventListener('visibilitychange', refreshOnFocus);
     window.addEventListener('online', online);
     window.addEventListener('offline', offline);
     return () => {
       active = false;
+      window.cancelAnimationFrame(mountedFrame);
+      window.cancelAnimationFrame(networkFrame);
       subscription.unsubscribe();
       window.removeEventListener('focus', refreshOnFocus);
       document.removeEventListener('visibilitychange', refreshOnFocus);
@@ -2970,7 +2972,7 @@ export default function SupplierDashboardPage() {
   }, []);
 
   // ── Load all data ───────────────────────────────────────────────────────────
-  const loadAll = useCallback(async (userId: string) => {
+  async function loadAll(userId: string) {
     // Show the full-page loader only on first load. Focus/manual refreshes must
     // keep the last successful dashboard and orders visible while data reloads.
     if (!dashboardLoadedOnceRef.current) setLoading(true);
@@ -2988,7 +2990,7 @@ export default function SupplierDashboardPage() {
       dashboardLoadedOnceRef.current = true;
       setLoading(false);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   const fetchProfile = async (userId: string) => {
     // The production schema stores supplier identity in public.profiles.
@@ -3058,7 +3060,7 @@ export default function SupplierDashboardPage() {
       try {
         rows = await supplierOrdersList();
       } catch {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => { setTimeout(resolve, 1200); });
         rows = await supplierOrdersList();
       }
       setOrdersStale(false);
@@ -3247,39 +3249,10 @@ export default function SupplierDashboardPage() {
     }
   };
 
+  // Changes to dispatch base location require admin review via the profile request flow.
   const syncDispatchLocation = async () => {
     toast.info('Shop location changes require admin approval. Open My profile & address.');
     router.push('/supplier/profile');
-    return;
-    if (locationBusy || typeof navigator === 'undefined' || !navigator.geolocation) {
-      toast.error('Location is not available in this browser.');
-      return;
-    }
-    const confirmed = window.confirm(
-      'This saves your CURRENT device location as your supplier dispatch base. Dispatch uses it to match customer orders. If your business base is in Kanpur but you are currently in Noida, cancel and do not update it.'
-    );
-    if (!confirmed) return;
-    setLocationBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const data = await supplierSettingsUpdate({ base_lat: position.coords.latitude, base_lng: position.coords.longitude });
-          setDispatchSettings(data);
-          toast.success('Dispatch base location saved.');
-        } catch (error) {
-          console.error('[supplier] dispatch location update failed:', error);
-          toast.error('Could not update dispatch location.');
-        } finally {
-          setLocationBusy(false);
-        }
-      },
-      (error) => {
-        console.error('[supplier] geolocation failed:', error);
-        toast.error('Please allow location access to improve nearby order matching.');
-        setLocationBusy(false);
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
-    );
   };
 
   const fetchNotifications = async (userId: string) => {
@@ -3338,14 +3311,17 @@ export default function SupplierDashboardPage() {
     const completionRate =
       orders.length > 0 ? Math.round((delivered / orders.length) * 100) : 0;
 
-    setStats({
-      todayOrders,
-      pendingOrders,
-      weekEarnings,
-      monthEarnings,
-      completionRate,
-      avgRating: profile.rating,
+    const frame = window.requestAnimationFrame(() => {
+      setStats({
+        todayOrders,
+        pendingOrders,
+        weekEarnings,
+        monthEarnings,
+        completionRate,
+        avgRating: profile.rating,
+      });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [orders, earnings, profile]);
 
   // ── Realtime (debounced, polls only when websocket is down) ─────────────────

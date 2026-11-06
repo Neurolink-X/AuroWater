@@ -1,11 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-const raw=readFileSync('src/lib/routing/slot-safe-route.ts','utf8');
-const js=ts.transpileModule(raw,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const output={};new Function('exports',js)(output);
-const {planNearbyRoute}=output;
+import { planNearbyRoute } from '../src/lib/routing/slot-safe-route.ts';
 const d=(minutes)=>new Date(Date.parse('2026-11-03T03:00:00Z')+minutes*60_000).toISOString();
 const stop=(id,lat,lng,start,end)=>({id,lat,lng,scheduledAt:d(start),slotEndAt:d(end),serviceMinutes:8});
 test('groups nearby stops when deadlines allow without making distant detour',()=>{
@@ -27,6 +23,12 @@ test('unverified coordinates and times never enter route',()=>{
  const plan=planNearbyRoute([stop('valid',28.6,77.3,0,90),{id:'unknown',lat:null,lng:null,scheduledAt:d(0)}],new Date(d(0)));
  assert.deepEqual(plan.stops.map(x=>x.id),['valid']);
  assert.deepEqual(plan.excluded,['unknown']);
+});
+test('rejects out-of-range and non-finite coordinates without changing valid stops',()=>{
+ const invalid=[stop('bad-lat',91,77.3,0,90),stop('bad-lng',28.6,-181,0,90),stop('bad-number',NaN,77.3,0,90)];
+ const plan=planNearbyRoute([stop('valid',28.6,77.3,0,90),...invalid],new Date(d(0)));
+ assert.deepEqual(plan.stops.map(s=>s.id),['valid']);
+ assert.deepEqual(plan.excluded,['bad-lat','bad-lng','bad-number']);
 });
 test('API is provider-isolated and never exposes unaccepted delivery coordinates',()=>{
  const api=readFileSync('src/app/api/partner/route-plan/route.ts','utf8');

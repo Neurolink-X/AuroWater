@@ -467,7 +467,7 @@ export function validateStore(data, kind = 'draft') {
 
 /* ───────────────────────────── network ─────────────────────────── */
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 async function readBounded(res) {
   if (Number(res.headers.get('content-length')) > MAX_BYTES) {

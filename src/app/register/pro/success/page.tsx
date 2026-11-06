@@ -54,7 +54,10 @@ export default function ProApplicationSuccessPage() {
       setError(e instanceof Error ? e.message : 'Unable to verify the application receipt.');
     } finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   async function sendDocument(slot: SlotInfo, file?: File) {
     if (!file || uploading) return;

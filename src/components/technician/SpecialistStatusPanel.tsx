@@ -98,7 +98,7 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
 
   useEffect(() => {
     if (!enabled || !userId) return;
-    void refresh(true);
+    const initial = window.setTimeout(() => { void refresh(true); }, 0);
     const visible = () => document.visibilityState === 'visible' && navigator.onLine;
     const onReturn = () => {
       if (visible() && Date.now() - lastChecked.current >= 12_000) void refresh(true);
@@ -111,6 +111,7 @@ export default function SpecialistStatusPanel({ enabled }: { enabled: boolean })
     window.addEventListener('online', onOnline);
     window.addEventListener('aurotap:verification-changed', onDocumentChange);
     return () => {
+      window.clearTimeout(initial);
       window.clearInterval(poll);
       document.removeEventListener('visibilitychange', onReturn);
       window.removeEventListener('focus', onReturn);

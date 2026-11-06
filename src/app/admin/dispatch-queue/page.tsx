@@ -82,14 +82,14 @@ export default function DispatchQueuePage() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const initial = window.setTimeout(() => { void refresh(); }, 0);
     const onReturn = () => {
       if (document.visibilityState === 'visible' && Date.now() - lastSync.current > 30_000) {
         void refresh();
       }
     };
     document.addEventListener('visibilitychange', onReturn);
-    return () => document.removeEventListener('visibilitychange', onReturn);
+    return () => { window.clearTimeout(initial); document.removeEventListener('visibilitychange', onReturn); };
   }, [refresh]);
 
   const setQueueEnabled = async (enable: boolean) => {

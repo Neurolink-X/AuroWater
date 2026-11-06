@@ -42,7 +42,10 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
     catch (e) { setError(e instanceof Error ? e.message : 'Request unavailable'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [refresh]);
   const filtered = useMemo(() => rows.filter(row => {
     const requested = row.type === 'technician' ? 'TECHNICIAN' : 'SUPPLIER';
     const roleMatches = roleFilter === 'ALL' || roleFilter === requested;

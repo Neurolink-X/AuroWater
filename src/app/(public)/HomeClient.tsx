@@ -320,7 +320,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
   const left = useMemo(() => [...TRUST_REVIEWS, ...TRUST_REVIEWS], []);
   const right = useMemo(() => [...TRUST_REVIEWS].reverse().concat([...TRUST_REVIEWS].reverse()), []);
 
-  const submit = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMsg(null);
     if (!name.trim() || !phone.trim()) { setMsg('Please enter your name and phone.'); return; }
@@ -332,7 +332,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
       else { setMsg(json?.message ?? "Welcome! 🎉 We'll confirm your spot by WhatsApp."); setName(''); setPhone(''); setFounding(p => ({ count: (p?.count ?? 0) + 1 })); }
     } catch { setMsg('Network error. Please try again.'); }
     finally { setBusy(false); }
-  }, [name, phone]);
+  };
 
   // Never present launch-default or stale amounts as current published prices.
   // The content remains navigable while authoritative city pricing loads.

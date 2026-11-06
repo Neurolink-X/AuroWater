@@ -72,6 +72,7 @@ export default function SupplierSectionPage() {
   const [radius, setRadius] = useState(String(SUPPLIER_RADIUS.default));
   const latest = useRef(0);
   const hasData = useRef(false);
+  const [hasDataRender, setHasDataRender] = useState(false);
   const backgroundFetchInFlight = useRef(false);
 
   const authedFetch = useCallback(
@@ -104,6 +105,7 @@ export default function SupplierSectionPage() {
         const payload = body?.data ?? body;
         setData(payload);
         hasData.current = true;
+        setHasDataRender(true);
         if (!silent) setError('');
         if ((section === 'settings' || section === 'dispatch') && payload && typeof payload === 'object') {
           setOnline(Boolean((payload as Row).is_online));
@@ -120,7 +122,10 @@ export default function SupplierSectionPage() {
     [meta, section, authedFetch],
   );
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   // Keep the orders list fresh while the tab is visible.
   useEffect(() => {
@@ -189,8 +194,8 @@ export default function SupplierSectionPage() {
       {section === 'dispatch' && <div className="mt-4"><SmartDispatchPanel /></div>}
 
       <div className="mt-4 flex justify-end">
-        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasData.current)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
-          {loading && !hasData.current ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
+        <button className="sp-btn sp-btn--ghost sp-refresh" onClick={() => void load()} disabled={busy || (loading && !hasDataRender)} aria-label={isHindi ? 'पेज रीफ्रेश करें' : 'Refresh supplier section'}>
+          {loading && !hasDataRender ? (isHindi ? 'लोड हो रहा है…' : 'Loading…') : (isHindi ? 'रीफ्रेश' : 'Refresh')}
         </button>
       </div>
 

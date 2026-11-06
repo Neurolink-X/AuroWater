@@ -44,8 +44,12 @@ export default function AccountHelpPage() {
 
   // Prefill email when arriving from the password-recovery page (?email=...).
   useEffect(() => {
-    const e = new URLSearchParams(window.location.search).get('email');
-    if (e) setForm((f) => ({ ...f, email: e.slice(0, LIMITS.emailMax) }));
+    // Browser URL state is available after hydration; cancel if unmounted.
+    const frame = window.requestAnimationFrame(() => {
+      const email = new URLSearchParams(window.location.search).get('email');
+      if (email) setForm((f) => ({ ...f, email: email.slice(0, LIMITS.emailMax) }));
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   // Rate-limit countdown.

@@ -27,7 +27,10 @@ export default function CustomerAccountRecoveryPage() {
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load recovery cases.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [refresh]);
   const confirm = async (ticket: Ticket) => {
     if (busy) return;
     setBusy(ticket.id);

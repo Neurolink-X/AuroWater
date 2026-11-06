@@ -2,9 +2,13 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
-import WhatsAppFAB from '@/components/ui/WhatsAppFAB';
+import dynamic from 'next/dynamic';
+
+// Public chrome must not eagerly ship to customer/supplier/technician/admin routes.
+// Keep SSR enabled so public navigation and footer are rendered on first paint.
+const Header = dynamic(() => import('@/components/layout/Header'));
+const Footer = dynamic(() => import('@/components/layout/Footer'));
+const WhatsAppFAB = dynamic(() => import('@/components/ui/WhatsAppFAB'));
 
 const CHROME_EXCLUDE_PREFIXES = [
   '/admin',

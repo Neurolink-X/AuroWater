@@ -135,13 +135,43 @@ const CROSS_ROLE_IMPACT = Object.freeze([
   { path: /^src\/app\/api\/technician\/service-applications\/route\.ts$/, domains: ['technician','admin','auth','notifications'] },
   { path: /^src\/app\/api\/customer\/subscriptions\/route\.ts$/, domains: ['subscriptions','booking','supplier','finance','notifications'] },
 ]);
+/**
+ * Explicit ownership for cross-cutting browser code. Each entry is an audited,
+ * exact repository path; unknown runtime files must still fail closed in CI.
+ * Shared files can affect multiple roles; ownership is not a lint exemption.
+ */
+export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
+  'src/app/(supplier)/supplier/settings/page.tsx': ['supplier'],
+  'src/app/api/notifications/inbox/route.ts': ['notifications', 'auth'],
+  'src/lib/routing/slot-safe-route.ts': ['dispatch', 'supplier', 'technician'],
+  'src/app/(public)/HomeClient.tsx': ['booking', 'auth'],
+  'src/app/(public)/contact/ContactForm.tsx': ['admin', 'auth'],
+  'src/app/account-help/page.tsx': ['auth', 'admin'],
+  'src/components/booking/BookingWizard.tsx': ['booking', 'pricing', 'subscriptions', 'dispatch', 'finance', 'notifications'],
+  'src/components/layout/AnnouncementBar.tsx': ['notifications'],
+  'src/components/layout/Header.tsx': ['auth', 'booking', 'notifications'],
+  'src/components/layout/RootChrome.tsx': ['auth', 'booking', 'admin', 'supplier', 'technician'],
+  'src/components/operations/NearbyRoutePanel.tsx': ['dispatch', 'supplier', 'technician'],
+  'src/components/private-files/DocumentUploader.tsx': ['auth', 'admin', 'technician'],
+  'src/components/supplier/DeliveryActionButton.tsx': ['supplier', 'dispatch'],
+  'src/components/supplier/SmartDispatchPanel.tsx': ['supplier', 'dispatch'],
+  'src/hooks/useClientClock.ts': ['booking', 'pricing', 'technician'],
+  'src/hooks/useCustomerOrders.ts': ['booking'],
+  'src/hooks/useOrders.ts': ['booking', 'supplier'],
+  'src/hooks/useSettings.ts': ['booking', 'pricing', 'admin'],
+  'src/lib/account-recovery/http.ts': ['auth', 'admin'],
+  'src/lib/loyalty.ts': ['booking', 'finance'],
+  'src/lib/private-file-client.ts': ['auth', 'admin', 'technician'],
+});
+
 export function domainsForChangedPath(file) {
   const path = normalizePath(file);
   if (path.startsWith('supabase/migrations/')) return Object.keys(DOMAIN_CONTRACTS);
   const direct=Object.entries(DOMAIN_CONTRACTS)
     .filter(([, cfg]) => cfg.sourceName.test(path)).map(([id]) => id);
   const propagated=CROSS_ROLE_IMPACT.filter(flow=>flow.path.test(path)).flatMap(flow=>flow.domains);
-  return [...new Set([...direct,...propagated])];
+  const explicit=EXPLICIT_RUNTIME_OWNERS[path] ?? [];
+  return [...new Set([...direct,...propagated,...explicit])];
 }
 
 export function requiredTestEvidence(changed) {
@@ -184,6 +214,13 @@ export function hasRoute(target, routes) {
 export function verifyPlatformContracts(root=ROOT) {
   const failures=[];
   const slurp=p=>readFileSync(join(root,p),'utf8');
+  for (const [file, domains] of Object.entries(EXPLICIT_RUNTIME_OWNERS)) {
+    if (!existsSync(join(root, file))) failures.push(`[ownership] mapped file is missing: ${file}`);
+    if (!domains.length || new Set(domains).size !== domains.length ||
+        domains.some(id => !Object.hasOwn(DOMAIN_CONTRACTS, id))) {
+      failures.push(`[ownership] invalid or duplicate domain in ${file}`);
+    }
+  }
   for(const [name,contract] of Object.entries(DOMAIN_CONTRACTS)) {
     for(const file of [...contract.source,...contract.tests]) {
       if(!existsSync(join(root,file)))failures.push(`[${name}] expected owned source/test missing: ${file}`);

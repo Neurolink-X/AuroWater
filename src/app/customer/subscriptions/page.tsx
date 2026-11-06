@@ -119,8 +119,9 @@ export default function CustomerSubscriptionsPage() {
   const loadInFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
+    const requestSequence = requestSeq;
     mounted.current = true;
-    return () => { mounted.current = false; requestSeq.current++; };
+    return () => { mounted.current = false; requestSequence.current++; };
   }, []);
 
   async function load(
@@ -176,7 +177,8 @@ export default function CustomerSubscriptionsPage() {
       isLoggedIn &&
       isCustomer
     ) {
-      void load();
+      const initial = window.setTimeout(() => { void load(); }, 0);
+      return () => window.clearTimeout(initial);
     }
   }, [
     hydrated,

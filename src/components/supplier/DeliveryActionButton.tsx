@@ -192,11 +192,11 @@ export default function DeliveryActionButton({
   const startMs = startedAt ? new Date(startedAt).getTime() : NaN;
   useEffect(() => {
     if (stage !== 'IN_PROGRESS' || Number.isNaN(startMs)) return;
-    setNow(Date.now());
+    const initial = window.setTimeout(() => setNow(Date.now()), 0);
     const id = window.setInterval(() => {
       if (document.visibilityState === 'visible') setNow(Date.now());
     }, 30000);
-    return () => window.clearInterval(id);
+    return () => { window.clearTimeout(initial); window.clearInterval(id); };
   }, [stage, startMs]);
 
   const clearConfirmTimer = useCallback(() => {

@@ -962,7 +962,10 @@ function CommandPalette({ items, onClose }: { items: PaletteItem[]; onClose: () 
     return items.filter((i) => `${i.label} ${i.group} ${i.keywords ?? ''}`.toLowerCase().includes(s));
   }, [items, q]);
 
-  useEffect(() => setActive(0), [q]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setActive(0));
+    return () => window.cancelAnimationFrame(frame);
+  }, [q]);
 
   const choose = (item?: PaletteItem) => {
     if (!item) return;
@@ -1702,23 +1705,24 @@ export default function AdminDashboardPage() {
   /* Mount: hydrate from cache, fetch, poll */
   useEffect(() => {
     mountedRef.current = true;
-    setOnline(navigator.onLine);
-
-    const hash = window.location.hash.slice(1) as TabKey;
-    if (TAB_KEYS.includes(hash)) {
-      activeTabRef.current = hash;
-      setTab(hash);
-    }
-
-    const cached = readCache();
-    if (cached) {
-      snapRef.current = cached.snap;
-      setSnap(cached.snap);
-      setLastUpdated(new Date(cached.savedAt));
-      setFromCache(true);
-      setLoading(false);
-    }
-    void run(cached ? 'silent' : 'initial');
+    const hydrateFrame = window.requestAnimationFrame(() => {
+      if (!mountedRef.current) return;
+      setOnline(navigator.onLine);
+      const hash = window.location.hash.slice(1) as TabKey;
+      if (TAB_KEYS.includes(hash)) {
+        activeTabRef.current = hash;
+        setTab(hash);
+      }
+      const cached = readCache();
+      if (cached) {
+        snapRef.current = cached.snap;
+        setSnap(cached.snap);
+        setLastUpdated(new Date(cached.savedAt));
+        setFromCache(true);
+        setLoading(false);
+      }
+      void run(cached ? 'silent' : 'initial');
+    });
 
     let timer = 0;
     const schedule = () => {
@@ -1747,6 +1751,7 @@ export default function AdminDashboardPage() {
 
     return () => {
       mountedRef.current = false;
+      window.cancelAnimationFrame(hydrateFrame);
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);

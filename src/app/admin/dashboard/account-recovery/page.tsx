@@ -76,7 +76,10 @@ export default function AdminAccountRecoveryPage() {
     }
   }, [status]);
 
-  useEffect(() => { void load(); return () => loadCtrl.current?.abort(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => { window.clearTimeout(initial); loadCtrl.current?.abort(); };
+  }, [load]);
 
   // Auto-refresh while the tab is visible. Drafts live in separate state, so a refresh never wipes in-progress notes.
   useEffect(() => {

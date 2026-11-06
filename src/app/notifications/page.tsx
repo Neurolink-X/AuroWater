@@ -82,7 +82,10 @@ export default function NotificationSettingsPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
   useEffect(() => {
     // Refresh only when the user returns; never start background polling.
     const onReturn = () => {

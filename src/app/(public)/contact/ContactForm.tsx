@@ -55,12 +55,20 @@ export default function ContactForm({ whatsappNumber }: { whatsappNumber: string
 
   // ?subject=technician deep links from other pages.
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get('subject')?.toLowerCase();
-    const subject = raw ? SUBJECT_ALIASES[raw] : undefined;
-    if (subject) {
+    // URL state is browser-only. Apply it after hydration rather than
+    // synchronously cascading a second render during effect setup.
+    let scrollTimer: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const raw = new URLSearchParams(window.location.search).get('subject')?.toLowerCase();
+      const subject = raw ? SUBJECT_ALIASES[raw] : undefined;
+      if (!subject) return;
       setForm((f) => ({ ...f, subject }));
-      setTimeout(() => document.getElementById('contact-form')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }), 80);
-    }
+      scrollTimer = window.setTimeout(() => document.getElementById('contact-form')?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }), 80);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (scrollTimer !== undefined) window.clearTimeout(scrollTimer);
+    };
   }, []);
 
   useEffect(() => {

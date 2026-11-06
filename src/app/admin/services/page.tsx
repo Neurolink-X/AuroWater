@@ -212,9 +212,10 @@ export default function AdminServicesPage() {
   }, []);
 
   useEffect(() => {
-    void loadServicesOverview();
+    const initial = window.setTimeout(() => { void loadServicesOverview(); }, 0);
 
     return () => {
+      window.clearTimeout(initial);
       requestId.current += 1;
     };
   }, [loadServicesOverview, refreshKey]);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -150,7 +150,7 @@ export default function SupplierSettingsPage() {
   };
 
   const checks = snap?.readiness?.checks ?? [];
-  const todo = useMemo(() => checks.filter((c) => !c.ok), [checks]);
+  const todo = checks.filter((c) => !c.ok);
 
 
   if (!hydrated || state === 'loading') {

@@ -31,7 +31,10 @@ export default function SpecialistReviewPage(){
   }catch(e){toast.error(e instanceof Error?e.message:'Could not load specialist approvals')}
   finally{setLoading(false)}
  },[]);
- useEffect(()=>{void refresh()},[refresh]);
+ useEffect(() => {
+  const initial = window.setTimeout(() => { void refresh(); }, 0);
+  return () => window.clearTimeout(initial);
+ }, [refresh]);
  async function review(id:string,status:'approved'|'rejected'){
   const note=window.prompt(status==='approved'
     ? 'Describe identity check and actual trade experience/reference reviewed (20+ characters). Never approve based on a blank or prefilled statement.'

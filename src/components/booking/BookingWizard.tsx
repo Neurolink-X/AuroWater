@@ -776,7 +776,8 @@ export default function BookingWizard() {
 
   /* ───────── Hydration ───────── */
   useEffect(() => {
-    setHydrated(false);
+    const frame = window.requestAnimationFrame(() => {
+      setHydrated(false);
     let restored: Partial<BookingDraft> | null = null;
     let restoredStep = 1;
     try {
@@ -868,6 +869,8 @@ export default function BookingWizard() {
     base.slotValid = sv.valid;
 
     setDraft(base); setStep(start); setFurthest(start); setHydrated(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   // Re-hydrate whenever the authenticated identity changes; drafts are never shared between accounts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -906,7 +909,7 @@ export default function BookingWizard() {
   }, [view, hydrated]);
 
   useEffect(() => {
-    setDraft((d) => {
+    const frame = window.requestAnimationFrame(() => setDraft((d) => {
       switch (d.serviceKey) {
         case 'water_can':    return { ...d, subOptionKey: ['normal_ro', 'chilled_ro'].includes(d.subOptionKey) ? d.subOptionKey : 'normal_ro', canOrderType: d.subOptionKey === 'chilled_ro' ? 'one_time' : d.canOrderType };
         case 'ro_service':   return ['service', 'filter_change', 'amc', 'new_installation'].includes(d.subOptionKey) ? d : { ...d, subOptionKey: 'service' };
@@ -914,7 +917,8 @@ export default function BookingWizard() {
         case 'water_tanker': return ['500', '1000', '2000', 'custom'].includes(d.subOptionKey) ? d : { ...d, subOptionKey: '500' };
         default:             return d.subOptionKey ? d : { ...d, subOptionKey: 'standard' };
       }
-    });
+    }));
+    return () => window.cancelAnimationFrame(frame);
   }, [draft.serviceKey]);
 
   const loadAddresses = useCallback(async () => {
@@ -952,11 +956,14 @@ export default function BookingWizard() {
     } finally {
       setLoadingAddresses(false);
     }
-  }, [session?.loggedIn, session?.role]);
+  }, [session]);
 
   useEffect(() => {
     if (!session?.loggedIn || !draft.addressId || view !== 2) {
-           setServiceability(null); setLocationOk(null); setCheckingServiceability(false); return;
+      const frame = window.requestAnimationFrame(() => {
+        setServiceability(null); setLocationOk(null); setCheckingServiceability(false);
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
     let cancelled = false;
     void (async () => {
@@ -977,7 +984,8 @@ export default function BookingWizard() {
       session?.loggedIn &&
       session.role === 'customer'
     ) {
-      void loadAddresses();
+      const timer = window.setTimeout(() => { void loadAddresses(); }, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [
     session?.loggedIn,
@@ -986,18 +994,21 @@ export default function BookingWizard() {
   ]);
 
   useEffect(() => {
-    setDraft((d) => {
+    const frame = window.requestAnimationFrame(() => setDraft((d) => {
       if (d.addressId && addresses.some((a) => a.id === d.addressId)) return d;
       if (!addresses.length) return d.addressId ? { ...d, addressId: undefined } : d;
       const pick = addresses.find((a) => a.is_default) ?? addresses[0];
       return { ...d, addressId: pick.id };
-    });
+    }));
+    return () => window.cancelAnimationFrame(frame);
   }, [addresses, addressesLoaded]);
 
   useEffect(() => {
     if (!session?.loggedIn || session.role !== 'customer') return;
     let cancelled = false;
-    setReferralRewardsLoading(true);
+    const frame = window.requestAnimationFrame(() => {
+      if (!cancelled) setReferralRewardsLoading(true);
+    });
     void (async () => {
       try {
         const token = await getToken();
@@ -1024,15 +1035,17 @@ export default function BookingWizard() {
         if (!cancelled) setReferralRewardsLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; window.cancelAnimationFrame(frame); };
   }, [session?.loggedIn, session?.role, session?.userId]);
 
   useEffect(() => {
     let cancelled = false;
     if (!session?.loggedIn || session.role !== 'customer') {
-      setLoyaltyData(null);
-      setSelectedLoyaltyReward('');
-      return;
+      const frame = window.requestAnimationFrame(() => {
+        setLoyaltyData(null);
+        setSelectedLoyaltyReward('');
+      });
+      return () => window.cancelAnimationFrame(frame);
     }
     (async () => {
       try {
@@ -1392,7 +1405,7 @@ export default function BookingWizard() {
       setLocationError(msg);
       toast.warning(msg);
     }
-  }, [session?.loggedIn, locating, lookupPincode]);
+  }, [session?.loggedIn, locating, lookupPincode, LIVE_CITIES]);
 
   const locationFailureType: LocationFailure = locationError === MSG_DENIED ? 'permission-denied' : locationError === MSG_TIMEOUT ? 'timeout' : 'unknown';
   const locationHelp = getLocationGuidance(locationFailureType);
@@ -1493,7 +1506,7 @@ export default function BookingWizard() {
       window.history.replaceState(null, '', `${window.location.pathname}#step-1`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, []);
+  }, [session]);
 
   const saveInlineAddress = async () => {
     if (savingAddress) return;

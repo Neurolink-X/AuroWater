@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest) {
   let query = auth.ctx.supabase.from('notifications')
     .update({ is_read: true }).eq('user_id', auth.ctx.profile.id)
     .eq('is_read', false);
-  if (body.all !== true) query = query.eq('id', body.id!);
+  if (body.all !== true && typeof body.id === 'string') query = query.eq('id', body.id);
   const { error } = await query;
   if (error) return cacheOff(jsonErr('Could not update notification', 503));
   return cacheOff(jsonOk({ updated: true }));

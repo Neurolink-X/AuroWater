@@ -48,8 +48,8 @@ export default function OperationsHealthPage() {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
-    void refresh(controller.signal);
-    return () => controller.abort();
+    const initial = window.setTimeout(() => { void refresh(controller.signal); }, 0);
+    return () => { window.clearTimeout(initial); controller.abort(); };
   }, [refresh]);
 
   return (

@@ -126,7 +126,10 @@ export default function DocumentUploader() {
     } catch (e) { setLoadError(e instanceof HttpError || e instanceof Error ? e.message : 'Could not load your documents.'); }
     finally { setLoading(false); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
 
   if (loading) return <p className="py-10 text-center text-slate-500">Loading your documents…</p>;
   if (loadError) return (

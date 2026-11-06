@@ -125,13 +125,15 @@ export function useCustomerOrders(opts: { filter?: OrderFilter; pageSize?: numbe
       return;
     }
     liveRef.current = false;
-    void load('initial');
-    return () => { reqId.current += 1; };
+    const initial = window.setTimeout(() => { void load('initial'); }, 0);
+    return () => { window.clearTimeout(initial); reqId.current += 1; };
   }, [ready, load, session?.userId]);
 
   /* Logged-out visitors: stop the spinner */
   useEffect(() => {
-    if (hydrated && !ready) setLoading(false);
+    if (!hydrated || ready) return;
+    const initial = window.setTimeout(() => setLoading(false), 0);
+    return () => window.clearTimeout(initial);
   }, [hydrated, ready]);
 
   const hasActive = orders.some((o) => isActiveStatus(o.status));

@@ -31,9 +31,13 @@ export default function OrderHealthPage() {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    setPayload(null);
+    const resetFrame = window.requestAnimationFrame(() => {
+      if (!active) return;
+      setLoading(true);
+      setError('');
+      setPayload(null);
+      void load();
+    });
     const load = async () => {
       try {
         const token = await getToken();
@@ -52,8 +56,7 @@ export default function OrderHealthPage() {
         if (active) setLoading(false);
       }
     };
-    void load();
-    return () => { active = false; controller.abort(); };
+    return () => { active = false; window.cancelAnimationFrame(resetFrame); controller.abort(); };
   }, [mode, page, version]);
 
   return <main className="mx-auto max-w-6xl space-y-6 rounded-3xl bg-slate-50 px-4 py-8 text-slate-900 sm:px-6">

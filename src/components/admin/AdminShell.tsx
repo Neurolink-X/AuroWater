@@ -281,7 +281,6 @@ type PaletteItem = {
   hint: string;
   icon: React.ReactNode;
   href?: string;
-  run: () => void;
 };
 
 /* =============================================================
@@ -740,7 +739,7 @@ export default function AdminShell({
         // Background check: one quick retry so a tiny network blip
         // does not throw an admin out.
         if (silent && !verified?.user) {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
+          await new Promise((resolve) => { setTimeout(resolve, 1500); });
           if (!isActive()) return;
           verified = await verifyToken();
           if (!isActive()) return;
@@ -789,22 +788,23 @@ export default function AdminShell({
   useEffect(() => {
     if (isAuthRoute) {
       verifiedRef.current = false;
-      setChecking(false);
-      return;
+      const frame = window.requestAnimationFrame(() => setChecking(false));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     if (verifiedRef.current) {
-      setChecking(false);
-      return;
+      const frame = window.requestAnimationFrame(() => setChecking(false));
+      return () => window.cancelAnimationFrame(frame);
     }
 
     let active = true;
-    setChecking(true);
+    const checkFrame = window.requestAnimationFrame(() => setChecking(true));
 
     void verifySession(false, () => active);
 
     return () => {
       active = false;
+      window.cancelAnimationFrame(checkFrame);
     };
   }, [isAuthRoute, verifySession]);
 
@@ -845,9 +845,12 @@ export default function AdminShell({
      When the page changes: close menus, stop loading line.
      --------------------------------------------------------- */
   useEffect(() => {
-    setMobileOpen(false);
-    setPaletteOpen(false);
-    setNavigating(false);
+    const frame = window.requestAnimationFrame(() => {
+      setMobileOpen(false);
+      setPaletteOpen(false);
+      setNavigating(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [pathname]);
 
   // Safety: never leave the loading line stuck.
@@ -864,7 +867,8 @@ export default function AdminShell({
   useEffect(() => {
     try {
       if (window.localStorage.getItem(SIDEBAR_KEY) === '1') {
-        setCollapsed(true);
+        const frame = window.requestAnimationFrame(() => setCollapsed(true));
+        return () => window.cancelAnimationFrame(frame);
       }
     } catch {
       /* storage blocked: ignore */
@@ -958,10 +962,9 @@ export default function AdminShell({
   useEffect(() => {
     if (!paletteOpen) return;
 
-    setQuery('');
-    setActiveIdx(0);
-
     const frame = window.requestAnimationFrame(() => {
+      setQuery('');
+      setActiveIdx(0);
       inputRef.current?.focus();
     });
 
@@ -1000,7 +1003,6 @@ export default function AdminShell({
         </span>
       ),
       href: item.href,
-      run: () => router.push(item.href),
     }));
 
     return [
@@ -1015,7 +1017,6 @@ export default function AdminShell({
           </span>
         ),
         href: '/',
-        run: () => router.push('/'),
       },
       {
         id: 'logout',
@@ -1026,10 +1027,9 @@ export default function AdminShell({
             <PowerIcon />
           </span>
         ),
-        run: handleLogout,
       },
     ];
-  }, [router, handleLogout]);
+  }, []);
 
   const filteredItems = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -1051,9 +1051,10 @@ export default function AdminShell({
         setNavigating(true);
       }
 
-      item.run();
+      if (item.id === 'logout') handleLogout();
+      else if (item.href) router.push(item.href);
     },
-    [pathname],
+    [pathname, router, handleLogout],
   );
 
   /* =========================================================

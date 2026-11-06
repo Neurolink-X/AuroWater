@@ -113,9 +113,9 @@ function buildReadiness(row: Row | null, profile: Row | null) {
   ];
 
   const ready =
-    checks.find((c) => c.key === 'online')!.ok &&
-    checks.find((c) => c.key === 'account')!.ok &&
-    checks.find((c) => c.key === 'approved')!.ok &&
+    checks.find((c) => c.key === 'online')?.ok === true &&
+    checks.find((c) => c.key === 'account')?.ok === true &&
+    checks.find((c) => c.key === 'approved')?.ok === true &&
     (located || hasCity);
 
   return { ready_for_orders: ready, checks };

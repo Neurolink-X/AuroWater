@@ -15,6 +15,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import BottomNav from '@/components/customer/BottomNav';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useClientClock } from '@/hooks/useClientClock';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { createSupabaseBrowserAuthed } from '@/lib/db/supabase-user-browser';
 
@@ -164,11 +165,11 @@ function serviceLine(order: CustomerOrder): string {
   }`;
 }
 
-function daysAgo(iso: string | number | Date | null | undefined): number | null {
-  if (!iso) return null;
+function daysAgo(iso: string | number | Date | null | undefined, now: number | null): number | null {
+  if (!iso || now === null) return null;
   const timestamp = new Date(iso).getTime();
   if (Number.isNaN(timestamp)) return null;
-  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+  return Math.max(0, Math.floor((now - timestamp) / 86_400_000));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -561,10 +562,12 @@ export default function CustomerHomePage() {
   const notificationDebounce = useRef<number | null>(null);
 
   const ready = hydrated && isLoggedIn && isCustomer;
+  const displayNow = useClientClock(60_000);
 
   /* ── Stable greeting after hydration: avoids SSR/client time mismatch ── */
   useEffect(() => {
-    setGreeting(getGreeting(new Date().getHours()));
+    const frame = window.requestAnimationFrame(() => setGreeting(getGreeting(new Date().getHours())));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   /* ── Auth redirect ───────────────────────────────────────────────────── */
@@ -681,7 +684,9 @@ export default function CustomerHomePage() {
   }, []);
 
   useEffect(() => {
-    if (ready) void loadNotifs();
+    if (!ready) return;
+    const initial = window.setTimeout(() => { void loadNotifs(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [ready, loadNotifs]);
 
   /* ── Realtime notification updates ──────────────────────────────────── */
@@ -843,7 +848,7 @@ export default function CustomerHomePage() {
     [orders]
   );
 
-  const daysSinceLast = useMemo(() => daysAgo(lastDelivered?.createdAt), [lastDelivered]);
+  const daysSinceLast = useMemo(() => daysAgo(lastDelivered?.createdAt, displayNow), [lastDelivered, displayNow]);
 
   const showRestock =
     !primary && lastDelivered !== null && daysSinceLast !== null && daysSinceLast >= RESTOCK_AFTER_DAYS;
@@ -882,20 +887,20 @@ export default function CustomerHomePage() {
     () => orders.find((order) => order.serviceKey === 'tank_cleaning' && order.status === 'COMPLETED') ?? null,
     [orders]
   );
-  const daysSinceTank = useMemo(() => daysAgo(lastTank?.createdAt), [lastTank]);
+  const daysSinceTank = useMemo(() => daysAgo(lastTank?.createdAt, displayNow), [lastTank, displayNow]);
   const showTankReminder = !primary && lastTank !== null && daysSinceTank !== null && daysSinceTank >= TANK_REMINDER_DAYS;
 
   const firstName = name ?? fullName?.split(/\s+/)[0] ?? 'there';
 
   const memberDays = useMemo(() => {
-    if (!stats?.member_since) return 0;
+    if (!stats?.member_since || displayNow === null) return 0;
 
     const timestamp = new Date(stats.member_since).getTime();
 
     if (Number.isNaN(timestamp)) return 0;
 
-    return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
-  }, [stats?.member_since, version]);
+    return Math.max(0, Math.floor((displayNow - timestamp) / 86_400_000));
+  }, [stats?.member_since, version, displayNow]);
 
   const supportHref = `${WHATSAPP_SUPPORT}?text=${encodeURIComponent(
     primary ? `Hi AuroTap, I need help with order #${primary.orderReference}` : 'Hi AuroTap, I need help'

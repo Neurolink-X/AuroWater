@@ -8,13 +8,17 @@ export default function AnnouncementBar() {
   const [visible, setVisible] = React.useState(false);
 
   React.useEffect(() => {
-    try {
-      const d = safeGet('aurowater_bar_dismissed') === '1';
-      setDismissed(d);
-      setVisible(!d);
-    } catch {
-      setVisible(true);
-    }
+    // Read browser storage after hydration; cancel before unmount.
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        const d = safeGet('aurowater_bar_dismissed') === '1';
+        setDismissed(d);
+        setVisible(!d);
+      } catch {
+        setVisible(true);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   if (!visible || dismissed) return null;

@@ -22,11 +22,12 @@ export default function NearbyRoutePanel({role}:{role:'supplier'|'technician'}){
   }catch(e){if(mounted.current)setNote(e instanceof Error?e.message:'Route temporarily unavailable');}
   finally{inFlight.current=false;if(mounted.current){setLoading(false);setRefreshing(false);}}
  },[]);
- useEffect(()=>{mounted.current=true;void refresh();
+ useEffect(()=>{mounted.current=true;
+   const initial = window.setTimeout(() => { void refresh(); }, 0);
   const onVisible=()=>{if(document.visibilityState==='visible'&&navigator.onLine)void refresh()};
   const timer=window.setInterval(onVisible,30000);
   document.addEventListener('visibilitychange',onVisible);window.addEventListener('online',onVisible);
-  return()=>{mounted.current=false;window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onVisible)};
+  return()=>{mounted.current=false;window.clearTimeout(initial);window.clearInterval(timer);document.removeEventListener('visibilitychange',onVisible);window.removeEventListener('online',onVisible)};
  },[refresh]);
  const timing=(iso:string)=>new Date(iso).toLocaleString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
  return <section className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 sm:p-5">

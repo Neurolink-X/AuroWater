@@ -48,9 +48,12 @@ export default function CustomerReferralsPage() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => setCode(queryCode.toUpperCase()), [queryCode]);
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setCode(queryCode.toUpperCase()));
+    return () => window.cancelAnimationFrame(frame);
+  }, [queryCode]);
 
-  const load = useCallback(async () => {
+  async function load() {
     const token = await getToken();
     if (!token) {
       setLoading(false);
@@ -70,11 +73,13 @@ export default function CustomerReferralsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
-    if (hydrated && isLoggedIn && isCustomer) void load();
-  }, [hydrated, isLoggedIn, isCustomer, load]);
+    if (!hydrated || !isLoggedIn || !isCustomer) return;
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [hydrated, isLoggedIn, isCustomer]);
 
   useEffect(() => {
     // Public invitation landing: never force a new visitor straight to login.

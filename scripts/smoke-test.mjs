@@ -1,4 +1,3 @@
-
 #!/usr/bin/env node
 
 /**
@@ -311,9 +310,9 @@ const transientStatuses = new Set([
 ]);
 
 function sleep(ms) {
-  return new Promise((done) =>
-    setTimeout(done, ms)
-  );
+  return new Promise((done) => {
+    setTimeout(done, ms);
+  });
 }
 
 /* ============================================================

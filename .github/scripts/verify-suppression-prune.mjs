@@ -1,4 +1,3 @@
-
 #!/usr/bin/env node
 /**
  * Verify ESLint bulk suppressions changed by pruning ONLY.

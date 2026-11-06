@@ -1,13 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-
-const raw=readFileSync('src/lib/dispatch-coverage.ts','utf8');
-const javascript=ts.transpileModule(raw,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
-const exports={};
-new Function('exports','require',javascript)(exports,()=>{throw Error('Unexpected import')});
-const match=exports.matchApprovedSupplierCoverage;
+import { matchApprovedSupplierCoverage as match } from '../src/lib/dispatch-coverage.ts';
 const zone=(overrides={})=>({
   id:'zone-same-pin',city:'Noida',status:'AVAILABLE',
   is_catch_all:false,pincodes:['201316'],services:['water_can'],...overrides

@@ -753,16 +753,19 @@ function UsersContent() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [load]);
 
   useEffect(() => {
-    void loadCounts();
+    const initial = window.setTimeout(() => { void loadCounts(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [loadCounts]);
 
   // Selection never survives a filter or page change.
   useEffect(() => {
-    setSelected(new Set());
+    const frame = window.requestAnimationFrame(() => setSelected(new Set()));
+    return () => window.cancelAnimationFrame(frame);
   }, [view, role, debouncedQ, page]);
 
   /* ── Shortcut: "/" focuses search ── */
