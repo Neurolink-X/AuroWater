@@ -21,6 +21,16 @@ test('pricing hydration preserves the headline line break and card block heights
   assert.match(home, /See live price/);
 });
 
+test('homepage does not duplicate automatic booking-link prefetch during first paint', () => {
+  const link = readFileSync('src/components/navigation/BookingIntentLink.tsx', 'utf8');
+  assert.doesNotMatch(home, /router\.prefetch\('\/book\?service=water_can'\)/);
+  assert.doesNotMatch(home, /requestIdleCallback\?\.\(prefetch/);
+  assert.match(home, /<BookingIntentLink href="\/book\?service=water_can"/);
+  assert.match(link, /prefetch=\{prefetch\}/);
+  assert.match(link, /onPointerEnter=\{event =>/);
+  assert.match(link, /onTouchStart=\{event =>/);
+});
+
 test('SEO, images, public chrome and booking intents remain intact', () => {
   for (const intent of ['/book?service=water_can', '/book?service=plumbing', '/book?service=tank_cleaning']) {
     assert.ok(home.includes(intent), 'Missing booking intent: ' + intent);

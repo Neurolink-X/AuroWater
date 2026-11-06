@@ -36,7 +36,8 @@ const securityHeaders = [
       /*
        * Next.js / React
        */
-      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      // GA4 is loaded intentionally by next/script. Limit execution to its exact script host.
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com",
 
       /*
        * Styles + Google Fonts
@@ -52,7 +53,8 @@ const securityHeaders = [
       /*
        * Supabase + realtime
        */
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // GA4 sends measurements to Google's collection endpoints; keep other origins denied.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google-analytics.com https://*.google-analytics.com",
 
       /*
        * Prevent unexpected embedded content.

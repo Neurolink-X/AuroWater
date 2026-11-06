@@ -1,0 +1,61 @@
+name: Mobile Lighthouse diagnostics
+
+# Explicit on-demand lab audit. Do NOT run against production on every PR:
+# a production URL would not include unmerged changes, and repeated tests
+# should not add noise/cost to normal CI.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-lighthouse-production
+  cancel-in-progress: false
+
+jobs:
+  mobile-lighthouse:
+    name: Repeat mobile Lighthouse on production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check Chrome is available
+        run: |
+          command -v google-chrome
+          google-chrome --version
+      - name: Run 3 comparable mobile lab audits (public homepage)
+        run: |
+          mkdir -p .lighthouse
+          for i in 1 2 3; do
+            echo "Mobile Lighthouse run $i/3"
+            npx --yes lighthouse@13.6.0 https://www.aurotap.in/ \
+              --form-factor=mobile \
+              --only-categories=performance,accessibility,best-practices,seo \
+              --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
+              --output=json \
+              --output-path=".lighthouse/mobile-$i.json" \
+              --quiet
+          done
+      - name: Calculate median and report failed audits
+        run: node scripts/report-lighthouse-mobile.mjs .lighthouse/mobile-1.json .lighthouse/mobile-2.json .lighthouse/mobile-3.json
+      - name: Add diagnostic summary to workflow
+        if: always()
+        run: |
+          if test -f .lighthouse/summary.md; then
+            cat .lighthouse/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Archive results for comparisons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-lighthouse-diagnostic
+          path: .lighthouse/
+          retention-days: 14
+          if-no-files-found: error
+          include-hidden-files: true
