@@ -53,7 +53,7 @@ export default function CustomerReferralsPage() {
     return () => window.cancelAnimationFrame(frame);
   }, [queryCode]);
 
-  const load = useCallback(async () => {
+  async function load() {
     const token = await getToken();
     if (!token) {
       setLoading(false);
@@ -73,13 +73,13 @@ export default function CustomerReferralsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
     if (!hydrated || !isLoggedIn || !isCustomer) return;
     const initial = window.setTimeout(() => { void load(); }, 0);
     return () => window.clearTimeout(initial);
-  }, [hydrated, isLoggedIn, isCustomer, load]);
+  }, [hydrated, isLoggedIn, isCustomer]);
 
   useEffect(() => {
     // Public invitation landing: never force a new visitor straight to login.
