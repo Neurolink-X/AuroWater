@@ -73,15 +73,14 @@ jobs:
       - name: Regression tests
         run: npm run test:regression
 
-      - name: Migration inventory audit (informational until production history is reconciled)
-        run: npm run db:audit-migrations
-        continue-on-error: true
+      - name: Migration inventory drift gate (known debt baselined, no SQL replay)
+        run: npm run db:audit-migrations -- --ci
 
       - name: Production build
         run: npm run build
 
-      - name: Client bundle budget report
-        run: npm run perf:bundle-report
+      - name: Client bundle budget diagnostics (referenced JS, informational)
+        run: npm run perf:bundle-report -- --summary
 
 
   # Keep lint a required red/green gate, but run functional checks in

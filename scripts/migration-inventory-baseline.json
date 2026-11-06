@@ -1,0 +1,22 @@
+{
+  "schema": "aurotap-migration-inventory-baseline-v1",
+  "note": "Known SQL/migration version collisions are UNRESOLVED. This inventory approves no migration for application. Never auto-replay, reorder, or rename applied SQL. Update baseline only after review of production history and staging.",
+  "unbundled": [
+    "006_supplier_payout_lifecycle.sql",
+    "007_auro_water_can_pricing.sql",
+    "030_supplier_profile_change_requests.sql",
+    "031_supplier_profile_address_fields.sql",
+    "032_orders_cancel_reason_compat.sql"
+  ],
+  "prefixCollisions": [
+    "006_supplier_payout_lifecycle.sql",
+    "007_auro_water_can_pricing.sql",
+    "030_supplier_profile_change_requests.sql",
+    "031_supplier_profile_address_fields.sql",
+    "032_orders_cancel_reason_compat.sql"
+  ],
+  "timestampVersionConflicts": [
+    "202610300003",
+    "202610300004"
+  ]
+}
