@@ -127,7 +127,7 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
                 <p className="mt-1 text-xs sm:text-sm leading-snug text-slate-500">{p.note}</p>
                 <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-600"> / can</span></p>
                 <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(chilled)} / can</p>
-                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-600'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
+                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-700' : 'text-slate-600'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
                 
               </div>
             );
@@ -765,7 +765,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <div className="h-3 w-full rounded-full bg-slate-200 overflow-hidden mb-2"><div className="h-full rounded-full aw-prog transition-[width] duration-700" style={{ width: `${claimed}%` }} /></div>
                 </>
               ) : <p className="text-sm text-slate-500 mb-3">Availability is confirmed when you submit your request.</p>}
-              <p className="text-xs text-slate-400">We&apos;ll confirm your spot by SMS/WhatsApp within 24 hours.</p>
+              <p className="text-xs text-slate-600">We&apos;ll confirm your spot by SMS/WhatsApp within 24 hours.</p>
             </div>
             <div className="aw-glass-light rounded-3xl p-7 shadow-xl">
               <h3 className="font-display text-xl font-extrabold text-slate-900 mb-5">Reserve your spot</h3>
@@ -780,7 +780,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                 </div>
                 <button type="submit" disabled={busy} className="aw-btn w-full justify-center py-3.5 text-sm" style={{ borderRadius: 14 }}>{busy ? '⏳ Saving…' : 'Join the first 100 →'}</button>
                 <AnimatePresence>
-                  {msg && <motion.p key="m" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`text-sm text-center font-medium ${msg.includes('Welcome') ? 'text-emerald-600' : 'text-red-500'}`}>{msg}</motion.p>}
+                  {msg && <motion.p key="m" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`text-sm text-center font-medium ${msg.includes('Welcome') ? 'text-emerald-700' : 'text-red-700'}`}>{msg}</motion.p>}
                 </AnimatePresence>
               </form>
             </div>
