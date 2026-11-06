@@ -34,6 +34,9 @@ function failedAudits(lhr, category) {
       score: audit.score,
       displayValue: audit.displayValue ?? '',
       explanation: audit.explanation ?? '',
+      // Public anonymous audit evidence, bounded to avoid huge CI summaries.
+      evidence: (audit.details?.items ?? []).slice(0, 2).map(item =>
+        JSON.stringify(item).slice(0, 500)),
     }));
 }
 
@@ -95,6 +98,7 @@ function render(summary) {
     else for (const audit of failures) {
       rows.push('- ' + audit.id + ' (' + audit.runs + '/' + summary.runCount + ' runs): ' +
         audit.title + (audit.displayValue ? ' — ' + audit.displayValue : ''));
+      for (const evidence of audit.evidence) rows.push('  - Evidence: ' + evidence);
     }
   }
   rows.push('', '## LCP element attribution (when exposed by Lighthouse)');
