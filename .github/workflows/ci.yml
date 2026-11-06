@@ -83,6 +83,44 @@ jobs:
       - name: Client bundle budget report
         run: npm run perf:bundle-report
 
+
+  # Run functional gates independently: a lint failure must not hide
+  # TypeScript, authorization, booking, dispatch or regression failures.
+  # Both jobs remain required for a green PR; this does not bypass lint.
+  functional-safety:
+    name: Typecheck and functional regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify lockfile before installation
+        run: node scripts/check-lockfile-sync.mjs
+      - name: Clean dependency installation
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Technician lifecycle contract
+        run: npm run test:technician:contract
+      - name: Platform role and route contract
+        run: npm run test:platform:contract
+      - name: Regression tests
+        run: npm run test:regression
+
   technician-stage-e2e:
     name: Authenticated technician lifecycle - isolated staging
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_technician_stage_e2e }}
