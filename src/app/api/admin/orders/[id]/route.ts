@@ -309,7 +309,6 @@ export async function PUT(
     if (method === 'upi' && !reference) {
       return jsonErr('Enter the UPI transaction reference before marking payment paid.', 400);
     }
-    patch.payment_collector = patch.payment_collector;
     patch.payment_collected_by = patch.payment_collector === 'supplier'
       ? String(beforeRow.supplier_id ?? '') || null
       : null;
