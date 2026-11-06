@@ -15,6 +15,16 @@ test('GA4 script and collect origins match exactly the allowed CSP hosts', () =>
   assert.doesNotMatch(script, /\shttps:\s|\s\*\s/);
   assert.match(connect, /https:\/\/www\.google-analytics\.com/);
   assert.match(connect, /https:\/\/\*\.google-analytics\.com/);
+  // Lighthouse 13.6 confirms GA4 sends additional collection beacons here.
+  // Exact origins only; don't accidentally permit *.google.com or *.doubleclick.net.
+  for (const origin of [
+    'https://analytics.google.com',
+    'https://stats.g.doubleclick.net',
+    'https://www.google.com',
+  ]) {
+    assert.ok(connect.includes(origin), `Missing GA4 collection origin: ${origin}`);
+  }
+  assert.doesNotMatch(connect, /https:\/\/\*\.google\.com|https:\/\/\*\.doubleclick\.net/);
   assert.match(connect, /https:\/\/\*\.supabase\.co/);
   assert.match(connect, /wss:\/\/\*\.supabase\.co/);
   assert.match(layout, /googletagmanager\.com\/gtag\/js\?id=/);
