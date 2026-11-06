@@ -7,7 +7,10 @@ export function distanceKm(a:{lat:number;lng:number},b:{lat:number;lng:number}){
  const h=Math.sin(dLat/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLng/2)**2;
  return earth*2*Math.asin(Math.min(1,Math.sqrt(h)));
 }
-const valid=(s:RouteStop):s is RouteStop&{lat:number;lng:number}=>s.lat==null&&s.lng==null&&Number.isFinite(s.lat)&&Number.isFinite(s.lng)&&Math.abs(s.lat)<=90&&Math.abs(s.lng)<=180;
+const valid=(s:RouteStop):s is RouteStop&{lat:number;lng:number}=>{
+ const {lat,lng}=s;
+ return lat!==null&&lng!==null&&Number.isFinite(lat)&&Number.isFinite(lng)&&Math.abs(lat)<=90&&Math.abs(lng)<=180;
+};
 const time=(s:string|null|undefined)=>s?Date.parse(s):NaN;
 /**
  * Conservative rolling plan for already accepted/assigned stops only.
