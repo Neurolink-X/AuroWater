@@ -5,7 +5,6 @@ import Link from 'next/link';
 import BookingIntentLink from '@/components/navigation/BookingIntentLink';
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
@@ -230,18 +229,8 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
     window.addEventListener('online', onFocus);
     return () => { active = false; controller.abort(); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus); };
   }, []);
-  const router = useRouter();
-  // Warm the most common booking route after the homepage becomes interactive.
-  // Idle scheduling avoids competing with first paint on low-end Android devices.
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    let cancelled = false;
-    const prefetch = () => { if (!cancelled) router.prefetch('/book?service=water_can'); };
-    const idleWindow = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
-    const idleId = idleWindow.requestIdleCallback?.(prefetch, { timeout: 2500 });
-    const fallback = idleId === undefined ? window.setTimeout(prefetch, 900) : undefined;
-    return () => { cancelled = true; if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId); if (fallback !== undefined) window.clearTimeout(fallback); };
-  }, [router]);
+  // BookingIntentLink preserves Next.js viewport/intent prefetch. Avoid an extra
+  // homepage-wide speculative /book request during slow-4G first paint.
   // Published versioned prices are authoritative; hide fallback prices until verification.
   // Display city is a visitor preference only; checkout re-resolves the saved address city.
   const [pricingCity] = useState(() => {
