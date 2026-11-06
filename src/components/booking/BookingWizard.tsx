@@ -1405,7 +1405,7 @@ export default function BookingWizard() {
       setLocationError(msg);
       toast.warning(msg);
     }
-  }, [session?.loggedIn, locating, lookupPincode]);
+  }, [session?.loggedIn, locating, lookupPincode, LIVE_CITIES]);
 
   const locationFailureType: LocationFailure = locationError === MSG_DENIED ? 'permission-denied' : locationError === MSG_TIMEOUT ? 'timeout' : 'unknown';
   const locationHelp = getLocationGuidance(locationFailureType);
@@ -1506,7 +1506,7 @@ export default function BookingWizard() {
       window.history.replaceState(null, '', `${window.location.pathname}#step-1`);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, []);
+  }, [session?.aurotapId, session?.userId]);
 
   const saveInlineAddress = async () => {
     if (savingAddress) return;
