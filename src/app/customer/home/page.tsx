@@ -165,11 +165,11 @@ function serviceLine(order: CustomerOrder): string {
   }`;
 }
 
-function daysAgo(iso: string | number | Date | null | undefined): number | null {
-  if (!iso) return null;
+function daysAgo(iso: string | number | Date | null | undefined, now: number | null): number | null {
+  if (!iso || now === null) return null;
   const timestamp = new Date(iso).getTime();
   if (Number.isNaN(timestamp)) return null;
-  return Math.max(0, Math.floor((displayNow - timestamp) / 86_400_000));
+  return Math.max(0, Math.floor((now - timestamp) / 86_400_000));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -848,7 +848,7 @@ export default function CustomerHomePage() {
     [orders]
   );
 
-  const daysSinceLast = useMemo(() => daysAgo(lastDelivered?.createdAt), [lastDelivered]);
+  const daysSinceLast = useMemo(() => daysAgo(lastDelivered?.createdAt, displayNow), [lastDelivered, displayNow]);
 
   const showRestock =
     !primary && lastDelivered !== null && daysSinceLast !== null && daysSinceLast >= RESTOCK_AFTER_DAYS;
@@ -887,7 +887,7 @@ export default function CustomerHomePage() {
     () => orders.find((order) => order.serviceKey === 'tank_cleaning' && order.status === 'COMPLETED') ?? null,
     [orders]
   );
-  const daysSinceTank = useMemo(() => daysAgo(lastTank?.createdAt), [lastTank]);
+  const daysSinceTank = useMemo(() => daysAgo(lastTank?.createdAt, displayNow), [lastTank, displayNow]);
   const showTankReminder = !primary && lastTank !== null && daysSinceTank !== null && daysSinceTank >= TANK_REMINDER_DAYS;
 
   const firstName = name ?? fullName?.split(/\s+/)[0] ?? 'there';
@@ -899,7 +899,7 @@ export default function CustomerHomePage() {
 
     if (Number.isNaN(timestamp)) return 0;
 
-    return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+    return Math.max(0, Math.floor((displayNow - timestamp) / 86_400_000));
   }, [stats?.member_since, version, displayNow]);
 
   const supportHref = `${WHATSAPP_SUPPORT}?text=${encodeURIComponent(
