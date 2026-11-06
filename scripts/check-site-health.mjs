@@ -6,7 +6,7 @@ const base = (process.env.BASE_URL || 'https://www.aurotap.in').replace(/\/$/, '
 const paths = ['/api/health', '/', '/blog', '/api/settings', '/api/cities'];
 const attempts = 3;
 const timeoutMs = 7000;
-function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function wait(ms) { return new Promise(resolve => { setTimeout(resolve, ms); }); }
 export async function checkSite(fetchImpl = fetch) {
   const failures = [];
   for (const path of paths) {
