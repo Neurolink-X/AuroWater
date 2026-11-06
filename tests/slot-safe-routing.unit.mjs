@@ -24,6 +24,12 @@ test('unverified coordinates and times never enter route',()=>{
  assert.deepEqual(plan.stops.map(x=>x.id),['valid']);
  assert.deepEqual(plan.excluded,['unknown']);
 });
+test('rejects out-of-range and non-finite coordinates without changing valid stops',()=>{
+ const invalid=[stop('bad-lat',91,77.3,0,90),stop('bad-lng',28.6,-181,0,90),stop('bad-number',NaN,77.3,0,90)];
+ const plan=planNearbyRoute([stop('valid',28.6,77.3,0,90),...invalid],new Date(d(0)));
+ assert.deepEqual(plan.stops.map(s=>s.id),['valid']);
+ assert.deepEqual(plan.excluded,['bad-lat','bad-lng','bad-number']);
+});
 test('API is provider-isolated and never exposes unaccepted delivery coordinates',()=>{
  const api=readFileSync('src/app/api/partner/route-plan/route.ts','utf8');
  assert.match(api,/\.eq\(field,\s*id\)/);
