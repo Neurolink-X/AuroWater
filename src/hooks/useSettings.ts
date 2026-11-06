@@ -464,6 +464,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   /* ── Mount: serve cache if fresh; otherwise fetch ── */
   React.useEffect(() => {
+    const hydrateFrame = window.requestAnimationFrame(() => {
     const { settings: cached, ts } = readCache(city);
     const fresh = !!cached && Number.isFinite(ts) && Date.now() - ts < staleMs;
 
@@ -478,8 +479,8 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
     }
     void fresh;
     void refresh();
-
-    return () => { abortRef.current?.abort(); };
+    });
+    return () => { window.cancelAnimationFrame(hydrateFrame); abortRef.current?.abort(); };
   }, [refresh, staleMs, city]);
 
   /* Refresh when a customer returns to an open tab after admin changes. */
