@@ -426,6 +426,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
 
   const abortRef = React.useRef<AbortController | null>(null);
   const latestVersionRef = React.useRef(0);
+  const latestVersionCityRef = React.useRef<string | null>(null);
   const [verifiedCity, setVerifiedCity] = React.useState<string | null>(null);
   const verifiedCityRef = React.useRef<string | null>(null);
   const cityKey = city?.trim().toLowerCase() || 'global';
@@ -470,6 +471,12 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
   /* ── Mount: serve cache if fresh; otherwise fetch ── */
   React.useEffect(() => {
     const hydrateFrame = window.requestAnimationFrame(() => {
+      // Pricing versions must be compared within the SAME city only. Different
+      // cities may legitimately have different active version sequences.
+      if (latestVersionCityRef.current !== cityKey) {
+        latestVersionCityRef.current = cityKey;
+        latestVersionRef.current = 0;
+      }
       const { settings: cached, ts } = readCache(city);
       const publishedAt = Number(safeGet('aw_pricing_published_at') ?? 0);
       const usable = usablePublishedPricingCache(cached?.pricing_version, ts, publishedAt);
