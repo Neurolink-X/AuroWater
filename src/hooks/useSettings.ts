@@ -518,7 +518,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
       window.removeEventListener('aurotap:pricing-published', onPublished);
       window.removeEventListener('storage', onStoragePublished);
     };
-  }, [refresh]);
+  }, [refresh, city]);
 
   /* ── Cross-tab sync: global settings only ── */
   React.useEffect(() => {
@@ -540,7 +540,7 @@ export function useSettings(staleMs: number = DEFAULT_STALE_MS, city?: string): 
         return next;
       });
     },
-    [city]
+    []
   );
 
   /* ── Admin: save to server ── */
