@@ -852,7 +852,7 @@
 //     };
 //     const online = () => { setNetworkOnline(true); refreshOnFocus(); };
 //     const offline = () => setNetworkOnline(false);
-//     setNetworkOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+//     const networkFrame = window.requestAnimationFrame(() => setNetworkOnline(navigator.onLine));
 //     window.addEventListener('focus', refreshOnFocus);
 //     document.addEventListener('visibilitychange', refreshOnFocus);
 //     window.addEventListener('online', online);
@@ -2961,6 +2961,7 @@ export default function SupplierDashboardPage() {
     return () => {
       active = false;
       window.cancelAnimationFrame(mountedFrame);
+      window.cancelAnimationFrame(networkFrame);
       subscription.unsubscribe();
       window.removeEventListener('focus', refreshOnFocus);
       document.removeEventListener('visibilitychange', refreshOnFocus);
@@ -3310,14 +3311,17 @@ export default function SupplierDashboardPage() {
     const completionRate =
       orders.length > 0 ? Math.round((delivered / orders.length) * 100) : 0;
 
-    setStats({
-      todayOrders,
-      pendingOrders,
-      weekEarnings,
-      monthEarnings,
-      completionRate,
-      avgRating: profile.rating,
+    const frame = window.requestAnimationFrame(() => {
+      setStats({
+        todayOrders,
+        pendingOrders,
+        weekEarnings,
+        monthEarnings,
+        completionRate,
+        avgRating: profile.rating,
+      });
     });
+    return () => window.cancelAnimationFrame(frame);
   }, [orders, earnings, profile]);
 
   // ── Realtime (debounced, polls only when websocket is down) ─────────────────
