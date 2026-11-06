@@ -264,13 +264,13 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
   const currentEmergencyFee = Number(settings.emergency_surcharge) || 0;
   const liveServices = useMemo(() => SERVICES.map((service) => {
     if (service.href.includes('water_can')) return { ...service,
-      badge: pricingReady ? `From ₹${currentNormal} / 20L` : 'Checking live price',
+      badge: pricingReady ? `From ₹${currentNormal} / 20L` : 'See live price',
       body: pricingReady ? `Normal RO ₹${currentNormal} or Chilled RO ₹${currentChilled} per 20L can. Final serviceability and total are confirmed at checkout.` : 'Confirm live prices and serviceability before booking.' };
     if (service.href.includes('plumbing')) return { ...service,
-      badge: pricingReady ? `From ₹${currentPlumbing}` : 'Checking live price',
+      badge: pricingReady ? `From ₹${currentPlumbing}` : 'See live price',
       body: 'Tell us your plumbing issue. The applicable visit or repair charges are confirmed in checkout before you book.' };
     if (service.href.includes('tank_cleaning')) return { ...service,
-      badge: pricingReady ? `From ₹${currentTank}` : 'Checking live price' };
+      badge: pricingReady ? `From ₹${currentTank}` : 'See live price' };
     return service;
   }), [pricingReady, currentNormal, currentChilled, currentPlumbing, currentTank]);
   const [founding, setFounding] = useState<{ count: number } | null>(null);
@@ -336,7 +336,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
 
   // Never present launch-default or stale amounts as current published prices.
   // The content remains navigable while authoritative city pricing loads.
-  const displayPrice = (amount: number) => pricingReady ? `₹${amount}` : 'Checking price';
+  const displayPrice = (amount: number) => pricingReady ? `₹${amount}` : 'See live price';
 
   const s = liveServices[svc];
 
