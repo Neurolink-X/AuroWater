@@ -150,6 +150,7 @@ export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
   'src/components/booking/BookingWizard.tsx': ['booking', 'pricing', 'subscriptions', 'dispatch', 'finance', 'notifications'],
   'src/components/layout/AnnouncementBar.tsx': ['notifications'],
   'src/components/layout/Header.tsx': ['auth', 'booking', 'notifications'],
+  'src/components/layout/RootChrome.tsx': ['auth', 'booking', 'admin', 'supplier', 'technician'],
   'src/components/operations/NearbyRoutePanel.tsx': ['dispatch', 'supplier', 'technician'],
   'src/components/private-files/DocumentUploader.tsx': ['auth', 'admin', 'technician'],
   'src/components/supplier/DeliveryActionButton.tsx': ['supplier', 'dispatch'],
