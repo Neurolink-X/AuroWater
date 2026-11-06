@@ -145,7 +145,7 @@ export default function AdminOrdersPage() {
     } finally {
       setDrawerLoading(false);
     }
-  }, [fetchTechs]);
+  }, []);
 
   const closeDrawer = useCallback(() => {
     setDrawerOpen(false);
@@ -339,8 +339,9 @@ export default function AdminOrdersPage() {
       <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 flex flex-col md:flex-row gap-3 md:items-end">
         <div className="flex-1 grid sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-slate-400 mb-1">Search</label>
+            <label htmlFor="admin-order-search" className="block text-xs text-slate-400 mb-1">Search</label>
             <input
+              id="admin-order-search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Order id, customer, address…"
@@ -349,8 +350,9 @@ export default function AdminOrdersPage() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-slate-400 mb-1">From</label>
+              <label htmlFor="admin-order-from" className="block text-xs text-slate-400 mb-1">From</label>
               <input
+                id="admin-order-from"
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
@@ -358,8 +360,9 @@ export default function AdminOrdersPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-slate-400 mb-1">To</label>
+              <label htmlFor="admin-order-to" className="block text-xs text-slate-400 mb-1">To</label>
               <input
+                id="admin-order-to"
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
@@ -770,8 +773,9 @@ export default function AdminOrdersPage() {
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Admin actions</h3>
                 <div className="space-y-3">
-                  <label className="block text-xs text-slate-500">Update status</label>
+                  <label htmlFor="admin-order-status" className="block text-xs text-slate-500">Update status</label>
                   <select
+                    id="admin-order-status"
                     className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
                     value={String(drawerOrder.status ?? '')}
                     onChange={(e) => void handleStatusUpdate(e.target.value)}
