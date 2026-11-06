@@ -23,6 +23,9 @@ test('mobile hero keeps a stable single-line height while live price is verified
   assert.ok(home.includes("pricingReady ? `${displayPrice(currentNormal)},` :"));
   assert.ok(!home.includes("pricingReady ? 'hero-price-line' : ''"));
   assert.ok(!home.includes('className="block whitespace-nowrap sm:inline">{displayPrice(currentNormal)}'));
+  assert.match(home, /flex min-h-7 items-center whitespace-nowrap/);
+  assert.match(home, /pricingReady/);
+  assert.match(home, /See live price/);
 });
 
 test('homepage does not duplicate automatic booking-link prefetch during first paint', () => {
