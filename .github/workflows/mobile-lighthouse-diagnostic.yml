@@ -61,4 +61,5 @@ jobs:
           name: mobile-lighthouse-diagnostic
           path: .lighthouse/
           retention-days: 14
-          if-no-files-found: warn
+          if-no-files-found: error
+          include-hidden-files: true
