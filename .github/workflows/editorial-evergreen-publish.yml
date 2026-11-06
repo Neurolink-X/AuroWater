@@ -24,9 +24,9 @@ jobs:
         with:
           node-version: '22'
       - name: Validate drafts
-        run: node scripts/publish-water-news.mjs --validate
+        run: node scripts/auto-publish-water-news.mjs --validate
       - name: Promote editor-approved drafts (append only)
-        run: node scripts/publish-water-news.mjs --promote
+        run: node scripts/auto-publish-water-news.mjs --promote
       - name: Commit published store
         shell: bash
         run: |
