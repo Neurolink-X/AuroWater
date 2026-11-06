@@ -48,6 +48,9 @@ function audit(scope, extra = []) {
   process.stdout.write(JSON.stringify(summary, null, 2) + '\n');
   if ((summary.counts.high ?? 0) + (summary.counts.critical ?? 0) > 0) {
     process.stdout.write(`AUDIT_RISK ${scope}: ${summary.counts.high ?? 0} high, ${summary.counts.critical ?? 0} critical; review fixed versions and dependency paths.\n`);
+    // Production runtime vulnerability risk is release-blocking. Tooling advisories
+    // remain visible but require individually reviewed, non-breaking upgrades.
+    if (scope === 'production-dependencies') process.exitCode = 1;
   }
   return summary;
 }
