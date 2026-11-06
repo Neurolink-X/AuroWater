@@ -16,4 +16,5 @@ test('audit reporter remains read-only and analyzes production separately', () =
   assert.match(source, /'audit', '--json'/);
   assert.match(source, /'--omit=dev'/);
   assert.doesNotMatch(source, /\baudit fix\b|npm install|--force/);
+  assert.match(source, /scope === 'production-dependencies'\) process\.exitCode = 1/);
 });
