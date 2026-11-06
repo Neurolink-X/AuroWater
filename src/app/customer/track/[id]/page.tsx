@@ -363,7 +363,7 @@ export default function TrackOrderPage() {
     const sb = session?.accessToken
       ? createSupabaseBrowserAuthed(session.accessToken)
       : null;
-    if (!sb) return;
+    if (!sb) return () => window.cancelAnimationFrame(frame);
     let cancelled = false;
     void sb
       .from('reviews')
@@ -386,7 +386,7 @@ export default function TrackOrderPage() {
         if (!cancelled) setSupplierRating(averageRating);
       });
     return () => { cancelled = true; window.cancelAnimationFrame(frame); };
-  }, [supplierId, supplierProfileId, session?.accessToken]);
+  }, [supplierId, supplierProfileId, supplierProfile, session?.accessToken]);
 
   const serviceKey = (order?.service_type_key as string | undefined) ?? '';
   const isTechnicianService = Boolean(serviceKey) && !['water_can', 'water_tanker'].includes(serviceKey);
