@@ -2953,7 +2953,7 @@ export default function SupplierDashboardPage() {
     };
     const online = () => { setNetworkOnline(true); refreshOnFocus(); };
     const offline = () => setNetworkOnline(false);
-    setNetworkOnline(typeof navigator === 'undefined' ? true : navigator.onLine);
+    const networkFrame = window.requestAnimationFrame(() => setNetworkOnline(navigator.onLine));
     window.addEventListener('focus', refreshOnFocus);
     document.addEventListener('visibilitychange', refreshOnFocus);
     window.addEventListener('online', online);
