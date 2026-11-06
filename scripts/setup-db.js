@@ -393,7 +393,7 @@ async function checkMigrationHistory(client) {
 function writeReadinessReport(required, optional, migrationTracking) {
   const outputPath = process.env.DB_READINESS_REPORT_PATH?.trim();
   if (!outputPath) return;
-  const allowed = /^.next\/db-readiness\/[a-zA-Z0-9_-]+\.json$/;
+  const allowed = /^\.next\/db-readiness\/[a-zA-Z0-9_-]+\.json$/;
   if (!allowed.test(outputPath) || isAbsolute(outputPath)) {
     throw new Error("DB_READINESS_REPORT_PATH_INVALID");
   }
