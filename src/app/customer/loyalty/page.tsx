@@ -147,7 +147,7 @@ function useLoyalty(enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return;
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
     // Refresh when the customer returns to the tab or the network comes back.
     const wake = () => {
       if (document.visibilityState === 'hidden') return;
@@ -156,6 +156,7 @@ function useLoyalty(enabled: boolean) {
     document.addEventListener('visibilitychange', wake);
     window.addEventListener('online', retry);
     return () => {
+      window.clearTimeout(initial);
       document.removeEventListener('visibilitychange', wake);
       window.removeEventListener('online', retry);
       clearTimeout(timer.current);
