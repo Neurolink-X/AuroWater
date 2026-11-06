@@ -2,18 +2,22 @@
 #!/usr/bin/env node
 
 /**
- * AUROTAP — PRODUCTION-SAFE SMOKE TEST
+ * AuroTap — Fast, Safe Deployment Smoke Tests
+ *
+ * File: scripts/smoke-test.mjs
  *
  * Next.js 16 | Node.js 22+ | Vercel | Supabase
  *
- * Purpose:
- * - Verify public routes and API availability
- * - Validate HTTP status and response content
- * - Check canonical redirect destination
- * - Detect unexpected error responses
- * - Measure request latency
- * - Apply bounded retries for transient failures
- * - Return correct CI exit codes
+ * FEATURES:
+ * - Maximum 3 concurrent requests
+ * - Configurable timeout
+ * - Bounded retries
+ * - HTTP status verification
+ * - JSON, HTML, XML, robots.txt validation
+ * - Secure redirect verification
+ * - Response latency measurement
+ * - Optional JSON report for CI
+ * - Proper exit codes
  *
  * SAFETY:
  * - GET requests only
@@ -21,69 +25,108 @@
  * - No database writes
  * - No order creation
  * - No secret logging
- * - No automatic fixes or deployments
+ * - No automatic deployments
  *
- * Usage:
+ * USAGE:
  *   npm run smoke
  *
- * Remote:
+ * Production:
  *   BASE_URL=https://www.aurotap.in npm run smoke
- */
-
-const DEFAULT_BASE = "http://localhost:3000";
-
-const TIMEOUT_MS = 8000;
-const RETRY_DELAY_MS = 350;
-const MAX_ATTEMPTS = 2;
-
-// Advisory performance budget, not a hard failure.
-const SLOW_RESPONSE_MS = 2500;
-
-// Limit how much response content is inspected.
-const MAX_BODY_BYTES = 64 * 1024;
-
-const RETRYABLE_STATUSES = new Set([
-  429,
-  502,
-  503,
-  504,
-]);
-
-const results = [];
-
-/**
- * Validate the target.
  *
- * Prevent credentials in URLs.
- * Require HTTPS for remote environments.
+ * Optional configuration:
+ *
+ *   SMOKE_CONCURRENCY=3
+ *   SMOKE_TIMEOUT_MS=8000
+ *   SMOKE_RETRIES=1
+ *   SMOKE_SLOW_MS=2500
+ *   SMOKE_REPORT_PATH=artifacts/smoke-report.json
+ *   SMOKE_OG_IMAGE_PATH=/og-image.png
+ *   SMOKE_DASHBOARD_PATH=/dashboard
+ *   SMOKE_DASHBOARD_TARGETS=/auth/login,/customer/home
  */
-function getBaseUrl() {
+
+import {
+  mkdir,
+  writeFile,
+} from "node:fs/promises";
+
+import {
+  dirname,
+  resolve,
+} from "node:path";
+
+import {
+  performance,
+} from "node:perf_hooks";
+
+/* ============================================================
+   CONFIGURATION HELPERS
+============================================================ */
+
+function integerEnv(
+  name,
+  fallback,
+  min,
+  max
+) {
+  const raw = process.env[name];
+
+  if (
+    raw === undefined ||
+    raw.trim() === ""
+  ) {
+    return fallback;
+  }
+
+  if (!/^\d+$/.test(raw.trim())) {
+    throw new Error(
+      `${name} must be an integer`
+    );
+  }
+
+  const value = Number(raw);
+
+  if (
+    !Number.isSafeInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new Error(
+      `${name} must be between ${min} and ${max}`
+    );
+  }
+
+  return value;
+}
+
+/* ============================================================
+   BASE URL VALIDATION
+============================================================ */
+
+function getBase() {
   const raw =
-    process.env.BASE_URL?.trim() || DEFAULT_BASE;
+    process.env.BASE_URL?.trim() ||
+    "http://localhost:3000";
 
   let url;
 
   try {
     url = new URL(raw);
   } catch {
-    throw new Error("Invalid BASE_URL.");
-  }
-
-  if (url.username || url.password) {
     throw new Error(
-      "BASE_URL must not contain credentials."
+      "Invalid BASE_URL"
     );
   }
 
-  if (url.search || url.hash) {
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== "/"
+  ) {
     throw new Error(
-      "BASE_URL must not contain query or fragment."
-    );
-  }
-
-  if (url.pathname !== "/") {
-    throw new Error(
-      "BASE_URL must be the site origin."
+      "BASE_URL must be an origin without credentials, path, query or fragment"
     );
   }
 
@@ -98,479 +141,887 @@ function getBaseUrl() {
     !(local && url.protocol === "http:")
   ) {
     throw new Error(
-      "Use HTTPS for non-local smoke tests."
+      "BASE_URL requires HTTPS unless using localhost"
     );
   }
 
   return url.origin;
 }
 
-/**
- * Simple delay between retry attempts.
- */
-function sleep(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
+/* ============================================================
+   SAFE ROUTE VALIDATION
+============================================================ */
+
+function safePath(raw, name) {
+  if (
+    typeof raw !== "string" ||
+    !raw.startsWith("/") ||
+    raw.startsWith("//")
+  ) {
+    throw new Error(
+      `${name} must be a same-origin absolute path`
+    );
+  }
+
+  const url = new URL(
+    raw,
+    "https://local.invalid"
+  );
+
+  if (
+    url.origin !== "https://local.invalid" ||
+    url.hash ||
+    url.search
+  ) {
+    throw new Error(
+      `${name} must not contain a query, fragment or another origin`
+    );
+  }
+
+  return url.pathname;
 }
 
-/**
- * Read only a limited response prefix.
- *
- * Avoid downloading unnecessarily large
- * HTML or API responses into memory.
- */
-async function readPrefix(response) {
-  if (!response.body) return "";
+/* ============================================================
+   MAIN CONFIGURATION
+============================================================ */
 
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
+function config() {
+  const base = getBase();
+
+  const concurrency = integerEnv(
+    "SMOKE_CONCURRENCY",
+    3,
+    1,
+    3
+  );
+
+  const timeoutMs = integerEnv(
+    "SMOKE_TIMEOUT_MS",
+    8000,
+    1000,
+    30000
+  );
+
+  const retries = integerEnv(
+    "SMOKE_RETRIES",
+    1,
+    0,
+    2
+  );
+
+  const slowMs = integerEnv(
+    "SMOKE_SLOW_MS",
+    2500,
+    100,
+    30000
+  );
+
+  const dashboardTargets = (
+    process.env.SMOKE_DASHBOARD_TARGETS ||
+    "/auth/login,/customer/home"
+  )
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) =>
+      safePath(
+        value,
+        "SMOKE_DASHBOARD_TARGETS"
+      )
+    );
+
+  if (dashboardTargets.length === 0) {
+    throw new Error(
+      "At least one dashboard redirect target is required"
+    );
+  }
+
+  return {
+    base,
+    concurrency,
+    timeoutMs,
+    retries,
+    slowMs,
+
+    reportPath:
+      process.env.SMOKE_REPORT_PATH?.trim() ||
+      null,
+
+    checks: [
+      {
+        path: "/",
+        label: "Homepage",
+        type: "html",
+      },
+
+      {
+        path: "/api/settings",
+        label: "Public settings",
+        type: "json",
+      },
+
+      {
+        path: "/sitemap.xml",
+        label: "Sitemap",
+        type: "sitemap",
+      },
+
+      {
+        path: "/robots.txt",
+        label: "Robots",
+        type: "robots",
+      },
+
+      {
+        path: safePath(
+          process.env.SMOKE_OG_IMAGE_PATH ||
+            "/og-image.png",
+          "SMOKE_OG_IMAGE_PATH"
+        ),
+        label: "Social image",
+        type: "image",
+      },
+
+      {
+        path: safePath(
+          process.env.SMOKE_DASHBOARD_PATH ||
+            "/dashboard",
+          "SMOKE_DASHBOARD_PATH"
+        ),
+
+        label: "Legacy dashboard",
+        type: "redirect",
+        dashboardTargets,
+      },
+    ],
+  };
+}
+
+/* ============================================================
+   RETRY CONFIGURATION
+============================================================ */
+
+const transientStatuses = new Set([
+  408,
+  429,
+  500,
+  502,
+  503,
+  504,
+]);
+
+function sleep(ms) {
+  return new Promise((done) =>
+    setTimeout(done, ms)
+  );
+}
+
+/* ============================================================
+   MEMORY-SAFE RESPONSE READING
+============================================================ */
+
+/**
+ * Read a limited response prefix.
+ *
+ * Avoid loading very large responses
+ * into memory.
+ *
+ * Never print response bodies or secrets.
+ */
+
+async function readPrefix(
+  response,
+  maxBytes = 65536
+) {
+  if (!response.body) {
+    return "";
+  }
+
+  const reader =
+    response.body.getReader();
+
+  const decoder =
+    new TextDecoder();
+
+  let text = "";
+  let bytes = 0;
 
   try {
-    while (total < MAX_BODY_BYTES) {
-      const { done, value } = await reader.read();
+    while (bytes < maxBytes) {
+      const {
+        done,
+        value,
+      } = await reader.read();
 
-      if (done) break;
+      if (done) {
+        break;
+      }
 
-      const remaining = MAX_BODY_BYTES - total;
-      const chunk = value.subarray(0, remaining);
+      const chunk = value.subarray(
+        0,
+        maxBytes - bytes
+      );
 
-      chunks.push(chunk);
-      total += chunk.byteLength;
+      bytes += chunk.length;
 
-      if (total >= MAX_BODY_BYTES) break;
+      text += decoder.decode(
+        chunk,
+        {
+          stream: true,
+        }
+      );
+
+      if (bytes >= maxBytes) {
+        break;
+      }
     }
+
+    text += decoder.decode();
   } finally {
     await reader.cancel().catch(() => {});
   }
 
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return new TextDecoder().decode(bytes);
+  return text;
 }
 
-/**
- * Check content type.
- */
-function matchesContentType(response, expected) {
+/* ============================================================
+   RESPONSE VALIDATION
+============================================================ */
+
+function validate(
+  response,
+  check,
+  body,
+  requestUrl
+) {
   const contentType = (
-    response.headers.get("content-type") || ""
+    response.headers.get(
+      "content-type"
+    ) || ""
   ).toLowerCase();
 
-  switch (expected) {
-    case "json":
-      return contentType.includes("application/json");
+  const status = response.status;
 
-    case "html":
-      return contentType.includes("text/html");
+  /* ----------------------------------------------------------
+     REDIRECT VALIDATION
+  ---------------------------------------------------------- */
 
-    case "xml":
+  if (check.type === "redirect") {
+    const allowedStatuses = [
+      301,
+      302,
+      303,
+      307,
+      308,
+    ];
+
+    if (
+      !allowedStatuses.includes(status)
+    ) {
       return (
-        contentType.includes("xml")
+        `Expected dashboard redirect, ` +
+        `got HTTP ${status}`
+      );
+    }
+
+    const location =
+      response.headers.get(
+        "location"
       );
 
-    case "text":
-      return (
-        contentType.includes("text/plain")
+    if (!location) {
+      return "Redirect missing Location header";
+    }
+
+    let destination;
+
+    try {
+      destination = new URL(
+        location,
+        requestUrl
+      );
+    } catch {
+      return "Invalid redirect destination";
+    }
+
+    const validOrigin =
+      destination.origin ===
+      requestUrl.origin;
+
+    const validPath =
+      check.dashboardTargets.includes(
+        destination.pathname
       );
 
-    case "image":
-      return contentType.startsWith("image/");
+    const noQuery =
+      !destination.search;
 
-    default:
-      return false;
+    const noFragment =
+      !destination.hash;
+
+    if (
+      !validOrigin ||
+      !validPath ||
+      !noQuery ||
+      !noFragment
+    ) {
+      return (
+        "Redirect destination is not " +
+        "an approved same-origin path"
+      );
+    }
+
+    return null;
   }
-}
 
-/**
- * Basic API and page validation.
- *
- * This is deliberately lightweight.
- * It does not replace API contract tests.
- */
-function validateBody(body, type) {
-  switch (type) {
-    case "json": {
-      let parsed;
+  /* ----------------------------------------------------------
+     STATUS VALIDATION
+  ---------------------------------------------------------- */
 
-      try {
-        parsed = JSON.parse(body);
-      } catch {
-        return "Invalid JSON response";
-      }
+  if (status !== 200) {
+    return (
+      `Expected HTTP 200, got ${status}`
+    );
+  }
+
+  /* ----------------------------------------------------------
+     IMAGE VALIDATION
+  ---------------------------------------------------------- */
+
+  if (check.type === "image") {
+    return contentType.startsWith(
+      "image/"
+    )
+      ? null
+      : "Expected image Content-Type";
+  }
+
+  /* ----------------------------------------------------------
+     JSON VALIDATION
+  ---------------------------------------------------------- */
+
+  if (check.type === "json") {
+    const validType =
+      contentType.includes(
+        "application/json"
+      ) ||
+      contentType.includes("+json");
+
+    if (!validType) {
+      return "Expected JSON Content-Type";
+    }
+
+    try {
+      const parsed =
+        JSON.parse(body);
 
       if (
         parsed === null ||
-        typeof parsed !== "object"
+        typeof parsed !== "object" ||
+        Array.isArray(parsed)
       ) {
-        return "Unexpected JSON structure";
+        return "Expected JSON object";
       }
 
-      if (!Array.isArray(parsed)) {
-        if (parsed.ok === false) {
-          return "API returned ok=false";
-        }
-
-        if (parsed.success === false) {
-          return "API returned success=false";
-        }
+      if (
+        parsed.ok === false ||
+        parsed.success === false
+      ) {
+        return "API reported failure";
       }
-
-      return null;
+    } catch {
+      return (
+        "Malformed or oversized JSON response"
+      );
     }
 
-    case "html":
-      if (!/<html[\s>]/i.test(body)) {
-        return "Missing HTML document";
-      }
-
-      return null;
-
-    case "xml":
-      if (
-        !/<(?:urlset|sitemapindex)\b/i.test(body)
-      ) {
-        return "Unexpected sitemap structure";
-      }
-
-      return null;
-
-    case "text":
-      if (
-        !/(?:user-agent|sitemap)\s*:/i.test(body)
-      ) {
-        return "Unexpected robots.txt content";
-      }
-
-      return null;
-
-    default:
-      return null;
+    return null;
   }
+
+  /* ----------------------------------------------------------
+     HTML VALIDATION
+  ---------------------------------------------------------- */
+
+  if (check.type === "html") {
+    if (
+      !contentType.includes(
+        "text/html"
+      )
+    ) {
+      return "Expected HTML Content-Type";
+    }
+
+    return /<html\b/i.test(body)
+      ? null
+      : "Missing HTML document element";
+  }
+
+  /* ----------------------------------------------------------
+     SITEMAP VALIDATION
+  ---------------------------------------------------------- */
+
+  if (check.type === "sitemap") {
+    if (
+      !contentType.includes("xml")
+    ) {
+      return "Expected XML Content-Type";
+    }
+
+    const sitemapPattern =
+      /<(?:\w+:)?(?:urlset|sitemapindex)\b/i;
+
+    return sitemapPattern.test(body)
+      ? null
+      : "Missing sitemap root element";
+  }
+
+  /* ----------------------------------------------------------
+     ROBOTS.TXT VALIDATION
+  ---------------------------------------------------------- */
+
+  if (check.type === "robots") {
+    if (
+      !contentType.includes(
+        "text/plain"
+      )
+    ) {
+      return "Expected text/plain Content-Type";
+    }
+
+    const robotsPattern =
+      /^\s*(?:#.*\n\s*)*(?:user-agent|sitemap)\s*:/im;
+
+    return robotsPattern.test(body)
+      ? null
+      : "Missing robots directives";
+  }
+
+  return "Unknown check type";
 }
 
-/**
- * Public AuroTap endpoints.
- *
- * No protected or state-changing routes.
- */
-function getChecks() {
-  return [
-    {
-      path: "/",
-      label: "Homepage",
-      type: "html",
-      expectedStatus: 200,
-    },
-    {
-      path: "/api/settings",
-      label: "Public settings API",
-      type: "json",
-      expectedStatus: 200,
-    },
-    {
-      path: "/sitemap.xml",
-      label: "SEO sitemap",
-      type: "xml",
-      expectedStatus: 200,
-    },
-    {
-      path: "/robots.txt",
-      label: "SEO robots.txt",
-      type: "text",
-      expectedStatus: 200,
-    },
-    {
-      path:
-        process.env.SMOKE_OG_IMAGE_PATH ||
-        "/og-image.png",
-      label: "Social sharing image",
-      type: "image",
-      expectedStatus: 200,
-    },
-    {
-      path: "/dashboard",
-      label: "Legacy dashboard redirect",
-      type: "redirect",
-      expectedLocation: "/customer/home",
-    },
-  ];
-}
+/* ============================================================
+   SINGLE REQUEST EXECUTION
+============================================================ */
 
-/**
- * Perform a single HTTP request.
- */
-async function requestOnce(base, check) {
-  const url = new URL(check.path, base);
+async function tryOnce(
+  base,
+  check,
+  timeoutMs
+) {
+  const requestUrl =
+    new URL(check.path, base);
 
-  const started = performance.now();
+  const started =
+    performance.now();
 
-  const response = await fetch(url, {
-    method: "GET",
-    redirect: "manual",
-    cache: "no-store",
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    headers: {
-      Accept: "*/*",
-    },
-  });
+  const response = await fetch(
+    requestUrl,
+    {
+      method: "GET",
+
+      redirect: "manual",
+
+      cache: "no-store",
+
+      signal:
+        AbortSignal.timeout(
+          timeoutMs
+        ),
+
+      headers: {
+        Accept:
+          check.type === "json"
+            ? "application/json"
+            : "*/*",
+      },
+    }
+  );
+
+  const status =
+    response.status;
+
+  const needsBody =
+    ![
+      "image",
+      "redirect",
+    ].includes(check.type) &&
+    status === 200;
+
+  const body = needsBody
+    ? await readPrefix(response)
+    : "";
+
+  if (!needsBody) {
+    await response.body
+      ?.cancel()
+      .catch(() => {});
+  }
 
   const latencyMs = Math.round(
     performance.now() - started
   );
 
-  const status = response.status;
-
-  /**
-   * Redirect verification.
-   *
-   * A random 3xx response is not success.
-   */
-  if (check.type === "redirect") {
-    const allowedStatuses = new Set([
-      301,
-      302,
-      307,
-      308,
-    ]);
-
-    const location =
-      response.headers.get("location");
-
-    const destination = location
-      ? new URL(location, url)
-      : null;
-
-    const correctDestination =
-      destination &&
-      destination.origin === url.origin &&
-      destination.pathname ===
-        check.expectedLocation &&
-      destination.search === "";
-
-    await response.body?.cancel().catch(() => {});
-
-    return {
-      ok:
-        allowedStatuses.has(status) &&
-        Boolean(correctDestination),
-      status,
-      latencyMs,
-      reason: correctDestination
-        ? null
-        : "Unexpected redirect destination",
-    };
-  }
-
-  if (status !== check.expectedStatus) {
-    await response.body?.cancel().catch(() => {});
-
-    return {
-      ok: false,
-      status,
-      latencyMs,
-      reason: `Expected HTTP ${check.expectedStatus}`,
-    };
-  }
-
-  if (!matchesContentType(response, check.type)) {
-    await response.body?.cancel().catch(() => {});
-
-    return {
-      ok: false,
-      status,
-      latencyMs,
-      reason: "Unexpected Content-Type",
-    };
-  }
-
-  /**
-   * Images only need status/content-type
-   * validation in this lightweight check.
-   */
-  if (check.type === "image") {
-    await response.body?.cancel().catch(() => {});
-
-    return {
-      ok: true,
-      status,
-      latencyMs,
-      reason: null,
-    };
-  }
-
-  const body = await readPrefix(response);
-
-  const validationError = validateBody(
+  const reason = validate(
+    response,
+    check,
     body,
-    check.type
+    requestUrl
   );
 
   return {
-    ok: !validationError,
+    ok: reason === null,
     status,
     latencyMs,
-    reason: validationError,
+    reason,
   };
 }
 
-/**
- * Run bounded retries.
- *
- * Retry only transient HTTP failures
- * and network/timeouts.
- *
- * Do not retry 400, 401, 403, or 404.
- */
-async function runCheck(base, check) {
-  let finalResult;
+/* ============================================================
+   BOUNDED RETRY EXECUTION
+============================================================ */
+
+async function checkOne(
+  cfg,
+  check
+) {
+  const started =
+    performance.now();
+
+  let last = {
+    ok: false,
+    status: null,
+    latencyMs: 0,
+    reason: "Not checked",
+  };
+
+  let attempts = 0;
 
   for (
-    let attempt = 1;
-    attempt <= MAX_ATTEMPTS;
-    attempt++
+    let index = 0;
+    index <= cfg.retries;
+    index++
   ) {
+    attempts = index + 1;
+
     try {
-      const result = await requestOnce(
-        base,
-        check
+      last = await tryOnce(
+        cfg.base,
+        check,
+        cfg.timeoutMs
       );
 
-      finalResult = {
-        ...result,
-        attempts: attempt,
-      };
-
-      if (result.ok) break;
-
-      if (!RETRYABLE_STATUSES.has(result.status)) {
+      if (
+        last.ok ||
+        !transientStatuses.has(
+          last.status
+        )
+      ) {
         break;
       }
     } catch (error) {
-      finalResult = {
+      last = {
         ok: false,
-        status: "NETWORK",
+        status: null,
         latencyMs: 0,
-        attempts: attempt,
+
         reason:
-          error?.name === "TimeoutError"
-            ? "Request timed out"
+          error?.name ===
+            "TimeoutError" ||
+          error?.name ===
+            "AbortError"
+            ? "Request timeout"
             : "Network request failed",
       };
     }
 
-    if (attempt < MAX_ATTEMPTS) {
-      await sleep(RETRY_DELAY_MS * attempt);
+    if (
+      index < cfg.retries
+    ) {
+      await sleep(
+        250 * (index + 1)
+      );
     }
   }
 
-  const slow =
-    finalResult.latencyMs > SLOW_RESPONSE_MS;
-
-  const state = finalResult.ok
-    ? slow
-      ? "SLOW"
-      : "PASS"
-    : "FAIL";
-
-  const timing =
-    `${finalResult.latencyMs}ms`;
-
-  console.log(
-    `${state.padEnd(4)} ` +
-      `${String(finalResult.status).padEnd(7)} ` +
-      `${timing.padStart(7)} ` +
-      `${check.label}`
-  );
-
-  if (finalResult.reason) {
-    console.log(
-      `     Reason: ${finalResult.reason}`
-    );
-  }
-
-  if (finalResult.attempts > 1) {
-    console.log(
-      `     Attempts: ${finalResult.attempts}`
-    );
-  }
-
-  results.push({
-    ...finalResult,
+  return {
+    path: check.path,
     label: check.label,
-    slow,
-  });
+
+    ok: last.ok,
+    status: last.status,
+    attempts,
+
+    latencyMs:
+      last.latencyMs,
+
+    elapsedMs: Math.round(
+      performance.now() - started
+    ),
+
+    slow:
+      last.ok &&
+      last.latencyMs >
+        cfg.slowMs,
+
+    reason: last.reason,
+  };
 }
 
+/* ============================================================
+   CONCURRENCY-LIMITED WORKER POOL
+============================================================ */
+
 /**
- * Main smoke-test runner.
+ * Run up to 3 requests concurrently.
+ *
+ * Benefits:
+ * - Faster than sequential tests
+ * - Avoids excessive request bursts
+ * - Stable result ordering
+ * - Bounded resource usage
  */
-async function main() {
-  const base = getBaseUrl();
 
-  console.log("");
-  console.log("AUROTAP — DEPLOYMENT SMOKE TEST");
-  console.log("--------------------------------");
-  console.log(`Target: ${base}`);
-  console.log(`Timeout: ${TIMEOUT_MS}ms`);
-  console.log(`Max attempts: ${MAX_ATTEMPTS}`);
-  console.log("");
+async function runPool(cfg) {
+  const output = new Array(
+    cfg.checks.length
+  );
 
-  const checks = getChecks();
+  let nextIndex = 0;
 
-  // Run sequentially to avoid unnecessary
-  // request bursts against small deployments.
-  for (const check of checks) {
-    await runCheck(base, check);
+  async function worker() {
+    while (
+      nextIndex <
+      cfg.checks.length
+    ) {
+      const index =
+        nextIndex++;
+
+      output[index] =
+        await checkOne(
+          cfg,
+          cfg.checks[index]
+        );
+    }
   }
 
-  const failed = results.filter(
-    (result) => !result.ok
-  );
+  const workers =
+    Array.from(
+      {
+        length: Math.min(
+          cfg.concurrency,
+          cfg.checks.length
+        ),
+      },
+      () => worker()
+    );
 
-  const passed = results.filter(
-    (result) => result.ok
-  );
+  await Promise.all(workers);
 
-  const slow = results.filter(
-    (result) => result.ok && result.slow
-  );
+  return output;
+}
 
-  const slowest = [...results]
-    .filter((result) => result.ok)
-    .sort(
-      (a, b) =>
-        b.latencyMs - a.latencyMs
-    )[0];
+/* ============================================================
+   MAIN SMOKE TEST RUNNER
+============================================================ */
+
+async function main() {
+  const cfg = config();
 
   console.log("");
-  console.log("SMOKE TEST SUMMARY");
-  console.log("--------------------------------");
+  console.log(
+    "AUROTAP — DEPLOYMENT SMOKE TEST"
+  );
+  console.log(
+    "--------------------------------"
+  );
 
-  console.log(`Total: ${results.length}`);
-  console.log(`Passed: ${passed.length}`);
-  console.log(`Failed: ${failed.length}`);
-  console.log(`Slow responses: ${slow.length}`);
+  console.log(
+    `Target: ${cfg.base}`
+  );
 
-  if (slowest) {
+  console.log(
+    `Concurrency: ${cfg.concurrency}`
+  );
+
+  console.log(
+    `Timeout: ${cfg.timeoutMs}ms`
+  );
+
+  console.log(
+    `Retries: ${cfg.retries}`
+  );
+
+  console.log("");
+
+  const started =
+    performance.now();
+
+  const checks =
+    await runPool(cfg);
+
+  /* ----------------------------------------------------------
+     PRINT RESULTS
+  ---------------------------------------------------------- */
+
+  for (const result of checks) {
+    const state =
+      !result.ok
+        ? "FAIL"
+        : result.slow
+          ? "SLOW"
+          : "PASS";
+
     console.log(
-      `Slowest: ${slowest.label} ` +
-      `(${slowest.latencyMs}ms)`
+      `${state.padEnd(4)} ` +
+      `${String(
+        result.status ?? "NET"
+      ).padEnd(3)} ` +
+      `${String(
+        result.latencyMs
+      ).padStart(5)}ms ` +
+      `${result.label} ` +
+      `(${result.attempts} attempt(s))` +
+      (
+        result.reason
+          ? ` — ${result.reason}`
+          : ""
+      )
     );
   }
 
-  console.log("--------------------------------");
+  /* ----------------------------------------------------------
+     CALCULATE SUMMARY
+  ---------------------------------------------------------- */
 
-  if (failed.length > 0) {
+  const failed = checks.filter(
+    (check) => !check.ok
+  ).length;
+
+  const slow = checks.filter(
+    (check) => check.slow
+  ).length;
+
+  const durationMs =
+    Math.round(
+      performance.now() - started
+    );
+
+  const latencies = checks
+    .filter(
+      (check) => check.ok
+    )
+    .map(
+      (check) => check.latencyMs
+    )
+    .sort(
+      (a, b) => a - b
+    );
+
+  const highestLatencyMs =
+    latencies.at(-1) ?? null;
+
+  const report = {
+    schemaVersion: 1,
+
+    testedAt:
+      new Date().toISOString(),
+
+    baseUrl: cfg.base,
+
+    total: checks.length,
+
+    passed:
+      checks.length - failed,
+
+    failed,
+    slow,
+
+    durationMs,
+    highestLatencyMs,
+
+    checks,
+  };
+
+  console.log("");
+  console.log(
+    "SMOKE TEST SUMMARY"
+  );
+
+  console.log(
+    "--------------------------------"
+  );
+
+  console.log(
+    `Passed: ${report.passed}/${report.total}`
+  );
+
+  console.log(
+    `Failed: ${failed}`
+  );
+
+  console.log(
+    `Slow: ${slow}`
+  );
+
+  console.log(
+    `Total execution: ${durationMs}ms`
+  );
+
+  if (
+    highestLatencyMs !== null
+  ) {
+    console.log(
+      `Highest endpoint latency: ${highestLatencyMs}ms`
+    );
+  }
+
+  console.log(
+    "--------------------------------"
+  );
+
+  /* ----------------------------------------------------------
+     OPTIONAL JSON REPORT
+  ---------------------------------------------------------- */
+
+  if (cfg.reportPath) {
+    const path = resolve(
+      cfg.reportPath
+    );
+
+    await mkdir(
+      dirname(path),
+      {
+        recursive: true,
+      }
+    );
+
+    await writeFile(
+      path,
+
+      JSON.stringify(
+        report,
+        null,
+        2
+      ) + "\n",
+
+      {
+        encoding: "utf8",
+        mode: 0o600,
+      }
+    );
+
+    console.log(
+      "JSON report saved."
+    );
+  }
+
+  /* ----------------------------------------------------------
+     CI EXIT STATUS
+  ---------------------------------------------------------- */
+
+  if (failed > 0) {
     console.error(
-      "RESULT: FAILED — deployment needs review."
+      "RESULT: FAILED"
     );
 
     process.exitCode = 1;
@@ -578,24 +1029,31 @@ async function main() {
   }
 
   console.log(
-    "RESULT: PASSED — public smoke checks passed."
+    "RESULT: PASSED"
   );
 
-  if (slow.length > 0) {
+  if (slow > 0) {
     console.warn(
-      "Performance warning: review slow endpoints."
+      "Performance warnings detected."
     );
   }
 
   console.log(
-    "Note: Authentication, booking, payment, " +
-    "and database correctness were not tested."
+    "Public smoke checks passed."
+  );
+
+  console.log(
+    "Authentication, booking, payment and database correctness were not tested."
   );
 }
 
+/* ============================================================
+   TOP-LEVEL ERROR HANDLING
+============================================================ */
+
 main().catch((error) => {
   console.error(
-    "Smoke runner failed:",
+    "Smoke test setup or reporting failed:",
     error instanceof Error
       ? error.message
       : "Unknown error"
