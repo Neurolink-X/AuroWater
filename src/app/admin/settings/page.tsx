@@ -733,12 +733,14 @@ export default function AdminSettingsPage() {
   const savingRef = useRef(false);
   const valuesRef = useRef(values);
   const savedRef = useRef(saved);
-  valuesRef.current = values;
-  savedRef.current = saved;
-
   const baseline = useMemo(() => toDisplay(saved), [saved]);
   const baselineRef = useRef(baseline);
-  baselineRef.current = baseline;
+  // Event handlers receive the latest committed values without mutating refs in render.
+  useEffect(() => {
+    valuesRef.current = values;
+    savedRef.current = saved;
+    baselineRef.current = baseline;
+  }, [values, saved, baseline]);
 
   const errors = useMemo(() => validate(values), [values]);
   const errorKeys = useMemo(() => ORDERED_KEYS.filter((k) => errors[k]), [errors]);
@@ -785,17 +787,20 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     mountedRef.current = true;
-    const cached = readCache();
-    if (cached) {
-      savedRef.current = cached;
-      setSaved(cached);
-      setValues(toDisplay(cached));
-      readyRef.current = true;
-      setReady(true);
-      setLoading(false);
-    }
-    void load({ silent: Boolean(cached) });
+    const frame = window.requestAnimationFrame(() => {
+      const cached = readCache();
+      if (cached) {
+        savedRef.current = cached;
+        setSaved(cached);
+        setValues(toDisplay(cached));
+        readyRef.current = true;
+        setReady(true);
+        setLoading(false);
+      }
+      void load({ silent: Boolean(cached) });
+    });
     return () => {
+      window.cancelAnimationFrame(frame);
       mountedRef.current = false;
     };
   }, [load]);
