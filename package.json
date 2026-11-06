@@ -1,39 +1,58 @@
+
 {
   "name": "aurowater2vscode",
   "version": "0.1.0",
   "private": true,
+  "description": "AuroTap water and home services platform (Next.js 16, React 19, Supabase)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.6.0",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
 
-    "lint": "eslint . --suppressions-location eslint-suppressions.json --prune-suppressions",
-    "lint:fix": "eslint . --fix --suppressions-location eslint-suppressions.json --prune-suppressions",
-    "lint:check": "eslint . --suppressions-location eslint-suppressions.json --max-warnings=0",
+    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/ --suppressions-location eslint-suppressions.json --pass-on-unpruned-suppressions",
+    "lint:fix": "eslint . --fix --suppressions-location eslint-suppressions.json --pass-on-unpruned-suppressions",
+    "lint:check": "cross-env LINT_TYPED=0 eslint . --cache --cache-location node_modules/.cache/eslint/ --suppressions-location eslint-suppressions.json --pass-on-unpruned-suppressions",
+    "lint:typed": "cross-env LINT_TYPED=1 eslint . --suppressions-location eslint-suppressions.json --pass-on-unpruned-suppressions",
+    "lint:strict": "cross-env LINT_STRICT=1 LINT_TYPED=1 eslint . --suppressions-location eslint-suppressions.json --max-warnings=0",
+    "lint:prune": "eslint . --prune-suppressions --suppressions-location eslint-suppressions.json",
     "typecheck": "tsc --noEmit",
-    "quality:check": "npm run lint && npm run typecheck && npm run test:regression && npm run build",
+
+    "test": "npm run test:regression && npm run test:unit",
+    "test:regression": "node tests/routes-and-access.regression.mjs && node --test tests/admin-reflection.regression.mjs tests/address-maintenance-commission-integrity.unit.mjs tests/notification-retention-integrity.unit.mjs tests/web-push-integration.unit.mjs tests/dispatch-retry-settings-efficiency.unit.mjs tests/dispatch-work-queue.unit.mjs",
+    "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs tests/unit/*.test.mjs",
+
+    "test:technician:contract": "node --experimental-strip-types --test tests/technician-service-approval-flow.unit.mjs",
+    "test:technician:stage": "node scripts/test-technician-service-staging.mjs",
+    "test:platform:contract": "node scripts/platform-quality-contract.mjs",
+    "test:platform:stage": "node scripts/platform-staging-role-matrix.mjs",
+    "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
+    "test:dispatch:queue-bench": "node scripts/benchmark-dispatch-queue-isolated.mjs",
+
+    "quality:check": "npm run lint:check && npm run typecheck && npm run test:regression && npm run build",
+    "quality:full": "npm run lint:typed && npm run typecheck && npm run test && npm run build",
+    "verify": "npm run lint:check && npm run typecheck && npm run test && npm run build",
+    "quality:slo-report": "node scripts/platform-journey-slo.mjs",
+
+    "smoke": "node scripts/smoke-test.mjs",
+    "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
+    "smoke:health": "node scripts/check-site-health.mjs",
+    "verify:env": "node scripts/verify-env.mjs",
 
     "db:setup": "node scripts/setup-db.js",
     "db:bundle-sql": "node scripts/build-supabase-migrations.mjs",
-    "smoke": "node scripts/smoke-test.mjs",
-    "test:regression": "node tests/routes-and-access.regression.mjs && node --test tests/admin-reflection.regression.mjs tests/address-maintenance-commission-integrity.unit.mjs tests/notification-retention-integrity.unit.mjs tests/web-push-integration.unit.mjs tests/dispatch-retry-settings-efficiency.unit.mjs tests/dispatch-work-queue.unit.mjs",
-    "smoke:auth": "node scripts/authenticated-smoke-test.mjs",
-    "verify:env": "node scripts/verify-env.mjs",
-    "test:unit": "node --experimental-strip-types --test tests/*.unit.mjs tests/unit/*.test.mjs",
-    "test:technician:stage": "node scripts/test-technician-service-staging.mjs",
-    "test:technician:contract": "node --experimental-strip-types --test tests/technician-service-approval-flow.unit.mjs",
-    "test:platform:contract": "node scripts/platform-quality-contract.mjs",
-    "test:platform:stage": "node scripts/platform-staging-role-matrix.mjs",
-    "quality:slo-report": "node scripts/platform-journey-slo.mjs",
     "db:audit-migrations": "node scripts/audit-supabase-migrations.mjs",
     "db:inspect-live": "node scripts/inspect-supabase-readiness.mjs",
     "db:audit-indexes": "node scripts/audit-index-overlap.mjs",
+
     "content:discover": "node scripts/discover-water-news.mjs",
-    "smoke:health": "node scripts/check-site-health.mjs",
     "seo:audit-public": "node scripts/audit-public-seo.mjs",
-    "test:dispatch:db": "node scripts/test-dispatch-concurrency.mjs",
-    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs",
-    "test:dispatch:queue-bench": "node scripts/benchmark-dispatch-queue-isolated.mjs"
+    "perf:bundle-report": "node scripts/report-client-bundle-budget.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
@@ -65,11 +84,12 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20.19.31",
+    "@types/node": "^22",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.24.0",
     "eslint-config-next": "16.4.3",
     "tailwindcss": "^4",
     "typescript": "^5"
