@@ -28,7 +28,7 @@ jobs:
           node-version: '24'
           cache: npm
       - name: Regenerate lockfile only; no package lifecycle scripts
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --no-save
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Verify lockfile supports a clean reproducible install
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Verify strict change allowlist
