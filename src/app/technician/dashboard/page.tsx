@@ -1751,8 +1751,11 @@ export default function TechnicianDashboardPage() {
   const seenOffersRef = useRef<Set<string> | null>(null);
 
   useEffect(() => {
-    // Remove obsolete auth flags; only the server is authoritative.
-    lsRemove(KEYS.ONLINE);
+    // Hydrate browser-owned UI state after commit; preserve server as identity authority.
+    let clockInterval: number | undefined;
+    const frame = window.requestAnimationFrame(() => {
+      // Remove obsolete auth flags; only the server is authoritative.
+      lsRemove(KEYS.ONLINE);
     lsRemove(KEYS.VERIFICATION);
     lsRemove(KEYS.DOCS);
     lsRemove(`${KEYS.DOCS}:${storageOwner}`);
@@ -1776,8 +1779,12 @@ export default function TechnicianDashboardPage() {
     if (TAB_KEYS.includes(hash)) setTab(hash);
     KEYS.OBSOLETE.forEach((k) => lsRemove(k));
     setClock(Date.now());
-    const id = window.setInterval(() => setClock(Date.now()), 15_000);
-    return () => window.clearInterval(id);
+    clockInterval = window.setInterval(() => setClock(Date.now()), 15_000);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (clockInterval !== undefined) window.clearInterval(clockInterval);
+    };
   }, []);
 
   const changeTab = useCallback((next: TabKey) => {
