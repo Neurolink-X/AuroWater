@@ -54,6 +54,7 @@ test('explicit evidence covers each affected domain, without allowing unrelated 
     'tests/admin-booking-subscriptions-notifications-technician-integrity.unit.mjs',
     'tests/platform-domain-ownership.unit.mjs',
     'tests/address-maintenance-commission-integrity.unit.mjs',
+    'tests/routes-and-access.regression.mjs',
     'tests/dispatch-coverage.unit.mjs',
     'tests/dispatch-radius.unit.mjs',
   ];
