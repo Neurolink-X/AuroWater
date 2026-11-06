@@ -250,8 +250,11 @@ export default function CustomerAccountPage() {
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   useEffect(() => {
-    setNeedsPhone(new URLSearchParams(window.location.search).get('complete') === 'phone');
-    setOnline(navigator.onLine);
+    const initial = window.requestAnimationFrame(() => {
+      setNeedsPhone(new URLSearchParams(window.location.search).get('complete') === 'phone');
+      setOnline(navigator.onLine);
+    });
+    return () => window.cancelAnimationFrame(initial);
   }, []);
 
   useEffect(() => { if (hydrated && !isLoggedIn) router.replace(loginUrl); }, [hydrated, isLoggedIn, router, loginUrl]);
@@ -311,9 +314,12 @@ export default function CustomerAccountPage() {
   // Stale-while-revalidate: paint cached data instantly, refresh in the background.
   useEffect(() => {
     if (!ready) return;
-    const cached = readCache();
-    if (cached?.profile) { applyProfile(cached.profile); setStats(cached.stats); setLoading(false); }
-    void load(Boolean(cached?.profile));
+    const frame = window.requestAnimationFrame(() => {
+      const cached = readCache();
+      if (cached?.profile) { applyProfile(cached.profile); setStats(cached.stats); setLoading(false); }
+      void load(Boolean(cached?.profile));
+    });
+    return () => window.cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
@@ -346,7 +352,7 @@ export default function CustomerAccountPage() {
     fullName.trim() !== origName || city.trim() !== origCity ||
     digits(phoneInput) !== digits(origPhone) || notif !== origNotif
   );
-  dirtyRef.current = hasChanges;
+  useEffect(() => { dirtyRef.current = hasChanges; }, [hasChanges]);
 
   useEffect(() => {
     // Saving is an intentional action; never interrupt it with the browser's
