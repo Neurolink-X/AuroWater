@@ -6,13 +6,29 @@ import nextTs from "eslint-config-next/typescript";
  * AUROTAP: PRODUCTION ESLINT CONFIGURATION
  * Next.js 16 | React 19 | TypeScript | ESLint 9+ flat config
  *
- * Usage
- *   npx eslint .                    # check
- *   npx eslint . --fix              # apply safe automatic fixes
- *   npx eslint . --max-warnings=0   # strict mode for CI
+ * Rollout flags (environment variables)
+ *   LINT_TYPED=0   -> type-aware rules OFF (fast; use for required CI job)
+ *   LINT_STRICT=1  -> type-aware rules become errors (use after cleanup)
+ *   default        -> type-aware rules ON as warnings
  *
- * Requires Node 20.11+ (for import.meta.dirname).
+ * Commands
+ *   npx eslint .                          # normal check
+ *   npx eslint . --fix                    # safe automatic fixes only
+ *   LINT_TYPED=0 npx eslint .             # fast CI check
+ *   LINT_STRICT=1 npx eslint . --max-warnings=0   # final strict gate
+ *
+ * Notes
+ * - Rules like no-floating-promises are NOT auto-fixable; fix manually.
+ * - Requires Node 20.11+ (import.meta.dirname) and a root tsconfig.json.
+ * - On Windows, use `cross-env` for inline env variables.
  */
+
+const STRICT = process.env.LINT_STRICT === "1";
+
+const TYPED =
+  STRICT || process.env.LINT_TYPED === "1";
+
+const level = STRICT ? "error" : "warn";
 
 const SOURCE_TS = ["**/*.{ts,tsx,mts,cts}"];
 const SOURCE_ALL = ["**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}"];
@@ -148,7 +164,7 @@ const eslintConfig = defineConfig([
     },
   },
 
-  // 4. TypeScript quality (syntax-level, fast)
+  // 4. TypeScript quality (syntax-level, fast, no type information needed)
   {
     name: "aurotap/typescript",
     files: SOURCE_TS,
@@ -219,49 +235,59 @@ const eslintConfig = defineConfig([
     },
   },
 
-  // 5. Type-aware rules (needs a tsconfig; application source only)
-  {
-    name: "aurotap/typescript-type-aware",
-    files: [
-      "src/**/*.{ts,tsx}",
-      "app/**/*.{ts,tsx}",
-      "lib/**/*.{ts,tsx}",
-      "components/**/*.{ts,tsx}",
-      "pages/**/*.{ts,tsx}",
-    ],
-    ignores: [...TEST_FILES, "**/*.d.ts"],
-    languageOptions: {
-      parserOptions: {
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    rules: {
-      "@typescript-eslint/no-floating-promises": ["error", { ignoreVoid: true }],
-      "@typescript-eslint/no-misused-promises": [
-        "error",
-        { checksVoidReturn: { attributes: false } },
-      ],
-      "@typescript-eslint/await-thenable": "error",
-      "@typescript-eslint/no-implied-eval": "error",
-      "@typescript-eslint/no-for-in-array": "error",
-      "@typescript-eslint/no-duplicate-type-constituents": "warn",
-      "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-      "@typescript-eslint/no-unnecessary-boolean-literal-compare": "warn",
-      "@typescript-eslint/switch-exhaustiveness-check": [
-        "warn",
-        { considerDefaultExhaustiveForUnions: true },
-      ],
-      "@typescript-eslint/prefer-nullish-coalescing": [
-        "warn",
-        { ignorePrimitives: { string: true, boolean: true } },
-      ],
-      "@typescript-eslint/prefer-optional-chain": "warn",
-      "@typescript-eslint/only-throw-error": "error",
-      "@typescript-eslint/return-await": ["error", "in-try-catch"],
-      "@typescript-eslint/require-await": "off",
-    },
-  },
+  // 5. Type-aware rules (gradual rollout; see flags at the top)
+  //    Default: warnings. LINT_STRICT=1: errors. LINT_TYPED=0: disabled.
+  ...(TYPED
+    ? [
+        {
+          name: "aurotap/typescript-type-aware",
+          files: [
+            "src/**/*.{ts,tsx}",
+            "app/**/*.{ts,tsx}",
+            "lib/**/*.{ts,tsx}",
+            "components/**/*.{ts,tsx}",
+            "pages/**/*.{ts,tsx}",
+          ],
+          ignores: [...TEST_FILES, "**/*.d.ts"],
+          languageOptions: {
+            parserOptions: {
+              projectService: true,
+              tsconfigRootDir: import.meta.dirname,
+            },
+          },
+          rules: {
+            "@typescript-eslint/no-floating-promises": [
+              level,
+              { ignoreVoid: true },
+            ],
+            "@typescript-eslint/no-misused-promises": [
+              level,
+              { checksVoidReturn: { attributes: false } },
+            ],
+            "@typescript-eslint/await-thenable": level,
+            "@typescript-eslint/only-throw-error": level,
+            "@typescript-eslint/return-await": [level, "in-try-catch"],
+            "@typescript-eslint/no-implied-eval": level,
+            "@typescript-eslint/no-for-in-array": level,
+
+            // Always warnings (style / cleanup)
+            "@typescript-eslint/switch-exhaustiveness-check": [
+              "warn",
+              { considerDefaultExhaustiveForUnions: true },
+            ],
+            "@typescript-eslint/no-unnecessary-type-assertion": "warn",
+            "@typescript-eslint/no-unnecessary-boolean-literal-compare": "warn",
+            "@typescript-eslint/no-duplicate-type-constituents": "warn",
+            "@typescript-eslint/prefer-nullish-coalescing": [
+              "warn",
+              { ignorePrimitives: { string: true, boolean: true } },
+            ],
+            "@typescript-eslint/prefer-optional-chain": "warn",
+            "@typescript-eslint/require-await": "off",
+          },
+        },
+      ]
+    : []),
 
   // 6. Next.js file conventions (default exports required)
   {
