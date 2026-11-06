@@ -9,7 +9,7 @@ const orders = readFileSync('src/app/api/customer/orders/route.ts', 'utf8');
 test('subscriptions and booking cannot submit unverified pricing or missing address', () => {
   assert.match(booking, /if \(!pricingReady \|\| pricingLoading\)/);
   assert.match(booking, /if \(!draft\.addressId \|\| !session\?\.loggedIn\)/);
-  assert.match(booking, /canOrderType: draft\.serviceKey === 'water_can'/);
+  assert.match(booking, /can_order_type:\s+draft\.serviceKey === 'water_can'/);
   assert.match(booking, /can_frequency:.*draft\.serviceKey === 'water_can'/);
   assert.ok(booking.indexOf('if (!pricingReady || pricingLoading)') < booking.indexOf('customerOrderCreate({'));
 });
