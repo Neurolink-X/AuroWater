@@ -45,7 +45,10 @@ export default function AccountRecoveryWorkflow({ row, onUpdated }: Props) {
     } finally { setLoading(false); }
   }, [row.id]);
 
-  useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => { void reload(); }, 0);
+    return () => window.clearTimeout(initial);
+  }, [reload]);
 
   const submit = async () => {
     if (busy || note.trim().length < 40 || !audit) return;

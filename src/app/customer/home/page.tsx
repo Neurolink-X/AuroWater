@@ -564,7 +564,8 @@ export default function CustomerHomePage() {
 
   /* ── Stable greeting after hydration: avoids SSR/client time mismatch ── */
   useEffect(() => {
-    setGreeting(getGreeting(new Date().getHours()));
+    const frame = window.requestAnimationFrame(() => setGreeting(getGreeting(new Date().getHours())));
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   /* ── Auth redirect ───────────────────────────────────────────────────── */
@@ -681,7 +682,9 @@ export default function CustomerHomePage() {
   }, []);
 
   useEffect(() => {
-    if (ready) void loadNotifs();
+    if (!ready) return;
+    const initial = window.setTimeout(() => { void loadNotifs(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [ready, loadNotifs]);
 
   /* ── Realtime notification updates ──────────────────────────────────── */

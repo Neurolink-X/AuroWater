@@ -78,11 +78,11 @@ export default function AddressesPage() {
   }, [isLoggedIn, isCustomer]);
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn || !isCustomer) {
-      setLoading(false);
-      return;
-    }
-    void reload();
+    const initial = window.setTimeout(() => {
+      if (!hydrated || !isLoggedIn || !isCustomer) setLoading(false);
+      else void reload();
+    }, 0);
+    return () => window.clearTimeout(initial);
   }, [hydrated, isLoggedIn, isCustomer, reload]);
 
   useEffect(() => {

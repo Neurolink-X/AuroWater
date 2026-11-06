@@ -13,7 +13,11 @@ export default function SmartDispatchPanel(){
    if(a.ok){const x=await a.json();setOffers(x.data??[])}if(b.ok){const x=await b.json();setAreas(x.data?.areas??[])}
   }catch{setMessage('Demand or offers cannot be refreshed right now. Existing orders are unaffected.')}
  },[]);
- useEffect(()=>{void load();const id=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000);return()=>clearInterval(id)},[load]);
+ useEffect(()=>{
+    const initial=window.setTimeout(()=>{void load();},0);
+    const id=setInterval(()=>{if(document.visibilityState==='visible')void load()},15000);
+    return()=>{window.clearTimeout(initial);clearInterval(id)};
+  },[load]);
  const claim=async(o:Offer)=>{setBusy(o.id);try{const{data}=await createClient().auth.getSession();if(!data.session)throw Error('Sign in again');
   const r=await fetch('/api/supplier/nearby-offers',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({offer_id:o.id})});
   const x=await r.json();if(!r.ok)throw Error(x.error||'Offer unavailable');

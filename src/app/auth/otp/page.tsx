@@ -139,7 +139,9 @@ function OtpPageInner() {
   };
 
   useEffect(() => {
-    if (otp.length === 6) void verify(otp);
+    if (otp.length !== 6) return;
+    const initial = window.setTimeout(() => { void verify(otp); }, 0);
+    return () => window.clearTimeout(initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-submit on 6th digit
   }, [otp]);
 

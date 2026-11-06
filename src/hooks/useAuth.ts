@@ -494,15 +494,17 @@ export function useAuth(
   React.useEffect(() => {
     let cancelled = false;
 
-    const cached = readSession(ttlMs);
-
-    if (!cancelled) {
-      setSession(cached);
-      setHydrated(true);
-    }
+    const frame = window.requestAnimationFrame(() => {
+      const cached = readSession(ttlMs);
+      if (!cancelled) {
+        setSession(cached);
+        setHydrated(true);
+      }
+    });
 
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(frame);
     };
   }, [ttlMs]);
 
@@ -514,9 +516,11 @@ export function useAuth(
       session.loginTime + ttlMs - Date.now();
 
     if (remaining <= 0) {
-      clearSession();
-      setSession(null);
-      return;
+      const expired = window.setTimeout(() => {
+        clearSession();
+        setSession(null);
+      }, 0);
+      return () => window.clearTimeout(expired);
     }
 
     const timeoutId = window.setTimeout(() => {

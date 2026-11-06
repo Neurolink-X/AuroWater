@@ -382,8 +382,11 @@ export function useOrders(): UseOrdersReturn {
 
   /* ── Client hydration (SSR → client handoff) ── */
   React.useEffect(() => {
-    setOrders(readFromStorage());
-    setLoading(false);
+    const frame = window.requestAnimationFrame(() => {
+      setOrders(readFromStorage());
+      setLoading(false);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   /* ── Sync server orders when Supabase session token is present ── */

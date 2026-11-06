@@ -206,8 +206,10 @@ export default function RegisterPage() {
 
   useEffect(() => {
     const initialRole = detectInitialRole();
-    setRole(initialRole);
-    setReferralDestination(referralReturnPath(new URLSearchParams(window.location.search).get('returnTo')));
+    const frame = window.requestAnimationFrame(() => {
+      setRole(initialRole);
+      setReferralDestination(referralReturnPath(new URLSearchParams(window.location.search).get('returnTo')));
+    });
 
     document.title =
       'Create Your AuroTap Account | Water Delivery & Home Services';
@@ -238,6 +240,7 @@ export default function RegisterPage() {
     }
 
     robots.content = 'noindex,nofollow';
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   const activePassword =
