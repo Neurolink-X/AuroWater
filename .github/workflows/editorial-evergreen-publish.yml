@@ -1,14 +1,15 @@
-name: Weekly automatic water news brief
+name: Publish editor-approved water news briefs
+
+# Manual only. Run on main AFTER the review PR is merged.
+# Appends drafts with "editor_approved": true to src/data/water-news-reviewed.json.
 on:
-  schedule:
-    - cron: '23 3 * * 1'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: scheduled-evergreen-publishing
+  group: water-news-store
   cancel-in-progress: false
 
 jobs:
@@ -16,27 +17,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Enable scheduled or manual run
-        id: cadence
-        run: echo "run=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
-        if: steps.cadence.outputs.run == 'true'
         with:
-          persist-credentials: true
+          ref: main
       - uses: actions/setup-node@v4
-        if: steps.cadence.outputs.run == 'true'
         with:
           node-version: '22'
-      - name: Fetch and prepare one attributed current news brief
-        if: steps.cadence.outputs.run == 'true'
-        run: node scripts/auto-publish-water-news.mjs
-      - name: Publish only if editorial store changed
-        if: steps.cadence.outputs.run == 'true'
+      - name: Validate drafts
+        run: node scripts/publish-water-news.mjs --validate
+      - name: Promote editor-approved drafts (append only)
+        run: node scripts/publish-water-news.mjs --promote
+      - name: Commit published store
+        shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- src/data/water-news-reviewed.json; then exit 0; fi
+          if [ -z "$(git status --porcelain -- src/data/water-news-reviewed.json content/water-news-drafts.json)" ]; then
+            echo "Nothing promoted."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data/water-news-reviewed.json
-          git commit -m "content: publish weekly attributed water news brief"
+          git add src/data/water-news-reviewed.json content/water-news-drafts.json
+          git commit -m "content: publish editor-approved water news briefs"
           git push origin HEAD:main
