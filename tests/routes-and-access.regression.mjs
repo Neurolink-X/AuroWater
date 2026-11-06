@@ -360,7 +360,10 @@ const supplierSectionPage = readFileSync(join(root, 'src', 'app', 'supplier', '[
 assert.match(supplierSectionPage, /First load may use a skeleton; refreshes keep the current section visible/);
 assert.match(supplierSectionPage, /if \(!silent && !hasData\.current\) setLoading\(true\)/);
 assert.match(supplierSectionPage, /id === latest\.current && !silent/);
-assert.match(supplierSectionPage, /disabled=\{busy \|\| \(loading && !hasData\.current\)\}/);
+assert.match(supplierSectionPage, /const \[hasDataRender, setHasDataRender\] = useState\(false\)/);
+assert.match(supplierSectionPage, /setHasDataRender\(true\)/);
+assert.match(supplierSectionPage, /disabled=\{busy \|\| \(loading && !hasDataRender\)\}/);
+assert.doesNotMatch(supplierSectionPage, /disabled=\{busy \|\| \(loading && !hasData\.current\)\}/);
 
 
 // Profile support errors must explain that failed submissions do not update records.
