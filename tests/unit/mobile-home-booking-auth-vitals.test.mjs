@@ -1,0 +1,38 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const home = readFileSync('src/app/(public)/HomeClient.tsx', 'utf8');
+const shell = readFileSync('src/components/layout/RootChrome.tsx', 'utf8');
+const page = readFileSync('src/app/(public)/page.tsx', 'utf8');
+
+test('mobile homepage paints the existing hero before animation hydration', () => {
+  assert.match(home, /@media\s*\(max-width:639px\)/);
+  assert.match(home, /\.aw-hero-copy,\.aw-hero-visual\{opacity:1!important;transform:none!important\}/);
+  assert.match(home, /className="aw-hero-copy"\s+initial=/);
+  assert.match(home, /className="aw-hero-visual flex flex-col gap-4"\s+initial=/);
+  assert.match(home, /transition=\{\{ duration: 0\.7 \}\}/);
+});
+
+test('pricing hydration preserves the headline line break and card block heights', () => {
+  assert.match(home, /RO Water from <span className="block whitespace-nowrap sm:inline">\{displayPrice\(currentNormal\)\},<\/span>/);
+  assert.match(home, /flex min-h-7 items-center whitespace-nowrap/);
+  assert.match(home, /pricingReady/);
+  assert.match(home, /See live price/);
+});
+
+test('SEO, images, public chrome and booking intents remain intact', () => {
+  for (const intent of ['/book?service=water_can', '/book?service=plumbing', '/book?service=tank_cleaning']) {
+    assert.ok(home.includes(intent), 'Missing booking intent: ' + intent);
+  }
+  for (const asset of [
+    'https://images.unsplash.com/photo-1739528660620-89a665b3a4db',
+    '/Friendly Kitchen Water Service Team.png',
+    '/mentinence image.png',
+  ]) assert.ok(home.includes(asset), 'Missing hero image: ' + asset);
+  assert.match(home, /<h1 className="mb-6">/);
+  assert.match(page, /<HomeClient initialCities=\{cities\}\s*\/>/);
+  assert.match(page, /application\/ld\+json/);
+  assert.match(shell, /<Header \/>/);
+  assert.match(shell, /<Footer \/>/);
+});

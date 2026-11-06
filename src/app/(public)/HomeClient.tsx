@@ -400,7 +400,12 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
         @media (prefers-reduced-motion:no-preference){.aw-hero-accent{animation:aw-hero-shimmer 8s linear infinite}}
         @media (prefers-reduced-motion:reduce){.aw-hero-accent{animation:none}}
         .aw-season-label{display:inline-flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:700;color:#bae6fd}
-        @media (max-width:639px){.aw-hero-bg .hero-h{font-size:clamp(1.9rem,8vw,2.7rem)}.aw-hero-bg .hero-hi{font-size:clamp(1.75rem,7vw,2.6rem)}}
+        @media (max-width:639px){
+                  .aw-hero-bg .hero-h{font-size:clamp(1.9rem,8vw,2.7rem)}
+                  .aw-hero-bg .hero-hi{font-size:clamp(1.75rem,7vw,2.6rem)}
+                  /* Mobile LCP must paint from SSR HTML, not await Framer Motion hydration. */
+                  .aw-hero-copy,.aw-hero-visual{opacity:1!important;transform:none!important}
+                }
         .aw-campaign-rail{display:flex;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;scrollbar-width:thin;padding:5px 2px 14px}
         .aw-campaign-card{flex:0 0 min(84vw,340px);scroll-snap-align:start;position:relative;isolation:isolate;overflow:hidden}
         .aw-campaign-spark{position:absolute;right:18px;top:10px;font-size:27px;pointer-events:none;opacity:.7}
@@ -420,11 +425,11 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
 
-                <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+                <motion.div className="aw-hero-copy" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Check live coverage in {LIVE_CITY_NAMES}</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
-                    <span className="hero-h block mt-2">RO Water from {displayPrice(currentNormal)},</span>
+                    <span className="hero-h block mt-2">RO Water from <span className="block whitespace-nowrap sm:inline">{displayPrice(currentNormal)},</span></span>
                     <span className="hero-h block mt-1 hero-acc">Plumber &amp; Tank Cleaning too.</span>
                   </h1>
                   <p className="hero-sub mb-8">
@@ -443,7 +448,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                       [displayPrice(currentTank), 'Tank cleaning from'],
                     ].map(([v, l]) => (
                       <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                        <div className="text-xl font-black text-white">{v}</div>
+                        <div className={`flex min-h-7 items-center whitespace-nowrap font-black text-white ${!pricingReady && l !== 'Price lock on plans' ? 'text-sm' : 'text-xl'}`}>{v}</div>
                         <div className="mt-1 text-xs text-slate-300">{l}</div>
                       </div>
                     ))}
@@ -451,7 +456,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <p className="mt-4 text-xs text-slate-400">Cash + UPI where available · Hindi &amp; English support</p>
                 </motion.div>
 
-                <motion.div className="flex flex-col gap-4" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
+                <motion.div className="aw-hero-visual flex flex-col gap-4" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { src: 'https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1000&q=80', alt: 'Clean 20 litre RO drinking water dispenser for home delivery', tag: '20L RO cans', priority: true },
