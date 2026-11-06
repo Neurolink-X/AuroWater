@@ -1,74 +1,279 @@
-name: Safe autonomous maintenance repair (propose PR)
+name: Safe lint suppression maintenance (draft PR only)
+
 on:
   schedule:
-    - cron: '41 3 * * *'
+    # Sunday 03:41 UTC = Sunday 09:11 IST
+    - cron: '41 3 * * 0'
   workflow_dispatch:
+    inputs:
+      open_pr:
+        description: 'Create a draft PR if cleanup passes? Turn off for validation-only.'
+        type: boolean
+        required: false
+        default: true
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: safe-autorepair-suppressions
   cancel-in-progress: false
 
 jobs:
-  deterministic-repair:
+  prepare:
+    name: Prune and test (read-only token)
+    if: ${{ github.repository == 'Neurolink-X/AuroWater' && github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      CI: 'true'
+      SUPPRESSIONS_FILE: eslint-suppressions.json
+    outputs:
+      changed: ${{ steps.prune.outputs.changed }}
+      base_sha: ${{ steps.prune.outputs.base_sha }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout trusted default branch
+        uses: actions/checkout@v4
         with:
-          persist-credentials: true
-      - uses: actions/setup-node@v4
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci --ignore-scripts --no-audit
-      - name: Generate only known-safe suppression cleanup
+
+      - name: Install locked dependencies without scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Deterministic prune and strict verification
+        id: prune
         shell: bash
         run: |
           set -euo pipefail
-          # The configured lint command prunes stale suppression entries.
-          # New lint errors cannot be automatically suppressed or edited.
-          npm run lint || true
-          if git diff --quiet -- eslint-suppressions.json; then
-            echo "No deterministic repair required."
-            exit 0
+          echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          test -f "$SUPPRESSIONS_FILE"
+
+          cp "$SUPPRESSIONS_FILE" "$RUNNER_TEMP/suppressions.before.json"
+
+          # Validator tests run in this READ-ONLY job.
+          node --test .github/scripts/verify-suppression-prune.test.mjs
+
+          # Actual package.json command; never suppress a failure with `|| true`.
+          npm run lint:prune
+
+          GITHUB_OUTPUT="$RUNNER_TEMP/prune-verifier.outputs" \
+            node .github/scripts/verify-suppression-prune.mjs \
+              --old="$RUNNER_TEMP/suppressions.before.json" \
+              --new="$SUPPRESSIONS_FILE" \
+              --summary="$RUNNER_TEMP/prune-summary.md"
+
+          cat "$RUNNER_TEMP/prune-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+          # Reject any modified, staged, or new tracked/untracked file other than the allowlisted JSON.
+          {
+            git diff --name-only
+            git diff --cached --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u | while IFS= read -r file; do
+            if [[ "$file" != "$SUPPRESSIONS_FILE" ]]; then
+              echo "::error::Unexpected changed file: $file"
+              exit 1
+            fi
+          done
+
+          if grep -qx 'semantic_change=true' "$RUNNER_TEMP/prune-verifier.outputs"; then
+            # Require actual file changes for a semantic prune.
+            if git diff --quiet -- "$SUPPRESSIONS_FILE"; then
+              echo '::error::Semantic prune reported but no file changed.'
+              exit 1
+            fi
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            # Revert formatting-only differences: no pointless PR.
+            git restore -- "$SUPPRESSIONS_FILE"
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo 'No obsolete ESLint suppressions found.'
           fi
-          if [[ -n "$(git diff --name-only | grep -v '^eslint-suppressions.json$' || true)" ]]; then
-            echo "Refusing unexpected generated changes."
-            exit 1
-          fi
-          node -e "JSON.parse(require('fs').readFileSync('eslint-suppressions.json','utf8'))"
-          npm run lint
+
+      - name: Lint, typecheck, unit, and regression checks
+        if: steps.prune.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run lint:check
+          npm run typecheck
           npm run test:unit
           npm run test:regression
-      - name: Open reviewed repair PR (never auto-merge)
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+      - name: Recheck after all tests
+        if: steps.prune.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- eslint-suppressions.json; then
-            echo "No repair to propose."
+          node .github/scripts/verify-suppression-prune.mjs \
+            --old="$RUNNER_TEMP/suppressions.before.json" \
+            --new="$SUPPRESSIONS_FILE"
+
+          {
+            git diff --name-only
+            git diff --cached --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u | while IFS= read -r file; do
+            if [[ "$file" != "$SUPPRESSIONS_FILE" ]]; then
+              echo "::error::Unexpected changed file after tests: $file"
+              exit 1
+            fi
+          done
+
+          git diff --check
+
+      - name: Upload validated JSON only
+        if: steps.prune.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruned-eslint-suppressions
+          path: eslint-suppressions.json
+          if-no-files-found: error
+          retention-days: 3
+
+  propose:
+    name: Open draft PR (write token, no repository scripts)
+    needs: prepare
+    if: ${{ needs.prepare.result == 'success' && needs.prepare.outputs.changed == 'true' && (github.event_name == 'schedule' || inputs.open_pr == true) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+      SUPPRESSIONS_FILE: eslint-suppressions.json
+
+    steps:
+      - name: Checkout current default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: true
+
+      - name: Download validated candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: pruned-eslint-suppressions
+          path: ${{ runner.temp }}/pruned
+
+      - name: Verify freshness, artifact, and PR status; propose safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CANDIDATE_FILE="$RUNNER_TEMP/pruned/eslint-suppressions.json"
+
+          # Do not overwrite or close an existing human-review PR.
+          count="$(gh pr list --base "$DEFAULT_BRANCH" --state open --limit 1000 \
+            --json headRefName \
+            --jq '[.[] | select(.headRefName | startswith("bot/safe-lint-suppressions-"))] | length')"
+          if (( count > 0 )); then
+            echo 'An existing lint cleanup PR awaits review; skipping.'
+            echo '### Skipped: an existing repair PR awaits human review' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          branch='bot/safe-lint-suppressions-repair'
-          cp eslint-suppressions.json "$RUNNER_TEMP/suppressions.json"
+
+          if [[ "$(git rev-parse HEAD)" != "$BASE_SHA" ]]; then
+            echo '::warning::Default branch advanced while preparing; no stale PR created.'
+            exit 0
+          fi
+
+          # Independent artifact validation: this elevated job executes no
+          # repository JS or npm, only the inline built-in Node.js validator.
+          node --input-type=module <<'NODE'
+          import { readFileSync, statSync } from 'node:fs';
+          const MAX = 5 * 1024 * 1024;
+          const cleanKey = (s) => typeof s === 'string' && s.trim() && s.length <= 1024 && !/[\u0000-\u001f\u007f]/.test(s);
+          const object = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+          function parse(path) {
+            if (statSync(path).size > MAX) throw Error('Oversized suppressions JSON');
+            const raw = JSON.parse(readFileSync(path, 'utf8'));
+            if (!object(raw)) throw Error('Expected JSON object');
+            for (const [file, rules] of Object.entries(raw)) {
+              if (!cleanKey(file) || !object(rules) || !Object.keys(rules).length) throw Error('Malformed file entry');
+              for (const [rule, meta] of Object.entries(rules)) {
+                if (!cleanKey(rule) || !object(meta) || Object.keys(meta).length !== 1 ||
+                    !Object.hasOwn(meta, 'count') || !Number.isSafeInteger(meta.count) || meta.count < 1) {
+                  throw Error('Malformed suppression entry');
+                }
+              }
+            }
+            return raw;
+          }
+          const previous = parse(process.env.SUPPRESSIONS_FILE);
+          const current = parse(process.env.CANDIDATE_FILE);
+          let changed = false;
+          for (const [file, rules] of Object.entries(current)) {
+            if (!Object.hasOwn(previous, file)) throw Error(`Added file: ${file}`);
+            for (const [rule, meta] of Object.entries(rules)) {
+              if (!Object.hasOwn(previous[file], rule)) throw Error(`Added rule: ${file} / ${rule}`);
+              if (meta.count > previous[file][rule].count) throw Error(`Count increased: ${file} / ${rule}`);
+              if (meta.count < previous[file][rule].count) changed = true;
+            }
+          }
+          for (const [file, rules] of Object.entries(previous)) {
+            if (!Object.hasOwn(current, file)) changed = true;
+            else for (const rule of Object.keys(rules)) {
+              if (!Object.hasOwn(current[file], rule)) changed = true;
+            }
+          }
+          if (!changed) throw Error('No semantic prune in artifact');
+          console.log('Artifact verified: removals or lower counts only.');
+          NODE
+
+          # Check the branch has not advanced after the artifact check.
+          git fetch --no-tags origin "$DEFAULT_BRANCH"
+          if [[ "$(git rev-parse "origin/$DEFAULT_BRANCH")" != "$BASE_SHA" ]]; then
+            echo '::warning::Default branch moved; skipping to avoid stale PR.'
+            exit 0
+          fi
+
+          branch="bot/safe-lint-suppressions-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin "refs/heads/$branch:refs/remotes/origin/$branch" || true
-          if git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-            git checkout -B "$branch" "origin/$branch"
-          else
-            git checkout -b "$branch"
+          git switch -c "$branch"
+          cp "$CANDIDATE_FILE" "$SUPPRESSIONS_FILE"
+          git add -- "$SUPPRESSIONS_FILE"
+
+          if [[ "$(git diff --cached --name-only)" != "$SUPPRESSIONS_FILE" ]]; then
+            echo '::error::Unexpected staged changes.'
+            exit 1
           fi
-          cp "$RUNNER_TEMP/suppressions.json" eslint-suppressions.json
-          git add eslint-suppressions.json
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix(ci): prune obsolete lint suppressions'
-          git push origin "$branch"
-          if ! gh pr list --head "$branch" --state open --json number -q '.[0].number' | grep -q '[0-9]'; then
-            gh pr create --base main --head "$branch" --title 'Auto-repair: safely prune obsolete lint suppressions' --body 'Generated by a strict allowlisted repair. Only eslint-suppressions.json changed. Lint, unit and regression checks passed. Human review and full CI required. No production deploy or database action.'
-          fi
+
+          git commit -m 'chore(lint): prune obsolete suppressions'
+          git push origin "HEAD:refs/heads/$branch"
+
+          cat > "$RUNNER_TEMP/pr-body.md" <<'BODY'
+          ## What changed
+          Obsolete ESLint bulk suppressions were removed or reduced.
+
+          ## Safeguards
+          - Only `eslint-suppressions.json` was changed.
+          - No suppression file, rule, or count was added or increased.
+          - Prune, lint, TypeScript, unit tests, and regression tests succeeded in a read-only job.
+          - The artifact was independently revalidated before branch creation.
+          - No application code, database operation, deployment, or production mutation.
+          - **Human approval and repository CI are required before merge.**
+
+          This is a draft PR. Never auto-merge it.
+          BODY
+
+          gh pr create \
+            --draft \
+            --base "$DEFAULT_BRANCH" \
+            --head "$branch" \
+            --title 'Auto-repair: prune obsolete ESLint suppressions' \
+            --body-file "$RUNNER_TEMP/pr-body.md"
+
+          echo "### Draft repair PR opened from $branch" >> "$GITHUB_STEP_SUMMARY"
