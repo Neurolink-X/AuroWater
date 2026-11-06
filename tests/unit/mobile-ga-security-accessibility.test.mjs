@@ -23,7 +23,8 @@ test('GA4 script and collect origins match exactly the allowed CSP hosts', () =>
 
 test('light-background pricing labels have readable contrast', () => {
   assert.match(homepage, /text-slate-600"> \/ can<\/span>/);
-  assert.match(homepage, /'text-emerald-600' : 'text-slate-600'/);
+  assert.match(homepage, /'text-emerald-700' : 'text-slate-600'/);
+  assert.match(homepage, /text-slate-600">We&apos;ll confirm/);
   assert.match(homepage, /text-slate-600"> visit charge<\/span>/);
   assert.doesNotMatch(homepage, /text-slate-400"> \/ can<\/span>/);
   assert.doesNotMatch(homepage, /text-slate-400"> visit charge<\/span>/);
