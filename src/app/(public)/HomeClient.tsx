@@ -125,9 +125,9 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
               <div key={p.id} className={`min-w-0 rounded-3xl bg-white p-4 sm:p-6 border ${best ? 'border-sky-400 shadow-lg ring-2 ring-sky-100' : 'border-slate-100 shadow-sm'}`}>
                 <h3 className="font-display text-base sm:text-lg leading-snug font-extrabold text-slate-900">{p.name}</h3>
                 <p className="mt-1 text-xs sm:text-sm leading-snug text-slate-500">{p.note}</p>
-                <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-400"> / can</span></p>
+                <p className="mt-4 text-2xl sm:text-3xl leading-tight font-extrabold text-slate-900">₹{fmt(normal)}<span className="text-sm font-medium text-slate-600"> / can</span></p>
                 <p className="mt-1 text-sm text-slate-500">Chilled ₹{fmt(chilled)} / can</p>
-                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-400'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
+                <p className={`mt-3 text-sm leading-snug font-bold ${p.lockMonths ? 'text-emerald-600' : 'text-slate-600'}`}>{p.lockMonths ? `Possible ${p.lockMonths}-month price-lock option` : 'Standard option'}</p>
                 
               </div>
             );
@@ -195,7 +195,7 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
           </div>
           <div className="rounded-3xl bg-white border border-slate-100 p-6 shadow-sm">
             <h3 className="font-display font-extrabold text-slate-900">🔧 Plumber</h3>
-            <p className="mt-3 text-3xl font-extrabold text-slate-900">₹{plumberFee}<span className="text-sm font-medium text-slate-400"> visit charge</span></p>
+            <p className="mt-3 text-3xl font-extrabold text-slate-900">₹{plumberFee}<span className="text-sm font-medium text-slate-600"> visit charge</span></p>
             <p className="mt-2 text-sm text-slate-600">See actual service and visit charges before confirming your booking.</p>
             <BookingIntentLink href="/book?service=plumbing" className="mt-4 inline-block text-sm font-bold text-sky-700 hover:underline">Book a plumber →</BookingIntentLink>
           </div>
