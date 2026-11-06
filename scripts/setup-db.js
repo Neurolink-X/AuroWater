@@ -30,7 +30,7 @@
  */
 
 const fs = require("node:fs");
-const { resolve } = require("node:path");
+const { resolve, dirname, relative, isAbsolute } = require("node:path");
 const { Client } = require("pg");
 const dotenv = require("dotenv");
 
@@ -287,6 +287,7 @@ async function checkRequiredTables(client) {
   );
 
   let missing = 0;
+  const missingNames = [];
 
   for (const item of results) {
     if (item.exists) {
@@ -294,12 +295,14 @@ async function checkRequiredTables(client) {
     } else {
       fail(`Missing required table: ${item.name}`);
       missing += 1;
+      missingNames.push(item.name);
     }
   }
 
   return {
     checked: results.length,
     missing,
+    missingNames,
   };
 }
 
@@ -315,11 +318,13 @@ async function checkOptionalTables(client) {
   );
 
   let missing = 0;
+  const missingNames = [];
 
   for (const item of results) {
     if (!item.exists) {
       warn(`Not found: ${item.name}`);
       missing += 1;
+      missingNames.push(item.name);
     }
   }
 
@@ -332,6 +337,7 @@ async function checkOptionalTables(client) {
   return {
     checked: results.length,
     missing,
+    missingNames,
   };
 }
 
@@ -376,6 +382,57 @@ async function checkMigrationHistory(client) {
   }
 
   return true;
+}
+
+
+/**
+ * Optional, sanitized and machine-readable schema recovery report.
+ * This intentionally does NOT include credentials, customer rows, or arbitrary SQL.
+ * The only allowed output location is artifacts/db-readiness/<filename>.json.
+ */
+function writeReadinessReport(required, optional, migrationTracking) {
+  const filename = process.env.DB_READINESS_REPORT_PATH?.trim();
+  if (!filename) return;
+
+  // Only allow a dedicated ignored artifacts folder, never source/config files.
+  const allowed = /^artifacts\/db-readiness\/[a-zA-Z0-9_-]+\.json$/;
+  if (!allowed.test(filename) || isAbsolute(filename)) {
+    throw new Error("DB_READINESS_REPORT_PATH_INVALID");
+  }
+  const output = resolve(process.cwd(), filename);
+  const relativePath = relative(process.cwd(), output).replaceAll("\\", "/");
+  if (!allowed.test(relativePath)) {
+    throw new Error("DB_READINESS_REPORT_PATH_INVALID");
+  }
+
+  const report = {
+    format: "aurotap-db-readiness-v1",
+    checked_at: new Date().toISOString(),
+    required_tables: {
+      checked: required.checked,
+      missing: required.missingNames,
+      ready: required.missing === 0,
+    },
+    optional_tables: {
+      checked: optional.checked,
+      missing: optional.missingNames,
+    },
+    migration_history_detected: migrationTracking,
+    production_schema_auto_creation: false,
+    recovery_runbook: "docs/DATABASE_SCHEMA_RECOVERY.md",
+  };
+
+  fs.mkdirSync(dirname(output), { recursive: true });
+  fs.writeFileSync(output, JSON.stringify(report, null, 2) + "\n", { mode: 0o600 });
+  log("Saved sanitized database readiness report in artifacts/db-readiness/.");
+}
+
+function explainSchemaRecovery(required, optional, migrationTracking) {
+  if (!required.missing && !optional.missing && migrationTracking) return;
+  warn("Do not auto-create isolated tables: foreign keys, triggers, RLS and migration history must remain consistent.");
+  warn("Run npm run db:audit-migrations and reconcile versioned migration history against the live database.");
+  warn("Test the reviewed repair on staging, verify RLS/constraints, take a backup, then obtain approval before production migrations.");
+  warn("Recovery instructions: docs/DATABASE_SCHEMA_RECOVERY.md");
 }
 
 /**
@@ -442,6 +499,9 @@ async function setup() {
       }`
     );
 
+    writeReadinessReport(required, optional, migrationTracking);
+    explainSchemaRecovery(required, optional, migrationTracking);
+
     if (required.missing > 0) {
       fail(
         "Database is missing essential application tables."
@@ -473,6 +533,10 @@ async function setup() {
 
       case "DATABASE_URL_INVALID":
         fail("DATABASE_URL format is invalid.");
+        break;
+
+      case "DB_READINESS_REPORT_PATH_INVALID":
+        fail("Report path must be artifacts/db-readiness/<safe-name>.json.");
         break;
 
       case "SUPABASE_PROJECT_MISMATCH":
