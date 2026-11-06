@@ -80,6 +80,48 @@ jobs:
       - name: Client bundle budget report
         run: npm run perf:bundle-report
 
+
+  # Keep lint a required red/green gate, but run functional checks in
+  # parallel so a pre-existing lint failure cannot conceal a broken build.
+  functional-safety:
+    name: Typecheck and functional regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Syntax check database readiness and news scripts
+        run: |
+          node --check scripts/setup-db.js
+          node --check scripts/auto-publish-water-news.mjs
+          node --check scripts/smoke-test.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Technician lifecycle contract
+        run: npm run test:technician:contract
+      - name: Platform contract
+        run: npm run test:platform:contract
+      - name: Regression suite
+        run: npm run test:regression
+
   technician-stage-e2e:
     name: Authenticated technician lifecycle - isolated staging
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_technician_stage_e2e }}
