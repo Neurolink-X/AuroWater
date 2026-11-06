@@ -10,7 +10,7 @@ import {
 
 test('all shared modules have explicit, valid, duplicate-free safety-domain ownership', () => {
   const known = new Set(Object.keys(DOMAIN_CONTRACTS));
-  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 17);
+  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 20);
   for (const [path, domains] of Object.entries(EXPLICIT_RUNTIME_OWNERS)) {
     assert.match(path, /^src\//);
     assert.ok(domains.length, `No domain for ${path}`);
@@ -33,6 +33,17 @@ test('critical booking and administrative flows propagate their cross-role impac
   const documents = domainsForChangedPath('src/components/private-files/DocumentUploader.tsx');
   assert.ok(documents.includes('technician'));
   assert.ok(documents.includes('admin'));
+});
+
+test('supplier settings, notification inbox and route planner have explicit, correctly scoped owners', () => {
+  for (const [path, owners] of [
+    ['src/app/(supplier)/supplier/settings/page.tsx', ['supplier']],
+    ['src/app/api/notifications/inbox/route.ts', ['notifications', 'auth']],
+    ['src/lib/routing/slot-safe-route.ts', ['dispatch', 'supplier', 'technician']],
+  ]) {
+    assert.deepEqual(EXPLICIT_RUNTIME_OWNERS[path], owners);
+    for (const domain of owners) assert.ok(domainsForChangedPath(path).includes(domain));
+  }
 });
 
 test('unmapped high-risk runtime modules are still blocked (no generic bypass)', () => {
