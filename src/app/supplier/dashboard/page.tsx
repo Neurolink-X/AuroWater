@@ -869,7 +869,7 @@
 //   }, []);
 
 //   // ── Load all data ───────────────────────────────────────────────────────────
-//   const loadAll = useCallback(async (userId: string) => {
+//   async function loadAll(userId: string) {
 //     lastLoadRef.current = Date.now();
 //     if (!profileLoadedRef.current) setLoading(true);
 //     try {
@@ -883,7 +883,7 @@
 //       profileLoadedRef.current = true;
 //       setLoading(false);
 //     }
-//   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+//   }
 
 //   const fetchProfile = async (userId: string) => {
 //     // The production schema stores supplier identity in public.profiles.
@@ -2871,7 +2871,7 @@ export default function SupplierDashboardPage() {
 
   // ── Auth guard + safe session recovery ───────────────────────────────────────
   useEffect(() => {
-    setMounted(true);
+    const mountedFrame = window.requestAnimationFrame(() => setMounted(true));
     let active = true;
     let initialized = false;
     let refreshInFlight = false;
@@ -2960,6 +2960,7 @@ export default function SupplierDashboardPage() {
     window.addEventListener('offline', offline);
     return () => {
       active = false;
+      window.cancelAnimationFrame(mountedFrame);
       subscription.unsubscribe();
       window.removeEventListener('focus', refreshOnFocus);
       document.removeEventListener('visibilitychange', refreshOnFocus);
@@ -3247,39 +3248,10 @@ export default function SupplierDashboardPage() {
     }
   };
 
+  // Changes to dispatch base location require admin review via the profile request flow.
   const syncDispatchLocation = async () => {
     toast.info('Shop location changes require admin approval. Open My profile & address.');
     router.push('/supplier/profile');
-    return;
-    if (locationBusy || typeof navigator === 'undefined' || !navigator.geolocation) {
-      toast.error('Location is not available in this browser.');
-      return;
-    }
-    const confirmed = window.confirm(
-      'This saves your CURRENT device location as your supplier dispatch base. Dispatch uses it to match customer orders. If your business base is in Kanpur but you are currently in Noida, cancel and do not update it.'
-    );
-    if (!confirmed) return;
-    setLocationBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const data = await supplierSettingsUpdate({ base_lat: position.coords.latitude, base_lng: position.coords.longitude });
-          setDispatchSettings(data);
-          toast.success('Dispatch base location saved.');
-        } catch (error) {
-          console.error('[supplier] dispatch location update failed:', error);
-          toast.error('Could not update dispatch location.');
-        } finally {
-          setLocationBusy(false);
-        }
-      },
-      (error) => {
-        console.error('[supplier] geolocation failed:', error);
-        toast.error('Please allow location access to improve nearby order matching.');
-        setLocationBusy(false);
-      },
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
-    );
   };
 
   const fetchNotifications = async (userId: string) => {

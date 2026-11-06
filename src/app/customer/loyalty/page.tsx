@@ -79,6 +79,7 @@ function useLoyalty(enabled: boolean) {
   const lastOk = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const controller = useRef<AbortController | undefined>(undefined);
+  const retryLoadRef = useRef<(() => Promise<void>) | null>(null);
   useEffect(() => { dataRef.current = data; }, [data]);
 
   const load = useCallback(async () => {
@@ -105,7 +106,7 @@ function useLoyalty(enabled: boolean) {
       if (err.retryable && attempts.current < MAX_AUTO_RETRIES) {
         const delay = Math.min(30_000, 2_000 * 2 ** attempts.current) + Math.random() * 500;
         attempts.current += 1;
-        timer.current = setTimeout(() => void load(), delay);
+        timer.current = setTimeout(() => { void retryLoadRef.current?.(); }, delay);
       }
     } finally {
       if (!c.signal.aborted) {
@@ -114,6 +115,8 @@ function useLoyalty(enabled: boolean) {
       }
     }
   }, []);
+
+  useEffect(() => { retryLoadRef.current = load; return () => { retryLoadRef.current = null; }; }, [load]);
 
   const retry = useCallback(() => {
     attempts.current = 0;
