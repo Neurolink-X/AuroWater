@@ -553,6 +553,7 @@ export async function POST(req: NextRequest) {
   const loyaltyAdmin = loyaltyRedemptionType ? createServiceClient() : null;
 
   if (loyaltyRedemptionType) {
+    if (!loyaltyAdmin) return jsonErr('Loyalty rewards are temporarily unavailable.', 503);
     if (referralRewardId) {
       return jsonErr('Use one reward at a time. Referral and loyalty rewards cannot be combined.', 400, 'REWARD_COMBINATION_NOT_ALLOWED');
     }
@@ -566,7 +567,7 @@ export async function POST(req: NextRequest) {
         return jsonErr('A free-can reward applies only to one standard one-time Normal RO can.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
       }
       loyaltyDiscountAmount = Math.min(base_amount, waterUnitPrice ?? 20);
-      const { data: offerRows, error: offerError } = await loyaltyAdmin!
+      const { data: offerRows, error: offerError } = await loyaltyAdmin
         .from('settings').select('key, value')
         .in('key', ['subscription_loyalty_points_per_reward', 'subscription_loyalty_free_can_enabled', 'subscription_loyalty_enabled']);
       if (offerError) return jsonErr('Loyalty rewards are temporarily unavailable.', 503);
@@ -579,7 +580,7 @@ export async function POST(req: NextRequest) {
       if (isWater || !['plumbing', 'tank_cleaning'].includes(service_type_key)) {
         return jsonErr('Points discounts are available only for plumbing and tank cleaning.', 400, 'LOYALTY_REWARD_NOT_ELIGIBLE');
       }
-      const { data: offerRows, error: offerError } = await loyaltyAdmin!
+      const { data: offerRows, error: offerError } = await loyaltyAdmin
         .from('settings').select('key, value')
         .in('key', ['subscription_loyalty_points_per_rupee', 'subscription_loyalty_max_discount_percent', 'subscription_loyalty_service_discount_enabled', 'subscription_loyalty_enabled', 'subscription_loyalty_plumbing_enabled', 'subscription_loyalty_tank_cleaning_enabled']);
       if (offerError) return jsonErr('Loyalty rewards are temporarily unavailable.', 503);
