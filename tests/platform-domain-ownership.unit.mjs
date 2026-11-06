@@ -10,7 +10,7 @@ import {
 
 test('all shared modules have explicit, valid, duplicate-free safety-domain ownership', () => {
   const known = new Set(Object.keys(DOMAIN_CONTRACTS));
-  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 20);
+  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 21);
   for (const [path, domains] of Object.entries(EXPLICIT_RUNTIME_OWNERS)) {
     assert.match(path, /^src\//);
     assert.ok(domains.length, `No domain for ${path}`);
