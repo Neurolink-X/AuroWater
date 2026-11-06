@@ -14,8 +14,11 @@ test('mobile homepage paints the existing hero before animation hydration', () =
   assert.match(home, /transition=\{\{ duration: 0\.7 \}\}/);
 });
 
-test('pricing hydration preserves the headline line break and card block heights', () => {
-  assert.match(home, /RO Water from <span className="block whitespace-nowrap sm:inline">\{displayPrice\(currentNormal\)\},<\/span>/);
+test('mobile hero keeps dynamic RO price beside from on narrow screens', () => {
+  assert.ok(home.includes('hero-price-line{font-size:clamp(1.25rem,6.85vw,2.6rem)'));
+  assert.ok(home.includes("pricingReady ? 'hero-price-line' : ''"));
+  assert.ok(home.includes('RO Water from <span className="inline whitespace-nowrap">{displayPrice(currentNormal)},</span>'));
+  assert.ok(!home.includes('className="block whitespace-nowrap sm:inline">{displayPrice(currentNormal)}'));
   assert.match(home, /flex min-h-7 items-center whitespace-nowrap/);
   assert.match(home, /pricingReady/);
   assert.match(home, /See live price/);
