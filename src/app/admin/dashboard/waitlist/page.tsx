@@ -58,7 +58,8 @@ export default function AdminWaitlistPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initial);
   }, [load]);
 
   const filtered = useMemo(() => {

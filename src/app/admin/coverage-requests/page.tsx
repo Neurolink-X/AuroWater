@@ -29,11 +29,11 @@ export default function AdminCoverageRequestsPage() {
     finally { setLoading(false); }
   }, []);
   useEffect(() => {
-    void load();
+    const initial = window.setTimeout(() => { void load(); }, 0);
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(true); }, 30_000);
     const refreshOnFocus = () => { if (document.visibilityState === 'visible') void load(true); };
     document.addEventListener('visibilitychange', refreshOnFocus);
-    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshOnFocus); };
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshOnFocus); };
   }, [load]);
   const review = async (row: Row, status: 'APPROVED'|'REJECTED') => {
     setBusy(row.id); setError(''); setMessage('');

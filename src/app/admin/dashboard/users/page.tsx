@@ -117,8 +117,8 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     if (!q.trim()) {
-      void load();
-      return;
+      const timer = window.setTimeout(() => { void load(); }, 0);
+      return () => window.clearTimeout(timer);
     }
 
     const timer = window.setTimeout(() => {

@@ -43,7 +43,10 @@ export default function AdminBlogPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Failed to load posts.'); }
     finally { setLoading(false); }
   }
-  useEffect(()=>{void load();},[]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
   const choose = (post:Post) => {
     setSelected(post.id);
     setEditor({slug:post.slug,title:post.title,description:post.description,category:post.category,
