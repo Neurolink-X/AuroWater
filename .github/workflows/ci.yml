@@ -52,6 +52,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Dependency risk inventory (read-only, separate prod/dev)
+        run: node scripts/audit-dependency-risk.mjs
+
       - name: Lint
         run: npm run lint
 

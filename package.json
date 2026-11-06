@@ -6,7 +6,7 @@
   "description": "AuroTap water and home services platform (Next.js 16, React 19, Supabase)",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22.6.0",
+    "node": "24.x",
     "npm": ">=10"
   },
   "scripts": {
