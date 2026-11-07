@@ -48,9 +48,15 @@ test('mobile bottom navigation acknowledges taps before route content arrives', 
   assert.ok(!bottomNav.slice(0, bottomNav.indexOf("// 'use client';")).includes('router.push('));
 });
 
-test('service and admin tab selection does not wait for exit or low priority state', () => {
-  assert.ok(home.includes('<AnimatePresence mode="sync">'));
-  assert.ok(home.includes('transition={{ duration: 0.12 }}'));
+test('service tab selection stays immediate and does not hydrate an animation runtime', () => {
+  assert.ok(home.includes('role="tablist"'));
+  assert.ok(home.includes('role="tab" aria-selected={svc === i} onClick={() => setSvc(i)}'));
+  assert.ok(home.includes('key={svc} className="aw-glass aw-service-panel'));
+  assert.ok(home.includes('role="tabpanel"'));
+  assert.ok(home.includes('aw-service-panel,.aw-status-message{animation:aw-panel-in .12s ease-out both}'));
+  assert.ok(!home.includes('AnimatePresence'));
+  assert.ok(!home.includes("from 'framer-motion'"));
+  assert.ok(home.includes('<BookingIntentLink href={s.href}'));
   assert.ok(admin.includes('activeTabRef.current = key;'));
   assert.ok(admin.includes('setTab(key);'));
   assert.ok(!admin.includes('startTransition(() => setTab(key))'));

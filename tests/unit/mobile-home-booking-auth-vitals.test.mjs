@@ -6,12 +6,13 @@ const home = readFileSync('src/app/(public)/HomeClient.tsx', 'utf8');
 const shell = readFileSync('src/components/layout/RootChrome.tsx', 'utf8');
 const page = readFileSync('src/app/(public)/page.tsx', 'utf8');
 
-test('mobile homepage paints the existing hero before animation hydration', () => {
-  assert.match(home, /@media\s*\(max-width:639px\)/);
-  assert.match(home, /\.aw-hero-copy,\.aw-hero-visual\{opacity:1!important;transform:none!important\}/);
-  assert.match(home, /className="aw-hero-copy"\s+initial=/);
-  assert.match(home, /className="aw-hero-visual flex flex-col gap-4"\s+initial=/);
-  assert.match(home, /transition=\{\{ duration: 0\.7 \}\}/);
+test('homepage paints both hero columns without requiring animation JS or hydration', () => {
+  assert.match(home, /<div className="aw-hero-copy">/);
+  assert.match(home, /<div className="aw-hero-visual flex flex-col gap-4">/);
+  assert.doesNotMatch(home, /from ['"]framer-motion['"]/);
+  assert.doesNotMatch(home, /<motion\.|<AnimatePresence/);
+  assert.match(home, /<h1 className="mb-6">/);
+  assert.match(home, /RO Water from/);
 });
 
 test('mobile hero keeps a stable single-line height while live price is verified', () => {
