@@ -90,7 +90,7 @@
     "@types/react-dom": "^19",
     "cross-env": "^7.0.3",
     "eslint": "^9.24.0",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
