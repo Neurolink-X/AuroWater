@@ -34,27 +34,33 @@ export async function GET(req: NextRequest) {
     .in('document_slot', SLOT_KEYS).order('created_at', { ascending: true }).limit(limit);
   if (status && (REVIEW_STATUSES as readonly string[]).includes(status)) q = q.eq('review_status', status);
 
-  const [{ data: files, error }, ...countResults] = await Promise.all([
-    q,
-    ...REVIEW_STATUSES.map((s) => db.from('user_files').select('id', { count: 'exact', head: true }).in('document_slot', SLOT_KEYS).eq('review_status', s)),
-  ]);
+  // Start counts independently so applicant lookups do not wait for a slow count.
+  const countRequest = Promise.all(REVIEW_STATUSES.map((s) =>
+    db.from('user_files').select('id', { count: 'exact', head: true }).in('document_slot', SLOT_KEYS).eq('review_status', s)
+  ));
+  const { data: files, error } = await q;
   if (error) { console.error('[admin/verification] queue lookup failed', error); return jsonErr('Could not load the verification queue.', 503); }
-  const counts = Object.fromEntries(REVIEW_STATUSES.map((s, i) => [s, countResults[i].error ? null : countResults[i].count ?? 0]));
 
   const ownerIds = [...new Set((files ?? []).map((f) => f.owner_user_id))];
-  const { data: profiles, error: profileError } = ownerIds.length
-    ? await db.from('profiles').select(PROFILE_COLUMNS).in('id', ownerIds)
-    : { data: [], error: null };
+  const applicationOwnerIds = [...new Set((files ?? []).flatMap((f) =>
+    isDocumentSlot(f.document_slot) && slotApplicantRoles(f.document_slot).includes('technician') ? [f.owner_user_id] : []
+  ))];
+  const [{ data: profiles, error: profileError }, { data: pending, error: pendingError }, countResults] = await Promise.all([
+    ownerIds.length ? db.from('profiles').select(PROFILE_COLUMNS).in('id', ownerIds) : { data: [], error: null },
+    applicationOwnerIds.length
+      ? db.from('applications').select('user_id').in('user_id', applicationOwnerIds)
+        .eq('type', 'technician').in('status', ['pending', 'pending_approval'])
+      : { data: [], error: null },
+    countRequest,
+  ]);
   if (profileError) { console.error('[admin/verification] profiles lookup failed', profileError); return jsonErr('Could not load applicant details.', 503); }
 
-  // Applicants keep the customer account role until approval. Check the real application,
-  // not user-editable metadata, so they appear in the verification queue.
-  const candidateIds = (profiles ?? []).filter(p => p.role === 'customer').map(p => p.id);
-  const { data: pending, error: pendingError } = candidateIds.length
-    ? await db.from('applications').select('user_id').in('user_id', candidateIds)
-        .eq('type', 'technician').in('status', ['pending', 'pending_approval'])
-    : { data: [], error: null };
-  if (pendingError) return jsonErr('Could not validate pending applicant documents.', 503);
+  // Applicants keep the customer role until approval. Resolve it from their
+  // application record, with the same eligibility checks used for a review.
+  if (pendingError && (profiles ?? []).some((profile) => profile.role === 'customer' && applicationOwnerIds.includes(profile.id))) {
+    return jsonErr('Could not validate pending applicant documents.', 503);
+  }
+  const counts = Object.fromEntries(REVIEW_STATUSES.map((s, i) => [s, countResults[i].error ? null : countResults[i].count ?? 0]));
   const pendingIds = new Set((pending ?? []).map(a => a.user_id));
   const byId = new Map((profiles ?? []).map((p) => [p.id, p]));
   const rows = (files ?? []).flatMap((f) => {

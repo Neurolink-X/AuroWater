@@ -72,10 +72,10 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
     finally { setBusy(''); }
   }
 
-  return <section aria-label="Pending partner applications" className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-6">
+  return <section aria-label="Pending partner applications" className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-4 text-slate-100 sm:p-6">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h2 className="text-lg font-bold text-white">New professional applications <span className="text-cyan-300">({filtered.length})</span></h2>
+        <h2 className="text-lg font-bold text-white">New professional applications {!loading && !error && <span className="text-cyan-300">({filtered.length})</span>}</h2>
         <p className="mt-1 text-sm text-slate-300">Supplier, plumber and technician requests appear here before account activation. Application approval and document verification are separate safety checks.</p>
       </div>
       <button type="button" onClick={() => void refresh()} disabled={loading || Boolean(busy)} className="rounded-lg border border-white/20 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
@@ -97,7 +97,7 @@ export default function PendingPartnerApplications({ roleFilter = 'ALL', search 
             </div>
             <span className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-bold text-amber-200">Pending review</span>
           </div>
-          <p className="text-sm text-slate-300">Registered email: {app.applicant?.email || 'Not available'} · Contact: {textValue(p.phone) || app.applicant?.phone || 'Not available'}</p>
+          <p className="break-words text-sm text-slate-300">Registered email: {app.applicant?.email || 'Not available'} · Contact: {textValue(p.phone) || app.applicant?.phone || 'Not available'}</p>
           <p className="text-sm text-slate-300">Area: {textValue(p.working_area) || textValue(p.business_address) || 'Not specified'} · PIN: {textValue(p.working_pincode) || textValue(p.pincode) || 'Not specified'}</p>
           {p.application_source === 'existing_technician_service_approval' && <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-3 text-sm text-cyan-100">
             <p className="font-bold">Existing technician · new service only (no new account)</p>

@@ -62,40 +62,9 @@ export async function getToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   try {
-    const supabase = createClient();
-    const { data: sessionData } =
-      await supabase.auth.getSession();
-
-    const session = sessionData.session;
-
-    // No stored Supabase session means there is no refresh token to refresh.
-    // Calling refreshSession() here caused repeated "Invalid Refresh Token" console
-    // errors after browser storage was cleared or a previous session expired.
-    if (!session) {
-      clearToken();
-      clearUser();
-      clearAuthGateCookies();
-      safeRemove('aurowater_session');
-      return null;
-    }
-
-    const expiresAtMs =
-      Number(session.expires_at ?? 0) * 1000;
-
-    const refreshBeforeMs =
-      60 * 1000;
-
-    if (
-      !expiresAtMs ||
-      expiresAtMs - Date.now() <= refreshBeforeMs
-    ) {
-      const refreshed = await refreshSessionSingleFlight();
-      if (!refreshed?.access_token) return null;
-      setToken(refreshed.access_token);
-      return refreshed.access_token;
-    }
-
-    return session.access_token;
+    // Supabase refreshes expiring tokens under its own session lock.
+    const { data } = await createClient().auth.getSession();
+    return data.session?.access_token ?? null;
   } catch {
     return null;
   }
@@ -324,7 +293,7 @@ export async function apiFetchSafe<T>(path: string, init: RequestInit = {}): Pro
   }
 }
 
-async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function apiFetchAuth<T>(path: string, init: RequestInit = {}, redirectOnExpired = true): Promise<T> {
   const supabase = createClient();
 
   const requestWithToken = (token: string) => {
@@ -349,49 +318,36 @@ async function apiFetchAuth<T>(path: string, init: RequestInit = {}): Promise<T>
 
     try {
       return await requestWithToken(token);
-    } catch (firstError) {
-      if (!(firstError instanceof ApiError) || firstError.status !== 401) {
-        throw firstError;
-      }
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
 
-      // A stale access token can return 401 even while the refresh token is still valid.
-      // Refresh once and retry the exact same request before treating the user as signed out.
-      const refreshed = await refreshSessionSingleFlight();
-      const refreshedToken = refreshed?.access_token;
-      if (!refreshedToken) {
-        throw new ApiError('Your session has expired. Please sign in again.', 401, 'SESSION_EXPIRED');
-      }
-
-      try {
-        return await requestWithToken(refreshedToken);
-      } catch (retryError) {
-        if (retryError instanceof ApiError && retryError.status === 401) {
-          throw new ApiError('Your session could not be renewed. Please sign in again.', 401, 'SESSION_EXPIRED');
-        }
-        throw retryError;
-      }
+      const { data } = await supabase.auth.getSession();
+      const renewedToken = data.session?.access_token !== token
+        ? data.session?.access_token
+        : (await refreshSessionSingleFlight())?.access_token;
+      if (!renewedToken) throw error;
+      return await requestWithToken(renewedToken);
     }
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      // Never sign out on a generic 401: permissions, endpoint bugs, and a
-      // refresh race can all return it while the real login remains valid.
-      // Only the lack of a Supabase session can clear our cached UI login.
-      try {
-        const { data: state, error: stateError } = await supabase.auth.getSession();
-        if (!stateError && !state.session) {
-          clearToken();
-          clearUser();
-          clearAuthGateCookies();
-          safeRemove('aurowater_session');
-          if (typeof window !== 'undefined' &&
-              !window.location.pathname.startsWith('/auth/')) {
-            const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search || ''}`);
-            window.location.assign(`/auth/login?returnTo=${returnTo}&reason=session-expired`);
-          }
-        }
-      } catch { /* request failure isn't a logout command */ }
+    if (!(error instanceof ApiError) || error.status !== 401) throw error;
+
+    // A single API rejection or a failed refresh cannot prove the user signed out.
+    const state = await supabase.auth.getSession().catch(() => null);
+    if (!state || state.error || state.data.session) throw error;
+
+    clearToken();
+    clearUser();
+    clearAuthGateCookies();
+    safeRemove('aurowater_session');
+    if (redirectOnExpired && typeof window !== 'undefined') {
+      const { pathname, search } = window.location;
+      if (!pathname.startsWith('/auth/') && pathname !== '/admin/login') {
+        const login = pathname.startsWith('/admin/') ? '/admin/login' : '/auth/login';
+        const returnTo = encodeURIComponent(`${pathname}${search}`);
+        window.location.assign(`${login}?returnTo=${returnTo}&reason=session-expired`);
+      }
     }
-    throw error;
+    throw new ApiError('Your session has expired. Please sign in again.', 401, 'SESSION_EXPIRED');
   }
 }
 
@@ -915,13 +871,14 @@ export async function adminSettingsGet(): Promise<Record<string, unknown>> {
 }
 
 /** Admin list endpoints return `{ ok, data, meta }` — `apiFetch` only returns `data`. */
-async function adminFetchJson<T>(path: string): Promise<T> {
+async function adminFetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const token = await getToken();
   if (!token) {
     throw new ApiError('No authentication token found', 401);
   }
   const { res, body } = await fetchWithRetryRaw(path, {
     headers: { Authorization: `Bearer ${token}` },
+    signal,
   });
   const json = body as T & { error?: string };
   if (!res.ok) {
@@ -951,7 +908,8 @@ export type AdminOrderRow = {
 };
 
 export async function adminOrdersWithMeta(
-  params?: Record<string, string | undefined>
+  params?: Record<string, string | undefined>,
+  signal?: AbortSignal
 ): Promise<{ data: AdminOrderRow[]; meta: Record<string, unknown> }> {
   const sp = new URLSearchParams();
   if (params) {
@@ -961,7 +919,8 @@ export async function adminOrdersWithMeta(
   }
   const q = sp.toString();
   const json = await adminFetchJson<{ data: AdminOrderRow[]; meta: Record<string, unknown> }>(
-    `/admin/orders${q ? `?${q}` : ''}`
+    `/admin/orders${q ? `?${q}` : ''}`,
+    signal
   );
   return { data: json.data ?? [], meta: json.meta ?? {} };
 }
@@ -1366,7 +1325,7 @@ export function logout(): void {
 }
 
 export async function verifyToken(): Promise<AuthToken> {
-  const profile = await authMe();
+  const profile = await apiFetchAuth<ProfileRow>('/auth/me', { method: 'GET' }, false);
   const token = (await getToken()) ?? '';
   const user: User = {
     id: profile.id,

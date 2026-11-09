@@ -188,9 +188,9 @@ console.log(`Route/access, versioned pricing, and supplier finance regression ch
 const apiClient = readFileSync(join(root, 'src', 'lib', 'api-client.ts'), 'utf8');
 assert.match(apiClient, /refreshSessionSingleFlight/);
 assert.match(apiClient, /if \(refreshInFlight\) return refreshInFlight/);
-assert.ok((apiClient.match(/refreshSessionSingleFlight\(\)/g) ?? []).length >= 3);
+assert.match(apiClient, /data\.session\?\.access_token !== token[\s\S]*?refreshSessionSingleFlight\(\)/);
 assert.ok(apiClient.includes('Do not redirect until a one-time session refresh has been attempted.'));
-assert.ok(apiClient.includes('Your session could not be renewed. Please sign in again.'));
+assert.match(apiClient, /if \(!state \|\| state\.error \|\| state\.data\.session\) throw error;/);
 
 // Referral rewards regression guards: attribution, reservation, cancellation,
 // and supplier payout protection.

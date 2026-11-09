@@ -4,13 +4,14 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { logout, verifyToken } from '@/lib/api-client';
+import { ApiError, logout, verifyToken } from '@/lib/api-client';
 import type { User } from '@/types';
 
 /* =============================================================
@@ -602,28 +603,17 @@ function NavLink({
 }) {
   const router = useRouter();
   const prefetch = () => router.prefetch(item.href);
+  const isFrequentPage = ['/admin/users', '/admin/orders', '/admin/verification'].includes(item.href);
   return (
     <Link
       href={item.href}
-      prefetch={false}
+      prefetch={isFrequentPage ? null : false}
+      scroll={false}
       onMouseEnter={prefetch}
       onFocus={prefetch}
       title={collapsed ? item.label : undefined}
       aria-current={active ? 'page' : undefined}
-      onClick={(event) => {
-        // Ctrl/Cmd/Shift click opens a new tab, so no loading bar then.
-        if (
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey ||
-          event.button !== 0
-        ) {
-          return;
-        }
-
-        onNavigate(item.href);
-      }}
+      onNavigate={() => onNavigate(item.href)}
       className={`group relative flex min-h-11 items-center rounded-xl text-sm font-medium transition-all ${
         collapsed ? 'justify-center px-2' : 'gap-3 px-3'
       } ${
@@ -674,6 +664,7 @@ export default function AdminShell({
 
   const [user, setUser] = useState<User | null>(null);
   const [checking, setChecking] = useState(true);
+  const [sessionCheckFailed, setSessionCheckFailed] = useState(false);
 
   // Desktop sidebar (remembered between visits).
   const [collapsed, setCollapsed] = useState(false);
@@ -696,6 +687,7 @@ export default function AdminShell({
   const lastVerifiedRef = useRef(0);
   const inflightRef = useRef(false);
   const pathnameRef = useRef(pathname);
+  const scrollTargetRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const isAuthRoute = useMemo(
@@ -729,29 +721,20 @@ export default function AdminShell({
           pathnameRef.current || '/admin/dashboard',
         )}`;
 
-      let redirected = false;
+      if (!silent) {
+        setChecking(true);
+        setSessionCheckFailed(false);
+      }
 
+      let redirected = false;
       try {
-        // verifyToken authenticates against the server; avoid serial local token reads.
-        let verified = await verifyToken();
+        const verified = await verifyToken();
         if (!isActive()) return;
 
-        // Background check: one quick retry so a tiny network blip
-        // does not throw an admin out.
-        if (silent && !verified?.user) {
-          await new Promise((resolve) => { setTimeout(resolve, 1500); });
-          if (!isActive()) return;
-          verified = await verifyToken();
-          if (!isActive()) return;
-        }
-
-        if (
-          !verified?.user ||
-          String(verified.user.role).toUpperCase() !== 'ADMIN'
-        ) {
+        if (verified.user.role !== 'ADMIN' || !verified.user.is_active) {
           redirected = true;
           verifiedRef.current = false;
-          logout();
+          setUser(null);
           router.replace(loginHref());
           return;
         }
@@ -759,22 +742,19 @@ export default function AdminShell({
         verifiedRef.current = true;
         lastVerifiedRef.current = Date.now();
         setUser(verified.user);
-      } catch {
+      } catch (error) {
         if (!isActive()) return;
 
-        // Background check + network error: stay signed in.
-        if (silent) return;
-
-        redirected = true;
-        verifiedRef.current = false;
-        logout();
-        router.replace(loginHref());
-      } finally {
-        // If we are redirecting, keep the water loader on screen
-        // (no flash of the admin shell).
-        if (!silent && isActive() && !redirected) {
-          setChecking(false);
+        if (error instanceof ApiError && error.code === 'SESSION_EXPIRED') {
+          redirected = true;
+          verifiedRef.current = false;
+          setUser(null);
+          router.replace(loginHref());
+        } else if (!silent) {
+          setSessionCheckFailed(true);
         }
+      } finally {
+        if (!silent && isActive() && !redirected) setChecking(false);
       }
     },
     [router],
@@ -798,9 +778,9 @@ export default function AdminShell({
     }
 
     let active = true;
-    const checkFrame = window.requestAnimationFrame(() => setChecking(true));
-
-    void verifySession(false, () => active);
+    const checkFrame = window.requestAnimationFrame(() => {
+      void verifySession(false, () => active);
+    });
 
     return () => {
       active = false;
@@ -819,13 +799,14 @@ export default function AdminShell({
   useEffect(() => {
     if (isAuthRoute || !hasUser) return;
 
+    let active = true;
     const check = () => {
       if (document.visibilityState === 'hidden') return;
       if (inflightRef.current) return;
       if (Date.now() - lastVerifiedRef.current < RECHECK_MS) return;
 
       inflightRef.current = true;
-      void verifySession(true).finally(() => {
+      void verifySession(true, () => active).finally(() => {
         inflightRef.current = false;
       });
     };
@@ -835,6 +816,7 @@ export default function AdminShell({
     document.addEventListener('visibilitychange', check);
 
     return () => {
+      active = false;
       window.clearInterval(interval);
       window.removeEventListener('focus', check);
       document.removeEventListener('visibilitychange', check);
@@ -974,11 +956,20 @@ export default function AdminShell({
   /* ---------------------------------------------------------
      Actions
      --------------------------------------------------------- */
+  useLayoutEffect(() => {
+    if (scrollTargetRef.current !== pathname) return;
+    scrollTargetRef.current = null;
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
+
   const handleNavigate = useCallback(
     (href: string) => {
       setMobileOpen(false);
 
-      if (href !== pathname) {
+      if (href === pathname) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      } else {
+        scrollTargetRef.current = href;
         setNavigating(true);
       }
     },
@@ -1047,14 +1038,13 @@ export default function AdminShell({
     (item: PaletteItem) => {
       setPaletteOpen(false);
 
-      if (item.href && item.href !== pathname) {
-        setNavigating(true);
-      }
-
       if (item.id === 'logout') handleLogout();
-      else if (item.href) router.push(item.href);
+      else if (item.href) {
+        handleNavigate(item.href);
+        router.push(item.href, { scroll: false });
+      }
     },
-    [pathname, router, handleLogout],
+    [router, handleLogout, handleNavigate],
   );
 
   /* =========================================================
@@ -1065,15 +1055,29 @@ export default function AdminShell({
     return <>{children}</>;
   }
 
-  if (checking) {
+  if (checking || (!user && !sessionCheckFailed)) {
     return <SessionLoader />;
+  }
+
+  if (sessionCheckFailed) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-slate-950 p-4 text-slate-100">
+        <div className="w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-6">
+          <h1 className="text-lg font-semibold">Could not verify your admin session</h1>
+          <p role="alert" className="mt-2 text-sm text-slate-300">Check your connection and retry.</p>
+          <button type="button" onClick={() => void verifySession(false)} className="mt-4 min-h-11 rounded-xl bg-cyan-400 px-4 font-semibold text-slate-950">
+            Retry verification
+          </button>
+        </div>
+      </main>
+    );
   }
 
   const displayName = user?.full_name || 'Admin';
   const initial = displayName.charAt(0).toUpperCase();
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-slate-950 text-slate-100 [overflow-anchor:none]">
       <style>{SHELL_CSS}</style>
 
       {/* Skip link for keyboard users */}
