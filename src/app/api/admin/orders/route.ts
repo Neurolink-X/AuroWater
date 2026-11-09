@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
     'refunded',
   ]);
 
-  if (status && status !== 'ALL' && !validStatuses.has(status)) {
+  if (status && status !== 'ALL' && status !== 'CURRENT' && !validStatuses.has(status)) {
     return jsonErr('Invalid order status', 400);
   }
 
@@ -206,7 +206,9 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: sortAscending })
     .order('id', { ascending: sortAscending });
 
-  if (status && status !== 'ALL') {
+  if (status === 'CURRENT') {
+    query = query.not('status', 'in', '(COMPLETED,CANCELLED,FAILED)');
+  } else if (status && status !== 'ALL') {
     query = query.eq('status', status);
   }
 

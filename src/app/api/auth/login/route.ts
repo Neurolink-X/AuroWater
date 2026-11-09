@@ -1,3 +1,4 @@
+import { SESSION_MAX_AGE_SECONDS } from '@/lib/auth/session-lifetime';
 import { NextRequest } from 'next/server';
 
 import {
@@ -471,8 +472,7 @@ const {
     'aw_session',
     '1',
     {
-      maxAge:
-        60 * 60 * 24 * 7,
+      maxAge: SESSION_MAX_AGE_SECONDS,
       path: '/',
       sameSite: 'lax',
       httpOnly: false,
@@ -484,8 +484,7 @@ const {
     'aw_role',
     resolved.role,
     {
-      maxAge:
-        60 * 60 * 24 * 7,
+      maxAge: SESSION_MAX_AGE_SECONDS,
       path: '/',
       sameSite: 'lax',
       httpOnly: false,

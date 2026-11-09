@@ -979,11 +979,11 @@ function UsersContent() {
                 Review registrations, manage roles and control who can access their accounts.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href="/admin/verification" className="inline-flex min-h-10 items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <Link href="/admin/verification" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-2 text-center text-xs font-semibold sm:px-4 sm:text-sm text-emerald-900 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
                 Verify documents
               </Link>
-              <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-10 items-center rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
+              <Link href="/admin/dashboard/account-recovery" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-cyan-200 bg-cyan-50 px-2 py-2 text-center text-xs font-semibold sm:px-4 sm:text-sm text-cyan-900 hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600">
                 Account Help &amp; Recovery
               </Link>
             <button
@@ -1014,7 +1014,7 @@ function UsersContent() {
           )}
 
           <div className="mt-5 space-y-4 border-t border-slate-100 pt-4">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Account status">
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Account status">
               {VIEWS.map((v) => {
                 const active = view === v.key;
                 return (
@@ -1023,7 +1023,7 @@ function UsersContent() {
                     type="button"
                     aria-pressed={active}
                     onClick={() => changeView(v.key)}
-                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${focusRing} ${
+                    className={`inline-flex min-h-11 min-w-0 flex-wrap items-center justify-center gap-1 rounded-xl px-1.5 py-2 text-center text-xs font-semibold transition-colors sm:gap-2 sm:px-4 sm:text-sm ${focusRing} ${
                       active
                         ? 'bg-cyan-700 text-white shadow-sm'
                         : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
@@ -1037,7 +1037,7 @@ function UsersContent() {
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Role">
+              <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap" role="group" aria-label="Role">
                 {ROLE_FILTERS.map((r) => {
                   const active = role === r;
                   return (
@@ -1046,7 +1046,7 @@ function UsersContent() {
                       type="button"
                       aria-pressed={active}
                       onClick={() => changeRole(r)}
-                      className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
+                      className={`min-h-11 min-w-0 rounded-xl border px-1.5 py-1.5 text-xs font-semibold transition-colors sm:rounded-full sm:px-3.5 ${focusRing} ${
                         active
                           ? 'border-slate-900 bg-slate-900 text-white'
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'

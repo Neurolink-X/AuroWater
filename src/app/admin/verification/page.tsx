@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { getToken } from '@/lib/api-client';
 import { isAbort, requestJson } from '@/lib/account-recovery/http';
@@ -22,7 +23,7 @@ type Preview = { url: string; type: string };
 const REFRESH_MS = 45_000;
 const authed = async () => {
   const token = await getToken();
-  if (!token) throw new Error('Please sign in again.');
+  if (!token) throw new Error('Could not read your session. Retry, or sign in again if it has expired.');
   return { Authorization: `Bearer ${token}` };
 };
 const waiting = (iso: string) => {
@@ -34,9 +35,10 @@ export default function AdminVerificationPage() {
   const [status, setStatus] = useState<ReviewStatus>('pending');
   const [role, setRole] = useState('all');
   const [query, setQuery] = useState('');
-  const [files, setFiles] = useState<QueueFile[]>([]);
+  const [queues, setQueues] = useState<Partial<Record<ReviewStatus, QueueFile[]>>>({});
   const [counts, setCounts] = useState<Counts>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<Record<string, string | undefined>>({}); // file id -> reason draft
   const [previews, setPreviews] = useState<Record<string, Preview | undefined>>({});
@@ -44,28 +46,46 @@ export default function AdminVerificationPage() {
 
   const load = useCallback(async (silent = false) => {
     ctrl.current?.abort();
-    const c = new AbortController(); ctrl.current = c;
+    const request = new AbortController();
+    ctrl.current = request;
     if (!silent) setLoading(true);
     try {
+      const headers = await authed();
+      if (request.signal.aborted) return;
       const json = await requestJson<{ files: QueueFile[]; counts: Counts }>(`/api/admin/verification?status=${status}`, {
-        headers: await authed(), cache: 'no-store', signal: c.signal, retries: 2,
+        headers, cache: 'no-store', signal: request.signal, timeoutMs: 10_000,
       });
-      if (c.signal.aborted) return;
-      setFiles(json.data?.files ?? []); setCounts(json.data?.counts ?? {});
+      if (request.signal.aborted) return;
+      const files = json.data?.files ?? [];
+      setQueues((previous) => ({ ...previous, [status]: files }));
+      setCounts(json.data?.counts ?? {});
+      setError(null);
     } catch (e) {
-      if (!isAbort(e)) toast.error(e instanceof Error ? e.message : 'Could not load the queue.');
-    } finally { if (ctrl.current === c) setLoading(false); }
+      if (!request.signal.aborted && !isAbort(e)) {
+        setError(e instanceof Error ? e.message : 'Could not load the queue.');
+      }
+    } finally {
+      if (ctrl.current === request && !request.signal.aborted) {
+        ctrl.current = null;
+        setLoading(false);
+      }
+    }
   }, [status]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => { void load(); }, 0);
-    return () => { window.clearTimeout(initial); ctrl.current?.abort(); };
-  }, [load]);
-  useEffect(() => {
-    const tick = () => { if (document.visibilityState === 'visible') void load(true); };
-    const t = setInterval(tick, REFRESH_MS);
-    document.addEventListener('visibilitychange', tick);
-    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+    const refresh = () => {
+      if (!ctrl.current && document.visibilityState === 'visible' && navigator.onLine) void load(true);
+    };
+    const interval = window.setInterval(refresh, REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+      ctrl.current?.abort();
+      ctrl.current = null;
+    };
   }, [load]);
 
   const decide = async (f: QueueFile, decision: 'approved' | 'rejected') => {
@@ -79,6 +99,12 @@ export default function AdminVerificationPage() {
       });
       toast.success(decision === 'approved' ? 'Document approved.' : 'Document rejected.');
       setRejecting((o) => ({ ...o, [f.id]: undefined })); setPreviews((o) => ({ ...o, [f.id]: undefined }));
+      setQueues((previous) => {
+        const next = { ...previous };
+        delete next[decision];
+        if (previous[status]) next[status] = previous[status].filter((file) => file.id !== f.id);
+        return next;
+      });
       await load(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not save the review.');
@@ -111,55 +137,62 @@ export default function AdminVerificationPage() {
   };
 
   // Group documents by applicant so an admin reviews a whole person at once.
+  const activeQueue = queues[status];
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const map = new Map<string, { applicant: Applicant; files: QueueFile[] }>();
-    for (const f of files) {
+    for (const f of activeQueue ?? []) {
       const a = f.applicant;
       if (role !== 'all' && a.role !== role) continue;
       if (q && !`${a.full_name} ${a.email} ${a.phone} ${a.business_name} ${a.city}`.toLowerCase().includes(q)) continue;
       (map.get(a.id) ?? map.set(a.id, { applicant: a, files: [] }).get(a.id)!).files.push(f);
     }
     return [...map.values()];
-  }, [files, role, query]);
+  }, [activeQueue, role, query]);
 
   return (
-    <main className="space-y-6 text-white">
+    <div className="space-y-5 text-white">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[.18em] text-cyan-300">Trust &amp; safety</p>
           <h1 className="mt-2 text-2xl font-black">Document Verification</h1>
           <p className="mt-1 text-sm text-slate-400">Oldest first. Every view and decision is audit-logged.</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-sm font-semibold">
-            <a href="/admin/technician-capabilities" className="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-cyan-200 hover:bg-cyan-400/20">Partner applications & approval →</a>
-            <a href="/admin/dashboard/users" className="rounded-xl border border-white/20 px-4 py-2 text-slate-200 hover:bg-white/10">Account approvals</a>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-semibold sm:flex sm:flex-wrap sm:text-sm">
+            <Link href="/admin/technician-capabilities" className="flex min-h-11 items-center justify-center rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3 py-2 text-center text-cyan-200 hover:bg-cyan-400/20">Partner applications & approval →</Link>
+            <Link href="/admin/dashboard/users" className="flex min-h-11 items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-center text-slate-200 hover:bg-white/10">Account approvals</Link>
           </div>
         </div>
         <button onClick={() => void load()} disabled={loading} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold hover:bg-white/10 disabled:opacity-50">{loading ? 'Refreshing…' : 'Refresh'}</button>
       </header>
 
-      <div className="flex flex-wrap items-center gap-2" role="tablist">
-        {REVIEW_STATUSES.map((s) => (
-          <button key={s} role="tab" aria-selected={status === s} onClick={() => setStatus(s)}
-            className={`rounded-xl px-4 py-2 text-sm font-bold capitalize ${status === s ? 'bg-cyan-400 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>
-            {s}{typeof counts[s] === 'number' && <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">{counts[s]}</span>}
-          </button>
-        ))}
-        <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role" className="ml-auto rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-sm">
+      <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+        <div className="grid grid-cols-3 gap-2 sm:flex" role="group" aria-label="Document status">
+          {REVIEW_STATUSES.map((s) => (
+            <button key={s} type="button" aria-pressed={status === s} disabled={Boolean(busy)} onClick={() => {
+              if (s !== status) setError(null);
+              setStatus(s);
+            }}
+              className={`min-h-11 rounded-xl px-1.5 py-2 text-xs font-bold capitalize sm:px-4 sm:text-sm ${status === s ? 'bg-cyan-400 text-slate-950' : 'border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>
+              {s}{typeof counts[s] === 'number' && <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs">{counts[s]}</span>}
+            </button>
+          ))}
+        </div>
+        <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role" className="min-h-11 rounded-xl border border-white/15 bg-slate-900 px-3 py-2 text-sm sm:ml-auto">
           <option value="all">All roles</option><option value="technician">Technician</option><option value="plumber">Plumber</option><option value="supplier">Supplier</option>
         </select>
         <input value={query} onChange={(e) => setQuery(e.target.value)} type="search" placeholder="Search name, email, phone, city…" aria-label="Search applicants"
-          className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm placeholder:text-slate-500 sm:w-72" />
+          className="min-h-11 w-full rounded-xl border border-white/15 bg-slate-950 px-3 py-2 text-sm placeholder:text-slate-400 sm:w-72" />
       </div>
 
-      {loading ? <p className="py-12 text-center text-slate-400">Loading queue…</p>
-        : groups.length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-slate-400">Nothing {status} right now. 🎉</div>
-        : <section className="grid gap-4">{groups.map(({ applicant: a, files: fs }) => (
+      {error && <p role="alert" className="rounded-xl border border-rose-400/40 bg-rose-950/50 p-3 text-sm text-rose-100">{error}</p>}
+      {!activeQueue && !error && <p role="status" className="py-12 text-center text-slate-300">Loading queue…</p>}
+      {activeQueue && groups.length === 0 && <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-slate-300">No matching {status} documents.</div>}
+      {groups.length > 0 && <section className="grid gap-4">{groups.map(({ applicant: a, files: fs }) => (
           <article key={a.id} className="rounded-2xl border border-white/10 bg-white/[.04] p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="text-lg font-extrabold">{a.full_name || 'Unnamed applicant'} <span className="ml-2 rounded-md bg-white/10 px-2 py-0.5 text-xs font-bold capitalize text-cyan-200">{a.role}</span></h2>
-                <p className="text-sm text-slate-300">{[a.email, a.phone, a.city, a.business_name].filter(Boolean).join(' · ')}</p>
+                <p className="break-all text-sm text-slate-300">{[a.email, a.phone, a.city, a.business_name].filter(Boolean).join(' · ')}</p>
               </div>
               <span className="text-xs text-slate-400">Profile: {a.verification_status ?? 'unknown'}</span>
             </div>
@@ -171,7 +204,7 @@ export default function AdminVerificationPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-bold">{DOCUMENT_SLOTS[f.document_slot]?.label ?? f.document_slot}</p>
-                      <p className="text-xs text-slate-400">{f.original_name} · {formatBytes(f.size_bytes)} · <span className={w.late && f.review_status === 'pending' ? 'font-bold text-amber-300' : ''}>waiting {w.label}</span></p>
+                      <p className="break-all text-xs text-slate-300">{f.original_name} · {formatBytes(f.size_bytes)} · <span className={w.late && f.review_status === 'pending' ? 'font-bold text-amber-300' : ''}>waiting {w.label}</span></p>
                     </div>
                     <div className="flex gap-2"><button onClick={() => void togglePreview(f)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-cyan-200 hover:bg-white/5">{p ? 'Hide preview' : 'Preview'}</button><button onClick={() => void downloadFile(f)} className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/5">Download</button></div>
                   </div>
@@ -190,14 +223,14 @@ export default function AdminVerificationPage() {
                       <>
                         <input value={reject} onChange={(e) => setRejecting((o) => ({ ...o, [f.id]: e.target.value }))} maxLength={500} autoFocus
                           placeholder="Reason shown to the applicant (e.g. photo is blurry)" aria-label="Rejection reason"
-                          className="min-w-[14rem] flex-1 rounded-lg border border-white/10 bg-slate-950/60 px-3 py-2 text-sm placeholder:text-slate-500" />
-                        <button onClick={() => void decide(f, 'rejected')} disabled={busy === f.id} className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-black disabled:opacity-50">Confirm reject</button>
+                          className="w-full min-w-0 rounded-lg sm:flex-1 border border-white/10 bg-slate-950/60 px-3 py-2 text-sm placeholder:text-slate-500" />
+                        <button onClick={() => void decide(f, 'rejected')} disabled={Boolean(busy)} className="rounded-lg bg-rose-500 px-4 py-2 text-sm font-black disabled:opacity-50">Confirm reject</button>
                         <button onClick={() => setRejecting((o) => ({ ...o, [f.id]: undefined }))} className="rounded-lg px-3 py-2 text-sm text-slate-300">Cancel</button>
                       </>
                     ) : (
                       <>
-                        {f.review_status !== 'approved' && <button onClick={() => void decide(f, 'approved')} disabled={busy === f.id} className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{busy === f.id ? 'Saving…' : 'Approve'}</button>}
-                        {f.review_status !== 'rejected' && <button onClick={() => setRejecting((o) => ({ ...o, [f.id]: '' }))} disabled={busy === f.id} className="rounded-lg border border-rose-400/40 px-4 py-2 text-sm font-bold text-rose-300 disabled:opacity-50">Reject…</button>}
+                        {f.review_status !== 'approved' && <button onClick={() => void decide(f, 'approved')} disabled={Boolean(busy)} className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-black text-slate-950 disabled:opacity-50">{busy === f.id ? 'Saving…' : 'Approve'}</button>}
+                        {f.review_status !== 'rejected' && <button onClick={() => setRejecting((o) => ({ ...o, [f.id]: '' }))} disabled={Boolean(busy)} className="rounded-lg border border-rose-400/40 px-4 py-2 text-sm font-bold text-rose-300 disabled:opacity-50">Reject…</button>}
                       </>
                     )}
                   </div>
@@ -206,7 +239,7 @@ export default function AdminVerificationPage() {
             })}</ul>
           </article>
         ))}</section>}
-    </main>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import type { NextResponse } from 'next/server';
-import type { User } from '@supabase/supabase-js';
+import { isAuthRetryableFetchError, type User } from '@supabase/supabase-js';
 
 import {
   ensureProfileForUser,
@@ -28,6 +28,7 @@ export type AuthedContext = {
 type AuthFailureCode =
   | 'MISCONFIG_ENV'
   | 'UNAUTHORIZED'
+  | 'AUTH_UNAVAILABLE'
   | 'FORBIDDEN'
   | 'DB_NOT_READY'
   | 'SERVICE_ROLE_MISSING'
@@ -93,6 +94,10 @@ export async function requireSupabaseAuth(
     data: { user },
     error: userErr,
   } = await supabase.auth.getUser();
+
+  if (isAuthRetryableFetchError(userErr) || (userErr?.status ?? 0) >= 500) {
+    return authError('Could not verify your session. Please try again.', 503, 'AUTH_UNAVAILABLE');
+  }
 
   if (userErr || !user?.id) {
     console.warn(

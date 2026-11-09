@@ -37,6 +37,7 @@ import {
   setAuthGateCookies,
 } from '@/lib/auth/client-gate-cookies';
 import { safeGet, safeRemove, safeSet } from '@/lib/storage';
+import { SESSION_MAX_AGE_SECONDS } from '@/lib/auth/session-lifetime';
 
 /* ═══════════════════════════════════════════════════════════════
    TYPES
@@ -225,7 +226,7 @@ export interface UseAuthReturn {
 export const SESSION_KEY = 'aurowater_session';
 
 /** Default client session TTL: 7 days */
-export const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const DEFAULT_TTL_MS = SESSION_MAX_AGE_SECONDS * 1000;
 
 const DASHBOARD_PATHS: Record<AuthRole, string> = {
   customer: '/customer',
@@ -447,7 +448,10 @@ export function writeSession(
       clearToken();
     }
 
-    setAuthGateCookies(session.role);
+    setAuthGateCookies(
+      session.role,
+      Math.max(0, Math.floor((session.loginTime + DEFAULT_TTL_MS - Date.now()) / 1000)),
+    );
   }
 
   return session;
@@ -624,13 +628,16 @@ export function useAuth(
             setToken(next.accessToken);
           }
 
-          setAuthGateCookies(next.role);
+          setAuthGateCookies(
+            next.role,
+            Math.max(0, Math.floor((next.loginTime + ttlMs - Date.now()) / 1000)),
+          );
         }
 
         return next;
       });
     },
-    []
+    [ttlMs]
   );
 
   /* ── Dashboard redirect ── */

@@ -1,7 +1,7 @@
 'use client';
 import { formatOrderReference } from '@/lib/order-reference';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -41,7 +41,7 @@ export default function AdminOrdersPage() {
   const [meta, setMeta] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('CURRENT');
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -60,27 +60,50 @@ export default function AdminOrdersPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const requestRef = useRef<AbortController | null>(null);
+  const load = useCallback(async (silent = false) => {
+    requestRef.current?.abort();
+    const request = new AbortController();
+    requestRef.current = request;
+    if (!silent) {
+      setLoading(true);
+      setRawRows([]);
+      setMeta({});
+    }
     setError(null);
     try {
       const params: Record<string, string | undefined> = { limit: '50', offset: '0' };
       if (status) params.status = status;
       if (from) params.from = new Date(from).toISOString();
       if (to) params.to = new Date(to).toISOString();
-      const res = await adminOrdersWithMeta(params);
-      setRawRows(res.data ?? []);
-      setMeta(res.meta ?? {});
+      const res = await adminOrdersWithMeta(params, request.signal);
+      if (request.signal.aborted) return;
+      setRawRows(res.data);
+      setMeta(res.meta);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load orders');
+      if (!request.signal.aborted) setError(e instanceof Error ? e.message : 'Failed to load orders');
     } finally {
-      setLoading(false);
+      if (requestRef.current === request && !request.signal.aborted) {
+        requestRef.current = null;
+        setLoading(false);
+      }
     }
   }, [status, from, to]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(initial);
+    const refresh = () => {
+      if (!requestRef.current && document.visibilityState === 'visible' && navigator.onLine) void load(true);
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+      requestRef.current?.abort();
+      requestRef.current = null;
+    };
   }, [load]);
 
   const rows = useMemo(() => {
@@ -163,7 +186,7 @@ export default function AdminOrdersPage() {
         setTechPickerOpen(false);
         const detail = await adminOrderGet(drawerOrder.id);
         setDrawerOrder(detail);
-        void load();
+        void load(true);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Assignment failed.');
       } finally {
@@ -180,7 +203,7 @@ export default function AdminOrdersPage() {
         await adminOrderUpdate(drawerOrder.id, { status: newStatus });
         toast.success(`Status updated to ${newStatus}`);
         setDrawerOrder((prev) => (prev ? { ...prev, status: newStatus } : null));
-        void load();
+        void load(true);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Failed to update status.');
       }
@@ -200,7 +223,7 @@ export default function AdminOrdersPage() {
       setCancelOpen(false);
       setCancelNote('');
       setDrawerOrder((prev) => (prev ? { ...prev, status: 'CANCELLED', cancel_reason: reason || null } : null));
-      void load();
+      void load(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Cancel failed.');
     }
@@ -292,16 +315,17 @@ export default function AdminOrdersPage() {
             Live operations board — {totalCount} total (server) · showing {rows.length} after local filters.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center">
           <button
             type="button"
             disabled={exporting}
             onClick={() => void handleExportCSV()}
-            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
+            className="order-last min-h-11 rounded-xl px-2 py-2 text-xs font-medium sm:order-none sm:px-4 sm:text-sm bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50"
           >
             {exporting ? 'Exporting…' : 'Export CSV'}
           </button>
           {[
+            { value: 'CURRENT', label: 'Current' },
             { value: '', label: 'All' },
             { value: 'PENDING', label: 'Pending' },
             { value: 'ASSIGNED', label: 'Assigned' },
@@ -313,7 +337,8 @@ export default function AdminOrdersPage() {
               key={f.value || 'ALL'}
               type="button"
               onClick={() => setStatus(f.value)}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+              aria-pressed={status === f.value}
+              className={`min-h-11 rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
                 status === f.value
                   ? 'bg-[#4361EE] text-white'
                   : 'bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10'
@@ -325,7 +350,8 @@ export default function AdminOrdersPage() {
           <button
             type="button"
             onClick={() => setEmergencyOnly((v) => !v)}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
+            aria-pressed={emergencyOnly}
+            className={`min-h-11 rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
               emergencyOnly
                 ? 'bg-rose-600 text-white'
                 : 'bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10'
@@ -348,7 +374,7 @@ export default function AdminOrdersPage() {
               className="w-full rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
             />
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
             <div>
               <label htmlFor="admin-order-from" className="block text-xs text-slate-400 mb-1">From</label>
               <input
@@ -373,8 +399,9 @@ export default function AdminOrdersPage() {
         </div>
         <button
           type="button"
-          onClick={() => void load()}
-          className="rounded-xl bg-white/10 border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/15"
+          onClick={() => void load(true)}
+          disabled={loading}
+          className="min-h-11 rounded-xl bg-white/10 border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/15 disabled:opacity-50"
         >
           Refresh
         </button>
@@ -391,15 +418,15 @@ export default function AdminOrdersPage() {
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="w-full text-sm [&_td]:max-md:px-2 [&_th]:max-md:px-2">
             <thead className="bg-slate-950/40">
               <tr className="border-b border-white/10">
                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Order</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Customer</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Service</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Amount</th>
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-slate-300 md:table-cell lg:px-6">Customer</th>
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-slate-300 md:table-cell lg:px-6">Service</th>
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-slate-300 md:table-cell lg:px-6">Amount</th>
                 <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Status</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-slate-300">Created</th>
+                <th className="hidden px-4 py-3 text-left text-xs font-medium text-slate-300 md:table-cell lg:px-6">Created</th>
                 <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-slate-300"> </th>
               </tr>
             </thead>
@@ -410,19 +437,19 @@ export default function AdminOrdersPage() {
                     <td className="px-4 sm:px-6 py-4">
                       <div className="h-4 w-20 bg-white/10 rounded animate-pulse" />
                     </td>
-                    <td className="px-4 sm:px-6 py-4">
+                    <td className="hidden px-4 py-4 md:table-cell lg:px-6">
                       <div className="h-4 w-32 bg-white/10 rounded animate-pulse" />
                     </td>
-                    <td className="px-4 sm:px-6 py-4">
+                    <td className="hidden px-4 py-4 md:table-cell lg:px-6">
                       <div className="h-4 w-28 bg-white/10 rounded animate-pulse" />
                     </td>
-                    <td className="px-4 sm:px-6 py-4">
+                    <td className="hidden px-4 py-4 md:table-cell lg:px-6">
                       <div className="h-4 w-16 bg-white/10 rounded animate-pulse" />
                     </td>
                     <td className="px-4 sm:px-6 py-4">
                       <div className="h-6 w-20 bg-white/10 rounded-full animate-pulse" />
                     </td>
-                    <td className="px-4 sm:px-6 py-4">
+                    <td className="hidden px-4 py-4 md:table-cell lg:px-6">
                       <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
                     </td>
                     <td className="px-4 sm:px-6 py-4" />
@@ -443,17 +470,23 @@ export default function AdminOrdersPage() {
                   >
                     <td className="px-4 sm:px-6 py-4 text-slate-100 font-semibold font-mono text-xs">
                       {formatOrderReference(order)}
+                      <div className="mt-1 space-y-1 break-words font-sans font-normal text-slate-300 md:hidden">
+                        <div>{order.customer_name ?? '—'}</div>
+                        <div>{(order.service_type ?? '—').replace(/_/g, ' ')} · {formatInr(Number(order.total_amount || 0))}</div>
+                        <div>{new Date(order.created_at).toLocaleString()}</div>
+                        {order.is_emergency && <div className="font-medium text-rose-300">Emergency</div>}
+                      </div>
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-slate-200">
+                    <td className="hidden px-4 py-4 text-slate-200 md:table-cell lg:px-6">
                       <div>{order.customer_name ?? '—'}</div>
                       {order.is_emergency ? (
                         <div className="text-[10px] uppercase tracking-wide text-rose-300 mt-0.5">Emergency</div>
                       ) : null}
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-slate-200">
+                    <td className="hidden px-4 py-4 text-slate-200 md:table-cell lg:px-6">
                       {(order.service_type ?? '—').replace(/_/g, ' ')}
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-emerald-200 font-semibold">
+                    <td className="hidden px-4 py-4 font-semibold text-emerald-200 md:table-cell lg:px-6">
                       {formatInr(Number(order.total_amount || 0))}
                     </td>
                     <td className="px-4 sm:px-6 py-4">
@@ -462,16 +495,16 @@ export default function AdminOrdersPage() {
                           STATUS_CLASS[order.status] ?? 'bg-white/5 text-slate-200 border-white/20'
                         }`}
                       >
-                        {order.status}
+                        {order.status.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-4 sm:px-6 py-4 text-slate-400 text-xs">
+                    <td className="hidden px-4 py-4 text-xs text-slate-300 md:table-cell lg:px-6">
                       {new Date(order.created_at).toLocaleString()}
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-right">
                       <button
                         type="button"
-                        className="text-sky-400 text-xs font-medium hover:underline"
+                        className="inline-flex min-h-11 items-center text-xs font-medium text-sky-300 hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
                           void openDrawer(order.id);

@@ -1,9 +1,10 @@
-export function setAuthGateCookies(role: string): void {
+import { SESSION_MAX_AGE_SECONDS } from './session-lifetime';
+
+export function setAuthGateCookies(role: string, maxAge = SESSION_MAX_AGE_SECONDS): void {
   if (typeof window === 'undefined') return;
   const isHttps = window.location.protocol === 'https:';
   const secure = isHttps ? '; Secure' : '';
-  const maxAge = '; Max-Age=86400';
-  const base = `; path=/; SameSite=Lax${maxAge}${secure}`;
+  const base = `; path=/; SameSite=Lax; Max-Age=${maxAge}${secure}`;
   document.cookie = `aw_session=1${base}`;
   document.cookie = `aw_role=${encodeURIComponent(role)}${base}`;
 }

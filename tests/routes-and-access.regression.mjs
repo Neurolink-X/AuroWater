@@ -188,9 +188,9 @@ console.log(`Route/access, versioned pricing, and supplier finance regression ch
 const apiClient = readFileSync(join(root, 'src', 'lib', 'api-client.ts'), 'utf8');
 assert.match(apiClient, /refreshSessionSingleFlight/);
 assert.match(apiClient, /if \(refreshInFlight\) return refreshInFlight/);
-assert.ok((apiClient.match(/refreshSessionSingleFlight\(\)/g) ?? []).length >= 3);
+assert.match(apiClient, /data\.session\?\.access_token !== token[\s\S]*?refreshSessionSingleFlight\(\)/);
 assert.ok(apiClient.includes('Do not redirect until a one-time session refresh has been attempted.'));
-assert.ok(apiClient.includes('Your session could not be renewed. Please sign in again.'));
+assert.match(apiClient, /if \(!state \|\| state\.error \|\| state\.data\.session\) throw error;/);
 
 // Referral rewards regression guards: attribution, reservation, cancellation,
 // and supplier payout protection.
@@ -252,7 +252,10 @@ assert.match(stagedNoidaZone, /'COMING_SOON'/);
 assert.match(stagedNoidaZone, /ARRAY\['water_can'\]::text\[\]/);
 assert.match(stagedNoidaZone, /ON CONFLICT \(slug\) DO NOTHING/);
 assert.match(migrationBuilder, /031_noida_sector_73_pilot_staged\.sql/);
-assert.match(apiClient, /No stored Supabase session means there is no refresh token to refresh/);
+const tokenRead = apiClient.slice(apiClient.indexOf('export async function getToken'), apiClient.indexOf('export function setToken'));
+assert.match(tokenRead, /auth\.getSession\(\)/);
+assert.match(tokenRead, /return data\.session\?\.access_token \?\? null/);
+assert.doesNotMatch(tokenRead, /refreshSession|clearAuthGateCookies/);
 // Runtime retry/cancellation behavior is covered by api-transport.unit.mjs.
 assert.match(apiClient, /requestJson\(`/);
 const canonicalApiClient = readFileSync(join(root, 'src', 'lib', 'api', 'client.ts'), 'utf8');
@@ -434,7 +437,7 @@ assert.match(adminLoginPage, /window\.location\.replace\(returnTo\)/);
 
 const adminShellPage = readFileSync(join(root, 'src', 'components', 'admin', 'AdminShell.tsx'), 'utf8');
 assert.match(adminShellPage, /let active = true/);
-assert.match(adminShellPage, /String\(verified\.user\.role\)\.toUpperCase\(\) !== 'ADMIN'/);
+assert.match(adminShellPage, /verified\.user\.role !== 'ADMIN' \|\| !verified\.user\.is_active/);
 assert.match(adminShellPage, /\/admin\/login\?returnTo=/);
 
 
