@@ -18,8 +18,9 @@ test('private technician verification requests carry a fresh bearer token', () =
 test('valid Supabase session is not signed out after a single API 401', () => {
   const client = read('src/lib/api-client.ts');
   assert.match(client, /single endpoint's 401 is not proof/);
-  assert.match(client, /stateError && !state\.session/);
-  assert.doesNotMatch(client.slice(client.indexOf('async function apiFetchAuth'), client.indexOf('export type LoginResult')), /auth\.signOut\(/);
+  const authenticated = client.slice(client.indexOf('async function apiFetchAuth'), client.indexOf('export type LoginResult'));
+  assert.match(authenticated, /if \(!state \|\| state\.error \|\| state\.data\.session\) throw error;\s*clearToken\(\);\s*clearUser\(\);\s*clearAuthGateCookies\(\);/);
+  assert.doesNotMatch(authenticated, /auth\.signOut\(/);
 });
 
 test('active registration persists the selected technician skills/cities without granting capabilities', () => {
