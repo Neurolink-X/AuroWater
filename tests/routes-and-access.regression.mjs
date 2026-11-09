@@ -252,7 +252,10 @@ assert.match(stagedNoidaZone, /'COMING_SOON'/);
 assert.match(stagedNoidaZone, /ARRAY\['water_can'\]::text\[\]/);
 assert.match(stagedNoidaZone, /ON CONFLICT \(slug\) DO NOTHING/);
 assert.match(migrationBuilder, /031_noida_sector_73_pilot_staged\.sql/);
-assert.match(apiClient, /No stored Supabase session means there is no refresh token to refresh/);
+const tokenRead = apiClient.slice(apiClient.indexOf('export async function getToken'), apiClient.indexOf('export function setToken'));
+assert.match(tokenRead, /auth\.getSession\(\)/);
+assert.match(tokenRead, /return data\.session\?\.access_token \?\? null/);
+assert.doesNotMatch(tokenRead, /refreshSession|clearAuthGateCookies/);
 // Runtime retry/cancellation behavior is covered by api-transport.unit.mjs.
 assert.match(apiClient, /requestJson\(`/);
 const canonicalApiClient = readFileSync(join(root, 'src', 'lib', 'api', 'client.ts'), 'utf8');
@@ -434,7 +437,7 @@ assert.match(adminLoginPage, /window\.location\.replace\(returnTo\)/);
 
 const adminShellPage = readFileSync(join(root, 'src', 'components', 'admin', 'AdminShell.tsx'), 'utf8');
 assert.match(adminShellPage, /let active = true/);
-assert.match(adminShellPage, /String\(verified\.user\.role\)\.toUpperCase\(\) !== 'ADMIN'/);
+assert.match(adminShellPage, /verified\.user\.role !== 'ADMIN' \|\| !verified\.user\.is_active/);
 assert.match(adminShellPage, /\/admin\/login\?returnTo=/);
 
 
