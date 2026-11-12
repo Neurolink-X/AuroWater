@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { GUIDE_POSTS } from '@/lib/blog/posts';
 import { findPublishedGuide, allPublishedGuides } from '@/lib/blog/managed-posts';
 import { getSiteUrl } from '@/lib/env';
+import { WEEKLY_NEWS_CATEGORY, newsSourceLink } from '@/lib/blog/weekly-news';
 
 export const revalidate = 3600;
 type Props = { params: Promise<{ slug: string }> };
@@ -39,7 +40,7 @@ export default async function BlogArticle({ params }: Props) {
         <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">{post.title}</h1>
         <p className="mt-6 text-lg leading-8 text-slate-600 sm:text-xl">{post.description}</p>
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-slate-200 py-4 text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">AuroTap Editorial</span>
+          <span className="font-semibold text-slate-800">{post.category === WEEKLY_NEWS_CATEGORY ? 'AuroTap · Automated source brief' : 'AuroTap Editorial'}</span>
           <span>Published {date(post.publishAt)}</span>
           <span>{Math.max(1, Math.ceil(words / 200))} min read</span>
         </div>
@@ -53,7 +54,13 @@ export default async function BlogArticle({ params }: Props) {
           <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-5 text-sm leading-7 text-slate-700"><strong className="text-slate-900">Before you book:</strong> Confirm availability for your exact address and review the final price at checkout. Guidance here does not guarantee service coverage.</div>
           <div className="mt-9 space-y-10">{post.sections.map((section, index) => <section key={section.heading} id={`section-${index + 1}`} className="scroll-mt-24">
             <h2 className="text-xl font-extrabold leading-snug tracking-tight sm:text-2xl">{section.heading}</h2>
-            {section.paragraphs.map(paragraph => <p key={paragraph} className="mt-4 text-base leading-8 text-slate-700">{paragraph}</p>)}
+            {section.paragraphs.map(paragraph => {
+              const source = post.category === WEEKLY_NEWS_CATEGORY && paragraph.startsWith('Source: ')
+                ? newsSourceLink(paragraph.slice(8)) : null;
+              return <p key={paragraph} className="mt-4 break-words text-base leading-8 text-slate-700">{source
+                ? <a href={source} target="_blank" rel="noopener noreferrer" className="font-semibold text-teal-800 underline">Read original publisher report →</a>
+                : paragraph}</p>;
+            })}
           </section>)}</div>
           <div className="mt-12 border-t border-slate-200 pt-7"><Link href="/book" className="inline-flex min-h-11 items-center rounded-xl bg-blue-700 px-5 py-3 font-bold text-white hover:bg-blue-800">Check services & pricing →</Link></div>
         </article>

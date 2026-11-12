@@ -107,6 +107,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   '/api/public/ncr-waitlist',
 
   /* Server-authenticated scheduler API; route validates CRON_SECRET. */
+  '/api/cron/blog-publish',
   '/api/internal/technician-dispatch-sweep',
   '/api/internal/dispatch-work-sweep',
   // Public, bounded telemetry intake; the handler enforces same-origin and payload validation.

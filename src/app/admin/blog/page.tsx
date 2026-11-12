@@ -10,6 +10,11 @@ type Post = {
   sections:Section[];status:'draft'|'published';publish_at:string|null;cover_image:string|null;updated_at:string;
 };
 type Editor = Omit<Post,'id'|'updated_at'>;
+type Automation = {
+  enabled: boolean; schedule: string; nextCheckAt: string;
+  lastPublished: { slug: string; publish_at: string } | null;
+  lastRun: { outcome?: string; reason?: string; attemptedAt?: string } | null;
+};
 const blank = ():Editor => ({
   slug:'',title:'',description:'',category:'Water and home services',
   status:'draft',publish_at:null,cover_image:null,sections:[{heading:'',paragraphs:['']}],
@@ -24,6 +29,8 @@ export default function AdminBlogPage() {
   const [loading,setLoading] = useState(true);
   const [error,setError] = useState('');
   const [notice,setNotice] = useState('');
+  const [automation, setAutomation] = useState<Automation | null>(null);
+  const [automationError, setAutomationError] = useState('');
 
   async function request<T>(url:string,init?:RequestInit):Promise<T> {
     const token = await getToken();
@@ -43,8 +50,12 @@ export default function AdminBlogPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Failed to load posts.'); }
     finally { setLoading(false); }
   }
+  async function loadAutomation() {
+    try { setAutomation(await request<Automation>('/api/admin/blog/automation')); setAutomationError(''); }
+    catch { setAutomationError('Automation status unavailable. Retry or check cron logs.'); }
+  }
   useEffect(() => {
-    const timer = window.setTimeout(() => { void load(); }, 0);
+    const timer = window.setTimeout(() => { void load(); void loadAutomation(); }, 0);
     return () => window.clearTimeout(timer);
   }, []);
   const choose = (post:Post) => {
@@ -107,10 +118,26 @@ export default function AdminBlogPage() {
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div><Link href="/admin/dashboard" className="text-sm text-cyan-800">← Admin</Link>
         <h1 className="mt-2 text-3xl font-bold">Blog publishing</h1>
-        <p className="mt-1 text-sm text-slate-600">Manually write, review, save drafts and publish articles. No automatic AI publication.</p>
+        <p className="mt-1 text-sm text-slate-600">Write and review guides, or inspect automatically published weekly water-news briefs.</p>
       </div>
       <Link href="/blog" target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">View public blog</Link>
     </header>
+    <section aria-label="Weekly publishing status" className="space-y-2 rounded-2xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-slate-900 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-bold">Weekly news · {automation ? (automation.enabled ? 'Enabled' : 'Inactive in this environment') : 'Checking status…'}</h2>
+        <button type="button" onClick={() => { void loadAutomation(); }} className="min-h-11 rounded-lg border border-cyan-300 bg-white px-4 font-semibold text-cyan-900">Refresh status</button>
+      </div>
+      {automation && <>
+        <p>{automation.schedule}. One brief per week, up to three fresh headlines. No lifetime post limit.</p>
+        <p>Next check: {new Date(automation.nextCheckAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
+        <p>Latest weekly post: {automation.lastPublished
+          ? <Link className="font-semibold underline" href={`/blog/${automation.lastPublished.slug}`}>{new Date(automation.lastPublished.publish_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</Link>
+          : 'None yet. The next scheduled check will try to publish.'}</p>
+        {automation.lastRun && <p role={automation.lastRun.outcome === 'failed' ? 'alert' : 'status'} className={automation.lastRun.outcome === 'failed' ? 'font-semibold text-red-800' : 'text-slate-700'}>Last check: {automation.lastRun.outcome} · {automation.lastRun.reason}</p>}
+      </>}
+      {automationError && <p role="alert" className="font-semibold text-red-800">{automationError}</p>}
+      <p className="text-slate-600">Automatically compiled source headlines are attributed and linked; they are not independently fact-checked. Missing or invalid sources trigger recovery checks, not invented articles.</p>
+    </section>
     {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">{error}</p>}
     {notice && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">{notice}</p>}
     <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
@@ -120,7 +147,7 @@ export default function AdminBlogPage() {
           <button type="button" className="text-sm font-semibold text-blue-700" onClick={()=>{setSelected(null);setEditor(blank());setNotice('');setError('');}}>+ New</button>
         </div>
         {loading && <p className="mt-4 text-sm text-slate-500">Loading…</p>}
-        {!loading && posts.length===0 && <p className="mt-4 text-sm text-slate-500">No manual articles yet.</p>}
+        {!loading && posts.length===0 && <p className="mt-4 text-sm text-slate-500">No managed articles yet.</p>}
         <div className="mt-4 space-y-2">
           {posts.map(p=><button type="button" key={p.id} onClick={()=>choose(p)}
             className={`w-full rounded-xl border p-3 text-left ${selected===p.id?'border-cyan-500 bg-cyan-50':'border-slate-200 hover:bg-slate-50'}`}>

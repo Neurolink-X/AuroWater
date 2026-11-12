@@ -38,7 +38,7 @@ export const publishedManagedGuides = unstable_cache(async (): Promise<GuidePost
     // Do not interrupt public reading if the new CMS schema has not been deployed.
     return [];
   }
-}, ['aurotap-public-editorial-guides-v1'], { revalidate: 300 });
+}, ['aurotap-public-editorial-guides-v1'], { revalidate: 300, tags: ['blog-guides'] });
 
 export async function allPublishedGuides(): Promise<GuidePost[]> {
   const [{ publishedGuides }, managed] = await Promise.all([
@@ -63,5 +63,27 @@ export async function allPublishedGuides(): Promise<GuidePost[]> {
 }
 
 export async function findPublishedGuide(slug:string):Promise<GuidePost|undefined> {
-  return (await allPublishedGuides()).find(post=>post.slug===slug);
+  const listed = (await allPublishedGuides()).find(post=>post.slug===slug);
+  if (listed || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 120) return listed;
+  // Listing is bounded; older published URLs must keep working after the first 100 posts.
+  return findArchivedManagedGuide(slug);
 }
+
+const findArchivedManagedGuide = unstable_cache(async (slug: string): Promise<GuidePost | undefined> => {
+  try {
+  const { data, error } = await createServiceClient().from('blog_posts')
+    .select('slug,title,description,category,cover_image,sections,publish_at,updated_at')
+    .eq('slug', slug).eq('status', 'published').lte('publish_at', new Date().toISOString()).maybeSingle();
+  if (error || !data || !Array.isArray(data.sections) || !data.sections.every((section: unknown) => {
+    if (!section || typeof section !== 'object') return false;
+    const value = section as { heading?: unknown; paragraphs?: unknown };
+    return typeof value.heading === 'string' && Array.isArray(value.paragraphs) && value.paragraphs.every(p => typeof p === 'string');
+  })) return undefined;
+  return { slug: data.slug, title: data.title, description: data.description, category: data.category,
+    coverImage: data.cover_image ?? undefined, publishAt: data.publish_at!, updatedAt: data.updated_at,
+    sections: data.sections as GuidePost['sections'] };
+  } catch {
+    console.error('[blog/public] archived article lookup failed');
+    return undefined;
+  }
+}, ['aurotap-archived-editorial-guide-v1'], { revalidate: 300, tags: ['blog-guides'] });
