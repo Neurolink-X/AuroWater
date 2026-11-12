@@ -151,6 +151,7 @@ export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
   'src/app/api/waitlist/route.ts': ['booking', 'admin'],
   'src/components/public/NcrWaitlistForm.tsx': ['booking', 'admin'],
   'src/components/ui/WaitlistPanel.tsx': ['booking', 'admin'],
+  'src/components/booking/BookingWaitlist.tsx': ['booking', 'admin'],
   'src/lib/waitlist-client.ts': ['booking', 'admin'],
   'src/lib/public-city-directory.server.ts': ['booking'],
   'src/components/booking/BookingWizard.tsx': ['booking', 'pricing', 'subscriptions', 'dispatch', 'finance', 'notifications'],

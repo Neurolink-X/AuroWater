@@ -23,6 +23,7 @@ import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -30,7 +31,7 @@ import Image from 'next/image';
 import { getLocationGuidance, type LocationFailure } from '@/lib/location-guidance';
 import { ILLUSTRATIONS, ILLUSTRATION_ALT } from '@/app/(public)/services/services-data';
 import BookingProgress from '@/components/booking/BookingProgress';
-import TimeSlotPicker from '@/components/booking/TimeSlotPicker';
+
 import type { TimeSlotPickerValue } from '@/components/booking/TimeSlotPicker';
 import {
   ApiError,
@@ -57,7 +58,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings, inr, type PlatformSettings, type ServiceKey } from '@/hooks/useSettings';
 import { safeSessionGet, safeSessionRemove, safeSessionSet } from '@/lib/storage';
 import type { City } from '@/lib/cities';
-import WaitlistPanel from '@/components/ui/WaitlistPanel';
+import BookingWaitlist, { DeferredWaitlistPanel } from '@/components/booking/BookingWaitlist';
 import { bookingBody, bookingDisplay } from '@/components/booking/booking-fonts';
 import {
   MARKET_CAN_PRICES,
@@ -65,6 +66,10 @@ import {
   SHOW_MARKET_COMPARISON,
   pctOff,
 } from '@/lib/booking-pricing';
+
+const TimeSlotPicker = dynamic(() => import('@/components/booking/TimeSlotPicker'), {
+  loading: () => <div role="status" className="min-h-60 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Loading delivery windows…</div>,
+});
 
 const ROUTES = {
   home: '/customer/home',
@@ -693,7 +698,6 @@ export default function BookingWizard() {
   const [submitting, setSubmitting]   = useState(false);
   const [createdOrder, setCreatedOrder] = useState<ApiOrder | null>(null);
   const [submitError, setSubmitError]   = useState<string | null>(null);
-  const [waitlistCity, setWaitlistCity] = useState('');
   const [referralRewards, setReferralRewards] = useState<Array<{ id: string; reward_type: 'discount_25' | 'free_water_can'; reward_status: string }>>([]);
   const [selectedReferralRewardId, setSelectedReferralRewardId] = useState('');
   const [referralRewardsLoading, setReferralRewardsLoading] = useState(false);
@@ -1768,7 +1772,7 @@ export default function BookingWizard() {
       className={`min-h-screen bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 pb-28 text-slate-900 ${bookingBody.variable} ${bookingDisplay.variable}`}
       style={{ fontFamily: 'var(--font-bk-body, system-ui, sans-serif)' }}
     >
-      <style>{`@keyframes bk-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
+      <style>{`@keyframes bk-in{from{transform:translateY(10px)}to{transform:none}}.bk-in{animation:bk-in .22s ease-out both}@media (prefers-reduced-motion:reduce){.bk-in{animation:none}}`}</style>
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
         {!pricingReady && showPricingWait && <div role="status" aria-live="polite" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm text-sky-900"><span>Checking current prices for this address. Booking totals appear only after verification.</span>{pricingError && <button type="button" className="font-bold underline" onClick={() => void refreshSettings()}>Retry prices</button>}</div>}
         {pricingReady && settings.maintenance_mode && view < 4 && (
@@ -2226,32 +2230,7 @@ export default function BookingWizard() {
             <h2 className="text-base font-bold text-slate-900">2 · Delivery address</h2>
             <p className="text-sm text-slate-500">{cityDirectoryLoading ? 'Checking live city coverage…' : LIVE_CITIES.length ? `Active cities: ${LIVE_CITIES.join(', ')}. Check your exact PIN for availability.` : 'Live city directory unavailable. Retry when the connection is restored.'}</p>
 
-            <details className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-white p-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-slate-800">
-                <span>Not in a live delivery city? Join the launch waitlist</span>
-                <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-[10px] font-bold text-cyan-800">2 min</span>
-              </summary>
-              <div className="mt-3 space-y-3">
-                <label className="grid gap-1.5 text-xs font-semibold text-slate-700">
-                  Your city
-                  <input
-                    required
-                    maxLength={100}
-                    autoComplete="address-level2"
-                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-500"
-                    placeholder="e.g. Noida, Varanasi, Prayagraj"
-                    aria-label="Your city"
-                    value={waitlistCity}
-                    onChange={(e) => setWaitlistCity(e.target.value)}
-                  />
-                </label>
-                {waitlistCity.trim().length >= 2 ? (
-                  <WaitlistPanel cityName={waitlistCity.trim()} cityId={null} role="customer" source="book" />
-                ) : (
-                  <p className="text-xs leading-5 text-slate-500">Enter your city to continue. We will also ask for your locality and optional PIN code so we can map demand accurately.</p>
-                )}
-              </div>
-            </details>
+            <BookingWaitlist />
 
             {!session?.loggedIn && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 space-y-3">
@@ -2316,7 +2295,7 @@ export default function BookingWizard() {
                           <div className="mt-3 rounded-xl border border-amber-200 bg-white p-3">
                             <p className="text-sm font-bold text-amber-900">Do not lose your request</p>
                             <p className="mt-1 text-xs leading-5 text-slate-700">This address is not currently eligible for confirmed delivery. Save your water or home-service enquiry for admin follow-up instead. No appointment, stock, price or payment is promised.</p>
-                            <WaitlistPanel cityName={addresses.find((address) => address.id === draft.addressId)?.city ?? serviceability.zone?.city ?? 'your area'} cityId={null} role="customer" source="book-zone" />
+                            <DeferredWaitlistPanel cityName={addresses.find((address) => address.id === draft.addressId)?.city ?? serviceability.zone?.city ?? 'your area'} cityId={null} role="customer" source="book-zone" />
                           </div>
                         )}
                       </>
