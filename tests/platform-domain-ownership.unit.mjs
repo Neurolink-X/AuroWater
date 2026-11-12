@@ -10,7 +10,7 @@ import {
 
 test('all shared modules have explicit, valid, duplicate-free safety-domain ownership', () => {
   const known = new Set(Object.keys(DOMAIN_CONTRACTS));
-  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 27);
+  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 28);
   for (const [path, domains] of Object.entries(EXPLICIT_RUNTIME_OWNERS)) {
     assert.match(path, /^src\//);
     assert.ok(domains.length, `No domain for ${path}`);
@@ -85,6 +85,7 @@ test('public waitlist submissions and their admin queue share owned regression e
     'src/app/api/waitlist/route.ts',
     'src/components/public/NcrWaitlistForm.tsx',
     'src/components/ui/WaitlistPanel.tsx',
+    'src/components/booking/BookingWaitlist.tsx',
     'src/lib/waitlist-client.ts',
   ]) assert.deepEqual(EXPLICIT_RUNTIME_OWNERS[path], ['booking', 'admin']);
   const changed = [

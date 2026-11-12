@@ -70,17 +70,17 @@ export default function WaitlistPanel({
 
   if (done) {
     return (
-      <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-6 text-center sm:p-8" role="status">
-        <div className="mb-3 text-3xl" aria-hidden="true">✓</div>
-        <h3 className="text-lg font-bold text-white">You&apos;re on the list!</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          We&apos;ll notify <span className="font-semibold text-white">{form.phone}</span> when AuroTap launches in{' '}
-          <span className="font-semibold text-cyan-300">{cityName}</span>
-          {form.area.trim() ? <> around <span className="font-semibold text-white">{form.area.trim()}</span></> : null}.
+      <div className="min-w-0 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center text-emerald-950 sm:p-8" role="status">
+        <div className="mb-3 text-3xl text-emerald-800" aria-hidden="true">✓</div>
+        <h3 className="text-lg font-bold text-emerald-950">You&apos;re on the list!</h3>
+        <p className="mt-2 break-words text-sm leading-6 text-emerald-900">
+          We&apos;ll notify <span className="font-semibold text-emerald-950">{form.phone}</span> when AuroTap launches in{' '}
+          <span className="font-semibold text-cyan-800">{cityName}</span>
+          {form.area.trim() ? <> around <span className="font-semibold text-emerald-950">{form.area.trim()}</span></> : null}.
         </p>
-        {form.pincode ? <p className="mt-1 text-xs text-slate-400">PIN code: {form.pincode}</p> : null}
-        {(isSeller || isAgent) ? <p className="mt-3 text-xs text-emerald-300">You&apos;ll be among the first to onboard in {cityName}.</p> : null}
-        {onClose ? <button type="button" onClick={onClose} className="mt-4 text-xs text-slate-400 hover:text-white">← Go back</button> : null}
+        {form.pincode ? <p className="mt-1 text-xs text-emerald-900">PIN code: {form.pincode}</p> : null}
+        {(isSeller || isAgent) ? <p className="mt-3 text-xs text-emerald-900">You&apos;ll be among the first to onboard in {cityName}.</p> : null}
+        {onClose ? <button type="button" onClick={onClose} className="mt-4 min-h-11 rounded-lg px-3 text-sm font-semibold text-emerald-900 underline underline-offset-4 hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">← Go back</button> : null}
       </div>
     );
   }
