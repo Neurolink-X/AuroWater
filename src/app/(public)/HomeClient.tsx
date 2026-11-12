@@ -209,25 +209,39 @@ function PricingSection({ normal, chilled, deliveryFee, plumberFee, tankFee }: {
 /* ───────── PAGE ───────── */
 export default function HomeClient({ initialCities }: { initialCities: City[] }) {
   const [directoryCities, setDirectoryCities] = useState<City[]>(initialCities);
+  const [directoryState, setDirectoryState] = useState<'loading' | 'ready' | 'error'>(initialCities.length ? 'ready' : 'loading');
   const LIVE_CITIES = directoryCities.filter(city => city.status === 'active');
   const PILOT_CITIES = directoryCities.filter(city => city.status === 'coming_soon');
   const PIN_CITIES = directoryCities.filter(city => city.status === 'waitlist');
   const LIVE_CITY_NAMES = LIVE_CITIES.map(city => city.name).join(', ') || 'supported areas';
   const PIN_CITY_NAMES = PILOT_CITIES.map(city => city.name).join(', ');
+  let coverageMessage = `Active cities: ${LIVE_CITY_NAMES}. Check your exact PIN and service before placing an order.`;
+  if (directoryState === 'loading') coverageMessage = 'Checking current city coverage…';
+  if (directoryState === 'error') coverageMessage = 'City coverage is temporarily unavailable. Check your exact address during booking.';
 
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
+    let pending: AbortController | null = null;
     const refresh = () => {
+      if (pending) return;
+      const controller = new AbortController();
+      pending = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 8_000);
       void fetch('/api/cities', { cache: 'no-store', signal: controller.signal })
         .then(async response => { if (!response.ok) throw new Error('City directory unavailable'); return response.json() as Promise<City[]>; })
-        .then(rows => { if (active) setDirectoryCities(Array.isArray(rows) ? rows : []); })
-        .catch(() => { if (active && !controller.signal.aborted) setDirectoryCities([]); });
+        .then(rows => {
+          if (!Array.isArray(rows)) throw new Error('Invalid city directory');
+          if (active) { setDirectoryCities(rows); setDirectoryState('ready'); }
+        })
+        .catch(() => { if (active) { setDirectoryCities([]); setDirectoryState('error'); } })
+        .finally(() => { window.clearTimeout(timeout); pending = null; });
     };
+    // Do not wait for a focus event after removing the server-side startup wait.
+    refresh();
     const onFocus = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('focus', onFocus);
     window.addEventListener('online', onFocus);
-    return () => { active = false; controller.abort(); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus); };
+    return () => { active = false; pending?.abort(); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus); };
   }, []);
   // BookingIntentLink preserves Next.js viewport/intent prefetch. Avoid an extra
   // homepage-wide speculative /book request during slow-4G first paint.
@@ -583,7 +597,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
           <div className="max-w-6xl mx-auto px-5 sm:px-8">
             <div className="text-center mb-10">
               <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900">Water delivery, plumber &amp; tank cleaning near you</h2>
-              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto">Active cities: {LIVE_CITY_NAMES}. Check your exact PIN and service before placing an order.</p>
+              <p className="mt-2 text-slate-600 text-sm max-w-2xl mx-auto" role="status">{coverageMessage}</p>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {LIVE_CITIES.map(c => (
@@ -619,7 +633,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                 </div>
               ))}
             </div>
-            <p className="mt-6 text-center text-xs text-slate-500">Not listed? Request your area: {directoryCities.length} cities in the directory.</p>
+            <p className="mt-6 text-center text-xs text-slate-500">{directoryState === 'ready' ? `Not listed? Request your area: ${directoryCities.length} cities in the directory.` : <Link href="/service-areas" className="underline">Check coverage or request your area →</Link>}</p>
           </div>
         </section>
 
@@ -827,3 +841,4 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
     </>
   );
 }
+

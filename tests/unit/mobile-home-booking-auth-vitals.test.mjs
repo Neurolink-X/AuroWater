@@ -48,8 +48,10 @@ test('SEO, images, public chrome and booking intents remain intact', () => {
     '/mentinence image.png',
   ]) assert.ok(home.includes(asset), 'Missing hero image: ' + asset);
   assert.match(home, /<h1 className="mb-6">/);
-  assert.match(page, /<HomeClient initialCities=\{cities\}\s*\/>/);
+  assert.match(page, /<HomeClient initialCities=\{\[\]\}\s*\/>/);
+  assert.match(page, /<CityStructuredData \/>/);
   assert.match(page, /application\/ld\+json/);
   assert.match(shell, /<Header \/>/);
   assert.match(shell, /<Footer \/>/);
 });
+
