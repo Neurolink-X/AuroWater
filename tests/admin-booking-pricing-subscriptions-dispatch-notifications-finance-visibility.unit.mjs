@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { transpileModule, ModuleKind, ScriptTarget, JsxEmit, createSourceFile, ScriptKind, isImportDeclaration } from 'typescript';
+import { transpileModule, ModuleKind, ScriptTarget, JsxEmit, createSourceFile, ScriptKind, isImportDeclaration, isCallExpression, isArrowFunction, isFunctionDeclaration, forEachChild } from 'typescript';
 
 const require = createRequire(import.meta.url);
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -113,4 +113,135 @@ test('checkout callbacks and validation remain wired after splitting optional UI
   const keyframes = /@keyframes bk-in\{(.+?)\}\.bk-in/.exec(active)?.[1];
   assert.ok(keyframes);
   assert.doesNotMatch(keyframes, /opacity/);
+});
+
+const wizardSource = read('src/components/booking/BookingWizard.tsx');
+const wizardTree = createSourceFile('BookingWizard.tsx', wizardSource, ScriptTarget.Latest, true, ScriptKind.TSX);
+function findSyntax(predicate) {
+  let found;
+  const visit = node => {
+    if (predicate(node)) found = node;
+    else forEachChild(node, visit);
+  };
+  visit(wizardTree);
+  assert.ok(found, 'Expected booking preload integration');
+  return found;
+}
+function runFunction(source, globals) {
+  const exports = {};
+  const code = transpileModule(`export const run = ${source}`, {
+    compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInNewContext(code, { exports, ...globals });
+  return exports.run;
+}
+
+function preloadEffect({ hydrated = true, pricingReady = true, view = 1 } = {}) {
+  const effect = findSyntax(node => isCallExpression(node) && node.expression.getText(wizardTree) === 'useEffect' &&
+    isArrowFunction(node.arguments[0]) && node.arguments[0].getText(wizardTree).includes('whenIdle(preloadDeliveryWindows'));
+  const frames = new Map();
+  const idle = new Map();
+  const requests = [];
+  let sequence = 0;
+  let warmCount = 0;
+  const run = runFunction(effect.arguments[0].getText(wizardTree), {
+    hydrated, pricingReady, view,
+    window: {
+      requestAnimationFrame(callback) { const id = ++sequence; frames.set(id, callback); return id; },
+      cancelAnimationFrame(id) { frames.delete(id); },
+    },
+    whenIdle(callback, timeout) {
+      requests.push(timeout);
+      const id = ++sequence;
+      idle.set(id, callback);
+      return () => idle.delete(id);
+    },
+    preloadDeliveryWindows() { warmCount++; },
+  });
+  return { frames, idle, requests, count: () => warmCount, run };
+}
+
+test('slot warming waits for hydrated Step 1 and its next render frame', () => {
+  for (const state of [{ hydrated: false, view: 1 }, { hydrated: true, pricingReady: false, view: 1 }, { hydrated: true, view: 2 }, { hydrated: true, view: 4 }]) {
+    const effect = preloadEffect(state);
+    assert.equal(effect.run(), undefined);
+    assert.equal(effect.frames.size, 0);
+  }
+  const effect = preloadEffect();
+  effect.run();
+  assert.equal(effect.count(), 0);
+  assert.equal(effect.idle.size, 0);
+  assert.equal(effect.frames.size, 1);
+  [...effect.frames.values()][0]();
+  assert.equal(effect.count(), 0);
+  assert.deepEqual(effect.requests, [1500]);
+  [...effect.idle.values()][0]();
+  assert.equal(effect.count(), 1);
+});
+
+test('leaving Step 1 cancels queued frame and idle warming', () => {
+  const beforeFrame = preloadEffect();
+  const cleanupFrame = beforeFrame.run();
+  cleanupFrame();
+  assert.equal(beforeFrame.frames.size, 0);
+  assert.equal(beforeFrame.idle.size, 0);
+  const beforeIdle = preloadEffect();
+  const cleanupIdle = beforeIdle.run();
+  [...beforeIdle.frames.values()][0]();
+  cleanupIdle();
+  assert.equal(beforeIdle.idle.size, 0);
+  assert.equal(beforeIdle.count(), 0);
+});
+
+test('background warming skips hidden/offline pages and recovers from a failed chunk request', async () => {
+  const declaration = findSyntax(node => isFunctionDeclaration(node) && node.name?.text === 'preloadDeliveryWindows');
+  let requests = 0;
+  let renders = 0;
+  let fail = true;
+  const document = { visibilityState: 'visible' };
+  const navigator = { onLine: false };
+  const preload = runFunction(declaration.getText(wizardTree), {
+    document, navigator,
+    require(path) {
+      requests++;
+      assert.equal(path, '@/components/booking/TimeSlotPicker');
+      if (fail) throw new Error('Chunk unavailable');
+      return { default: () => { renders++; } };
+    },
+  });
+  preload();
+  navigator.onLine = true;
+  document.visibilityState = 'hidden';
+  preload();
+  await new Promise(resolve => { setImmediate(resolve); });
+  assert.equal(requests, 0);
+  document.visibilityState = 'visible';
+  preload();
+  await new Promise(resolve => { setImmediate(resolve); });
+  assert.equal(requests, 1);
+  fail = false;
+  preload();
+  await new Promise(resolve => { setImmediate(resolve); });
+  assert.equal(requests, 2);
+  assert.equal(renders, 0, 'Warming must not mount a picker or freeze current availability');
+});
+
+test('moving into Step 2 starts warming before updating navigation state', () => {
+  const callback = findSyntax(node => isCallExpression(node) && node.expression.getText(wizardTree) === 'useCallback' &&
+    isArrowFunction(node.arguments[0]) && node.arguments[0].getText(wizardTree).includes('setStep(clamped)'));
+  const calls = [];
+  const goTo = runFunction(callback.arguments[0].getText(wizardTree), {
+    MAX_FORM_STEP: 3,
+    preloadDeliveryWindows: () => calls.push('warm'),
+    setStep: step => calls.push(step),
+    setFurthest() {},
+  });
+  goTo(2);
+  assert.deepEqual(calls, ['warm', 2]);
+  calls.length = 0;
+  goTo(1);
+  assert.deepEqual(calls, [1]);
+  for (const event of ['onPointerEnter', 'onFocus', 'onPointerDown']) {
+    assert.ok(wizardSource.includes(`${event}={view === 1 ? preloadDeliveryWindows : undefined}`));
+  }
 });
