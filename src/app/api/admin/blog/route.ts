@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { jsonErr, jsonOk } from '@/lib/api/json-response';
 import { requireAdmin, requireSupabaseAuth } from '@/lib/api/supabase-request';
 import { createServiceClient } from '@/utils/supabase/server';
+import { NEWS_STATUS_SLUG } from '@/lib/blog/weekly-news';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   if (!requireAdmin(auth.ctx)) return jsonErr('Forbidden',403);
   const { data, error } = await createServiceClient().from('blog_posts')
     .select('id,slug,title,description,category,cover_image,sections,status,publish_at,created_at,updated_at')
-    .order('updated_at',{ ascending: false }).limit(100);
+    .neq('slug', NEWS_STATUS_SLUG).order('updated_at',{ ascending: false }).limit(100);
   if (error) {
     console.error('[admin/blog] list failed', { code: error.code });
     return jsonErr('Could not load editorial posts.',503);

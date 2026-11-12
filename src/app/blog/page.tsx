@@ -34,7 +34,7 @@ export default async function BlogIndex() {
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
       <section id="guides" aria-labelledby="guides-title">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-          <div><p className="text-xs font-bold uppercase tracking-widest text-teal-700">Editorial guides</p><h2 id="guides-title" className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Helpful reads for your home</h2></div>
+          <div><p className="text-xs font-bold uppercase tracking-widest text-teal-700">Guides &amp; weekly water news</p><h2 id="guides-title" className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">Helpful reads for your home</h2></div>
           <p className="max-w-md text-sm leading-6 text-slate-600">Service areas and final prices are confirmed during booking, not by an article.</p>
         </div>
         {featured && <article className="group overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:shadow-lg">
@@ -43,7 +43,7 @@ export default async function BlogIndex() {
               {featured.coverImage ? <Image src={featured.coverImage} alt={featured.title + ' editorial illustration'} width={1200} height={630} priority className="h-full w-full object-cover" /> : <span aria-hidden="true" className="text-7xl">💧</span>}
             </div>
             <div className="flex flex-col justify-center p-6 sm:p-10">
-              <span className="w-fit rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-teal-800">Featured guide · {featured.category}</span>
+              <span className="w-fit rounded-full bg-teal-50 px-3 py-1 text-xs font-bold uppercase tracking-wide text-teal-800">Latest article · {featured.category}</span>
               <h3 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl"><Link href={`/blog/${featured.slug}`} className="hover:text-teal-700">{featured.title}</Link></h3>
               <p className="mt-4 leading-7 text-slate-600">{featured.description}</p>
               <p className="mt-5 text-sm text-slate-500">{date(featured.publishAt)} · {readTime(featured.sections)} min read</p>
