@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
       if (city_id) q = q.eq('city_id', city_id);
       else if (custom_city) q = q.ilike('custom_city', pattern(custom_city));
       if (d.area) q = q.ilike('area', pattern(d.area));
-      return q.limit(1).maybeSingle().abortSignal(signal);
+      return q.limit(1).abortSignal(signal).maybeSingle();
     };
     const lookups = [];
     if (validPhone) lookups.push(findExisting('phone', phone));
