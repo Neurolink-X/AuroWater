@@ -80,6 +80,21 @@ function preloadDeliveryWindows(): void {
   });
 }
 
+/** Device hints only limit speculative work; customer navigation always loads. */
+function preloadDeliveryWindowsWhenIdle(): void {
+  const hints = navigator as Navigator & {
+    deviceMemory?: number;
+    connection?: { saveData?: boolean; effectiveType?: string };
+  };
+  if (
+    (typeof hints.deviceMemory === 'number' && hints.deviceMemory <= 2) ||
+    hints.connection?.saveData ||
+    hints.connection?.effectiveType === 'slow-2g' ||
+    hints.connection?.effectiveType === '2g'
+  ) return;
+  preloadDeliveryWindows();
+}
+
 const ROUTES = {
   home: '/customer/home',
   orders: '/customer/history',
@@ -767,7 +782,7 @@ export default function BookingWizard() {
     if (!hydrated || !pricingReady || view !== 1) return;
     let cancelIdle = () => {};
     const frame = window.requestAnimationFrame(() => {
-      cancelIdle = whenIdle(preloadDeliveryWindows, 1500);
+      cancelIdle = whenIdle(preloadDeliveryWindowsWhenIdle, 1500);
     });
     return () => {
       window.cancelAnimationFrame(frame);

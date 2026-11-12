@@ -138,7 +138,7 @@ function runFunction(source, globals) {
 
 function preloadEffect({ hydrated = true, pricingReady = true, view = 1 } = {}) {
   const effect = findSyntax(node => isCallExpression(node) && node.expression.getText(wizardTree) === 'useEffect' &&
-    isArrowFunction(node.arguments[0]) && node.arguments[0].getText(wizardTree).includes('whenIdle(preloadDeliveryWindows'));
+    isArrowFunction(node.arguments[0]) && node.arguments[0].getText(wizardTree).includes('whenIdle(preloadDeliveryWindowsWhenIdle'));
   const frames = new Map();
   const idle = new Map();
   const requests = [];
@@ -156,7 +156,7 @@ function preloadEffect({ hydrated = true, pricingReady = true, view = 1 } = {}) 
       idle.set(id, callback);
       return () => idle.delete(id);
     },
-    preloadDeliveryWindows() { warmCount++; },
+    preloadDeliveryWindowsWhenIdle() { warmCount++; },
   });
   return { frames, idle, requests, count: () => warmCount, run };
 }
@@ -224,6 +224,43 @@ test('background warming skips hidden/offline pages and recovers from a failed c
   await new Promise(resolve => { setImmediate(resolve); });
   assert.equal(requests, 2);
   assert.equal(renders, 0, 'Warming must not mount a picker or freeze current availability');
+});
+
+test('idle warming respects resource hints without blocking customer intent', () => {
+  const declaration = findSyntax(node => isFunctionDeclaration(node) && node.name?.text === 'preloadDeliveryWindowsWhenIdle');
+  for (const hints of [
+    { deviceMemory: 0.5 }, { deviceMemory: 1 }, { deviceMemory: 2 },
+    { connection: { saveData: true } },
+    { connection: { effectiveType: 'slow-2g' } },
+    { connection: { effectiveType: '2g' } },
+  ]) {
+    let requests = 0;
+    const warm = runFunction(declaration.getText(wizardTree), {
+      navigator: hints, preloadDeliveryWindows() { requests++; },
+    });
+    warm();
+    assert.equal(requests, 0, JSON.stringify(hints));
+  }
+  // Unsupported hints remain optional; re-read them each time, never cache a device policy.
+  const navigator = { deviceMemory: 4, connection: { effectiveType: '4g', saveData: false } };
+  let requests = 0;
+  const warm = runFunction(declaration.getText(wizardTree), {
+    navigator, preloadDeliveryWindows() { requests++; },
+  });
+  warm();
+  assert.equal(requests, 1);
+  navigator.connection.saveData = true;
+  warm();
+  assert.equal(requests, 1);
+  const unknown = runFunction(declaration.getText(wizardTree), {
+    navigator: {}, preloadDeliveryWindows() { requests++; },
+  });
+  unknown();
+  assert.equal(requests, 2);
+  // Focus/touch/navigation call the unrestricted loader, not the speculative policy.
+  for (const event of ['onPointerEnter', 'onFocus', 'onPointerDown']) {
+    assert.ok(wizardSource.includes(`${event}={view === 1 ? preloadDeliveryWindows : undefined}`));
+  }
 });
 
 test('moving into Step 2 starts warming before updating navigation state', () => {
