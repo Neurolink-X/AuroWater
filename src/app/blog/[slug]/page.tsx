@@ -40,7 +40,7 @@ export default async function BlogArticle({ params }: Props) {
         <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl">{post.title}</h1>
         <p className="mt-6 text-lg leading-8 text-slate-600 sm:text-xl">{post.description}</p>
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 border-y border-slate-200 py-4 text-sm text-slate-600">
-          <span className="font-semibold text-slate-800">{post.category === WEEKLY_NEWS_CATEGORY ? 'AuroTap · Automated source brief' : 'AuroTap Editorial'}</span>
+          <span className="font-semibold text-slate-800">{post.category === WEEKLY_NEWS_CATEGORY ? 'AuroTap · Source-attributed news brief' : 'AuroTap Editorial'}</span>
           <span>Published {date(post.publishAt)}</span>
           <span>{Math.max(1, Math.ceil(words / 200))} min read</span>
         </div>

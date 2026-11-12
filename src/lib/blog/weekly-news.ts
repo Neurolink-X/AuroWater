@@ -6,6 +6,7 @@ const IST_MS = 330 * 60_000;
 export const NEWS_HOSTS: Readonly<Record<string, string>> = {
   'pib.gov.in': 'Press Information Bureau',
   'thehindu.com': 'The Hindu',
+  'timesofindia.indiatimes.com': 'The Times of India',
   'indianexpress.com': 'The Indian Express',
   'downtoearth.org.in': 'Down To Earth',
 };

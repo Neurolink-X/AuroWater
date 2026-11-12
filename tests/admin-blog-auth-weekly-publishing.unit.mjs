@@ -88,6 +88,8 @@ test('RSS rejects untrusted publishers, mismatched links, stale/future dates and
   // eslint-disable-next-line no-script-url -- Deliberately hostile input verifies unsafe links are rejected.
   assert.equal(news.newsSourceLink('javascript:alert(1)'), null);
   assert.equal(news.newsSourceLink('https://thehindu.com.evil.test'), null);
+  assert.equal(news.newsSourceLink('https://timesofindia.indiatimes.com/city/delhi/example/articleshow/135745911.cms'),
+    'https://timesofindia.indiatimes.com/city/delhi/example/articleshow/135745911.cms');
 });
 
 test('brief is bounded and attributed, with duplicate links/headlines removed and no copied RSS body', () => {
@@ -251,7 +253,7 @@ test('daily recovery schedule reaches cron without browser login; article source
     cookies: { get() { throw new Error('Cron must not depend on browser cookies'); } } });
   assert.equal(through.status, 200);
   const article = read('src/app/blog/[slug]/page.tsx');
-  assert.ok(article.includes('Automated source brief'));
+  assert.ok(article.includes('Source-attributed news brief'));
   assert.ok(article.includes('newsSourceLink(paragraph.slice(8))'));
   assert.ok(article.includes('rel="noopener noreferrer"'));
   assert.ok(read('src/app/admin/blog/page.tsx').includes('Weekly publishing status'));
@@ -270,7 +272,7 @@ test('public weekly article actually renders attribution, current dates and safe
     '@/lib/env': { getSiteUrl: () => 'https://www.aurotap.in' }, '@/lib/blog/weekly-news': news,
   });
   const html = renderToStaticMarkup(await page.default({ params: Promise.resolve({ slug: guide.slug }) }));
-  assert.match(html, /Automated source brief/);
+  assert.match(html, /Source-attributed news brief/);
   assert.match(html, /not independently verify|does not reproduce/);
   assert.ok(html.includes(`href="${lead().sourceUrl}"`));
   assert.match(html, /rel="noopener noreferrer"/);
