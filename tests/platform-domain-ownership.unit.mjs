@@ -10,7 +10,7 @@ import {
 
 test('all shared modules have explicit, valid, duplicate-free safety-domain ownership', () => {
   const known = new Set(Object.keys(DOMAIN_CONTRACTS));
-  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 28);
+  assert.equal(Object.keys(EXPLICIT_RUNTIME_OWNERS).length, 29);
   for (const [path, domains] of Object.entries(EXPLICIT_RUNTIME_OWNERS)) {
     assert.match(path, /^src\//);
     assert.ok(domains.length, `No domain for ${path}`);
@@ -106,4 +106,13 @@ test('public waitlist submissions and their admin queue share owned regression e
     'tests/waitlist-booking-role.unit.mjs',
   ];
   assert.deepEqual(enforceChangeImpact(changed).problems, []);
+});
+
+test('home startup keeps its booking ownership and relevant rendering regression evidence', () => {
+  assert.deepEqual(domainsForChangedPath('src/app/(public)/page.tsx'), ['booking']);
+  assert.deepEqual(enforceChangeImpact([
+    'src/app/(public)/page.tsx', 'src/app/(public)/HomeClient.tsx',
+    'tests/unit/mobile-home-booking-auth-vitals.test.mjs',
+    'tests/home-startup-streaming.unit.mjs',
+  ]).problems, []);
 });
