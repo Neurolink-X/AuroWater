@@ -24,6 +24,7 @@ import { formatOrderReference } from '@/lib/order-reference';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { whenIdle } from '@/components/layout/header-utils';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -70,6 +71,29 @@ import {
 const TimeSlotPicker = dynamic(() => import('@/components/booking/TimeSlotPicker'), {
   loading: () => <div role="status" className="min-h-60 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Loading delivery windows…</div>,
 });
+
+/** Warm the module cache without rendering slots or storing availability. */
+function preloadDeliveryWindows(): void {
+  if (document.visibilityState === 'hidden' || !navigator.onLine) return;
+  void import('@/components/booking/TimeSlotPicker').catch(() => {
+    // The on-demand component can still load if background warming fails.
+  });
+}
+
+/** Device hints only limit speculative work; customer navigation always loads. */
+function preloadDeliveryWindowsWhenIdle(): void {
+  const hints = navigator as Navigator & {
+    deviceMemory?: number;
+    connection?: { saveData?: boolean; effectiveType?: string };
+  };
+  if (
+    (typeof hints.deviceMemory === 'number' && hints.deviceMemory <= 2) ||
+    hints.connection?.saveData ||
+    hints.connection?.effectiveType === 'slow-2g' ||
+    hints.connection?.effectiveType === '2g'
+  ) return;
+  preloadDeliveryWindows();
+}
 
 const ROUTES = {
   home: '/customer/home',
@@ -753,6 +777,18 @@ export default function BookingWizard() {
   }, []);
 
   const view    = createdOrder ? 4 : Math.min(step, MAX_FORM_STEP);
+
+  useEffect(() => {
+    if (!hydrated || !pricingReady || view !== 1) return;
+    let cancelIdle = () => {};
+    const frame = window.requestAnimationFrame(() => {
+      cancelIdle = whenIdle(preloadDeliveryWindowsWhenIdle, 1500);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      cancelIdle();
+    };
+  }, [hydrated, pricingReady, view]);
   const minDate = getMinDate();
   const datePills = useMemo(() => nextFourteenIsoDates(minDate), [minDate]);
   const todayOpen = useMemo(
@@ -764,6 +800,7 @@ export default function BookingWizard() {
 
   const goTo = useCallback((n: number) => {
     const clamped = Math.min(MAX_FORM_STEP, Math.max(1, n));
+    if (clamped === 2) preloadDeliveryWindows();
     setStep(clamped);
     setFurthest((f) => Math.max(f, clamped));
   }, []);
@@ -2807,7 +2844,14 @@ export default function BookingWizard() {
                     <button type="button" onClick={prevStep} disabled={submitting} className={btnGhost}>Back</button>
                   )}
                   {view < 3 ? (
-                    <button type="button" onClick={nextStep} className={btnPrimary}>
+                    <button
+                      type="button"
+                      onClick={nextStep}
+                      onPointerEnter={view === 1 ? preloadDeliveryWindows : undefined}
+                      onFocus={view === 1 ? preloadDeliveryWindows : undefined}
+                      onPointerDown={view === 1 ? preloadDeliveryWindows : undefined}
+                      className={btnPrimary}
+                    >
                       {view === 1 ? 'Continue →' : 'Review order →'}
                     </button>
                   ) : (
