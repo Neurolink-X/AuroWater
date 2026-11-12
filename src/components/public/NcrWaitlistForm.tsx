@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { submitWaitlist } from '@/lib/waitlist-client';
 
 type CityOption = { name: string; status: 'active' | 'coming_soon' | 'waitlist' };
 
@@ -22,34 +23,39 @@ export default function NcrWaitlistForm({
   const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => requestRef.current?.abort(), []);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (status === 'sending') return;
+    if (requestRef.current) return;
     if (!city.trim() || (city === 'Other city' && otherCity.trim().length < 2)) {
       setStatus('error');
       setMessage(city === 'Other city' ? 'Enter the city name.' : 'Choose a city first.');
       return;
     }
+    if (!email.trim() && !phone.trim()) {
+      setStatus('error');
+      setMessage('Enter an email address or phone number so we can contact you.');
+      return;
+    }
+    const request = new AbortController();
+    requestRef.current = request;
     setStatus('sending');
     setMessage('');
     try {
-      const response = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await submitWaitlist({
           custom_city: city === 'Other city' ? otherCity.trim() : city,
-          area,
+          area: area.trim(),
           pincode: pincode || null,
           name: 'Waitlist visitor',
-          email: email || null,
-          phone: phone || null,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
           role: 'customer',
           source: 'service-areas',
           website,
-        }),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : 'Could not submit. Please try again.');
+      }, request.signal);
+      if (request.signal.aborted) return;
       setStatus('success');
       setMessage('Thank you! Your interest in this city has been recorded.');
       setOtherCity('');
@@ -59,8 +65,12 @@ export default function NcrWaitlistForm({
       setPhone('');
       setWebsite('');
     } catch (error) {
-      setStatus('error');
-      setMessage(error instanceof Error ? error.message : 'Could not submit. Please try again.');
+      if (!request.signal.aborted) {
+        setStatus('error');
+        setMessage(error instanceof Error ? error.message : 'Could not submit. Please try again.');
+      }
+    } finally {
+      if (requestRef.current === request) requestRef.current = null;
     }
   }
 

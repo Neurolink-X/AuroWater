@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import type { City } from '@/lib/cities';
 import { getPublicServiceCities } from '@/lib/public-city-directory.server';
 import {
@@ -66,11 +67,7 @@ function CityCard({ city }: { city: City }) {
   );
 }
 
-export default async function ServiceAreasPage() {
-  const cities = await getPublicServiceCities();
-  const active = cities.filter(city => city.status === 'active');
-  const upcoming = cities.filter(city => city.status !== 'active');
-
+export default function ServiceAreasPage() {
   return (
     <div className="min-w-0 bg-slate-50 text-slate-900">
       <section className="bg-gradient-to-br from-[#071827] via-[#0a263b] to-[#073b47]
@@ -111,6 +108,49 @@ export default async function ServiceAreasPage() {
         </div>
       </section>
 
+      <Suspense fallback={<DirectoryLoading />}>
+        <CityDirectory />
+      </Suspense>
+
+      <aside className="border-t border-slate-200 bg-slate-100 px-4 py-7 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4
+          sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">Already have an address?</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              The booking flow checks serviceability and displays the applicable
+              total before you confirm.
+            </p>
+          </div>
+          <Link href="/book"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center
+              rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white
+              hover:bg-slate-700">
+            Check a service
+          </Link>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function DirectoryLoading() {
+  return (
+    <div className="mx-auto min-h-96 w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14" role="status" aria-live="polite">
+      <p className="text-sm font-medium text-slate-600">Loading current service cities and the waitlist form…</p>
+      <div aria-hidden="true" className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((id) => <div key={id} className="h-64 rounded-2xl border border-slate-200 bg-white" />)}
+      </div>
+    </div>
+  );
+}
+
+async function CityDirectory() {
+  const cities = await getPublicServiceCities();
+  const active = cities.filter(city => city.status === 'active');
+  const upcoming = cities.filter(city => city.status !== 'active');
+  return (
+    <>
       <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14"
         aria-labelledby="active-areas">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -169,25 +209,6 @@ export default async function ServiceAreasPage() {
           name: city.name, status: city.status,
         }))} />
       </section>
-
-      <aside className="border-t border-slate-200 bg-slate-100 px-4 py-7 sm:px-6">
-        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4
-          sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Already have an address?</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              The booking flow checks serviceability and displays the applicable
-              total before you confirm.
-            </p>
-          </div>
-          <Link href="/book"
-            className="inline-flex min-h-11 shrink-0 items-center justify-center
-              rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white
-              hover:bg-slate-700">
-            Check a service
-          </Link>
-        </div>
-      </aside>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { submitWaitlist } from '@/lib/waitlist-client';
 import { isCityUuid } from '@/lib/cities';
 
 type Props = {
@@ -23,25 +24,27 @@ export default function WaitlistPanel({
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
+  const requestRef = useRef<AbortController | null>(null);
+  useEffect(() => () => requestRef.current?.abort(), []);
+
   const isSeller = role === 'seller';
   const isAgent = role === 'agent';
   const isBooking = source === 'book' || source === 'book-zone';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
+    if (requestRef.current) return;
     setError('');
     if (!/^[6-9]\d{9}$/.test(form.phone)) return setError('Enter a valid 10-digit Indian mobile number');
     if (form.name.trim().length < 2) return setError('Enter your name');
     if (isBooking && form.area.trim().length < 2) return setError('Enter your area or sector so we can map local demand');
     if (form.pincode && !/^[1-9]\d{5}$/.test(form.pincode)) return setError('Enter a valid 6-digit PIN code');
 
+    const request = new AbortController();
+    requestRef.current = request;
     setSubmitting(true);
     try {
-      const res = await fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await submitWaitlist({
           city_id: isCityUuid(cityId) ? cityId : null,
           custom_city: isCityUuid(cityId) ? undefined : cityName.trim(),
           name: form.name.trim(),
@@ -53,15 +56,15 @@ export default function WaitlistPanel({
           business_name: form.business_name.trim() || null,
           message: form.message.trim() || null,
           source,
-        }),
-      });
-      const data = (await res.json()) as { error?: string; success?: boolean; message?: string };
-      if (!res.ok) throw new Error(data.error && data.error.length < 160 ? data.error : 'Unable to join the waitlist. Please try again.');
-      setDone(true);
+      }, request.signal);
+      if (!request.signal.aborted) setDone(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      if (!request.signal.aborted) setError(err instanceof Error ? err.message : 'Could not join the waitlist. Please try again.');
     } finally {
-      setSubmitting(false);
+      if (requestRef.current === request && !request.signal.aborted) {
+        requestRef.current = null;
+        setSubmitting(false);
+      }
     }
   };
 

@@ -50,6 +50,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   /* Core public pages */
   '/',
   '/services',
+  '/service-areas',
   '/pricing',
   '/how-it-works',
   '/contact',
@@ -99,6 +100,11 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   '/auth/otp',
   '/auth/update-password',
   '/account-help',
+
+  /* Public discovery and waitlist APIs. GET /api/waitlist authenticates admins in its handler. */
+  '/api/cities',
+  '/api/waitlist',
+  '/api/public/ncr-waitlist',
 
   /* Server-authenticated scheduler API; route validates CRON_SECRET. */
   '/api/internal/technician-dispatch-sweep',
@@ -154,6 +160,7 @@ const PUBLIC_PREFIXES: readonly string[] = [
   '/api/agent/',
 
   /* Public content */
+  '/cities/',
   '/blog/',
   '/images/',
   '/icons/',
