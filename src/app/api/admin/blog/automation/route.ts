@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       .lte('publish_at', new Date().toISOString()).order('publish_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (state.error || latest.error) return jsonErr('Unable to read weekly publishing status.', 503);
-  let lastRun: unknown = null;
+  let lastRun: { outcome: string; reason: string; attemptedAt: string } | null = null;
   try {
     const parsed: unknown = JSON.parse(state.data?.sections?.[0]?.paragraphs?.[0] ?? 'null');
     if (parsed && typeof parsed === 'object') {
@@ -28,8 +28,14 @@ export async function GET(req: NextRequest) {
       }
     }
   } catch { /* Invalid private status never leaks content. */ }
+  const enabled = process.env.VERCEL_ENV === 'production' && process.env.AUTO_BLOG_PUBLISH_ENABLED !== 'false' && Boolean(process.env.CRON_SECRET);
+  let health = enabled ? 'not_started' : 'disabled';
+  if (enabled && lastRun) {
+    health = Date.now() - Date.parse(lastRun.attemptedAt) > 36 * 60 * 60 * 1000
+      ? 'stale' : lastRun.outcome === 'failed' ? 'failed' : 'healthy';
+  }
   return jsonOk({
-    enabled: process.env.VERCEL_ENV === 'production' && process.env.AUTO_BLOG_PUBLISH_ENABLED !== 'false' && Boolean(process.env.CRON_SECRET),
+    enabled, health,
     schedule: 'Sunday around 08:43 IST; daily recovery checks until this week is published',
     nextCheckAt: nextNewsCheck(), currentWeekSlug: weekSlug(), lastPublished: latest.data ?? null, lastRun,
   });

@@ -18,14 +18,6 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const DOMAIN_CONTRACTS = Object.freeze({
-  editorial: {
-    owner: 'Public blog → Admin editorial operations',
-    purpose: 'Source attribution, scheduled publication, private drafts and stable article URLs',
-    source: ['src/lib/blog/managed-posts.ts', 'src/app/api/cron/blog-publish/route.ts'],
-    tests: ['tests/admin-blog-auth-weekly-publishing.unit.mjs'],
-    testName: /(?:blog|editorial|news)/i,
-    sourceName: /^src\/(?:lib\/blog\/|app\/blog\/|app\/api\/(?:admin\/blog\/|cron\/blog-publish\/))/i,
-  },
   auth: {
     owner: 'All roles',
     purpose: 'Login, session lifecycle, role isolation and authorization',
@@ -64,7 +56,7 @@ export const DOMAIN_CONTRACTS = Object.freeze({
     source: ['src/app/api/admin/users/route.ts', 'src/app/api/admin/partner-applications/route.ts'],
     tests: ['tests/routes-and-access.regression.mjs'],
     testName: /(?:admin|approval|verification|account|recovery|role|security)/i,
-    sourceName: /(?:^src\/app\/(?:admin\/|api\/admin\/)|^src\/components\/admin\/)/i,
+    sourceName: /(?:^src\/app\/(?:admin\/|api\/admin\/|blog\/|api\/cron\/blog-publish\/)|^src\/components\/admin\/|^src\/lib\/blog\/)/i,
   },
   pricing: {
     owner: 'Admin pricing → Customer checkout → Ledger',

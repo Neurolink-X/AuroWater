@@ -30,7 +30,7 @@ This is a source-attributed headline brief, not an AI-written report or an indep
 
 ## Operator visibility and verification
 
-Open **Admin → Blog publishing → Weekly news** for configuration state, next daily check, latest weekly article and last result/failure. Refresh status after a cron run.
+Open **Admin → Blog publishing → Weekly news** for configuration state, next daily check, latest weekly article and last result/failure. Refresh status after a cron run. If the latest recorded attempt is over 36 hours old, the panel flags stale automation; this flags the gap without claiming to know why the invocation was missed.
 
 Offline checks: `node --test tests/admin-blog-auth-weekly-publishing.unit.mjs tests/platform-domain-ownership.unit.mjs`.
 

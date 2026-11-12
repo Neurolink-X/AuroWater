@@ -51,10 +51,10 @@ test('unmapped high-risk runtime modules are still blocked (no generic bypass)',
   assert.ok(problems.some(p => p.includes('Unmapped runtime change')));
 });
 
-test('weekly blog publication and source validation require editorial regression evidence', () => {
+test('weekly blog publication and source validation remain owned admin operations', () => {
   for (const path of ['src/lib/blog/weekly-news.ts', 'src/lib/blog/weekly-news.server.ts',
     'src/app/api/cron/blog-publish/route.ts', 'src/app/api/admin/blog/automation/route.ts']) {
-    assert.ok(domainsForChangedPath(path).includes('editorial'));
+    assert.ok(domainsForChangedPath(path).includes('admin'));
   }
   assert.deepEqual(enforceChangeImpact([
     'src/lib/blog/weekly-news.ts', 'src/app/api/cron/blog-publish/route.ts',

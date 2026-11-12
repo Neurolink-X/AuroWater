@@ -138,6 +138,10 @@ test('missing eligible sources and database errors fail rather than inventing an
   db.failReads = true;
   await assert.rejects(publisher.publishWeeklyNews(db, now, async () => [lead()]), /Cannot check/);
   db.failReads = false;
+  db.failWrites = true;
+  await assert.rejects(publisher.publishWeeklyNews(db, now, async () => [lead()]), /could not be saved/);
+  assert.equal(db.rows.size, 0);
+  db.failWrites = false;
   await publisher.recordNewsRun(db, 'failed', 'No fresh eligible news', now);
   assert.equal(db.rows.get(news.NEWS_STATUS_SLUG).status, 'draft');
   assert.equal(db.rows.get(news.NEWS_STATUS_SLUG).publish_at, null);
@@ -212,9 +216,10 @@ test('older managed article URLs survive beyond the bounded list; drafts/future 
 test('admin automation status enforces authentication and role checks before reading private run state', async () => {
   let dbCalls = 0;
   let allowed = false;
+  const db = memoryDb();
   const route = moduleFrom('src/app/api/admin/blog/automation/route.ts', {
     'next/server': {}, '@/lib/blog/weekly-news': news,
-    '@/utils/supabase/server': { createServiceClient: () => { dbCalls++; return memoryDb(); } },
+    '@/utils/supabase/server': { createServiceClient: () => { dbCalls++; return db; } },
     '@/lib/api/supabase-request': { requireSupabaseAuth: async () => ({ ok: true, ctx: {} }), requireAdmin: () => allowed },
     '@/lib/api/json-response': { jsonErr: (error, status) => Response.json({ error }, { status }), jsonOk: data => Response.json({ data }) },
   }, { process: { env: { VERCEL_ENV: 'production', CRON_SECRET: 'test-only-secret' } } });
@@ -225,7 +230,12 @@ test('admin automation status enforces authentication and role checks before rea
   assert.equal(response.status, 200);
   const result = await response.json();
   assert.equal(result.data.enabled, true);
+  assert.equal(result.data.health, 'not_started');
   assert.ok(!JSON.stringify(result).includes('test-only-secret'));
+  db.rows.set(news.NEWS_STATUS_SLUG, { slug: news.NEWS_STATUS_SLUG, sections: [{ paragraphs: [JSON.stringify({
+    outcome: 'published', reason: 'Previous week', attemptedAt: '2026-11-01T03:13:00Z',
+  })] }] });
+  assert.equal((await (await route.GET({})).json()).data.health, 'stale');
 });
 
 test('daily recovery schedule reaches cron without browser login; article sources are attributed and linked', () => {

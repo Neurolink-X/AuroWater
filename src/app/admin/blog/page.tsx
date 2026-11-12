@@ -11,7 +11,7 @@ type Post = {
 };
 type Editor = Omit<Post,'id'|'updated_at'>;
 type Automation = {
-  enabled: boolean; schedule: string; nextCheckAt: string;
+  enabled: boolean; health: string; schedule: string; nextCheckAt: string;
   lastPublished: { slug: string; publish_at: string } | null;
   lastRun: { outcome?: string; reason?: string; attemptedAt?: string } | null;
 };
@@ -129,6 +129,8 @@ export default function AdminBlogPage() {
       </div>
       {automation && <>
         <p>{automation.schedule}. One brief per week, up to three fresh headlines. No lifetime post limit.</p>
+        {automation.health === 'stale' && <p role="alert" className="font-semibold text-red-800">No recorded automation check in over 36 hours. Check the Vercel cron switch and invocation logs.</p>}
+        {automation.health === 'not_started' && <p className="text-slate-700">Awaiting the first production check.</p>}
         <p>Next check: {new Date(automation.nextCheckAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</p>
         <p>Latest weekly post: {automation.lastPublished
           ? <Link className="font-semibold underline" href={`/blog/${automation.lastPublished.slug}`}>{new Date(automation.lastPublished.publish_at).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}</Link>
