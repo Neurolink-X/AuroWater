@@ -27,6 +27,8 @@ test('diagnostic route templates never retain order IDs, contact details or quer
  assert.equal(safeErrorPath('/api/customer/orders/secret-uuid?token=private'),'/api/customer/orders/[item]');
  assert.equal(safeErrorPath('/customer/person@example.com/9889305803'),'/customer/[item]/[item]');
  assert.equal(errorGroup('/api/supplier/orders'),'supplier');
+ assert.equal(safeErrorPath('/api/public/ncr-waitlist'),'/api/public/ncr-waitlist');
+ assert.equal(safeErrorPath('/admin/dispatch-queue'),'/admin/dispatch-queue');
  assert.equal(validatePlatformEvent({code:'arbitrary private exception',group:'admin'}),null);
  const event=validatePlatformEvent({code:'API_SERVER_ERROR',group:'public',path:'/book?phone=private',status:503,message:'secret',stack:'secret'});
  assert.equal(event.path,'/book');assert.ok(!JSON.stringify(event).includes('secret'));

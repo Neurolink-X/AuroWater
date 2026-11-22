@@ -3,7 +3,7 @@ create table public.platform_errors (
   id bigint generated always as identity primary key,
   code text not null check (code in ('RUNTIME_ERROR','UNHANDLED_REJECTION','CHUNK_LOAD_ERROR','API_SERVER_ERROR','NETWORK_ERROR','SERVER_ERROR','DATABASE_UNAVAILABLE')),
   route_group text not null check (route_group in ('public','customer','supplier','technician','admin')),
-  route_path text not null check (length(route_path) <= 200 and route_path ~ '^/[a-z/\[\]-]*$'),
+  route_path text not null check (length(route_path) <= 200 and route_path ~ '^/[a-z0-9/_\[\]-]*$'),
   http_status integer not null check (http_status=0 or http_status between 500 and 599),
   source text not null check (source in ('browser','server')),
   bucket timestamptz not null,
