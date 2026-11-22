@@ -43,26 +43,6 @@ const NAV = [
     ),
   },
   {
-    href: '/admin/dashboard/users',
-    label: 'Approvals',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path
-          d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="9" cy="7" r="4" strokeWidth="1.8" />
-        <path
-          d="m17 11 2 2 4-4"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    ),
-  },
-  {
     href: '/admin/dashboard/waitlist',
     label: 'Waitlist',
     icon: (

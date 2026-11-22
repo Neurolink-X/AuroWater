@@ -159,10 +159,6 @@ export default function AdminOrdersPage() {
     try {
       const detail = await adminOrderGet(orderId);
       setDrawerOrder(detail);
-      const st = String(detail.status ?? '');
-      if (st === 'PENDING' || st === 'ASSIGNED') {
-        void adminTechniciansList(String(detail.service_type ?? '')).then(setTechList).catch(() => setTechList([]));
-      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load order');
       setDrawerOpen(false);

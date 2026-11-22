@@ -24,7 +24,7 @@ export const DOMAIN_CONTRACTS = Object.freeze({
     source: ['src/app/api/auth/login/route.ts', 'src/lib/api-client.ts'],
     tests: ['tests/routes-and-access.regression.mjs'],
     testName: /(?:auth|session|login|role|access|security|permissions)/i,
-    sourceName: /(?:^src\/(?:app\/api\/auth\/|app\/auth\/|hooks\/useAuth|lib\/(?:api-client|auth\/|api\/supabase-request))|^src\/proxy\.ts)/,
+    sourceName: /(?:^src\/(?:app\/api\/auth\/|app\/auth\/|hooks\/useAuth|lib\/(?:api-client|auth\/|api\/(?:supabase-request|read-coordinator)))|^src\/proxy\.ts)/,
   },
   booking: {
     owner: 'Customer → Supplier/Technician → Admin',
