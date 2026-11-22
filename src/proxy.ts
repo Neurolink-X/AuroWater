@@ -112,6 +112,7 @@ const PUBLIC_EXACT: ReadonlySet<string> = new Set([
   '/api/internal/dispatch-work-sweep',
   // Public, bounded telemetry intake; the handler enforces same-origin and payload validation.
   '/api/internal/telemetry/web-vitals',
+  '/api/internal/telemetry/errors',
 
   /* Legacy auth URLs */
   '/login',

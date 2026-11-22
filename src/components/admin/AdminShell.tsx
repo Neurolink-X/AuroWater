@@ -18,6 +18,7 @@ import type { User } from '@/types';
    NAVIGATION (same pages as before)
    ============================================================= */
 const NAV = [
+  { href: '/admin/errors', label: 'Platform Errors', icon: <span aria-hidden="true">⚠</span> },
   {
     href: '/admin/verification',
     label: 'Verification Center',

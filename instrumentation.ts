@@ -31,3 +31,12 @@ export async function register(): Promise<void> {
     );
   }
 }
+
+/** Unhandled server/API/render exceptions; never store raw exception content. */
+export const onRequestError: import('next').Instrumentation.onRequestError = async (error, request, context) => {
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+  const { classifyPlatformError, safeErrorPath, errorGroup } = await import('@/lib/observability/platform-errors');
+  const { recordPlatformError } = await import('@/lib/observability/platform-errors.server');
+  const path = safeErrorPath(context.routePath || request.path);
+  await recordPlatformError({ code: classifyPlatformError(error), path, group: errorGroup(path), source: 'server', status: 500 });
+};

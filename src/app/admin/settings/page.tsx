@@ -805,6 +805,16 @@ export default function AdminSettingsPage() {
     };
   }, [load]);
 
+  // Refresh effective published values without replacing unsaved operational edits.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') void load({ silent: true }); };
+    const storage = (event: StorageEvent) => { if (event.key === 'aw_pricing_published_at') refresh(); };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('aurotap:pricing-published', refresh);
+    window.addEventListener('storage', storage);
+    return () => { window.removeEventListener('focus', refresh); window.removeEventListener('aurotap:pricing-published', refresh); window.removeEventListener('storage', storage); };
+  }, [load]);
+
   /* ── Editing ── */
   const handleChange = useCallback((key: ManagedKey, value: string) => {
     setValues((current) => (current[key] === value ? current : { ...current, [key]: value }));

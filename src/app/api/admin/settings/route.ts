@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { jsonErr } from '@/lib/api/json-response';
+import { resolveEffectivePriceBook, validateEffectivePriceBook } from '@/lib/pricing/resolve-effective';
 import { rowsToSettingsPayload } from '@/lib/api/settings-map';
 import {
   requireAdmin,
@@ -601,10 +602,8 @@ export async function GET(
     );
   }
 
-  const {
-    data,
-    error,
-  } = await auth.ctx.supabase
+  const [settingsResult, pricingResult] = await Promise.all([
+    auth.ctx.supabase
     .from('settings')
     .select(
       'key, value, updated_at',
@@ -614,8 +613,13 @@ export async function GET(
       {
         ascending: true,
       },
-    );
-
+    ),
+    auth.ctx.supabase.from('pricing_versions').select('version,effective_from,config')
+    .lte('effective_from', new Date().toISOString())
+    .order('effective_from', {ascending:false}).order('version', {ascending:false})
+    .limit(1).abortSignal(AbortSignal.timeout(5000)).maybeSingle(),
+  ]);
+  const { data, error } = settingsResult;
   if (error) {
     return jsonErr(
       error.message,
@@ -628,8 +632,17 @@ export async function GET(
       data ?? [],
     );
 
-  const etag =
-    createEtag(payload);
+  // Legacy settings are operational preferences, never the live price authority.
+  const { data: activeVersion, error: pricingError } = pricingResult;
+  const published = resolveEffectivePriceBook(activeVersion?.config, req.nextUrl.searchParams.get('city'));
+  if (pricingError || !published || validateEffectivePriceBook(published).length) {
+    return jsonErr('Published pricing is unavailable. Legacy prices have not been substituted.', 503);
+  }
+  for (const [key, field] of Object.entries({default_can_price:'water_normal', chilled_can_price:'water_chilled', subscription_can_price:'water_subscription', bulk_can_price:'bulk_can_price', bulk_threshold:'bulk_threshold', convenience_fee:'convenience_fee', delivery_fee:'delivery_fee', emergency_surcharge:'emergency_surcharge', surge_charge:'surge_charge', gst_rate:'gst_rate'})) payload[key] = published[field];
+  payload.service_base_prices = published.services as Record<string, number>;
+  payload.pricing_version = activeVersion?.version;
+  payload.pricing_city_key = published.city_key;
+  const etag = createEtag(payload);
 
   /*
    * Conditional request.

@@ -1533,3 +1533,8 @@ export const api = {
     },
   },
 } as const;
+
+/** Admin-only paginated diagnostic history; never cached as public data. */
+export async function adminPlatformErrorsList<T>(page: number, group: string, signal?: AbortSignal): Promise<T> {
+  return apiFetchAuth<T>(`/admin/errors?page=${page}&group=${encodeURIComponent(group)}`, {signal});
+}
