@@ -49,7 +49,8 @@ test('consolidated admin navigation retains notification inbox without header be
   const approvals = read('src/app/admin/dashboard/users/page.tsx');
   assert.doesNotMatch(header, /<NotificationBell/);
   assert.match(header, /href="\/notifications"/);
-  assert.match(approvals, /<PendingPartnerApplications/);
+  assert.match(approvals, /redirect\(/);
+  assert.ok(approvals.includes('/admin/users?'));
   const users = read('src/app/admin/users/page.tsx');
   assert.match(users, /<PendingPartnerApplications/);
   assert.match(users, /No pending account approvals/);
@@ -59,5 +60,5 @@ test('consolidated admin navigation retains notification inbox without header be
   assert.match(queue, /review_supported/);
   assert.match(queue, /Review KYC documents/);
   assert.match(endpoint, /\.in\('type',\['technician','supplier'\]\)/);
-  assert.match(approvals, /href="\/admin\/verification"/);
+  assert.match(users, /href="\/admin\/verification"/);
 });

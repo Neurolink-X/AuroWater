@@ -18,6 +18,7 @@ import type { User } from '@/types';
    NAVIGATION (same pages as before)
    ============================================================= */
 const NAV = [
+  { href: '/admin/errors', label: 'Platform Errors', icon: <span aria-hidden="true">⚠</span> },
   {
     href: '/admin/verification',
     label: 'Verification Center',
@@ -38,26 +39,6 @@ const NAV = [
         <rect x="14" y="3" width="7" height="7" rx="1.5" strokeWidth="1.8" />
         <rect x="3" y="14" width="7" height="7" rx="1.5" strokeWidth="1.8" />
         <rect x="14" y="14" width="7" height="7" rx="1.5" strokeWidth="1.8" />
-      </svg>
-    ),
-  },
-  {
-    href: '/admin/dashboard/users',
-    label: 'Approvals',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path
-          d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="9" cy="7" r="4" strokeWidth="1.8" />
-        <path
-          d="m17 11 2 2 4-4"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
       </svg>
     ),
   },

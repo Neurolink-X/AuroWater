@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { safeErrorPath, errorGroup } from '@/lib/observability/platform-errors';
+import type { PlatformErrorCode } from '@/lib/observability/platform-errors';
 
 type RouteGroup = 'customer' | 'supplier' | 'technician' | 'admin' | 'public';
 type ErrorCode = 'RUNTIME_ERROR' | 'UNHANDLED_REJECTION' | 'CHUNK_LOAD_ERROR';
@@ -30,10 +32,25 @@ export default function RuntimeErrorReporter() {
     let windowStart = Date.now();
     let emitted = 0;
     const lastByCode = new Map<ErrorCode, number>();
+    const lastDiagnostics = new Map<string, number>();
+    let diagnosticsStart = Date.now(); let diagnosticsCount = 0;
+    const diagnose = (code: PlatformErrorCode, path: string, status = 0) => {
+      const now = Date.now();
+      if (now - diagnosticsStart >= 60_000) { diagnosticsStart = now; diagnosticsCount = 0; lastDiagnostics.clear(); }
+      const key = `${code}:${safeErrorPath(path)}:${status}`;
+      if (diagnosticsCount >= 3 || lastDiagnostics.has(key)) return;
+      diagnosticsCount++; lastDiagnostics.set(key, now);
+      try {
+        navigator.sendBeacon('/api/internal/telemetry/errors', new Blob([JSON.stringify({
+          code, path: safeErrorPath(path), group: errorGroup(path), status, source: 'browser',
+        })], {type:'application/json'}));
+      } catch { /* Never interfere with the original operation. */ }
+    };
     const send = (code: ErrorCode) => {
       const now = Date.now();
       if (now - windowStart >= 60_000) { windowStart = now; emitted = 0; }
       if (emitted >= 3 || now - (lastByCode.get(code) ?? 0) < 10_000) return;
+      diagnose(code, window.location.pathname);
       emitted++;
       lastByCode.set(code, now);
       try {
@@ -56,9 +73,30 @@ export default function RuntimeErrorReporter() {
       send(classify(message, 'UNHANDLED_REJECTION'));
     };
 
+    // Observe settled results without reading bodies or changing requests/retries.
+    const originalFetch = window.fetch;
+    const observedFetch: typeof window.fetch = async (...args) => {
+      let path = '';
+      try {
+        const input = args[0];
+        const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, window.location.origin);
+        if (url.origin === window.location.origin && url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/internal/telemetry/')) path = url.pathname;
+      } catch { /* Invalid requests retain native fetch behavior. */ }
+      try {
+        const response = await originalFetch.apply(window, args);
+        if (path && response.status >= 500) diagnose('API_SERVER_ERROR', path, response.status);
+        return response;
+      } catch (error) {
+        const signal = args[1]?.signal ?? (args[0] instanceof Request ? args[0].signal : undefined);
+        if (path && !signal?.aborted && !(error instanceof DOMException && error.name === 'AbortError')) diagnose('NETWORK_ERROR', path);
+        throw error;
+      }
+    };
+    window.fetch = observedFetch;
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onRejection);
     return () => {
+      if (window.fetch === observedFetch) window.fetch = originalFetch;
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onRejection);
     };

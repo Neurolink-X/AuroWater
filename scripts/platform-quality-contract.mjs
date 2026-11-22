@@ -24,7 +24,7 @@ export const DOMAIN_CONTRACTS = Object.freeze({
     source: ['src/app/api/auth/login/route.ts', 'src/lib/api-client.ts'],
     tests: ['tests/routes-and-access.regression.mjs'],
     testName: /(?:auth|session|login|role|access|security|permissions)/i,
-    sourceName: /(?:^src\/(?:app\/api\/auth\/|app\/auth\/|hooks\/useAuth|lib\/(?:api-client|auth\/|api\/supabase-request))|^src\/proxy\.ts)/,
+    sourceName: /(?:^src\/(?:app\/api\/auth\/|app\/auth\/|hooks\/useAuth|lib\/(?:api-client|auth\/|api\/(?:supabase-request|read-coordinator)))|^src\/proxy\.ts)/,
   },
   booking: {
     owner: 'Customer → Supplier/Technician → Admin',
@@ -56,7 +56,7 @@ export const DOMAIN_CONTRACTS = Object.freeze({
     source: ['src/app/api/admin/users/route.ts', 'src/app/api/admin/partner-applications/route.ts'],
     tests: ['tests/routes-and-access.regression.mjs'],
     testName: /(?:admin|approval|verification|account|recovery|role|security)/i,
-    sourceName: /(?:^src\/app\/(?:admin\/|api\/admin\/|blog\/|api\/cron\/blog-publish\/)|^src\/components\/admin\/|^src\/lib\/blog\/)/i,
+    sourceName: /(?:^src\/app\/(?:admin\/|api\/admin\/|blog\/|api\/cron\/blog-publish\/)|^src\/components\/admin\/|^src\/lib\/blog\/|^src\/lib\/observability\/platform-errors|^src\/app\/api\/internal\/telemetry\/errors\/)/i,
   },
   pricing: {
     owner: 'Admin pricing → Customer checkout → Ledger',
@@ -144,6 +144,7 @@ export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
   'src/app/(supplier)/supplier/settings/page.tsx': ['supplier'],
   'src/app/api/notifications/inbox/route.ts': ['notifications', 'auth'],
   'src/lib/routing/slot-safe-route.ts': ['dispatch', 'supplier', 'technician'],
+  'src/components/observability/RuntimeErrorReporter.tsx': ['admin'],
   'src/app/(public)/HomeClient.tsx': ['booking', 'auth'],
   'src/app/(public)/contact/ContactForm.tsx': ['admin', 'auth'],
   'src/app/account-help/page.tsx': ['auth', 'admin'],

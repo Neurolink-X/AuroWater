@@ -162,7 +162,7 @@ export async function GET(
   const address_text =
     flatAddress || formatAddressSnapshot(row.address_snapshot);
 
-  return jsonOk({
+  const response = jsonOk({
     ...order,
     customer_name,
     customer_phone,
@@ -172,6 +172,8 @@ export async function GET(
     service_key,
     address_text,
   });
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
 }
 
 export async function PUT(

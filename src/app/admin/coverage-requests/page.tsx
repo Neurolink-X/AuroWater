@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '@/lib/api-client';
+import { adminCoverageRequestsList, getToken } from '@/lib/api-client';
 
 type Row = { id: string; supplier_id: string; zone_id: string; service_keys: string[]; status: string; supplier_note: string | null; admin_note: string | null; created_at: string; profiles?: { full_name?: string; phone?: string; city?: string } | null; service_zones?: { city?: string; name?: string; status?: string; pincodes?: string[] } | null };
 const requestedPins = (note: string | null) => { const match = note?.match(/Requested PIN codes:\s*([^\n]+)/i); return match ? [...new Set(match[1].split(/[\s,]+/).filter(pin => /^\d{6}$/.test(pin)))].slice(0, 3) : []; };
@@ -15,25 +15,26 @@ export default function AdminCoverageRequestsPage() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const requestRef = useRef<AbortController | null>(null);
   const load = useCallback(async (silent = false) => {
+    if (silent && requestRef.current) return;
+    requestRef.current?.abort();
+    const request = new AbortController();
+    requestRef.current = request;
     if (!silent) setLoading(true);
     setError('');
     try {
-      const token = await getToken();
-      if (!token) throw new Error('Please sign in again.');
-      const res = await fetch('/api/admin/coverage-requests', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error ?? 'Could not load requests.');
-      setRows(json.data ?? []);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load requests.'); }
-    finally { setLoading(false); }
+      const data = await adminCoverageRequestsList<Row[]>(request.signal);
+      if (!request.signal.aborted) setRows(data ?? []);
+    } catch (e) { if (!request.signal.aborted) setError(e instanceof Error ? e.message : 'Could not load requests.'); }
+    finally { if(requestRef.current===request){requestRef.current=null;if(!request.signal.aborted)setLoading(false);} }
   }, []);
   useEffect(() => {
     const initial = window.setTimeout(() => { void load(); }, 0);
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(true); }, 30_000);
-    const refreshOnFocus = () => { if (document.visibilityState === 'visible') void load(true); };
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible' && navigator.onLine) void load(true); }, 30_000);
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible' && navigator.onLine) void load(true); };
     document.addEventListener('visibilitychange', refreshOnFocus);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshOnFocus); };
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); document.removeEventListener('visibilitychange', refreshOnFocus); requestRef.current?.abort(); requestRef.current=null; };
   }, [load]);
   const review = async (row: Row, status: 'APPROVED'|'REJECTED') => {
     setBusy(row.id); setError(''); setMessage('');

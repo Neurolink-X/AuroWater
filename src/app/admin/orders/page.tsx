@@ -1,4 +1,5 @@
 'use client';
+import { bookedOrderPricing } from '@/lib/pricing/booked-order';
 import { formatOrderReference } from '@/lib/order-reference';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -50,6 +51,7 @@ export default function AdminOrdersPage() {
   const [rawRows, setRawRows] = useState<AdminOrderRow[]>([]);
 
   const [drawerOrder, setDrawerOrder] = useState<AdminOrderDetail | null>(null);
+  const receipt = drawerOrder ? bookedOrderPricing(drawerOrder) : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -157,10 +159,6 @@ export default function AdminOrdersPage() {
     try {
       const detail = await adminOrderGet(orderId);
       setDrawerOrder(detail);
-      const st = String(detail.status ?? '');
-      if (st === 'PENDING' || st === 'ASSIGNED') {
-        void adminTechniciansList(String(detail.service_type ?? '')).then(setTechList).catch(() => setTechList([]));
-      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Failed to load order');
       setDrawerOpen(false);
@@ -596,7 +594,7 @@ export default function AdminOrdersPage() {
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt className="text-slate-500">Sub-option</dt>
-                    <dd className="text-right">{String(drawerOrder.sub_option_key ?? '—')}</dd>
+                    <dd className="text-right">{receipt?.option ?? 'Not recorded'}</dd>
                   </div>
                   {drawerOrder.is_emergency ? (
                     <div className="flex justify-between gap-2">
@@ -654,18 +652,20 @@ export default function AdminOrdersPage() {
 
               <section>
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Price breakdown</h3>
+                <p className="mb-3 text-xs text-slate-600">Booked checkout amounts are preserved. New published prices apply to new quotes; they do not reprice accepted orders.</p>
+                {drawerOrder.service_type === 'water_can' && receipt && <div className="mb-3 rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-cyan-950"><p className="font-semibold">{receipt.plan}</p><p>{receipt.quantity ?? '—'} cans × {receipt.unit === null ? 'Rate not recorded' : formatInr(receipt.unit)} / can</p></div>}
                 <dl className="space-y-1.5">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Base price</dt>
-                    <dd>{formatInr(num(drawerOrder.base_amount))}</dd>
+                    <dt className="text-slate-500">Base price (after discounts)</dt>
+                    <dd>{receipt?.base == null ? 'Not recorded' : formatInr(receipt.base)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-slate-500">Convenience</dt>
-                    <dd>{formatInr(num(drawerOrder.convenience_fee))}</dd>
+                    <dt className="text-slate-500">Combined handling + delivery</dt>
+                    <dd>{receipt?.convenience == null ? 'Not recorded' : formatInr(receipt.convenience)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
                     <dt className="text-slate-500">GST</dt>
-                    <dd>{formatInr(num(drawerOrder.gst_amount))}</dd>
+                    <dd>{receipt?.tax == null ? 'Not recorded' : formatInr(receipt.tax)}</dd>
                   </div>
                   {num(drawerOrder.emergency_charge) > 0 ? (
                     <div className="flex justify-between gap-2">
@@ -673,9 +673,10 @@ export default function AdminOrdersPage() {
                       <dd>{formatInr(num(drawerOrder.emergency_charge))}</dd>
                     </div>
                   ) : null}
+                  {!!receipt?.discount && <div className="flex justify-between"><dt>Included discount</dt><dd>−{formatInr(receipt.discount)}</dd></div>}
                   <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between gap-2 font-semibold">
                     <dt>Total</dt>
-                    <dd>{formatInr(num(drawerOrder.total_amount))}</dd>
+                    <dd>{receipt?.total == null ? 'Not recorded' : formatInr(receipt.total)}</dd>
                   </div>
                   <div className="flex justify-between gap-2 text-slate-600">
                     <dt>Payment</dt>

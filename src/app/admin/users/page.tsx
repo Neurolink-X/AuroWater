@@ -673,6 +673,7 @@ function UsersContent() {
   const isDesktop = useIsDesktop();
   const debouncedQ = useDebouncedValue(q.trim(), SEARCH_DEBOUNCE_MS);
   const requestRef = useRef(0);
+  const userReadRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -695,6 +696,9 @@ function UsersContent() {
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
       const id = ++requestRef.current;
+      userReadRef.current?.abort();
+      const request = new AbortController();
+      userReadRef.current = request;
       if (opts.silent) setRefreshing(true);
       else setLoading(true);
 
@@ -708,7 +712,7 @@ function UsersContent() {
         if (role !== 'ALL') params.role = role.toLowerCase();
         if (debouncedQ) params.search = debouncedQ;
 
-        const res = await adminUsersWithMeta(params);
+        const res = await adminUsersWithMeta(params, request.signal);
         if (!mountedRef.current || id !== requestRef.current) return;
 
         const data = res.data ?? [];
@@ -724,6 +728,7 @@ function UsersContent() {
         if (!mountedRef.current || id !== requestRef.current) return;
         setError(cause instanceof Error ? cause.message : 'Failed to load users');
       } finally {
+        if (userReadRef.current === request) userReadRef.current = null;
         if (mountedRef.current && id === requestRef.current) {
           setLoading(false);
           setRefreshing(false);
@@ -749,6 +754,7 @@ function UsersContent() {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      userReadRef.current?.abort();
     };
   }, []);
 

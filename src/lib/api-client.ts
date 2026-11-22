@@ -1,3 +1,4 @@
+import { createReadCoordinator, readRequestKey } from '@/lib/api/read-coordinator';
 import { parseOrderIdentifier } from '@/lib/order-reference';
 import { jsonHeaders, requestJson } from '@/lib/api/transport';
 import type { ProfileRow } from '@/lib/db/types';
@@ -58,16 +59,15 @@ export function getApiErrorMessage(e: unknown): string {
   return getUserErrorMessage(e);
 }
 
+let tokenReadInFlight: Promise<string | null> | null = null;
 export async function getToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-
-  try {
-    // Supabase refreshes expiring tokens under its own session lock.
-    const { data } = await createClient().auth.getSession();
-    return data.session?.access_token ?? null;
-  } catch {
-    return null;
-  }
+  if (tokenReadInFlight) return tokenReadInFlight;
+  tokenReadInFlight = (async () => {
+    try { const { data } = await createClient().auth.getSession(); return data.session?.access_token ?? null; }
+    catch { return null; }
+  })();
+  try { return await tokenReadInFlight; } finally { tokenReadInFlight = null; }
 }
 
 export function setToken(token: string): void {
@@ -145,32 +145,20 @@ async function performFetchWithRetryParse(
   }
 }
 
-// Coalesce identical in-flight GETs (including auth identity) to avoid duplicate
-// dashboard reads during concurrent component mounts. Never share mutations or abortable calls.
-const inFlightGetRequests = new Map<string, Promise<{ res: Response; json: Envelope<unknown> }>>();
-
-async function fetchWithRetryParse(
-  path: string,
-  init: RequestInit
-): Promise<{ res: Response; json: Envelope<unknown> }> {
-  const method = (init.method ?? 'GET').toUpperCase();
-  if (method !== 'GET' || init.signal) return performFetchWithRetryParse(path, init);
-  const headers = new Headers(init.headers);
-  const key = [path, headers.get('Authorization') ?? '', headers.get('Accept') ?? '', String(init.cache ?? '')].join('|');
-  const existing = inFlightGetRequests.get(key);
-  if (existing) {
-    const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
-    const result = await existing;
-    reportApiTiming(path, startedAt, result.res.status, true);
-    return result;
+// Share identical reads while preserving each caller's independent cancellation.
+const parsedReads = createReadCoordinator<{ res: Response; json: Envelope<unknown> }>();
+async function fetchWithRetryParse(path: string, init: RequestInit): Promise<{res:Response;json:Envelope<unknown>}> {
+  if ((init.method ?? 'GET').toUpperCase() !== 'GET') {
+    parsedReads.clear(); rawReads.clear();
+    try { return await performFetchWithRetryParse(path,init); }
+    finally { parsedReads.clear(); rawReads.clear(); }
   }
-  const request = performFetchWithRetryParse(path, init);
-  inFlightGetRequests.set(key, request);
-  try {
-    return await request;
-  } finally {
-    if (inFlightGetRequests.get(key) === request) inFlightGetRequests.delete(key);
-  }
+  const key = readRequestKey(path,init);
+  const coalesced = parsedReads.has(key);
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : 0;
+  const result = await parsedReads.run(key, signal=>performFetchWithRetryParse(path,{...init,signal}),init.signal??undefined);
+  if (coalesced) reportApiTiming(path, startedAt, result.res.status, true);
+  return result;
 }
 
 /** Same retry/credentials/network rules; parses JSON body without `{ success, data }` envelope (admin routes). */
@@ -193,29 +181,15 @@ async function performFetchWithRetryRaw(
 }
 
 
-/** Coalesce concurrent identical admin GET reads without caching stale role data.
- * Auth header participates in the key; never share abortable reads or writes.
- */
-const inFlightRawGetRequests = new Map<string, Promise<{ res: Response; body: unknown }>>();
-
-async function fetchWithRetryRaw(
-  path: string,
-  init: RequestInit,
-): Promise<{ res: Response; body: unknown }> {
-  if ((init.method ?? 'GET').toUpperCase() !== 'GET' || init.signal) {
-    return performFetchWithRetryRaw(path, init);
+/** Auth-scoped in-flight sharing; completed results are never cached. */
+const rawReads = createReadCoordinator<{ res: Response; body: unknown }>();
+async function fetchWithRetryRaw(path:string,init:RequestInit):Promise<{res:Response;body:unknown}> {
+  if ((init.method ?? 'GET').toUpperCase() !== 'GET') {
+    parsedReads.clear(); rawReads.clear();
+    try { return await performFetchWithRetryRaw(path,init); }
+    finally { parsedReads.clear(); rawReads.clear(); }
   }
-  const headers = new Headers(init.headers);
-  const key = [path, headers.get('Authorization') ?? '', headers.get('Accept') ?? '', String(init.cache ?? '')].join('|');
-  const existing = inFlightRawGetRequests.get(key);
-  if (existing) return existing;
-  const request = performFetchWithRetryRaw(path, init);
-  inFlightRawGetRequests.set(key, request);
-  try {
-    return await request;
-  } finally {
-    if (inFlightRawGetRequests.get(key) === request) inFlightRawGetRequests.delete(key);
-  }
+  return rawReads.run(readRequestKey(path,init), signal=>performFetchWithRetryRaw(path,{...init,signal}),init.signal??undefined);
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}, redirectOnUnauthorized = true): Promise<T> {
@@ -1020,7 +994,7 @@ export async function adminUsersWithMeta(params?: {
   status?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ data: AdminUserRow[]; meta: Record<string, unknown> }> {
+}, signal?: AbortSignal): Promise<{ data: AdminUserRow[]; meta: Record<string, unknown> }> {
   const sp = new URLSearchParams();
   if (params?.role) sp.set('role', params.role);
   if (params?.search) sp.set('search', params.search);
@@ -1029,7 +1003,7 @@ export async function adminUsersWithMeta(params?: {
   if (params?.offset != null) sp.set('offset', String(params.offset));
   const q = sp.toString();
   const json = await adminFetchJson<{ data: AdminUserRow[]; meta: Record<string, unknown> }>(
-    `/admin/users${q ? `?${q}` : ''}`
+    `/admin/users${q ? `?${q}` : ''}`, signal
   );
   return { data: json.data ?? [], meta: json.meta ?? {} };
 }
@@ -1533,3 +1507,13 @@ export const api = {
     },
   },
 } as const;
+
+/** Admin-only paginated diagnostic history; never cached as public data. */
+export async function adminPlatformErrorsList<T>(page: number, group: string, signal?: AbortSignal): Promise<T> {
+  return apiFetchAuth<T>(`/admin/errors?page=${page}&group=${encodeURIComponent(group)}`, {signal});
+}
+
+/** Shared, cancellable coverage reads; mutations stay in the existing review flow. */
+export async function adminCoverageRequestsList<T>(signal?: AbortSignal): Promise<T> {
+  return apiFetchAuth<T>('/admin/coverage-requests', {signal,cache:'no-store'});
+}
