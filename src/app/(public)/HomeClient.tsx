@@ -5,7 +5,6 @@ import Link from 'next/link';
 import BookingIntentLink from '@/components/navigation/BookingIntentLink';
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { TRUST_REVIEWS } from '@/lib/trust-reviews';
 import { useSettings } from '@/hooks/useSettings';
 import { PRICING, ORDER_FEES, FAQS, MAX_LOCK_MONTHS, planForQty } from '@/lib/marketing-pricing';
@@ -376,6 +375,17 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
         .aw-tab{border:1.5px solid rgba(14,165,233,.3);color:#93c5fd;border-radius:999px;font-family:var(--fd);font-weight:600;font-size:.8rem;padding:8px 18px;cursor:pointer;background:transparent;white-space:nowrap;transition:all .2s}
         .aw-tab:hover{background:rgba(14,165,233,.1)}
         .aw-tab.active{background:linear-gradient(135deg,#0284c7,#0ea5e9);border-color:transparent;color:#fff}
+        /* Keep hero content visible in SSR; entry motion never waits for hydration. */
+        @keyframes aw-copy-in{from{transform:translateX(-30px)}to{transform:none}}
+        @keyframes aw-visual-in{from{transform:translateX(30px)}to{transform:none}}
+        @keyframes aw-panel-in{from{transform:translateY(6px)}to{transform:none}}
+        @media (min-width:640px) and (prefers-reduced-motion:no-preference){
+          .aw-hero-copy{animation:aw-copy-in .7s ease-out}
+          .aw-hero-visual{animation:aw-visual-in .7s ease-out .15s backwards}
+        }
+        @media (prefers-reduced-motion:no-preference){
+          .aw-service-panel,.aw-status-message{animation:aw-panel-in .12s ease-out}
+        }
         .aw-input{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:12px 16px;font-size:.875rem;color:#0f172a;width:100%;outline:none}
         .aw-input:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.15)}
         .aw-hero-bg{background:radial-gradient(ellipse 85% 65% at 18% 18%,rgba(14,165,233,.22),transparent 68%),radial-gradient(ellipse 65% 55% at 82% 72%,rgba(6,182,212,.17),transparent 68%),linear-gradient(165deg,#020c18,#041424 55%,#020c18)}
@@ -416,7 +426,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
             <div className="max-w-7xl mx-auto px-5 sm:px-8 lg:px-12 py-20 w-full">
               <div className="grid grid-cols-1 lg:grid-cols-[1.1fr,1fr] gap-12 items-center">
 
-                <motion.div className="aw-hero-copy" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.7 }}>
+                <div className="aw-hero-copy">
                   <div className="hero-eyebrow"><span className="aw-live" aria-hidden="true" />Check live coverage in {LIVE_CITY_NAMES}</div>
                   <h1 className="mb-6">
                     <span className="hero-hi block">शुद्ध पानी। <span className="hero-acc">सीधे आपके दरवाज़े तक।</span></span>
@@ -446,9 +456,9 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     ))}
                   </div>
                   <p className="mt-4 text-xs text-slate-400">Cash + UPI where available · Hindi &amp; English support</p>
-                </motion.div>
+                </div>
 
-                <motion.div className="aw-hero-visual flex flex-col gap-4" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.7 }}>
+                <div className="aw-hero-visual flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
                       { src: 'https://images.unsplash.com/photo-1739528660620-89a665b3a4db?auto=format&fit=crop&w=1000&q=80', alt: 'Clean 20 litre RO drinking water dispenser for home delivery', tag: '20L RO cans', priority: true },
@@ -473,7 +483,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     </ul>
                     <Link href="#pricing" className="mt-4 inline-block text-sm font-bold text-sky-300 hover:underline">Calculate your savings →</Link>
                   </div>
-                </motion.div>
+                </div>
               </div>
             </div>
           </div>
@@ -540,8 +550,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                 <button key={x.title} type="button" role="tab" aria-selected={svc === i} onClick={() => setSvc(i)} className={`aw-tab ${svc === i ? 'active' : ''}`}>{x.icon} {x.title}</button>
               ))}
             </div>
-            <AnimatePresence mode="sync">
-              <motion.div key={svc} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.12 }} className="aw-glass max-w-3xl mx-auto p-8 sm:p-10" role="tabpanel">
+              <div key={svc} className="aw-glass aw-service-panel max-w-3xl mx-auto p-8 sm:p-10" role="tabpanel">
                 <div className="flex flex-col sm:flex-row items-start gap-6">
                   <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style={{ background: `${s.accent}22`, border: `1.5px solid ${s.accent}55` }}>{s.icon}</div>
                   <div className="flex-1">
@@ -556,8 +565,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                     <BookingIntentLink href={s.href} className="aw-btn px-7 py-3 text-sm">{s.cta} →</BookingIntentLink>
                   </div>
                 </div>
-              </motion.div>
-            </AnimatePresence>
+              </div>
           </div>
           <div className="mt-16"><Wave color="#f8fafc" /></div>
         </section>
@@ -782,9 +790,7 @@ export default function HomeClient({ initialCities }: { initialCities: City[] })
                   <input id="f-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} className="aw-input" placeholder="10-digit Indian mobile" autoComplete="tel" inputMode="tel" required />
                 </div>
                 <button type="submit" disabled={busy} className="aw-btn w-full justify-center py-3.5 text-sm" style={{ borderRadius: 14 }}>{busy ? '⏳ Saving…' : 'Join the first 100 →'}</button>
-                <AnimatePresence>
-                  {msg && <motion.p key="m" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className={`text-sm text-center font-medium ${msg.includes('Welcome') ? 'text-emerald-700' : 'text-red-700'}`}>{msg}</motion.p>}
-                </AnimatePresence>
+                  {msg && <p key={msg} role="status" className={`aw-status-message text-sm text-center font-medium ${msg.includes('Welcome') ? 'text-emerald-700' : 'text-red-700'}`}>{msg}</p>}
               </form>
             </div>
           </div>

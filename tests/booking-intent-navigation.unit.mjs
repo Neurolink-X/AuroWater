@@ -49,8 +49,9 @@ test('mobile bottom navigation acknowledges taps before route content arrives', 
 });
 
 test('service and admin tab selection does not wait for exit or low priority state', () => {
-  assert.ok(home.includes('<AnimatePresence mode="sync">'));
-  assert.ok(home.includes('transition={{ duration: 0.12 }}'));
+  assert.ok(home.includes('key={svc} className="aw-glass aw-service-panel'));
+  assert.ok(home.includes('animation:aw-panel-in .12s ease-out'));
+  assert.ok(!home.includes("from 'framer-motion'"));
   assert.ok(admin.includes('activeTabRef.current = key;'));
   assert.ok(admin.includes('setTab(key);'));
   assert.ok(!admin.includes('startTransition(() => setTab(key))'));

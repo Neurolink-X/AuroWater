@@ -1,17 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { transpileModule, ModuleKind, ScriptTarget, JsxEmit } from 'typescript';
 
 const home = readFileSync('src/app/(public)/HomeClient.tsx', 'utf8');
 const shell = readFileSync('src/components/layout/RootChrome.tsx', 'utf8');
 const page = readFileSync('src/app/(public)/page.tsx', 'utf8');
 
-test('mobile homepage paints the existing hero before animation hydration', () => {
-  assert.match(home, /@media\s*\(max-width:639px\)/);
-  assert.match(home, /\.aw-hero-copy,\.aw-hero-visual\{opacity:1!important;transform:none!important\}/);
-  assert.match(home, /className="aw-hero-copy"\s+initial=/);
-  assert.match(home, /className="aw-hero-visual flex flex-col gap-4"\s+initial=/);
-  assert.match(home, /transition=\{\{ duration: 0\.7 \}\}/);
+test('homepage hero stays visible before hydration and CSS entry motion does not hide text', () => {
+  assert.match(home, /<div className="aw-hero-copy">/);
+  assert.match(home, /<div className="aw-hero-visual flex flex-col gap-4">/);
+  assert.doesNotMatch(home, /from ['"]framer-motion['"]/);
+  assert.doesNotMatch(home, /<motion\.|<AnimatePresence/);
+  for (const name of ['aw-copy-in', 'aw-visual-in', 'aw-panel-in']) {
+    const keyframes = home.slice(home.indexOf('@keyframes ' + name)).split('\n')[0];
+    assert.ok(keyframes.includes('transform:'));
+    assert.ok(!keyframes.includes('opacity'), 'Entry animation must not hide content');
+  }
+  assert.ok(home.includes('(min-width:640px) and (prefers-reduced-motion:no-preference)'));
 });
 
 test('mobile hero keeps a stable single-line height while live price is verified', () => {
@@ -52,4 +62,53 @@ test('SEO, images, public chrome and booking intents remain intact', () => {
   assert.match(page, /application\/ld\+json/);
   assert.match(shell, /<Header \/>/);
   assert.match(shell, /<Footer \/>/);
+});
+
+test('server rendering exposes hero, booking links and verified prices without animation JS', () => {
+  const require = createRequire(import.meta.url);
+  const exports = {};
+  let ready = false;
+  const Link = ({ children, href, ...props }) => React.createElement('a', { ...props, href }, children);
+  const dependencies = {
+    react: { ...React, default: React },
+    'next/link': { default: Link },
+    '@/components/navigation/BookingIntentLink': { default: Link },
+    'next/image': { default: () => null },
+    '@/lib/trust-reviews': { TRUST_REVIEWS: [] },
+    '@/lib/pricing/presentation': { pricingFaqs: () => [] },
+    '@/hooks/useSettings': { useSettings: () => ({ settings: {
+      default_can_price: 27, chilled_can_price: 32,
+      service_base_prices: { plumbing: 149, tank_cleaning: 599 },
+    }, pricingReady: ready, error: null, refresh() {} }) },
+    '@/lib/marketing-pricing': {
+      PRICING: { water: { normal: 25, chilled: 30 }, plumber: { visitFee: 149 }, tank: [{ from: 599 }], plans: [] },
+      ORDER_FEES: { assumedDeliveriesPerMonth: 4 }, FAQS: [], MAX_LOCK_MONTHS: 12,
+      planForQty: () => ({ lockMonths: 12 }),
+    },
+  };
+  const code = transpileModule(home, { compilerOptions: {
+    module: ModuleKind.CommonJS, target: ScriptTarget.ES2022, jsx: JsxEmit.ReactJSX,
+  } }).outputText;
+  vm.runInNewContext(code, { exports, require: id => {
+    assert.notEqual(id, 'framer-motion', 'Hero must render without the animation runtime');
+    return Object.hasOwn(dependencies, id) ? dependencies[id] : require(id);
+  } });
+  const render = () => renderToStaticMarkup(React.createElement(exports.default, {
+    initialCities: [{ id: 'kanpur', name: 'Kanpur', slug: 'kanpur', status: 'active' }],
+  }));
+  const pending = render();
+  assert.match(pending, /Order 20L RO cans, book a plumber/);
+  assert.match(pending, /Loading live price/);
+  assert.match(pending, /<div class="aw-hero-copy">/);
+  assert.doesNotMatch(pending, /style="[^"]*opacity:0(?:;|")/);
+  for (const service of ['water_can', 'plumbing', 'tank_cleaning']) {
+    assert.ok(pending.includes('/book?service=' + service));
+  }
+  ready = true;
+  const verified = render();
+  assert.match(verified, /₹27,/);
+  assert.match(verified, /Chilled RO/);
+  assert.match(verified, /<form/);
+  assert.match(verified, /role="tabpanel"/);
+  assert.match(verified, /Join the first 100/);
 });
