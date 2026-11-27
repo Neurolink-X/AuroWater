@@ -146,6 +146,7 @@ export const EXPLICIT_RUNTIME_OWNERS = Object.freeze({
   'src/lib/routing/slot-safe-route.ts': ['dispatch', 'supplier', 'technician'],
   'src/components/observability/RuntimeErrorReporter.tsx': ['admin'],
   'src/app/(public)/HomeClient.tsx': ['booking', 'auth'],
+  'src/app/(public)/page.tsx': ['booking'],
   'src/app/(public)/contact/ContactForm.tsx': ['admin', 'auth'],
   'src/app/account-help/page.tsx': ['auth', 'admin'],
   'src/app/(public)/service-areas/page.tsx': ['booking', 'admin'],

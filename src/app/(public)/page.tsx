@@ -1,5 +1,6 @@
 // src/app/(public)/page.tsx — SERVER component: owns metadata + structured data (SEO).
 import type { Metadata, Viewport } from 'next';
+import { Suspense } from 'react';
 import HomeClient from './HomeClient';
 import { SITE, FAQS, MAX_LOCK_MONTHS } from '@/lib/marketing-pricing';
 import { getPublicServiceCities } from '@/lib/public-city-directory.server';
@@ -86,17 +87,27 @@ const buildJsonLd = (cities: City[]) => ({
   ],
 });
 
-export default async function Page() {
+async function CityStructuredData() {
   const cities = await getPublicServiceCities();
   const jsonLd = buildJsonLd(cities);
   return (
-    <>
       <script
         type="application/ld+json"
         // escape "<" so no text can ever close the script tag
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }}
       />
-      <HomeClient initialCities={cities} />
+  );
+}
+
+export default function Page() {
+  // City metadata must not hold the visible home page behind a database read.
+  // Keep the interactive tree mounted once; its existing public API loads cities.
+  return (
+    <>
+      <HomeClient initialCities={[]} />
+      <Suspense fallback={null}>
+        <CityStructuredData />
+      </Suspense>
     </>
   );
 }
@@ -1461,3 +1472,4 @@ export default async function Page() {
 //     </>
 //   );
 // }
+
